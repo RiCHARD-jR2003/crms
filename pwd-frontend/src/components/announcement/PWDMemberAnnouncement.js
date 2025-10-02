@@ -114,7 +114,7 @@ function PWDMemberAnnouncement() {
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#1A1A1A' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#FFFFFF' }}>
       <PWDMemberSidebar />
       
       {/* Main content */}
@@ -124,14 +124,15 @@ function PWDMemberAnnouncement() {
         flexDirection: 'column', 
         ml: '280px',
         width: 'calc(100% - 280px)',
-        p: 3
+        p: 3,
+        bgcolor: '#FFFFFF'
       }}>
         {/* Header */}
         <Box sx={{ mb: 4 }}>
-          <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#FFFFFF', mb: 1 }}>
+          <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#000000', mb: 1 }}>
             Announcements
           </Typography>
-          <Typography variant="h6" sx={{ color: '#E0E0E0' }}>
+          <Typography variant="h6" sx={{ color: '#000000' }}>
             Stay updated with the latest news and important information from PDAO.
           </Typography>
         </Box>
@@ -146,36 +147,36 @@ function PWDMemberAnnouncement() {
         {/* Statistics Card */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#2C3E50', border: '1px solid #455A64' }}>
+            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
               <CardContent sx={{ textAlign: 'center', p: 2 }}>
                 <Campaign sx={{ fontSize: 40, color: '#3498DB', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#FFFFFF' }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#000000' }}>
                   {announcements.length}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#E0E0E0' }}>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
                   Total Announcements
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#2C3E50', border: '1px solid #455A64' }}>
+            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
               <CardContent sx={{ textAlign: 'center', p: 2 }}>
                 <PriorityHigh sx={{ fontSize: 40, color: '#E74C3C', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#FFFFFF' }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#000000' }}>
                   {announcements.filter(a => a.priority === 'urgent').length}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#E0E0E0' }}>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
                   Urgent Announcements
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#2C3E50', border: '1px solid #455A64' }}>
+            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
               <CardContent sx={{ textAlign: 'center', p: 2 }}>
                 <Schedule sx={{ fontSize: 40, color: '#F39C12', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#FFFFFF' }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#000000' }}>
                   {announcements.filter(a => {
                     const announcementDate = new Date(a.created_at);
                     const weekAgo = new Date();
@@ -183,20 +184,20 @@ function PWDMemberAnnouncement() {
                     return announcementDate > weekAgo;
                   }).length}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#E0E0E0' }}>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
                   This Week
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#2C3E50', border: '1px solid #455A64' }}>
+            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
               <CardContent sx={{ textAlign: 'center', p: 2 }}>
                 <CheckCircle sx={{ fontSize: 40, color: '#27AE60', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#FFFFFF' }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#000000' }}>
                   {announcements.filter(a => a.status === 'published').length}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#E0E0E0' }}>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
                   Published
                 </Typography>
               </CardContent>
@@ -209,12 +210,12 @@ function PWDMemberAnnouncement() {
           p: 3,
           border: '1px solid #E0E0E0',
           borderRadius: 4,
-          bgcolor: '#2C3E50', // Dark blue background
+          bgcolor: '#FFFFFF',
           height: '100%'
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-            <Campaign sx={{ color: '#FFFFFF', fontSize: 24 }} />
-            <Typography sx={{ fontWeight: 700, color: '#FFFFFF', fontSize: '1.2rem' }}>
+            <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
+            <Typography sx={{ fontWeight: 700, color: '#000000', fontSize: '1.2rem' }}>
               Latest Announcements
             </Typography>
           </Box>
@@ -237,7 +238,7 @@ function PWDMemberAnnouncement() {
                     <ListItemText
                       primary={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#FFFFFF' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#000000' }}>
                             {announcement.title}
                           </Typography>
                           <Chip
@@ -270,19 +271,19 @@ function PWDMemberAnnouncement() {
                       }
                       secondary={
                         <Box>
-                          <Typography variant="body2" sx={{ color: '#E0E0E0', mb: 1 }}>
+                          <Typography variant="body2" sx={{ color: '#000000', mb: 1 }}>
                             {announcement.content || announcement.description}
                           </Typography>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Person sx={{ fontSize: 16, color: '#B0BEC5' }} />
-                              <Typography variant="caption" sx={{ color: '#B0BEC5' }}>
+                              <Person sx={{ fontSize: 16, color: '#666666' }} />
+                              <Typography variant="caption" sx={{ color: '#666666' }}>
                                 {announcement.author?.username || announcement.author?.name || 'PDAO Admin'}
                               </Typography>
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Schedule sx={{ fontSize: 16, color: '#B0BEC5' }} />
-                              <Typography variant="caption" sx={{ color: '#B0BEC5' }}>
+                              <Schedule sx={{ fontSize: 16, color: '#666666' }} />
+                              <Typography variant="caption" sx={{ color: '#666666' }}>
                                 {formatDate(announcement.created_at)}
                               </Typography>
                             </Box>
@@ -291,17 +292,17 @@ function PWDMemberAnnouncement() {
                       }
                     />
                   </ListItem>
-                  {index < announcements.length - 1 && <Divider sx={{ borderColor: '#455A64' }} />}
+                  {index < announcements.length - 1 && <Divider sx={{ borderColor: '#E0E0E0' }} />}
                 </React.Fragment>
               ))}
             </List>
           ) : (
             <Box sx={{ textAlign: 'center', py: 6 }}>
-              <Campaign sx={{ fontSize: 64, color: '#FFFFFF', mb: 2 }} />
-              <Typography variant="h6" sx={{ color: '#FFFFFF', mb: 1 }}>
+              <Campaign sx={{ fontSize: 64, color: '#BDC3C7', mb: 2 }} />
+              <Typography variant="h6" sx={{ color: '#000000', mb: 1 }}>
                 No announcements available
               </Typography>
-              <Typography variant="body2" sx={{ color: '#E0E0E0' }}>
+              <Typography variant="body2" sx={{ color: '#666666' }}>
                 Check back later for important updates and news from PDAO.
               </Typography>
             </Box>

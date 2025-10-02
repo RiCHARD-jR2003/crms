@@ -1,5 +1,5 @@
 // src/components/application/ApplicationForm.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -17,7 +17,8 @@ import {
   Alert,
   Paper,
   Divider,
-  Chip
+  Chip,
+  CircularProgress
 } from '@mui/material';
 import { api } from '../../services/api';
 import applicationService from '../../services/applicationService';
@@ -31,6 +32,8 @@ const steps = [
 
 function ApplicationForm() {
   const [activeStep, setActiveStep] = useState(0);
+  const [requiredDocuments, setRequiredDocuments] = useState([]);
+  const [documentsLoading, setDocumentsLoading] = useState(true);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -52,15 +55,8 @@ function ApplicationForm() {
     emergencyContact: '',
     emergencyPhone: '',
     emergencyRelationship: '',
-    // Document fields
-    medicalCertificate: null,
-    clinicalAbstract: null,
-    voterCertificate: null,
-    idPictures: null,
-    birthCertificate: null,
-    wholeBodyPicture: null,
-    affidavit: null,
-    barangayCertificate: null
+    // Document fields - will be populated dynamically
+    documents: {}
   });
 
   const [errors, setErrors] = useState({});
@@ -73,8 +69,34 @@ function ApplicationForm() {
   };
 
   const handleFileChange = (field, file) => {
-    setFormData(prev => ({ ...prev, [field]: file }));
+    setFormData(prev => ({ 
+      ...prev, 
+      documents: { 
+        ...prev.documents, 
+        [field]: file 
+      } 
+    }));
   };
+
+  // Fetch required documents on component mount
+  useEffect(() => {
+    const fetchRequiredDocuments = async () => {
+      try {
+        // Fetch documents from public endpoint (active documents only)
+        const response = await api.get('/documents/public', { auth: false });
+        if (response.success) {
+          // Backend returns only active documents within effective date range for public access
+          setRequiredDocuments(response.documents);
+        }
+      } catch (error) {
+        console.error('Error fetching required documents:', error);
+      } finally {
+        setDocumentsLoading(false);
+      }
+    };
+
+    fetchRequiredDocuments();
+  }, []);
 
   // Calculate age from date of birth
   const calculateAge = (dateOfBirth) => {
@@ -130,10 +152,12 @@ function ApplicationForm() {
         break;
         
       case 3: // Documents
-        if (!formData.medicalCertificate) currentErrors.medicalCertificate = 'Medical Certificate is required';
-        if (!formData.barangayCertificate) currentErrors.barangayCertificate = 'Barangay Certificate of Residency is required';
-        // Only require birth certificate if applicant is a minor
-        if (isMinor() && !formData.birthCertificate) currentErrors.birthCertificate = 'Birth Certificate is required for minors';
+        // Validate required documents dynamically
+        requiredDocuments.forEach(doc => {
+          if (doc.is_required && !formData.documents[`doc_${doc.id}`]) {
+            currentErrors[`doc_${doc.id}`] = `${doc.name} is required`;
+          }
+        });
         break;
     }
     
@@ -201,34 +225,15 @@ function ApplicationForm() {
         }
       });
 
-      // Add file uploads to FormData
-      if (formData.medicalCertificate) {
-        formDataToSend.append('medicalCertificate', formData.medicalCertificate);
-      }
-      if (formData.clinicalAbstract) {
-        formDataToSend.append('clinicalAbstract', formData.clinicalAbstract);
-      }
-      if (formData.voterCertificate) {
-        formDataToSend.append('voterCertificate', formData.voterCertificate);
-      }
-      if (formData.idPictures) {
-        // Handle multiple ID pictures
-        Array.from(formData.idPictures).forEach((file, index) => {
-          formDataToSend.append(`idPicture_${index}`, file);
-        });
-      }
-      if (formData.birthCertificate) {
-        formDataToSend.append('birthCertificate', formData.birthCertificate);
-      }
-      if (formData.wholeBodyPicture) {
-        formDataToSend.append('wholeBodyPicture', formData.wholeBodyPicture);
-      }
-      if (formData.affidavit) {
-        formDataToSend.append('affidavit', formData.affidavit);
-      }
-      if (formData.barangayCertificate) {
-        formDataToSend.append('barangayCertificate', formData.barangayCertificate);
-      }
+      // Add file uploads to FormData dynamically
+      Object.keys(formData.documents).forEach(key => {
+        const file = formData.documents[key];
+        if (file) {
+          // Extract document ID from key (doc_123 -> 123)
+          const docId = key.replace('doc_', '');
+          formDataToSend.append(`document_${docId}`, file);
+        }
+      });
 
       // Debug: Log what we're sending
       console.log('Sending FormData with fields:', Object.fromEntries(formDataToSend.entries()));
@@ -1173,117 +1178,101 @@ function ApplicationForm() {
               Please upload the following documents in PDF, JPG, or PNG format (max 2MB each)
             </Alert>
             
-            <Grid container spacing={3}>
-              {/* Medical Certificate */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={{ mb: 2, color: '#34495E', fontWeight: 600, fontSize: '1rem' }}>
-                  Medical Certificate * (with Type of Disability & Doctor's qualification)
+            {documentsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+                <CircularProgress />
+                <Typography variant="body2" sx={{ ml: 2 }}>
+                  Loading required documents...
                 </Typography>
-                <input
-                  type="file"
-                  accept=".pdf,image/*"
-                  onChange={(e) => handleFileChange('medicalCertificate', e.target.files[0])}
-                  required
-                  style={{ padding: '12px', border: '2px dashed #BDC3C7', borderRadius: '8px', width: '100%', backgroundColor: '#F8F9FA', color: '#2C3E50', fontSize: '0.95rem' }}
-                />
+              </Box>
+            ) : (
+              <Grid container spacing={3}>
+                {requiredDocuments.map((document) => (
+                  <Grid item xs={12} key={document.id}>
+                    <Box sx={{ 
+                      p: 2, 
+                      border: '1px solid #E0E0E0', 
+                      borderRadius: '8px', 
+                      backgroundColor: '#FAFAFA' 
+                    }}>
+                      <Typography variant="subtitle1" sx={{ 
+                        mb: 2, 
+                        color: '#34495E', 
+                        fontWeight: 600, 
+                        fontSize: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}>
+                        {document.name}
+                        {document.is_required && (
+                          <Chip 
+                            label="Required" 
+                            size="small" 
+                            color="error" 
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                        )}
+                      </Typography>
+                      
+                      {document.description && (
+                        <Typography variant="body2" sx={{ 
+                          mb: 2, 
+                          color: '#666', 
+                          fontStyle: 'italic' 
+                        }}>
+                          {document.description}
+                        </Typography>
+                      )}
+                      
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" sx={{ color: '#666' }}>
+                          Allowed file types: {document.file_types?.join(', ') || 'PDF, JPG, PNG'}
+                        </Typography>
+                        <br />
+                        <Typography variant="caption" sx={{ color: '#666' }}>
+                          Maximum file size: {document.max_file_size} KB
+                        </Typography>
+                      </Box>
+                      
+                      <input
+                        type="file"
+                        accept={document.file_types?.map(type => `.${type}`).join(',') || '.pdf,image/*'}
+                        onChange={(e) => handleFileChange(`doc_${document.id}`, e.target.files[0])}
+                        required={document.is_required}
+                        style={{ 
+                          padding: '12px', 
+                          border: '2px dashed #BDC3C7', 
+                          borderRadius: '8px', 
+                          width: '100%', 
+                          backgroundColor: '#F8F9FA', 
+                          color: '#2C3E50', 
+                          fontSize: '0.95rem' 
+                        }}
+                      />
+                      
+                      {formData.documents[`doc_${document.id}`] && (
+                        <Typography variant="caption" sx={{ 
+                          mt: 1, 
+                          display: 'block', 
+                          color: '#4CAF50' 
+                        }}>
+                          ✓ File selected: {formData.documents[`doc_${document.id}`].name}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Grid>
+                ))}
+                
+                {requiredDocuments.length === 0 && (
+                  <Grid item xs={12}>
+                    <Alert severity="info" sx={{ textAlign: 'center' }}>
+                      No required documents are currently configured. Please contact the administrator.
+                    </Alert>
+                  </Grid>
+                )}
               </Grid>
-
-              {/* Clinical Abstract/Assessment */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={{ mb: 2, color: '#34495E', fontWeight: 600, fontSize: '1rem' }}>
-                  Clinical Abstract/Protocol/Behavioral Assessment/Audiometry Test
-                </Typography>
-                <input
-                  type="file"
-                  accept=".pdf,image/*"
-                  onChange={(e) => handleFileChange('clinicalAbstract', e.target.files[0])}
-                  style={{ padding: '12px', border: '2px dashed #BDC3C7', borderRadius: '8px', width: '100%', backgroundColor: '#F8F9FA', color: '#2C3E50', fontSize: '0.95rem' }}
-                />
-              </Grid>
-
-              {/* Voter Certificate */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={{ mb: 2, color: '#34495E', fontWeight: 600, fontSize: '1rem' }}>
-                  Voter Certificate
-                </Typography>
-                <input
-                  type="file"
-                  accept=".pdf,image/*"
-                  onChange={(e) => handleFileChange('voterCertificate', e.target.files[0])}
-                  style={{ padding: '12px', border: '2px dashed #BDC3C7', borderRadius: '8px', width: '100%', backgroundColor: '#F8F9FA', color: '#2C3E50', fontSize: '0.95rem' }}
-                />
-              </Grid>
-
-              {/* ID Pictures */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={{ mb: 2, color: '#34495E', fontWeight: 600, fontSize: '1rem' }}>
-                  2pcs 1"x1" ID Picture (white background, latest photo)
-                </Typography>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handleFileChange('idPictures', e.target.files)}
-                  style={{ padding: '12px', border: '2px dashed #BDC3C7', borderRadius: '8px', width: '100%', backgroundColor: '#F8F9FA', color: '#2C3E50', fontSize: '0.95rem' }}
-                />
-              </Grid>
-
-              {/* Birth Certificate (if minor) */}
-              {isMinor() && (
-                <Grid item xs={12}>
-                  <Typography variant="subtitle1" sx={{ mb: 2, color: '#34495E', fontWeight: 600, fontSize: '1rem' }}>
-                    Birth Certificate (if minor) *
-                  </Typography>
-                  <input
-                    type="file"
-                    accept=".pdf,image/*"
-                    onChange={(e) => handleFileChange('birthCertificate', e.target.files[0])}
-                    required
-                    style={{ padding: '12px', border: '2px dashed #BDC3C7', borderRadius: '8px', width: '100%', backgroundColor: '#F8F9FA', color: '#2C3E50', fontSize: '0.95rem' }}
-                  />
-                </Grid>
-              )}
-
-              {/* Whole Body Picture (for apparent disability) */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={{ mb: 2, color: '#34495E', fontWeight: 600, fontSize: '1rem' }}>
-                  Whole Body Picture (Only for Apparent Disability)
-                </Typography>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileChange('wholeBodyPicture', e.target.files[0])}
-                  style={{ padding: '12px', border: '2px dashed #BDC3C7', borderRadius: '8px', width: '100%', backgroundColor: '#F8F9FA', color: '#2C3E50', fontSize: '0.95rem' }}
-                />
-              </Grid>
-
-              {/* Affidavit of Guardianship/Loss */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={{ mb: 2, color: '#34495E', fontWeight: 600, fontSize: '1rem' }}>
-                  Affidavit of Guardianship/Loss
-                </Typography>
-                <input
-                  type="file"
-                  accept=".pdf,image/*"
-                  onChange={(e) => handleFileChange('affidavit', e.target.files[0])}
-                  style={{ padding: '12px', border: '2px dashed #BDC3C7', borderRadius: '8px', width: '100%', backgroundColor: '#F8F9FA', color: '#2C3E50', fontSize: '0.95rem' }}
-                />
-              </Grid>
-
-              {/* Barangay Certificate of Residency */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" sx={{ mb: 2, color: '#34495E', fontWeight: 600, fontSize: '1rem' }}>
-                  Barangay Certificate of Residency *
-                </Typography>
-                <input
-                  type="file"
-                  accept=".pdf,image/*"
-                  onChange={(e) => handleFileChange('barangayCertificate', e.target.files[0])}
-                  required
-                  style={{ padding: '12px', border: '2px dashed #BDC3C7', borderRadius: '8px', width: '100%', backgroundColor: '#F8F9FA', color: '#2C3E50', fontSize: '0.95rem' }}
-                />
-              </Grid>
-            </Grid>
+            )}
           </Box>
         );
 

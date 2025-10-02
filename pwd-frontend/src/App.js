@@ -11,23 +11,32 @@ import Register from './components/auth/Register';
 import PasswordReset from './components/auth/PasswordReset';
 import AdminDashboard from './components/dashboard/AdminDashboard';
 import BarangayPresidentDashboard from './components/dashboard/BarangayPresidentDashboard';
-// Temporarily commenting out components that might have React Native dependencies
-import BarangayPresidentPWDRecords from './components/records/BarangayPresidentPWDRecords';
-import BarangayPresidentPWDCard from './components/cards/BarangayPresidentPWDCard';
-import BarangayPresidentAyuda from './components/ayuda/BarangayPresidentAyuda';
-import BarangayPresidentAnnouncement from './components/announcement/BarangayPresidentAnnouncement';
 import PWDMemberDashboard from './components/dashboard/PWDMemberDashboard';
-import PWDProfile from './components/profile/PWDProfile';
-import PWDMemberSupportDesk from './components/support/PWDMemberSupportDesk';
-import PWDMemberAnnouncement from './components/announcement/PWDMemberAnnouncement';
+
+// Admin components
 import PWDRecords from './components/records/PWDRecords';
 import PWDCard from './components/cards/PWDCard';
 import Reports from './components/reports/Reports';
 import Ayuda from './components/ayuda/Ayuda';
+import BenefitTracking from './components/benefit/BenefitTracking';
 import Announcement from './components/announcement/Announcement';
 import AdminSupportDesk from './components/support/AdminSupportDesk';
+
+// Barangay President components
+import BarangayPresidentPWDRecords from './components/records/BarangayPresidentPWDRecords';
+import BarangayPresidentPWDCard from './components/cards/BarangayPresidentPWDCard';
 import BarangayPresidentReports from './components/reports/BarangayPresidentReports';
-import BenefitTracking from './components/benefit/BenefitTracking';
+import BarangayPresidentAyuda from './components/ayuda/BarangayPresidentAyuda';
+import BarangayPresidentAnnouncement from './components/announcement/BarangayPresidentAnnouncement';
+
+// PWD Member components
+import PWDMemberAnnouncement from './components/announcement/PWDMemberAnnouncement';
+import PWDMemberSupportDesk from './components/support/PWDMemberSupportDesk';
+import PWDProfile from './components/profile/PWDProfile';
+import MemberDocumentUpload from './components/documents/MemberDocumentUpload';
+
+// Document Management components
+import DocumentManagement from './components/documents/DocumentManagement';
 
 const theme = createTheme({
   palette: {
@@ -126,153 +135,173 @@ function AppContent() {
           </ProtectedRoute>
         } 
       />
+      
+      {/* Admin Routes */}
       <Route 
         path="/admin-dashboard" 
         element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
+          <ProtectedRoute allowedRoles={['Admin']}>
             <AdminDashboard />
           </ProtectedRoute>
-        }
+        } 
       />
-      {/* Admin Routes */}
       <Route 
         path="/pwd-records" 
         element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
+          <ProtectedRoute allowedRoles={['Admin']}>
             <PWDRecords />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/pwd-card" 
         element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
+          <ProtectedRoute allowedRoles={['Admin']}>
             <PWDCard />
           </ProtectedRoute>
-        }
+        } 
       />
-            <Route 
-              path="/reports" 
-              element={
-                <ProtectedRoute allowedRoles={["Admin"]}>
-                  <Reports />
-                </ProtectedRoute>
-              }
-            />
-            <Route 
-              path="/ayuda" 
-              element={
-                <ProtectedRoute allowedRoles={["Admin"]}>
-                  <Ayuda />
-                </ProtectedRoute>
-              }
-            />
+      <Route 
+        path="/reports" 
+        element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <Reports />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/ayuda" 
+        element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <Ayuda />
+          </ProtectedRoute>
+        } 
+      />
       <Route 
         path="/benefit-tracking" 
         element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
+          <ProtectedRoute allowedRoles={['Admin']}>
             <BenefitTracking />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/announcement" 
         element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
+          <ProtectedRoute allowedRoles={['Admin']}>
             <Announcement />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/admin-support" 
         element={
-          <ProtectedRoute allowedRoles={["Admin"]}>
+          <ProtectedRoute allowedRoles={['Admin']}>
             <AdminSupportDesk />
           </ProtectedRoute>
-        }
+        } 
       />
+      <Route 
+        path="/document-management" 
+        element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <DocumentManagement />
+          </ProtectedRoute>
+        } 
+      />
+      
       {/* Barangay President Routes */}
       <Route 
         path="/barangay-president-dashboard" 
         element={
-          <ProtectedRoute allowedRoles={["BarangayPresident"]}>
+          <ProtectedRoute allowedRoles={['BarangayPresident']}>
             <BarangayPresidentDashboard />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/barangay-president-pwd-records" 
         element={
-          <ProtectedRoute allowedRoles={["BarangayPresident"]}>
+          <ProtectedRoute allowedRoles={['BarangayPresident']}>
             <BarangayPresidentPWDRecords />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/barangay-president-pwd-card" 
         element={
-          <ProtectedRoute allowedRoles={["BarangayPresident"]}>
+          <ProtectedRoute allowedRoles={['BarangayPresident']}>
             <BarangayPresidentPWDCard />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/barangay-president-reports" 
         element={
-          <ProtectedRoute allowedRoles={["BarangayPresident"]}>
+          <ProtectedRoute allowedRoles={['BarangayPresident']}>
             <BarangayPresidentReports />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/barangay-president-ayuda" 
         element={
-          <ProtectedRoute allowedRoles={["BarangayPresident"]}>
+          <ProtectedRoute allowedRoles={['BarangayPresident']}>
             <BarangayPresidentAyuda />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/barangay-president-announcement" 
         element={
-          <ProtectedRoute allowedRoles={["BarangayPresident"]}>
+          <ProtectedRoute allowedRoles={['BarangayPresident']}>
             <BarangayPresidentAnnouncement />
           </ProtectedRoute>
-        }
-      /> */
+        } 
+      />
+      
       {/* PWD Member Routes */}
       <Route 
         path="/pwd-dashboard" 
         element={
-          <ProtectedRoute allowedRoles={["PWDMember"]}>
+          <ProtectedRoute allowedRoles={['PWDMember']}>
             <PWDMemberDashboard />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/pwd-announcements" 
         element={
-          <ProtectedRoute allowedRoles={["PWDMember"]}>
+          <ProtectedRoute allowedRoles={['PWDMember']}>
             <PWDMemberAnnouncement />
           </ProtectedRoute>
-        }
-      />
-      <Route 
-        path="/pwd-profile" 
-        element={
-          <ProtectedRoute allowedRoles={["PWDMember"]}>
-            <PWDProfile />
-          </ProtectedRoute>
-        }
+        } 
       />
       <Route 
         path="/pwd-support" 
         element={
-          <ProtectedRoute allowedRoles={["PWDMember"]}>
+          <ProtectedRoute allowedRoles={['PWDMember']}>
             <PWDMemberSupportDesk />
           </ProtectedRoute>
-        }
+        } 
       />
+      <Route 
+        path="/pwd-profile" 
+        element={
+          <ProtectedRoute allowedRoles={['PWDMember']}>
+            <PWDProfile />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/pwd-documents" 
+        element={
+          <ProtectedRoute allowedRoles={['PWDMember']}>
+            <MemberDocumentUpload />
+          </ProtectedRoute>
+        } 
+      />
+      
       <Route path="/unauthorized" element={<div>Unauthorized access</div>} />
       <Route path="/apply" element={<div>Apply for PWD membership — Coming soon</div>} />
     </Routes>
@@ -284,7 +313,12 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <Router>
+        <Router
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true
+          }}
+        >
           <div className="App">
             <AppContent />
           </div>

@@ -94,7 +94,6 @@ function AdminDashboard() {
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
-  const [selectedBarangay, setSelectedBarangay] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleSidebarToggle = () => {
@@ -105,11 +104,6 @@ function AdminDashboard() {
     setIsMobileMenuOpen(isOpen);
   };
 
-  const handleBarangaySelect = (barangay) => {
-    console.log('🏛️ AdminDashboard received barangay selection:', barangay);
-    setSelectedBarangay(barangay);
-    console.log('🏛️ Selected barangay set to:', barangay.name);
-  };
 
   const getActivityIcon = (iconType) => {
     switch (iconType) {
@@ -256,23 +250,8 @@ function AdminDashboard() {
           
           {/* Free Google Maps Component (No API Key Required) */}
           <FreeGoogleMapsComponent 
-            onBarangaySelect={handleBarangaySelect}
             height="calc(100% - 80px)"
           />
-        
-          {selectedBarangay && (
-            <Box sx={{ 
-              mt: 2, 
-              p: 1.5, 
-              backgroundColor: '#E8F4FD', 
-              borderRadius: 1,
-              border: '1px solid #3498DB'
-            }}>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
-                Selected: {selectedBarangay.name}
-              </Typography>
-            </Box>
-          )}
         </CardContent>
       </Card>
     );
@@ -299,7 +278,7 @@ function AdminDashboard() {
       { month: 'DEC', registered: 0, pending: 0 }
     ];
 
-    const maxValue = Math.max(...monthlyData.map(d => d.registered + d.pending));
+    const maxValue = Math.max(...monthlyData.map(d => (d.registered || 0) + (d.pending || 0)), 1);
     const chartHeight = 180;
     const chartWidth = 400;
 
@@ -352,8 +331,9 @@ function AdminDashboard() {
               <polyline
                 points={monthlyData.map((data, index) => {
                   const x = 40 + (index * (chartWidth - 60) / 11);
-                  const y = chartHeight - 20 - ((data.registered / maxValue) * (chartHeight - 40));
-                  return `${x},${y}`;
+                  const registeredValue = data.registered || 0;
+                  const y = chartHeight - 20 - ((registeredValue / maxValue) * (chartHeight - 40));
+                  return `${x},${isNaN(y) ? chartHeight - 20 : y}`;
                 }).join(' ')}
                 fill="none"
                 stroke="#3498DB"
@@ -366,8 +346,9 @@ function AdminDashboard() {
               <polyline
                 points={monthlyData.map((data, index) => {
                   const x = 40 + (index * (chartWidth - 60) / 11);
-                  const y = chartHeight - 20 - ((data.pending / maxValue) * (chartHeight - 40));
-                  return `${x},${y}`;
+                  const pendingValue = data.pending || 0;
+                  const y = chartHeight - 20 - ((pendingValue / maxValue) * (chartHeight - 40));
+                  return `${x},${isNaN(y) ? chartHeight - 20 : y}`;
                 }).join(' ')}
                 fill="none"
                 stroke="#E74C3C"
@@ -379,12 +360,13 @@ function AdminDashboard() {
               {/* Data points for Registered */}
               {monthlyData.map((data, index) => {
                 const x = 40 + (index * (chartWidth - 60) / 11);
-                const y = chartHeight - 20 - ((data.registered / maxValue) * (chartHeight - 40));
+                const registeredValue = data.registered || 0;
+                const y = chartHeight - 20 - ((registeredValue / maxValue) * (chartHeight - 40));
                 return (
                   <circle
                     key={`registered-${index}`}
                     cx={x}
-                    cy={y}
+                    cy={isNaN(y) ? chartHeight - 20 : y}
                     r="4"
                     fill="#3498DB"
                     stroke="#FFFFFF"
@@ -396,12 +378,13 @@ function AdminDashboard() {
               {/* Data points for Pending */}
               {monthlyData.map((data, index) => {
                 const x = 40 + (index * (chartWidth - 60) / 11);
-                const y = chartHeight - 20 - ((data.pending / maxValue) * (chartHeight - 40));
+                const pendingValue = data.pending || 0;
+                const y = chartHeight - 20 - ((pendingValue / maxValue) * (chartHeight - 40));
                 return (
                   <circle
                     key={`pending-${index}`}
                     cx={x}
-                    cy={y}
+                    cy={isNaN(y) ? chartHeight - 20 : y}
                     r="4"
                     fill="#E74C3C"
                     stroke="#FFFFFF"

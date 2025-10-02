@@ -291,29 +291,30 @@ const FilePreview = ({ open, onClose, messageId, fileName, fileType, fileSize })
       }}
     >
       <DialogTitle sx={{
-        bgcolor: '#2C3E50',
-        color: '#FFFFFF !important',
+        bgcolor: '#FFFFFF',
+        color: '#000000 !important',
         fontWeight: 600,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         py: 1.5,
         px: 2,
+        borderBottom: '1px solid #E0E0E0'
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {getFileIcon()}
-          <Typography variant="h6" sx={{ color: '#FFFFFF !important' }}>
+          <Typography variant="h6" sx={{ color: '#000000 !important' }}>
             File Preview
           </Typography>
         </Box>
-        <IconButton onClick={handleClose} sx={{ color: '#FFFFFF !important' }}>
+        <IconButton onClick={handleClose} sx={{ color: '#000000 !important' }}>
           <Close />
         </IconButton>
       </DialogTitle>
       
       <DialogContent sx={{ p: 2 }}>
         <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#2C3E50' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#000000' }}>
             {fileName}
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -324,8 +325,8 @@ const FilePreview = ({ open, onClose, messageId, fileName, fileType, fileSize })
         {renderPreview()}
       </DialogContent>
       
-      <DialogActions sx={{ p: 2, bgcolor: '#F8FAFC', borderTop: '1px solid #E0E0E0' }}>
-        <Button onClick={handleClose} sx={{ color: '#7F8C8D' }}>
+      <DialogActions sx={{ p: 2, bgcolor: '#FFFFFF', borderTop: '1px solid #E0E0E0' }}>
+        <Button onClick={handleClose} sx={{ color: '#000000' }}>
           Close
         </Button>
         <Button 

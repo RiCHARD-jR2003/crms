@@ -17,6 +17,7 @@ use App\Http\Controllers\API\GmailController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\DashboardController as MainDashboardController;
 use App\Http\Controllers\API\AnalyticsController;
+use App\Http\Controllers\API\DocumentManagementController;
 
 // Language routes
 Route::prefix('language')->group(function () {
@@ -746,6 +747,9 @@ Route::put('/pwd-member/profile', function (Request $request) {
 });
 
 
+// Public route to get active required documents for application form
+Route::get('/documents/public', [App\Http\Controllers\API\DocumentManagementController::class, 'getPublicDocuments']);
+
 // Public application submission route
 Route::post('/applications', function (Request $request) {
     try {
@@ -1046,6 +1050,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('suggestions/summary', [AnalyticsController::class, 'getSuggestionSummary']);
         Route::get('suggestions/high-priority', [AnalyticsController::class, 'getHighPrioritySuggestions']);
         Route::get('transaction-analysis', [AnalyticsController::class, 'getTransactionAnalysis']);
+    });
+
+    // Document Management routes
+    Route::prefix('documents')->group(function () {
+        // Admin routes
+        Route::get('/', [DocumentManagementController::class, 'index']);
+        Route::post('/', [DocumentManagementController::class, 'store']);
+        Route::put('/{id}', [DocumentManagementController::class, 'update']);
+        Route::delete('/{id}', [DocumentManagementController::class, 'destroy']);
+        Route::get('/pending-reviews', [DocumentManagementController::class, 'getPendingReviews']);
+        Route::post('/{id}/review', [DocumentManagementController::class, 'reviewDocument']);
+        
+        // Member routes
+        Route::get('/my-documents', [DocumentManagementController::class, 'getMemberDocuments']);
+        Route::post('/upload', [DocumentManagementController::class, 'uploadDocument']);
+        Route::get('/file/{id}', [DocumentManagementController::class, 'getDocumentFile']);
+        
+        // Notification routes
+        Route::get('/notifications', [DocumentManagementController::class, 'getNotifications']);
+        Route::post('/notifications/{id}/read', [DocumentManagementController::class, 'markNotificationAsRead']);
     });
 });
 

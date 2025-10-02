@@ -14,14 +14,12 @@ return new class extends Migration
      */
     public function up()
     {
-        // Temporarily change the column to VARCHAR to avoid enum constraints
-        DB::statement("ALTER TABLE application MODIFY COLUMN status VARCHAR(50) DEFAULT 'Pending Barangay Approval'");
+        // For SQLite compatibility, we'll use a different approach
+        // SQLite doesn't support MODIFY COLUMN, so we'll just update the data
+        // and let Laravel handle the column type through the model
         
         // Update existing 'Pending' status to 'Pending Barangay Approval'
         DB::statement("UPDATE application SET status = 'Pending Barangay Approval' WHERE status = 'Pending'");
-        
-        // Change back to enum with new values
-        DB::statement("ALTER TABLE application MODIFY COLUMN status ENUM('Pending Barangay Approval', 'Pending Admin Approval', 'Approved', 'Rejected') DEFAULT 'Pending Barangay Approval'");
     }
 
     /**
@@ -31,13 +29,7 @@ return new class extends Migration
      */
     public function down()
     {
-        // Temporarily change to VARCHAR
-        DB::statement("ALTER TABLE application MODIFY COLUMN status VARCHAR(50) DEFAULT 'Pending'");
-        
         // Update back to 'Pending'
         DB::statement("UPDATE application SET status = 'Pending' WHERE status IN ('Pending Barangay Approval', 'Pending Admin Approval')");
-        
-        // Change back to original enum
-        DB::statement("ALTER TABLE application MODIFY COLUMN status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending'");
     }
 };

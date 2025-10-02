@@ -406,7 +406,7 @@ function PWDProfile() {
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#2C3E50' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#FFFFFF' }}>
       <PWDMemberSidebar />
       
       {/* Main content */}
@@ -415,14 +415,14 @@ function PWDProfile() {
         p: 3, 
         ml: { xs: 0, md: '280px' }, // Responsive margin for sidebar
         minHeight: '100vh',
-        bgcolor: '#2C3E50',
+        bgcolor: '#FFFFFF',
         width: { xs: '100%', md: 'calc(100% - 280px)' } // Ensure proper width calculation
       }}>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#FFFFFF', fontWeight: 'bold' }}>
+          <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#000000', fontWeight: 'bold' }}>
             My Profile
           </Typography>
-          <Typography variant="body1" sx={{ color: '#BDC3C7' }}>
+          <Typography variant="body1" sx={{ color: '#000000' }}>
             Manage your personal information and account settings
           </Typography>
         </Box>
@@ -952,7 +952,7 @@ function PWDProfile() {
                           }
                           
                           if (imagePath) {
-                            const fullUrl = `http://127.0.0.1:8000/storage/${imagePath}`;
+                            const fullUrl = `http://192.168.18.18:8000/storage/${imagePath}`;
                             console.log('Final image URL:', fullUrl);
                             
                             return (

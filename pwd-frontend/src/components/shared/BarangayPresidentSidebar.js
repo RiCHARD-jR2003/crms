@@ -70,7 +70,25 @@ function BarangayPresidentSidebar() {
     }}>
       {/* Header with Logo */}
       <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <img src="https://placehold.co/40x40/34495e/ffffff?text=PDAO" alt="PDAO Logo" style={{ borderRadius: '8px' }} />
+        <Box sx={{
+          width: 40,
+          height: 40,
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden'
+        }}>
+          <img 
+            src="/images/cropped_image.png" 
+            alt="PDAO Logo" 
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              objectFit: 'contain' 
+            }}
+          />
+        </Box>
         <Typography sx={{ fontWeight: 700, fontSize: '1.2rem', color: '#193a52' }}>CABUYAO PDAO RMS</Typography>
       </Box>
 

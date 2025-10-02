@@ -18,7 +18,8 @@ import {
   Divider,
   IconButton,
   useMediaQuery,
-  useTheme
+  useTheme,
+  Container
 } from '@mui/material';
 import {
   Dashboard,
@@ -38,9 +39,19 @@ import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import announcementService from '../../services/announcementService';
 import { api } from '../../services/api';
+import { 
+  mainContainerStyles, 
+  contentAreaStyles, 
+  headerStyles, 
+  titleStyles,
+  subtitleStyles,
+  cardStyles
+} from '../../utils/themeStyles';
+import { useNavigate } from 'react-router-dom';
 
 function PWDMemberDashboard() {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [announcements, setAnnouncements] = useState([]);
@@ -48,9 +59,34 @@ function PWDMemberDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [memberSinceDate, setMemberSinceDate] = useState(null);
 
   const handleSidebarToggle = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  // Helper function to format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      return 'N/A';
+    }
+  };
+
+  // Navigation handlers
+  const handleCreateSupportTicket = () => {
+    navigate('/pwd-support');
+  };
+
+  const handleViewMyTickets = () => {
+    navigate('/pwd-support');
   };
 
   useEffect(() => {
@@ -73,6 +109,20 @@ function PWDMemberDashboard() {
         const userTickets = ticketsData.filter(ticket => 
           ticket.pwd_member?.user?.id === currentUser?.id
         );
+        
+        // Fetch PWD member profile to get approval date
+        try {
+          const profileResponse = await api.get(`/pwd-members/${currentUser.userID}`);
+          const profileData = profileResponse;
+          
+          // Get the approval date from created_at or pwd_id_generated_at
+          const approvalDate = profileData?.created_at || profileData?.pwd_id_generated_at;
+          setMemberSinceDate(approvalDate);
+        } catch (profileError) {
+          console.log('Could not fetch PWD member profile, using fallback date');
+          // Fallback: use current user's created_at if available
+          setMemberSinceDate(currentUser?.created_at);
+        }
         
         setAnnouncements(filteredAnnouncements.slice(0, 3));
         setSupportTickets(userTickets);
@@ -99,63 +149,73 @@ function PWDMemberDashboard() {
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F8F9FA' }}>
+    <Box sx={mainContainerStyles}>
       <PWDMemberSidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
       
       {/* Main content */}
-      <Box sx={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        ml: { xs: 0, md: '280px' },
-        width: { xs: '100%', md: 'calc(100% - 280px)' },
-        p: { xs: 1, sm: 2, md: 3 },
-        transition: 'margin-left 0.3s ease-in-out'
-      }}>
-        {/* Mobile Menu Button */}
-        <Box sx={{ 
-          display: { xs: 'flex', md: 'none' }, 
-          alignItems: 'center', 
-          mb: 2,
-          p: 1
-        }}>
-          <IconButton
-            onClick={handleSidebarToggle}
-            sx={{
-              color: '#566573',
-              border: '1px solid #D5DBDB',
-              borderRadius: 2,
-              '&:hover': {
-                borderColor: '#253D90',
-                background: '#F4F7FC',
-                color: '#253D90'
-              }
-            }}
-          >
-            <Menu />
-          </IconButton>
-          <Typography variant="h6" sx={{ ml: 2, color: '#000000', fontWeight: 600 }}>
-            PWD Dashboard
-          </Typography>
-        </Box>
+      <Box
+        component="main"
+        sx={{
+          ...contentAreaStyles,
+          flexGrow: 1,
+          ml: { xs: 0, md: '280px' },
+          width: { xs: '100%', md: 'calc(100% - 280px)' },
+          transition: 'margin-left 0.3s ease-in-out'
+        }}
+      >
+        <Container maxWidth="xl" sx={{ px: { xs: 0, sm: 1 } }}>
+          {/* Mobile Menu Button */}
+          <Box sx={{ 
+            display: { xs: 'flex', md: 'none' }, 
+            alignItems: 'center', 
+            mb: 2,
+            p: 1
+          }}>
+            <IconButton
+              onClick={handleSidebarToggle}
+              sx={{
+                color: '#566573',
+                border: '1px solid #D5DBDB',
+                borderRadius: 2,
+                '&:hover': {
+                  borderColor: '#0b87ac',
+                  background: '#F4F7FC',
+                  color: '#0b87ac'
+                }
+              }}
+            >
+              <Menu />
+            </IconButton>
+            <Typography variant="h6" sx={{ ml: 2, color: '#000000', fontWeight: 600 }}>
+              PWD Dashboard
+            </Typography>
+          </Box>
 
-        {/* Header */}
-        <Box sx={{ mb: { xs: 2, md: 4 } }}>
-          <Typography variant="h3" sx={{ 
-            fontWeight: 'bold', 
-            color: '#000000', 
-            mb: 1,
-            fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' }
-          }}>
-            Welcome to Your PWD Dashboard
-          </Typography>
-          <Typography variant="h6" sx={{ 
-            color: '#000000',
-            fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' }
-          }}>
-            Access announcements, support services, and manage your PWD benefits.
-          </Typography>
-        </Box>
+          {/* Page Header */}
+          <Box sx={{ mb: { xs: 2, md: 4 } }}>
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontWeight: 'bold', 
+                color: '#000000', 
+                mb: 1,
+                fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
+              }}
+            >
+              Dashboard
+            </Typography>
+            <Typography 
+              variant="body1" 
+              sx={{ 
+                color: '#000000',
+                fontSize: { xs: '0.875rem', sm: '1rem' }
+              }}
+            >
+              Welcome back, {currentUser?.pwd_member?.firstName && currentUser?.pwd_member?.lastName 
+                ? `${currentUser.pwd_member.firstName} ${currentUser.pwd_member.lastName}` 
+                : currentUser?.username || 'PWD Member'}. Here's your personal dashboard.
+            </Typography>
+          </Box>
 
         {/* Error Alert */}
         {error && (
@@ -164,23 +224,18 @@ function PWDMemberDashboard() {
           </Alert>
         )}
 
-        {/* Main Content Grid */}
-        <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: 3 }}>
-          {/* Latest Announcements */}
-          <Grid item xs={12} md={6}>
-            <Paper elevation={0} sx={{
-              p: 3,
-              border: '1px solid #E0E0E0',
-              borderRadius: 4,
-              bgcolor: '#FFFFFF',
-              height: '100%'
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
-                <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                  Latest Announcements
-                </Typography>
-              </Box>
+          {/* Dashboard Content */}
+          <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: 3 }}>
+            {/* Latest Announcements */}
+            <Grid item xs={12} md={6}>
+              <Card sx={cardStyles}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                    <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
+                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
+                      Latest Announcements
+                    </Typography>
+                  </Box>
               
               {announcements.length > 0 ? (
                 <List>
@@ -237,25 +292,21 @@ function PWDMemberDashboard() {
                     Check back later for important updates
                   </Typography>
                 </Box>
-              )}
-            </Paper>
-          </Grid>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
 
-          {/* Support Desk */}
-          <Grid item xs={12} md={6}>
-            <Paper elevation={0} sx={{
-              p: 3,
-              border: '1px solid #E0E0E0',
-              borderRadius: 4,
-              bgcolor: '#FFFFFF',
-              height: '100%'
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <Support sx={{ color: '#E74C3C', fontSize: 24 }} />
-                <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                  Support Desk
-                </Typography>
-              </Box>
+            {/* Support Desk */}
+            <Grid item xs={12} md={6}>
+              <Card sx={cardStyles}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                    <Support sx={{ color: '#E74C3C', fontSize: 24 }} />
+                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
+                      Support Desk
+                    </Typography>
+                  </Box>
               
               <Typography variant="body2" sx={{ color: '#000000', mb: 3 }}>
                 Need help? Our support team is here to assist you with any questions or concerns.
@@ -264,6 +315,7 @@ function PWDMemberDashboard() {
               <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                 <Button
                   variant="contained"
+                  onClick={handleCreateSupportTicket}
                   sx={{ 
                     bgcolor: '#E74C3C', 
                     color: 'white',
@@ -277,6 +329,7 @@ function PWDMemberDashboard() {
                 </Button>
                 <Button
                   variant="outlined"
+                  onClick={handleViewMyTickets}
                   sx={{ 
                     borderColor: '#E74C3C', 
                     color: '#E74C3C',
@@ -309,66 +362,71 @@ function PWDMemberDashboard() {
                     Hours: Mon-Fri, 8AM-5PM
                   </Typography>
                 </Box>
-              </Box>
-            </Paper>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
-        </Grid>
 
-        {/* Summary Cards */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-              <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                <CheckCircle sx={{ fontSize: 40, color: '#27AE60', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#27AE60' }}>
-                  Approved
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
-                  Application Status
-                </Typography>
-              </CardContent>
-            </Card>
+          {/* Summary Cards */}
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={cardStyles}>
+                <CardContent sx={{ textAlign: 'center', p: 2 }}>
+                  <CheckCircle sx={{ fontSize: 40, color: '#27AE60', mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#27AE60' }}>
+                    Approved
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#000000' }}>
+                    Application Status
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={cardStyles}>
+                <CardContent sx={{ textAlign: 'center', p: 2 }}>
+                  <Person sx={{ fontSize: 40, color: '#3498DB', mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#3498DB' }}>
+                    PWD
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#000000' }}>
+                    Member Since
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#3498DB', fontWeight: 'bold', mt: 0.5 }}>
+                    {formatDate(memberSinceDate)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={cardStyles}>
+                <CardContent sx={{ textAlign: 'center', p: 2 }}>
+                  <Campaign sx={{ fontSize: 40, color: '#F39C12', mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#F39C12' }}>
+                    {announcements.length}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#000000' }}>
+                    Announcements
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={cardStyles}>
+                <CardContent sx={{ textAlign: 'center', p: 2 }}>
+                  <Support sx={{ fontSize: 40, color: '#E74C3C', mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#E74C3C' }}>
+                    {supportTickets.length}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#000000' }}>
+                    Support Tickets
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-              <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                <Person sx={{ fontSize: 40, color: '#3498DB', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#3498DB' }}>
-                  PWD
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
-                  Member Since
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-              <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                <Campaign sx={{ fontSize: 40, color: '#F39C12', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#F39C12' }}>
-                  {announcements.length}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
-                  Announcements
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-              <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                <Support sx={{ fontSize: 40, color: '#E74C3C', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#E74C3C' }}>
-                  {supportTickets.length}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
-                  Support Tickets
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+        </Container>
       </Box>
     </Box>
   );

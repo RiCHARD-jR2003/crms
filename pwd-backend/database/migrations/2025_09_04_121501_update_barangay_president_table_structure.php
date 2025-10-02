@@ -13,13 +13,13 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::table('barangay_president', function (Blueprint $table) {
-            // Drop the default id column
-            $table->dropColumn('id');
-            
-            // Add the proper structure
+        // For SQLite compatibility, we need to recreate the table
+        Schema::dropIfExists('barangay_president');
+        
+        Schema::create('barangay_president', function (Blueprint $table) {
             $table->unsignedBigInteger('userID')->primary();
             $table->string('barangayID', 50)->nullable();
+            $table->timestamps();
             
             // Add foreign key constraint
             $table->foreign('userID')->references('userID')->on('users')->onDelete('cascade');
@@ -33,10 +33,11 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::table('barangay_president', function (Blueprint $table) {
-            $table->dropForeign(['userID']);
-            $table->dropColumn(['userID', 'barangayID']);
+        Schema::dropIfExists('barangay_president');
+        
+        Schema::create('barangay_president', function (Blueprint $table) {
             $table->id();
+            $table->timestamps();
         });
     }
 };

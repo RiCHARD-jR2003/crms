@@ -5,42 +5,13 @@ import { LocationOn, OpenInNew } from '@mui/icons-material';
 // PWD Office Location
 const PWD_OFFICE_LOCATION = {
   name: 'PWD Office - Poblacion Uno',
-  address: '74JF+3F6, P. Burgos, Publacion Uno, Cabuyao City, 4026 Laguna',
+  address: '74JF+3F6, P. Burgos, Poblacion Uno, Cabuyao City, 4026 Laguna',
   lat: 14.2488,
   lng: 121.1248
 };
 
-// Barangay information
-const BARANGAYS = [
-  { name: 'Bigaa', color: '#1976d2' },
-  { name: 'Butong', color: '#d32f2f' },
-  { name: 'Marinig', color: '#388e3c' },
-  { name: 'Gulod', color: '#1976d2' },
-  { name: 'Pob. Uno', color: '#d32f2f' },
-  { name: 'Pob. Dos', color: '#388e3c' },
-  { name: 'Pob. Tres', color: '#1976d2' },
-  { name: 'Sala', color: '#d32f2f' },
-  { name: 'Niugan', color: '#388e3c' },
-  { name: 'Banaybanay', color: '#1976d2' },
-  { name: 'Pulo', color: '#d32f2f' },
-  { name: 'Diezmo', color: '#388e3c' },
-  { name: 'Pittland', color: '#1976d2' },
-  { name: 'San Isidro', color: '#d32f2f' },
-  { name: 'Mamatid', color: '#388e3c' },
-  { name: 'Baclaran', color: '#1976d2' },
-  { name: 'Casile', color: '#d32f2f' },
-  { name: 'Banlic', color: '#388e3c' }
-];
 
-const WorkingMapComponent = ({ onBarangaySelect, height = '400px' }) => {
-  const [selectedBarangay, setSelectedBarangay] = useState(null);
-
-  const handleBarangayClick = (barangay) => {
-    setSelectedBarangay(barangay);
-    if (onBarangaySelect) {
-      onBarangaySelect(barangay);
-    }
-  };
+const WorkingMapComponent = ({ height = '400px' }) => {
 
   const openInGoogleMaps = () => {
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(PWD_OFFICE_LOCATION.address)}`;
@@ -145,46 +116,24 @@ const WorkingMapComponent = ({ onBarangaySelect, height = '400px' }) => {
         />
       </Box>
 
-      {/* Barangay Selection Grid */}
-      <Box sx={{ height: '30%', p: { xs: 0.5, sm: 1 } }}>
-        <Typography variant="subtitle2" sx={{ mb: 1, color: '#333', fontWeight: 'bold', fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-          Select Barangay
-        </Typography>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(6, 1fr)' },
-            gap: { xs: 0.3, sm: 0.4, md: 0.5 },
-            height: 'calc(100% - 30px)',
-            overflow: 'auto'
+      {/* Action Button */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        p: 2
+      }}>
+        <Button
+          variant="contained"
+          startIcon={<OpenInNew />}
+          onClick={openInGoogleMaps}
+          sx={{ 
+            fontSize: { xs: '0.8rem', sm: '0.9rem' },
+            padding: { xs: '8px 16px', sm: '10px 20px' }
           }}
         >
-          {BARANGAYS.map((barangay, index) => (
-            <Button
-              key={index}
-              onClick={() => handleBarangayClick(barangay)}
-              sx={{
-                backgroundColor: selectedBarangay?.name === barangay.name ? barangay.color : '#fff',
-                color: selectedBarangay?.name === barangay.name ? '#fff' : barangay.color,
-                border: `1px solid ${barangay.color}`,
-                borderRadius: 1,
-                minHeight: { xs: '28px', sm: '30px', md: '32px' },
-                fontSize: { xs: '0.6rem', sm: '0.65rem', md: '0.7rem' },
-                fontWeight: 'bold',
-                textTransform: 'none',
-                padding: { xs: '4px 6px', sm: '6px 8px', md: '8px 12px' },
-                '&:hover': {
-                  backgroundColor: barangay.color,
-                  color: '#fff',
-                  transform: 'scale(1.02)'
-                },
-                transition: 'all 0.2s ease-in-out'
-              }}
-            >
-              {barangay.name}
-            </Button>
-          ))}
-        </Box>
+          Open in Google Maps
+        </Button>
       </Box>
     </Box>
   );

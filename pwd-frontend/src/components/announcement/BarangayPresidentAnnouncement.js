@@ -120,7 +120,7 @@ function BarangayPresidentAnnouncement() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F8FAFC' }}>
+      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#FFFFFF' }}>
         <BarangayPresidentSidebar />
         <Box sx={{ flex: 1, ml: '280px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <CircularProgress />
@@ -130,7 +130,7 @@ function BarangayPresidentAnnouncement() {
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F8FAFC' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#FFFFFF' }}>
       <BarangayPresidentSidebar />
       
       <Box sx={{ 
@@ -140,14 +140,15 @@ function BarangayPresidentAnnouncement() {
         p: { xs: 2, sm: 3 },
         minHeight: '100vh',
         overflow: 'auto',
-        transition: 'all 0.3s ease'
+        transition: 'all 0.3s ease',
+        bgcolor: '#FFFFFF'
       }}>
         {/* Header */}
         <Box sx={{ mb: 3 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: '2rem', color: '#2C3E50', mb: 1 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: '2rem', color: '#000000', mb: 1 }}>
             Announcements - {barangay}
           </Typography>
-          <Typography sx={{ color: '#7F8C8D', fontSize: '1rem' }}>
+          <Typography sx={{ color: '#000000', fontSize: '1rem' }}>
             View announcements from Admin for {barangay}
           </Typography>
         </Box>
@@ -170,7 +171,8 @@ function BarangayPresidentAnnouncement() {
                  boxShadow: 2,
                  overflow: 'hidden', // Prevent content overflow
                  borderRadius: 2,
-                 bgcolor: '#2C3E50', // Dark blue background
+                 bgcolor: '#FFFFFF', // White background
+                 border: '1px solid #E0E0E0',
                  '&:hover': {
                    boxShadow: 4,
                    transform: 'translateY(-2px)',
@@ -189,7 +191,7 @@ function BarangayPresidentAnnouncement() {
                        variant="h6" 
                        sx={{ 
                          fontWeight: 600, 
-                         color: 'white', 
+                         color: '#000000', 
                          flex: 1,
                          overflow: 'hidden',
                          textOverflow: 'ellipsis',
@@ -230,7 +232,7 @@ function BarangayPresidentAnnouncement() {
                    <Typography 
                      variant="body2" 
                      sx={{ 
-                       color: '#E0E0E0', 
+                       color: '#000000', 
                        mb: 1, 
                        lineHeight: 1.4,
                        overflow: 'hidden',
@@ -246,10 +248,10 @@ function BarangayPresidentAnnouncement() {
                    </Typography>
                    
                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                     <Typography variant="caption" sx={{ color: '#B0BEC5', fontSize: '0.7rem' }}>
+                     <Typography variant="caption" sx={{ color: '#666666', fontSize: '0.7rem' }}>
                        Target: {announcement.targetAudience}
                      </Typography>
-                     <Typography variant="caption" sx={{ color: '#B0BEC5', fontSize: '0.7rem' }}>
+                     <Typography variant="caption" sx={{ color: '#666666', fontSize: '0.7rem' }}>
                        Views: {announcement.views || 0}
                      </Typography>
                    </Box>
@@ -264,8 +266,8 @@ function BarangayPresidentAnnouncement() {
                    </Box>
                    
                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 'auto' }}>
-                     <AnnouncementIcon sx={{ color: '#FFFFFF', fontSize: '0.8rem' }} />
-                     <Typography variant="caption" sx={{ color: '#FFFFFF', fontWeight: 600, fontSize: '0.7rem' }}>
+                     <AnnouncementIcon sx={{ color: '#0b87ac', fontSize: '0.8rem' }} />
+                     <Typography variant="caption" sx={{ color: '#000000', fontWeight: 600, fontSize: '0.7rem' }}>
                        {announcement.author?.username || announcement.author?.name || 'Admin'} ({announcement.authorRole || 'Admin'})
                      </Typography>
                    </Box>
@@ -328,43 +330,43 @@ function BarangayPresidentAnnouncement() {
         {/* View Details Dialog */}
         <Dialog open={viewDialog} onClose={handleCloseViewDialog} maxWidth="md" fullWidth>
           <DialogTitle sx={{ 
-            backgroundColor: '#2C3E50',
-            color: 'white !important', 
+            backgroundColor: '#FFFFFF',
+            color: '#000000 !important', 
             fontWeight: 600,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AnnouncementIcon sx={{ color: '#3498DB' }} />
-              <Typography variant="h6" sx={{ color: 'white !important' }}>
+              <AnnouncementIcon sx={{ color: '#0b87ac' }} />
+              <Typography variant="h6" sx={{ color: '#000000 !important' }}>
                 Announcement Details
               </Typography>
             </Box>
-            <IconButton onClick={handleCloseViewDialog} sx={{ color: 'white' }}>
+            <IconButton onClick={handleCloseViewDialog} sx={{ color: '#000000' }}>
               <CloseIcon />
             </IconButton>
           </DialogTitle>
           <DialogContent 
             sx={{ 
-              backgroundColor: '#2C3E50 !important',
-              color: 'white !important',
+              backgroundColor: '#FFFFFF !important',
+              color: '#000000 !important',
               '& *': { 
-                color: 'white !important',
-                '& .MuiTypography-root': { color: 'white !important' },
-                '& .MuiChip-root': { color: 'white !important' },
-                '& .MuiChip-label': { color: 'white !important' },
-                '& .MuiBox-root': { color: 'white !important' },
-                '& .MuiGrid-root': { color: 'white !important' },
-                '& p': { color: 'white !important' },
-                '& span': { color: 'white !important' },
-                '& div': { color: 'white !important' }
+                color: '#000000 !important',
+                '& .MuiTypography-root': { color: '#000000 !important' },
+                '& .MuiChip-root': { color: '#000000 !important' },
+                '& .MuiChip-label': { color: '#000000 !important' },
+                '& .MuiBox-root': { color: '#000000 !important' },
+                '& .MuiGrid-root': { color: '#000000 !important' },
+                '& p': { color: '#000000 !important' },
+                '& span': { color: '#000000 !important' },
+                '& div': { color: '#000000 !important' }
               }
             }}
             style={{
-              backgroundColor: '#2C3E50',
-              color: 'white',
-              '--text-color': 'white'
+              backgroundColor: '#FFFFFF',
+              color: '#000000',
+              '--text-color': '#000000'
             }}
           >
             {selectedAnnouncement && (
@@ -373,8 +375,8 @@ function BarangayPresidentAnnouncement() {
                 <Box sx={{ mb: 3 }}>
                   <Typography 
                     variant="h5" 
-                    sx={{ fontWeight: 700, color: 'white !important', mb: 2, backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                    style={{ color: 'white' }}
+                    sx={{ fontWeight: 700, color: '#000000 !important', mb: 2, backgroundColor: '#E8F0FE', p: 1, borderRadius: 1 }}
+                    style={{ color: '#000000' }}
                   >
                     {selectedAnnouncement.title}
                   </Typography>
@@ -412,35 +414,35 @@ function BarangayPresidentAnnouncement() {
                   </Box>
                 </Box>
 
-                <Divider sx={{ mb: 3, borderColor: '#BDC3C7' }} />
+                <Divider sx={{ mb: 3, borderColor: '#E0E0E0' }} />
 
                 {/* Content */}
                 <Box sx={{ mb: 3 }}>
                   <Typography 
                     variant="h6" 
-                    sx={{ fontWeight: 600, color: 'white !important', mb: 1, backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                    style={{ color: 'white' }}
+                    sx={{ fontWeight: 600, color: '#000000 !important', mb: 1, backgroundColor: '#E8F0FE', p: 1, borderRadius: 1 }}
+                    style={{ color: '#000000' }}
                   >
                     Content
                   </Typography>
                   <Typography 
                     variant="body1" 
-                    sx={{ color: 'white !important', lineHeight: 1.8, backgroundColor: '#34495E', p: 2, borderRadius: 1 }}
-                    style={{ color: 'white' }}
+                    sx={{ color: '#000000 !important', lineHeight: 1.8, backgroundColor: '#F5F5F5', p: 2, borderRadius: 1 }}
+                    style={{ color: '#000000' }}
                   >
                     {selectedAnnouncement.content}
                   </Typography>
                 </Box>
 
-                <Divider sx={{ mb: 3, borderColor: '#BDC3C7' }} />
+                <Divider sx={{ mb: 3, borderColor: '#E0E0E0' }} />
 
                 {/* Details Grid */}
                 <Grid container spacing={3}>
                   <Grid item xs={12} md={6}>
                     <Typography 
                       variant="h6" 
-                      sx={{ fontWeight: 600, color: 'white !important', mb: 2, backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                      style={{ color: 'white' }}
+                      sx={{ fontWeight: 600, color: '#000000 !important', mb: 2, backgroundColor: '#E8F0FE', p: 1, borderRadius: 1 }}
+                      style={{ color: '#000000' }}
                     >
                       Announcement Details
                     </Typography>
@@ -448,15 +450,15 @@ function BarangayPresidentAnnouncement() {
                       <Box>
                         <Typography 
                           variant="subtitle2" 
-                          sx={{ color: '#BDC3C7 !important', fontWeight: 600 }}
-                          style={{ color: '#BDC3C7' }}
+                          sx={{ color: '#666666 !important', fontWeight: 600 }}
+                          style={{ color: '#666666' }}
                         >
                           Target Audience
                         </Typography>
                         <Typography 
                           variant="body1" 
-                          sx={{ color: 'white !important' }}
-                          style={{ color: 'white' }}
+                          sx={{ color: '#000000 !important' }}
+                          style={{ color: '#000000' }}
                         >
                           {selectedAnnouncement.targetAudience}
                         </Typography>
@@ -464,15 +466,15 @@ function BarangayPresidentAnnouncement() {
                       <Box>
                         <Typography 
                           variant="subtitle2" 
-                          sx={{ color: '#BDC3C7 !important', fontWeight: 600 }}
-                          style={{ color: '#BDC3C7' }}
+                          sx={{ color: '#666666 !important', fontWeight: 600 }}
+                          style={{ color: '#666666' }}
                         >
                           Publish Date
                         </Typography>
                         <Typography 
                           variant="body1" 
-                          sx={{ color: 'white !important' }}
-                          style={{ color: 'white' }}
+                          sx={{ color: '#000000 !important' }}
+                          style={{ color: '#000000' }}
                         >
                           {new Date(selectedAnnouncement.publishDate).toLocaleDateString('en-US', {
                             year: 'numeric',
@@ -484,15 +486,15 @@ function BarangayPresidentAnnouncement() {
                       <Box>
                         <Typography 
                           variant="subtitle2" 
-                          sx={{ color: '#BDC3C7 !important', fontWeight: 600 }}
-                          style={{ color: '#BDC3C7' }}
+                          sx={{ color: '#666666 !important', fontWeight: 600 }}
+                          style={{ color: '#666666' }}
                         >
                           Expiry Date
                         </Typography>
                         <Typography 
                           variant="body1" 
-                          sx={{ color: 'white !important' }}
-                          style={{ color: 'white' }}
+                          sx={{ color: '#000000 !important' }}
+                          style={{ color: '#000000' }}
                         >
                           {new Date(selectedAnnouncement.expiryDate).toLocaleDateString('en-US', {
                             year: 'numeric',
@@ -507,8 +509,8 @@ function BarangayPresidentAnnouncement() {
                   <Grid item xs={12} md={6}>
                     <Typography 
                       variant="h6" 
-                      sx={{ fontWeight: 600, color: 'white !important', mb: 2, backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                      style={{ color: 'white' }}
+                      sx={{ fontWeight: 600, color: '#000000 !important', mb: 2, backgroundColor: '#E8F0FE', p: 1, borderRadius: 1 }}
+                      style={{ color: '#000000' }}
                     >
                       Author Information
                     </Typography>
@@ -516,15 +518,15 @@ function BarangayPresidentAnnouncement() {
                       <Box>
                         <Typography 
                           variant="subtitle2" 
-                          sx={{ color: '#BDC3C7 !important', fontWeight: 600 }}
-                          style={{ color: '#BDC3C7' }}
+                          sx={{ color: '#666666 !important', fontWeight: 600 }}
+                          style={{ color: '#666666' }}
                         >
                           Author
                         </Typography>
                         <Typography 
                           variant="body1" 
-                          sx={{ color: 'white !important' }}
-                          style={{ color: 'white' }}
+                          sx={{ color: '#000000 !important' }}
+                          style={{ color: '#000000' }}
                         >
                           {selectedAnnouncement.author?.username || selectedAnnouncement.author?.name || 'Admin'}
                         </Typography>
@@ -532,15 +534,15 @@ function BarangayPresidentAnnouncement() {
                       <Box>
                         <Typography 
                           variant="subtitle2" 
-                          sx={{ color: '#BDC3C7 !important', fontWeight: 600 }}
-                          style={{ color: '#BDC3C7' }}
+                          sx={{ color: '#666666 !important', fontWeight: 600 }}
+                          style={{ color: '#666666' }}
                         >
                           Role
                         </Typography>
                         <Typography 
                           variant="body1" 
-                          sx={{ color: 'white !important' }}
-                          style={{ color: 'white' }}
+                          sx={{ color: '#000000 !important' }}
+                          style={{ color: '#000000' }}
                         >
                           {selectedAnnouncement.authorRole}
                         </Typography>
@@ -548,15 +550,15 @@ function BarangayPresidentAnnouncement() {
                       <Box>
                         <Typography 
                           variant="subtitle2" 
-                          sx={{ color: '#BDC3C7 !important', fontWeight: 600 }}
-                          style={{ color: '#BDC3C7' }}
+                          sx={{ color: '#666666 !important', fontWeight: 600 }}
+                          style={{ color: '#666666' }}
                         >
                           Views
                         </Typography>
                         <Typography 
                           variant="body1" 
-                          sx={{ color: 'white !important' }}
-                          style={{ color: 'white' }}
+                          sx={{ color: '#000000 !important' }}
+                          style={{ color: '#000000' }}
                         >
                           {selectedAnnouncement.views || 0}
                         </Typography>
@@ -567,17 +569,17 @@ function BarangayPresidentAnnouncement() {
               </Box>
             )}
           </DialogContent>
-          <DialogActions sx={{ p: 3, backgroundColor: '#2C3E50' }}>
+          <DialogActions sx={{ p: 3, backgroundColor: '#FFFFFF' }}>
             <Button 
               onClick={handleCloseViewDialog} 
               variant="contained"
               sx={{ 
-                bgcolor: '#3498DB',
+                bgcolor: '#0b87ac',
                 textTransform: 'none',
                 fontWeight: 600,
                 color: 'white',
                 '&:hover': {
-                  bgcolor: '#2980B9'
+                  bgcolor: '#0a6b8a'
                 }
               }}
             >

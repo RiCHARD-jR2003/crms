@@ -17,8 +17,7 @@ return new class extends Migration
             $table->string('title')->nullable()->after('id');
             $table->string('type')->nullable()->after('title');
             $table->string('amount')->nullable()->after('type');
-            // Note: benefitType already exists, so we skip it
-            // $table->text('description')->nullable()->after('benefitType'); // description already exists
+            $table->text('description')->nullable()->after('amount');
             $table->string('targetRecipients')->nullable()->after('description');
             $table->date('distributionDate')->nullable()->after('targetRecipients');
             $table->date('expiryDate')->nullable()->after('distributionDate');
@@ -45,7 +44,7 @@ return new class extends Migration
     {
         Schema::table('benefit', function (Blueprint $table) {
             $table->dropColumn([
-                'title', 'type', 'amount', 'targetRecipients', 'distributionDate',
+                'title', 'type', 'amount', 'description', 'targetRecipients', 'distributionDate',
                 'expiryDate', 'barangay', 'quarter', 'birthdayMonth', 'status',
                 'distributed', 'pending', 'color', 'submittedDate', 'approvalFile', 'approvedDate'
             ]);

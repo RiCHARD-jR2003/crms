@@ -1133,7 +1133,7 @@ function PWDCard() {
                             }
                             
                             if (imagePath) {
-                              const fullUrl = `http://127.0.0.1:8000/storage/${imagePath}`;
+                              const fullUrl = `http://192.168.18.18:8000/storage/${imagePath}`;
                               console.log('Final image URL:', fullUrl);
                               
                               return (
@@ -1203,7 +1203,7 @@ function PWDCard() {
               </Card>
 
               {/* PWD Information Section */}
-              <Card elevation={0} sx={{ height: '50%', backgroundColor: 'transparent' }}>
+              <Card elevation={0} sx={{ height: '500px', backgroundColor: 'transparent' }}>
                 <CardContent sx={{ p: 0, height: '100%' }}>
                   <Box sx={{ 
                     background: '#FFFFFF',
@@ -1216,7 +1216,7 @@ function PWDCard() {
                     display: 'flex',
                     flexDirection: 'column'
                   }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexShrink: 0 }}>
                       <Box sx={{ 
                         position: 'relative',
                         mr: 2
@@ -1252,7 +1252,28 @@ function PWDCard() {
                     </Box>
                   
                   {selectedMemberData ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: 2, 
+                      flex: 1,
+                      overflow: 'auto',
+                      pr: 1, // Add padding for scrollbar
+                      '&::-webkit-scrollbar': {
+                        width: '6px',
+                      },
+                      '&::-webkit-scrollbar-track': {
+                        background: '#f1f1f1',
+                        borderRadius: '3px',
+                      },
+                      '&::-webkit-scrollbar-thumb': {
+                        background: '#c1c1c1',
+                        borderRadius: '3px',
+                      },
+                      '&::-webkit-scrollbar-thumb:hover': {
+                        background: '#a8a8a8',
+                      }
+                    }}>
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#FFFFFF', mb: 0.5, fontSize: '12px' }}>
                           Name:

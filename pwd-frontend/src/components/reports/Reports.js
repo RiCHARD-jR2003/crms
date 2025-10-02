@@ -48,12 +48,12 @@ import {
   LocationOn,
   Accessibility,
   Timeline,
+  Lightbulb,
   Badge,
   Description,
   Report,
   CheckCircle,
   Warning,
-  Lightbulb,
   Close,
   Menu as MenuIcon,
   AutoFixHigh,
@@ -61,11 +61,19 @@ import {
 } from '@mui/icons-material';
 import AdminSidebar from '../shared/AdminSidebar';
 import SuggestionsSection from './SuggestionsSection';
+import SuggestionsDialog from './SuggestionsDialog';
 import analyticsService from '../../services/analyticsService';
 import { reportsService } from '../../services/reportsService';
 import pwdMemberService from '../../services/pwdMemberService';
 import { applicationService } from '../../services/applicationService';
 import benefitService from '../../services/benefitService';
+import suggestionsService from '../../services/suggestionsService';
+import {
+  LineChartComponent,
+  BarChartComponent,
+  PieChartComponent,
+  AreaChartComponent
+} from '../shared/ChartComponents';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { 
@@ -105,6 +113,7 @@ const Reports = () => {
   const [suggestionsDialogOpen, setSuggestionsDialogOpen] = useState(false);
   const [contextualSuggestions, setContextualSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [currentReportType, setCurrentReportType] = useState('general');
   
   // PWD Registration Report Data
   const [pwdRegistrationData, setPwdRegistrationData] = useState({
@@ -564,7 +573,7 @@ const Reports = () => {
   const fetchComplaintsAnalysisData = async () => {
     try {
       // Fetch complaints data from API
-      const complaintsResponse = await fetch('http://192.168.18.25:8000/api/complaints');
+      const complaintsResponse = await fetch('http://192.168.18.18:8000/api/complaints');
       const complaints = complaintsResponse.ok ? await complaintsResponse.json() : [];
       
       // Calculate complaints statistics
@@ -675,7 +684,7 @@ const Reports = () => {
       const applications = applicationsResponse.data || applicationsResponse || [];
       
       // Fetch complaints data
-      const complaintsResponse = await fetch('http://192.168.18.25:8000/api/complaints');
+      const complaintsResponse = await fetch('http://192.168.18.18:8000/api/complaints');
       const complaints = complaintsResponse.ok ? await complaintsResponse.json() : [];
       
       // Define barangays list - All 18 barangays
@@ -829,7 +838,7 @@ const Reports = () => {
       const applicationsResponse = await applicationService.getAll();
       const applications = applicationsResponse.data || applicationsResponse || [];
       
-      const complaintsResponse = await fetch('http://192.168.18.25:8000/api/complaints');
+      const complaintsResponse = await fetch('http://192.168.18.18:8000/api/complaints');
       const complaints = complaintsResponse.ok ? await complaintsResponse.json() : [];
       
       // Filter data for current year
@@ -1090,7 +1099,7 @@ const Reports = () => {
       
       // Fetch city statistics from API
       try {
-        const cityStatsResponse = await fetch('http://192.168.18.25:8000/api/city-stats');
+        const cityStatsResponse = await fetch('http://192.168.18.18:8000/api/city-stats');
         if (cityStatsResponse.ok) {
           const cityStatsData = await cityStatsResponse.json();
           setCityStats(cityStatsData);
@@ -1108,7 +1117,7 @@ const Reports = () => {
       
       // Fetch barangay performance from API (now includes all barangays)
       try {
-        const barangayPerformanceResponse = await fetch('http://192.168.18.25:8000/api/reports/barangay-performance');
+        const barangayPerformanceResponse = await fetch('http://192.168.18.18:8000/api/reports/barangay-performance');
         if (barangayPerformanceResponse.ok) {
           const barangayData = await barangayPerformanceResponse.json();
           console.log('Barangay Performance API Response:', barangayData);
@@ -1268,32 +1277,43 @@ const Reports = () => {
   const handleOpenSuggestionsDialog = async () => {
     if (!selectedReportData) return;
     
+    setCurrentReportType(selectedReportData.reportType || 'general');
     setLoadingSuggestions(true);
     setSuggestionsDialogOpen(true);
     
     try {
-      const params = {};
-      if (selectedDateRange !== 'all') {
-        const dateRange = getDateRange(selectedDateRange);
-        params.start_date = dateRange.start.toISOString().split('T')[0];
-        params.end_date = dateRange.end.toISOString().split('T')[0];
+      // Generate suggestions based on report type and data
+      let suggestions = [];
+      
+      switch (selectedReportData.reportType) {
+        case 'pwd-registration':
+          suggestions = suggestionsService.generatePWDRegistrationSuggestions(pwdRegistrationData);
+          break;
+        case 'card-distribution':
+          suggestions = suggestionsService.generateCardDistributionSuggestions(cardDistributionData);
+          break;
+        case 'benefits-distribution':
+          suggestions = suggestionsService.generateBenefitsDistributionSuggestions(benefitsDistributionData);
+          break;
+        case 'complaints-analysis':
+          suggestions = suggestionsService.generateComplaintsAnalysisSuggestions(complaintsAnalysisData);
+          break;
+        case 'barangay-performance':
+          suggestions = suggestionsService.generateMonthlyActivitySuggestions(barangayPerformanceData);
+          break;
+        default:
+          suggestions = [];
       }
       
-      // Get suggestions specific to the report type
-      const response = await analyticsService.getCategorySuggestions(
-        getReportCategory(selectedReportData.reportType), 
-        params
-      );
+      // Simulate loading time for better UX
+      setTimeout(() => {
+        setContextualSuggestions(suggestions);
+        setLoadingSuggestions(false);
+      }, 1500);
       
-      if (response.success) {
-        setContextualSuggestions(response.data.suggestions || []);
-      } else {
-        setContextualSuggestions([]);
-      }
     } catch (error) {
-      console.error('Error loading contextual suggestions:', error);
+      console.error('Error generating suggestions:', error);
       setContextualSuggestions([]);
-    } finally {
       setLoadingSuggestions(false);
     }
   };
@@ -1404,14 +1424,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #3498DB 0%, #2980B9 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(52, 152, 219, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <People sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalRegistrations}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Total Registrations
                 </Typography>
               </CardContent>
@@ -1423,14 +1453,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(39, 174, 96, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <LocationOn sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {barangayDistribution.length}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Active Barangays
                 </Typography>
               </CardContent>
@@ -1442,14 +1482,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #E74C3C 0%, #C0392B 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(231, 76, 60, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <Accessibility sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {disabilityTypeDistribution.length}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Disability Types
                 </Typography>
               </CardContent>
@@ -1461,14 +1511,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #F39C12 0%, #E67E22 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(243, 156, 18, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <Timeline sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {monthlyTrends[monthlyTrends.length - 1]?.registrations || 0}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   This Month
                 </Typography>
               </CardContent>
@@ -1476,10 +1536,22 @@ const Reports = () => {
           </Grid>
         </Grid>
 
-        {/* Monthly Trends */}
+        {/* Monthly Trends Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <LineChartComponent
+            data={monthlyTrends}
+            title="Monthly Registration Trends"
+            xKey="month"
+            yKey="registrations"
+            color="#3498DB"
+            height={300}
+          />
+        </Paper>
+
+        {/* Monthly Trends Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
-            Monthly Registration Trends
+            Monthly Registration Data
           </Typography>
           <TableContainer>
             <Table>
@@ -1505,7 +1577,19 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Barangay Distribution */}
+        {/* Barangay Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <BarChartComponent
+            data={barangayDistribution.slice(0, 10)}
+            title="Registration by Barangay (Top 10)"
+            xKey="barangay"
+            yKey="count"
+            color="#27AE60"
+            height={300}
+          />
+        </Paper>
+
+        {/* Barangay Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Registration by Barangay
@@ -1534,7 +1618,18 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Disability Type Distribution */}
+        {/* Disability Type Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <PieChartComponent
+            data={disabilityTypeDistribution}
+            title="Disability Type Distribution"
+            dataKey="count"
+            nameKey="disability"
+            height={300}
+          />
+        </Paper>
+
+        {/* Disability Type Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Disability Type Distribution
@@ -1623,14 +1718,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(39, 174, 96, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <CreditCard sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalCardsIssued}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Cards Issued
                 </Typography>
               </CardContent>
@@ -1642,14 +1747,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #F39C12 0%, #E67E22 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(243, 156, 18, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <Assessment sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalCardsPending}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Cards Pending
                 </Typography>
               </CardContent>
@@ -1661,14 +1776,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #3498DB 0%, #2980B9 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(52, 152, 219, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <Timeline sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {averageProcessingTime}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Avg. Processing Days
                 </Typography>
               </CardContent>
@@ -1680,14 +1805,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(155, 89, 182, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <LocationOn sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {barangayCardDistribution.length}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Active Barangays
                 </Typography>
               </CardContent>
@@ -1695,7 +1830,18 @@ const Reports = () => {
           </Grid>
         </Grid>
 
-        {/* Card Status Distribution */}
+        {/* Card Status Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <PieChartComponent
+            data={cardStatusDistribution}
+            title="Card Status Distribution"
+            dataKey="count"
+            nameKey="status"
+            height={300}
+          />
+        </Paper>
+
+        {/* Card Status Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Card Status Distribution
@@ -1737,10 +1883,22 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Monthly Card Trends */}
+        {/* Monthly Card Trends Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <LineChartComponent
+            data={monthlyCardTrends}
+            title="Monthly Card Issuance Trends"
+            xKey="month"
+            yKey="cardsIssued"
+            color="#27AE60"
+            height={300}
+          />
+        </Paper>
+
+        {/* Monthly Card Trends Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
-            Monthly Card Issuance Trends
+            Monthly Card Issuance Data
           </Typography>
           <TableContainer>
             <Table>
@@ -1769,7 +1927,19 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Barangay Card Distribution */}
+        {/* Barangay Card Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <BarChartComponent
+            data={barangayCardDistribution.slice(0, 10)}
+            title="Card Distribution by Barangay (Top 10)"
+            xKey="barangay"
+            yKey="count"
+            color="#3498DB"
+            height={300}
+          />
+        </Paper>
+
+        {/* Barangay Card Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Card Distribution by Barangay
@@ -1859,14 +2029,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #E74C3C 0%, #C0392B 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(231, 76, 60, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <VolunteerActivism sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalBenefitsDistributed}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Benefits Distributed
                 </Typography>
               </CardContent>
@@ -1878,14 +2058,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #F39C12 0%, #E67E22 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(243, 156, 18, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <Assessment sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalBenefitsPending}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Benefits Pending
                 </Typography>
               </CardContent>
@@ -1897,14 +2087,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(39, 174, 96, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   ₱{averageBenefitAmount.toLocaleString()}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Avg. Benefit Amount
                 </Typography>
               </CardContent>
@@ -1916,14 +2116,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(155, 89, 182, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <Timeline sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   ₱{totalBenefitValue.toLocaleString()}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Total Value Distributed
                 </Typography>
               </CardContent>
@@ -1931,7 +2141,18 @@ const Reports = () => {
           </Grid>
         </Grid>
 
-        {/* Benefit Type Distribution */}
+        {/* Benefit Type Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <PieChartComponent
+            data={benefitTypeDistribution}
+            title="Benefit Type Distribution"
+            dataKey="count"
+            nameKey="type"
+            height={300}
+          />
+        </Paper>
+
+        {/* Benefit Type Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Benefit Type Distribution
@@ -1973,10 +2194,22 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Monthly Benefits Trends */}
+        {/* Monthly Benefits Trends Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <AreaChartComponent
+            data={monthlyBenefitsTrends}
+            title="Monthly Benefits Distribution Trends"
+            xKey="month"
+            yKey="benefitsDistributed"
+            color="#E74C3C"
+            height={300}
+          />
+        </Paper>
+
+        {/* Monthly Benefits Trends Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
-            Monthly Benefits Distribution Trends
+            Monthly Benefits Distribution Data
           </Typography>
           <TableContainer>
             <Table>
@@ -2005,7 +2238,19 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Barangay Benefits Distribution */}
+        {/* Barangay Benefits Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <BarChartComponent
+            data={barangayBenefitsDistribution.slice(0, 10)}
+            title="Benefits Distribution by Barangay (Top 10)"
+            xKey="barangay"
+            yKey="count"
+            color="#9B59B6"
+            height={300}
+          />
+        </Paper>
+
+        {/* Barangay Benefits Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Benefits Distribution by Barangay
@@ -2111,14 +2356,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #F39C12 0%, #E67E22 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(243, 156, 18, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <Assessment sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalComplaints}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Total Complaints
                 </Typography>
               </CardContent>
@@ -2130,14 +2385,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(39, 174, 96, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {resolvedComplaints}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Resolved Complaints
                 </Typography>
               </CardContent>
@@ -2149,14 +2414,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #E74C3C 0%, #C0392B 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(231, 76, 60, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <Timeline sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {pendingComplaints}
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Pending Complaints
                 </Typography>
               </CardContent>
@@ -2168,14 +2443,24 @@ const Reports = () => {
               background: 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 100%)',
               color: 'white',
               boxShadow: '0 8px 32px rgba(155, 89, 182, 0.3)',
-              borderRadius: 3
+              borderRadius: 3,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
             }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: 3, 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }}>
                 <People sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, minHeight: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {resolutionRate.toFixed(1)}%
                 </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                <Typography variant="body2" sx={{ opacity: 0.9, minHeight: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   Resolution Rate
                 </Typography>
               </CardContent>
@@ -2183,7 +2468,21 @@ const Reports = () => {
           </Grid>
         </Grid>
 
-        {/* Complaint Status Distribution */}
+        {/* Complaint Status Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <PieChartComponent
+            data={[
+              { status: 'Resolved', count: resolvedComplaints },
+              { status: 'Pending', count: pendingComplaints }
+            ]}
+            title="Complaint Status Distribution"
+            dataKey="count"
+            nameKey="status"
+            height={300}
+          />
+        </Paper>
+
+        {/* Complaint Status Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Complaint Status Distribution
@@ -2231,10 +2530,22 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Monthly Complaints Trends */}
+        {/* Monthly Complaints Trends Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <LineChartComponent
+            data={monthlyComplaintsTrends}
+            title="Monthly Complaints Trends"
+            xKey="month"
+            yKey="complaints"
+            color="#F39C12"
+            height={300}
+          />
+        </Paper>
+
+        {/* Monthly Complaints Trends Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
-            Monthly Complaints Trends
+            Monthly Complaints Data
           </Typography>
           <TableContainer>
             <Table>
@@ -2263,7 +2574,18 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Complaint Type Distribution */}
+        {/* Complaint Type Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <PieChartComponent
+            data={complaintTypeDistribution}
+            title="Complaint Type Distribution"
+            dataKey="count"
+            nameKey="type"
+            height={300}
+          />
+        </Paper>
+
+        {/* Complaint Type Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Complaint Type Distribution
@@ -2302,7 +2624,19 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Barangay Complaints Distribution */}
+        {/* Barangay Complaints Distribution Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <BarChartComponent
+            data={barangayComplaintsDistribution.slice(0, 10)}
+            title="Complaints by Barangay (Top 10)"
+            xKey="barangay"
+            yKey="count"
+            color="#E74C3C"
+            height={300}
+          />
+        </Paper>
+
+        {/* Barangay Complaints Distribution Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Complaints by Barangay
@@ -2477,7 +2811,22 @@ const Reports = () => {
           </Grid>
         </Grid>
 
-        {/* Top Performing Barangays */}
+        {/* Top Performing Barangays Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <BarChartComponent
+            data={topPerformingBarangays.slice(0, 10).map((barangay, index) => ({
+              barangay: barangay.barangay,
+              score: barangay.performanceScore
+            }))}
+            title="Top Performing Barangays (Performance Score)"
+            xKey="barangay"
+            yKey="score"
+            color="#9B59B6"
+            height={300}
+          />
+        </Paper>
+
+        {/* Top Performing Barangays Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
             Top Performing Barangays
@@ -2548,10 +2897,22 @@ const Reports = () => {
           </TableContainer>
         </Paper>
 
-        {/* Monthly Performance Trends */}
+        {/* Monthly Performance Trends Chart */}
+        <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
+          <LineChartComponent
+            data={monthlyPerformanceTrends}
+            title="Monthly Performance Trends"
+            xKey="month"
+            yKey="totalActivity"
+            color="#27AE60"
+            height={300}
+          />
+        </Paper>
+
+        {/* Monthly Performance Trends Table */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
-            Monthly Performance Trends
+            Monthly Performance Data
           </Typography>
           <TableContainer>
             <Table>
@@ -4110,7 +4471,7 @@ const Reports = () => {
                 }
               }}
             >
-              Get Suggestions
+              Get AI Suggestions
             </Button>
             <Button variant="contained" startIcon={<Download />}>
               Download Report
@@ -4232,185 +4593,13 @@ const Reports = () => {
         </Dialog>
         
         {/* Contextual Suggestions Dialog */}
-        <Dialog
+        <SuggestionsDialog
           open={suggestionsDialogOpen}
           onClose={handleCloseSuggestionsDialog}
-          maxWidth="lg"
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: 3,
-              minHeight: '70vh'
-            }
-          }}
-        >
-          <DialogTitle sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            borderBottom: '1px solid #E8E8E8',
-            pb: 2
-          }}>
-            <Box display="flex" alignItems="center" gap={2}>
-              <Lightbulb color="primary" />
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50' }}>
-                AI Suggestions for {selectedReportData?.title}
-              </Typography>
-            </Box>
-            <IconButton onClick={handleCloseSuggestionsDialog} size="small">
-              <Close />
-            </IconButton>
-          </DialogTitle>
-          
-          <DialogContent sx={{ p: 3 }}>
-            {loadingSuggestions ? (
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                height: '50vh',
-                flexDirection: 'column',
-                gap: 2
-              }}>
-                <CircularProgress size={60} />
-                <Typography variant="h6" sx={{ color: '#7F8C8D' }}>
-                  Analyzing data and generating suggestions...
-                </Typography>
-              </Box>
-            ) : contextualSuggestions.length === 0 ? (
-              <Box sx={{ 
-                textAlign: 'center', 
-                py: 8,
-                bgcolor: '#F8FAFC',
-                borderRadius: 2,
-                border: '1px solid #E8E8E8'
-              }}>
-                <CheckCircle sx={{ fontSize: 60, color: '#27AE60', mb: 2 }} />
-                <Typography variant="h6" sx={{ color: '#2C3E50', mb: 1 }}>
-                  Excellent Performance!
-                </Typography>
-                <Typography sx={{ color: '#7F8C8D' }}>
-                  No critical issues detected for this report. Your system is performing well in this area.
-                </Typography>
-              </Box>
-            ) : (
-              <Box>
-                <Typography variant="body1" sx={{ mb: 3, color: '#7F8C8D' }}>
-                  Based on the analysis of your {selectedReportData?.title.toLowerCase()}, here are AI-powered recommendations to optimize performance:
-                </Typography>
-                
-                {contextualSuggestions.map((suggestion, index) => (
-                  <Card key={index} sx={{ mb: 2, border: '1px solid #E8E8E8' }}>
-                    <CardContent>
-                      <Box display="flex" alignItems="center" gap={2} mb={2}>
-                        {suggestion.priority === 'high' ? (
-                          <Warning color="error" />
-                        ) : suggestion.priority === 'medium' ? (
-                          <Assessment color="warning" />
-                        ) : (
-                          <Info color="info" />
-                        )}
-                        <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                          {suggestion.title}
-                        </Typography>
-                        <Chip
-                          label={suggestion.priority.toUpperCase()}
-                          size="small"
-                          color={
-                            suggestion.priority === 'high' ? 'error' :
-                            suggestion.priority === 'medium' ? 'warning' : 'info'
-                          }
-                        />
-                      </Box>
-                      
-                      <Typography variant="body1" paragraph sx={{ color: '#2C3E50' }}>
-                        {suggestion.description}
-                      </Typography>
-                      
-                      <Typography variant="subtitle2" gutterBottom sx={{ color: '#2C3E50', fontWeight: 600 }}>
-                        Recommendations:
-                      </Typography>
-                      <List dense>
-                        {suggestion.recommendations?.map((rec, recIndex) => (
-                          <ListItem key={recIndex} sx={{ py: 0.5 }}>
-                            <ListItemIcon sx={{ minWidth: 30 }}>
-                              <AutoFixHigh fontSize="small" color="primary" />
-                            </ListItemIcon>
-                            <ListItemText 
-                              primary={rec} 
-                              primaryTypographyProps={{ fontSize: '0.9rem' }}
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                      
-                      <Box display="flex" gap={3} mt={2}>
-                        <Box>
-                          <Typography variant="caption" sx={{ color: '#7F8C8D', fontWeight: 600 }}>
-                            Expected Impact:
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                            {suggestion.expected_impact}
-                          </Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" sx={{ color: '#7F8C8D', fontWeight: 600 }}>
-                            Timeframe:
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                            {suggestion.estimated_timeframe}
-                          </Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" sx={{ color: '#7F8C8D', fontWeight: 600 }}>
-                            Difficulty:
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                            {suggestion.implementation_difficulty}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
-            )}
-          </DialogContent>
-          
-          <DialogActions sx={{ 
-            borderTop: '1px solid #E8E8E8', 
-            pt: 2, 
-            px: 3,
-            justifyContent: 'space-between'
-          }}>
-            <Button 
-              onClick={handleCloseSuggestionsDialog}
-              variant="outlined"
-              sx={{ 
-                borderColor: '#7F8C8D', 
-                color: '#7F8C8D',
-                '&:hover': { 
-                  borderColor: '#5A5A5A', 
-                  bgcolor: '#F8F8F8' 
-                }
-              }}
-            >
-              Close
-            </Button>
-            <Button 
-              onClick={handleCloseSuggestionsDialog}
-              variant="contained"
-              sx={{ 
-                bgcolor: '#9B59B6',
-                '&:hover': { bgcolor: '#8E44AD' },
-                px: 3
-              }}
-              startIcon={<Lightbulb />}
-            >
-              Close Suggestions
-            </Button>
-          </DialogActions>
-        </Dialog>
+          suggestions={contextualSuggestions}
+          loading={loadingSuggestions}
+          reportType={currentReportType}
+        />
       </Paper>
     </Box>
   </Box>

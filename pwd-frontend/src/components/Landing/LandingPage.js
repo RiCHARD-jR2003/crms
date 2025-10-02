@@ -1,5 +1,5 @@
 // src/components/Landing/LandingPage.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -17,6 +17,13 @@ function LandingPage() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
+  // Handle navigation in useEffect to avoid render-time navigation
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'PWDMember') {
+      navigate('/dashboard');
+    }
+  }, [currentUser, navigate]);
+
   const handleApplyClick = () => {
     navigate('/register');
   };
@@ -29,10 +36,21 @@ function LandingPage() {
     navigate('/login');
   };
 
-  // If user is logged in as PWD Member, show dashboard directly
+  // If user is logged in as PWD Member, show loading while redirecting
   if (currentUser && currentUser.role === 'PWDMember') {
-    navigate('/dashboard');
-    return null;
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        backgroundColor: '#FFFFFF'
+      }}>
+        <Typography variant="h6" sx={{ color: '#253D90' }}>
+          Redirecting to dashboard...
+        </Typography>
+      </Box>
+    );
   }
 
   return (
@@ -59,11 +77,18 @@ function LandingPage() {
               justifyContent: 'center',
               mr: 2,
               border: '3px solid #E74C3C',
+              overflow: 'hidden'
             }}
           >
-            <Typography variant="h6" sx={{ color: '#1B2631', fontWeight: 'bold' }}>
-              PWD
-            </Typography>
+            <img 
+              src="/images/cropped_image.png" 
+              alt="PDAO Logo" 
+              style={{ 
+                width: '80%', 
+                height: '80%', 
+                objectFit: 'contain' 
+              }}
+            />
           </Box>
           <Typography variant="h5" sx={{ color: 'white', fontWeight: 'bold' }}>
             PDAO
@@ -126,14 +151,18 @@ function LandingPage() {
                   justifyContent: 'center',
                   mx: 'auto',
                   boxShadow: 3,
+                  overflow: 'hidden'
                 }}
               >
-                <Typography sx={{ fontSize: 30, color: 'white', mb: 0.5 }}>
-                  ♿
-                </Typography>
-                <Typography sx={{ fontSize: 14, fontWeight: 'bold', color: 'white' }}>
-                  PDAO
-                </Typography>
+                <img 
+                  src="/images/cropped_image.png" 
+                  alt="PDAO Logo" 
+                  style={{ 
+                    width: '70%', 
+                    height: '70%', 
+                    objectFit: 'contain' 
+                  }}
+                />
               </Box>
             </Box>
 

@@ -8,6 +8,7 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import AnnouncementIcon from '@mui/icons-material/Announcement';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
+import DescriptionIcon from '@mui/icons-material/Description';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -119,15 +120,21 @@ function AdminSidebar({ isOpen, onToggle }) {
           <Box sx={{
             width: 40,
             height: 40,
-            backgroundColor: '#0b87ac',
             borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            overflow: 'hidden'
           }}>
-            <Typography sx={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>
-              PDAO
-            </Typography>
+            <img 
+              src="/images/cropped_image.png" 
+              alt="PDAO Logo" 
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'contain' 
+              }}
+            />
           </Box>
           <Box sx={{ display: { xs: isOpen ? 'block' : 'none', md: 'block' } }}>
             <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#2C3E50', lineHeight: 1.2 }}>
@@ -233,13 +240,20 @@ function AdminSidebar({ isOpen, onToggle }) {
           active={isActive('/admin-support')}
           badgeCount={supportNotifications}
         />
+        <SidebarItem 
+          icon={<DescriptionIcon />} 
+          label="Document Management" 
+          path="/document-management"
+          active={isActive('/document-management')}
+        />
       </Box>
 
       {/* Password Management */}
       <Box sx={{ 
         p: 2,
         opacity: { xs: isOpen ? 1 : 0, md: 1 },
-        transition: 'opacity 0.3s ease-in-out'
+        transition: 'opacity 0.3s ease-in-out',
+        display: { xs: isOpen ? 'block' : 'none', md: 'block' }
       }}>
         <Button
           fullWidth
@@ -291,7 +305,8 @@ function AdminSidebar({ isOpen, onToggle }) {
       <Box sx={{ 
         p: 3,
         opacity: { xs: isOpen ? 1 : 0, md: 1 },
-        transition: 'opacity 0.3s ease-in-out'
+        transition: 'opacity 0.3s ease-in-out',
+        display: { xs: isOpen ? 'block' : 'none', md: 'block' }
       }}>
         <Button
           fullWidth

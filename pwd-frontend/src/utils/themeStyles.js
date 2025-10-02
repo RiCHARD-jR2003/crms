@@ -55,13 +55,14 @@ export const dialogStyles = {
 };
 
 export const dialogTitleStyles = {
-  backgroundColor: '#2C3E50',
-  color: '#FFFFFF !important',
+  backgroundColor: '#FFFFFF',
+  color: '#000000 !important',
   fontWeight: 600,
   display: 'flex',
   alignItems: 'center',
   gap: 1,
-  p: 2
+  p: 2,
+  borderBottom: '1px solid #E0E0E0'
 };
 
 export const dialogContentStyles = {
@@ -74,9 +75,10 @@ export const dialogContentStyles = {
 
 export const dialogActionsStyles = {
   p: 2,
-  backgroundColor: '#2C3E50',
+  backgroundColor: '#FFFFFF',
+  borderTop: '1px solid #E0E0E0',
   '& .MuiButton-root': {
-    color: '#FFFFFF'
+    color: '#000000'
   }
 };
 

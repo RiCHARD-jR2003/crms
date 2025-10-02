@@ -316,21 +316,22 @@ const PWDMemberSupportDesk = () => {
   console.log('PWDMemberSupportDesk: About to render, loading:', loading, 'tickets:', tickets.length);
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8F9FA' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#FFFFFF' }}>
       <PWDMemberSidebar />
       
       <Box sx={{ 
         flex: 1, 
         marginLeft: '280px', // Account for fixed sidebar width
         p: 3,
-        minHeight: '100vh'
+        minHeight: '100vh',
+        backgroundColor: '#FFFFFF'
       }}>
         {/* Header */}
         <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" sx={{ color: '#2C3E50', fontWeight: 600, mb: 1 }}>
+          <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600, mb: 1 }}>
             Support Desk
           </Typography>
-          <Typography variant="body1" sx={{ color: '#7F8C8D' }}>
+          <Typography variant="body1" sx={{ color: '#000000' }}>
             Create and manage your support tickets
           </Typography>
         </Box>
@@ -338,60 +339,60 @@ const PWDMemberSupportDesk = () => {
         {/* Statistics Cards */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+            <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
               <CardContent sx={{ textAlign: 'center' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <Schedule sx={{ color: '#E74C3C', mr: 1 }} />
-                  <Typography variant="h4" sx={{ color: '#E74C3C', fontWeight: 600 }}>
+                  <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
                     {tickets.filter(ticket => ticket.status === 'open').length}
                   </Typography>
                 </Box>
-                <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
                   Open Tickets
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+            <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
               <CardContent sx={{ textAlign: 'center' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <Warning sx={{ color: '#F39C12', mr: 1 }} />
-                  <Typography variant="h4" sx={{ color: '#F39C12', fontWeight: 600 }}>
+                  <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
                     {tickets.filter(ticket => ticket.status === 'in_progress').length}
                   </Typography>
                 </Box>
-                <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
                   In Progress
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+            <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
               <CardContent sx={{ textAlign: 'center' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <CheckCircle sx={{ color: '#27AE60', mr: 1 }} />
-                  <Typography variant="h4" sx={{ color: '#27AE60', fontWeight: 600 }}>
+                  <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
                     {tickets.filter(ticket => ticket.status === 'resolved').length}
                   </Typography>
                 </Box>
-                <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
                   Resolved
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+            <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
               <CardContent sx={{ textAlign: 'center' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <SupportAgent sx={{ color: '#3498DB', mr: 1 }} />
-                  <Typography variant="h4" sx={{ color: '#3498DB', fontWeight: 600 }}>
+                  <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
                     {tickets.length}
                   </Typography>
                 </Box>
-                <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
                   Total Tickets
                 </Typography>
               </CardContent>
@@ -432,18 +433,18 @@ const PWDMemberSupportDesk = () => {
         )}
 
         {/* Tickets Table */}
-        <Paper sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+        <Paper sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', bgcolor: '#FFFFFF' }}>
           <TableContainer>
             <Table>
-              <TableHead sx={{ backgroundColor: '#F8F9FA' }}>
+              <TableHead sx={{ backgroundColor: '#FFFFFF' }}>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Ticket #</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Subject</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Priority</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Category</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Created</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Actions</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Ticket #</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Subject</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Priority</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Category</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Created</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -455,13 +456,13 @@ const PWDMemberSupportDesk = () => {
                   </TableRow>
                 ) : tickets.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 4, color: '#7F8C8D' }}>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4, color: '#000000' }}>
                       <Box sx={{ textAlign: 'center' }}>
                         <SupportAgent sx={{ fontSize: 48, color: '#BDC3C7', mb: 2 }} />
-                        <Typography variant="h6" sx={{ color: '#7F8C8D', mb: 1 }}>
+                        <Typography variant="h6" sx={{ color: '#000000', mb: 1 }}>
                           No support tickets found
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#95A5A6' }}>
+                        <Typography variant="body2" sx={{ color: '#666666' }}>
                           Create your first ticket to get started!
                         </Typography>
                       </Box>
@@ -474,7 +475,7 @@ const PWDMemberSupportDesk = () => {
                         {ticket.ticket_number}
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#000000' }}>
                           {ticket.subject}
                         </Typography>
                       </TableCell>
@@ -523,7 +524,7 @@ const PWDMemberSupportDesk = () => {
                           }}
                         />
                       </TableCell>
-                      <TableCell sx={{ color: '#7F8C8D', fontSize: '0.9rem' }}>
+                      <TableCell sx={{ color: '#000000', fontSize: '0.9rem' }}>
                         {new Date(ticket.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
@@ -634,15 +635,15 @@ const PWDMemberSupportDesk = () => {
 
         {/* Create Ticket Dialog */}
         <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-          <DialogTitle sx={{ color: 'white', fontWeight: 600, backgroundColor: '#2C3E50' }}>
+          <DialogTitle sx={{ color: '#000000', fontWeight: 600, backgroundColor: '#FFFFFF' }}>
             Create New Support Ticket
           </DialogTitle>
-          <DialogContent sx={{ backgroundColor: '#2C3E50', color: 'white' }}>
+          <DialogContent sx={{ backgroundColor: '#FFFFFF', color: '#000000' }}>
             <Box sx={{ pt: 1 }}>
               <Grid container spacing={3}>
                 <Grid item xs={12}>
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#BDC3C7', fontWeight: 500 }}>
+                    <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500 }}>
                       Subject *
                     </Typography>
                   </Box>
@@ -654,9 +655,9 @@ const PWDMemberSupportDesk = () => {
                     required
                     sx={{
                       '& .MuiOutlinedInput-root': {
-                        color: 'white',
+                        color: '#000000',
                         '& fieldset': {
-                          borderColor: '#BDC3C7',
+                          borderColor: '#E0E0E0',
                         },
                         '&:hover fieldset': {
                           borderColor: '#3498DB',
@@ -670,7 +671,7 @@ const PWDMemberSupportDesk = () => {
                 </Grid>
                 <Grid item xs={6}>
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#BDC3C7', fontWeight: 500 }}>
+                    <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500 }}>
                       Priority
                     </Typography>
                   </Box>
@@ -679,10 +680,10 @@ const PWDMemberSupportDesk = () => {
                     value={formData.priority}
                     onChange={handleInputChange}
                     sx={{
-                      color: 'white',
+                      color: '#000000',
                       width: '100%',
                       '& .MuiOutlinedInput-notchedOutline': {
-                        borderColor: '#BDC3C7',
+                        borderColor: '#E0E0E0',
                       },
                       '&:hover .MuiOutlinedInput-notchedOutline': {
                         borderColor: '#3498DB',
@@ -691,7 +692,7 @@ const PWDMemberSupportDesk = () => {
                         borderColor: '#3498DB',
                       },
                       '& .MuiSvgIcon-root': {
-                        color: '#BDC3C7',
+                        color: '#666666',
                       },
                     }}
                   >
@@ -703,7 +704,7 @@ const PWDMemberSupportDesk = () => {
                 </Grid>
                 <Grid item xs={6}>
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#BDC3C7', fontWeight: 500 }}>
+                    <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500 }}>
                       Category
                     </Typography>
                   </Box>
@@ -712,10 +713,10 @@ const PWDMemberSupportDesk = () => {
                     value={formData.category}
                     onChange={handleInputChange}
                     sx={{
-                      color: 'white',
+                      color: '#000000',
                       width: '100%',
                       '& .MuiOutlinedInput-notchedOutline': {
-                        borderColor: '#BDC3C7',
+                        borderColor: '#E0E0E0',
                       },
                       '&:hover .MuiOutlinedInput-notchedOutline': {
                         borderColor: '#3498DB',
@@ -724,7 +725,7 @@ const PWDMemberSupportDesk = () => {
                         borderColor: '#3498DB',
                       },
                       '& .MuiSvgIcon-root': {
-                        color: '#BDC3C7',
+                        color: '#666666',
                       },
                     }}
                   >
@@ -738,7 +739,7 @@ const PWDMemberSupportDesk = () => {
                 </Grid>
                 <Grid item xs={12}>
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#BDC3C7', fontWeight: 500 }}>
+                    <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500 }}>
                       Description *
                     </Typography>
                   </Box>
@@ -753,9 +754,9 @@ const PWDMemberSupportDesk = () => {
                     placeholder="Please describe your issue or question in detail..."
                     sx={{
                       '& .MuiOutlinedInput-root': {
-                        color: 'white',
+                        color: '#000000',
                         '& fieldset': {
-                          borderColor: '#BDC3C7',
+                          borderColor: '#E0E0E0',
                         },
                         '&:hover fieldset': {
                           borderColor: '#3498DB',
@@ -771,7 +772,7 @@ const PWDMemberSupportDesk = () => {
                 {/* File Upload Section */}
                 <Grid item xs={12}>
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#BDC3C7', fontWeight: 500 }}>
+                    <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500 }}>
                       Attach File (Optional)
                     </Typography>
                   </Box>
@@ -807,7 +808,7 @@ const PWDMemberSupportDesk = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography 
                           variant="body2" 
-                          sx={{ color: 'white' }}
+                          sx={{ color: '#000000' }}
                         >
                           {selectedFile.name}
                         </Typography>
@@ -824,7 +825,7 @@ const PWDMemberSupportDesk = () => {
                   
                   <Typography 
                     variant="caption" 
-                    sx={{ color: '#BDC3C7', mt: 1, display: 'block' }}
+                    sx={{ color: '#666666', mt: 1, display: 'block' }}
                   >
                     Supported formats: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF (Max 10MB)
                   </Typography>
@@ -832,10 +833,10 @@ const PWDMemberSupportDesk = () => {
               </Grid>
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 2, backgroundColor: '#2C3E50' }}>
+          <DialogActions sx={{ p: 2, backgroundColor: '#FFFFFF' }}>
             <Button 
               onClick={handleCloseDialog}
-              sx={{ color: '#BDC3C7' }}
+              sx={{ color: '#000000' }}
             >
               Cancel
             </Button>
@@ -856,48 +857,48 @@ const PWDMemberSupportDesk = () => {
 
         {/* View Ticket Dialog */}
         <Dialog open={viewDialog} onClose={handleCloseViewDialog} maxWidth="md" fullWidth>
-          <DialogTitle sx={{ backgroundColor: '#2C3E50', color: 'white', fontWeight: 600 }}>
+          <DialogTitle sx={{ backgroundColor: '#FFFFFF', color: '#000000', fontWeight: 600 }}>
             Ticket Details - {selectedTicket?.ticket_number}
           </DialogTitle>
           <DialogContent 
             sx={{ 
-              backgroundColor: '#2C3E50 !important',
-              color: 'white !important',
+              backgroundColor: '#FFFFFF !important',
+              color: '#000000 !important',
               '& *': { 
-                color: 'white !important',
-                '& .MuiTypography-root': { color: 'white !important' },
-                '& .MuiChip-root': { color: 'white !important' },
-                '& .MuiChip-label': { color: 'white !important' },
-                '& .MuiAvatar-root': { color: 'white !important' },
-                '& .MuiListItem-root': { color: 'white !important' },
-                '& .MuiBox-root': { color: 'white !important' },
-                '& .MuiGrid-root': { color: 'white !important' },
-                '& p': { color: 'white !important' },
-                '& span': { color: 'white !important' },
-                '& div': { color: 'white !important' }
+                color: '#000000 !important',
+                '& .MuiTypography-root': { color: '#000000 !important' },
+                '& .MuiChip-root': { color: '#000000 !important' },
+                '& .MuiChip-label': { color: '#000000 !important' },
+                '& .MuiAvatar-root': { color: '#000000 !important' },
+                '& .MuiListItem-root': { color: '#000000 !important' },
+                '& .MuiBox-root': { color: '#000000 !important' },
+                '& .MuiGrid-root': { color: '#000000 !important' },
+                '& p': { color: '#000000 !important' },
+                '& span': { color: '#000000 !important' },
+                '& div': { color: '#000000 !important' }
               }
             }}
             style={{
-              backgroundColor: '#2C3E50',
-              color: 'white',
-              '--text-color': 'white'
+              backgroundColor: '#FFFFFF',
+              color: '#000000',
+              '--text-color': '#000000'
             }}
           >
             {selectedTicket && (
-              <Box sx={{ pt: 1, color: 'white' }}>
+              <Box sx={{ pt: 1, color: '#000000' }}>
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                   <Grid item xs={6}>
                     <Typography 
                       variant="subtitle2" 
-                      sx={{ color: '#BDC3C7 !important', fontWeight: 500 }}
-                      style={{ color: '#BDC3C7' }}
+                      sx={{ color: '#666666 !important', fontWeight: 500 }}
+                      style={{ color: '#666666' }}
                     >
                       Subject
                     </Typography>
                     <Typography 
                       variant="body1" 
-                      sx={{ fontWeight: 500, color: 'white !important', backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                      style={{ color: 'white' }}
+                      sx={{ fontWeight: 500, color: '#000000 !important', backgroundColor: '#E8F0FE', p: 1, borderRadius: 1 }}
+                      style={{ color: '#000000' }}
                     >
                       {selectedTicket.subject}
                     </Typography>
@@ -905,8 +906,8 @@ const PWDMemberSupportDesk = () => {
                   <Grid item xs={3}>
                     <Typography 
                       variant="subtitle2" 
-                      sx={{ color: '#BDC3C7 !important', fontWeight: 500 }}
-                      style={{ color: '#BDC3C7' }}
+                      sx={{ color: '#666666 !important', fontWeight: 500 }}
+                      style={{ color: '#666666' }}
                     >
                       Status
                     </Typography>
@@ -915,14 +916,14 @@ const PWDMemberSupportDesk = () => {
                       label={selectedTicket.status.replace('_', ' ').toUpperCase()}
                       size="small"
                       sx={{ 
-                        backgroundColor: '#3498DB',
-                        color: 'white',
+                        backgroundColor: '#E8F0FE',
+                        color: '#0b87ac',
                         fontWeight: 600,
                         '& .MuiChip-label': { 
-                          color: 'white' 
+                          color: '#0b87ac' 
                         },
                         '& .MuiChip-icon': {
-                          color: 'white'
+                          color: '#0b87ac'
                         }
                       }}
                     />
@@ -930,8 +931,8 @@ const PWDMemberSupportDesk = () => {
                   <Grid item xs={3}>
                     <Typography 
                       variant="subtitle2" 
-                      sx={{ color: '#BDC3C7 !important', fontWeight: 500 }}
-                      style={{ color: '#BDC3C7' }}
+                      sx={{ color: '#666666 !important', fontWeight: 500 }}
+                      style={{ color: '#666666' }}
                     >
                       Priority
                     </Typography>
@@ -939,45 +940,45 @@ const PWDMemberSupportDesk = () => {
                       label={selectedTicket.priority.toUpperCase()}
                       size="small"
                       sx={{ 
-                        backgroundColor: '#3498DB',
-                        color: 'white',
+                        backgroundColor: '#E8F0FE',
+                        color: '#0b87ac',
                         fontWeight: 600,
                         '& .MuiChip-label': { 
-                          color: 'white' 
+                          color: '#0b87ac' 
                         }
                       }}
                     />
                   </Grid>
                 </Grid>
 
-                <Divider sx={{ my: 2, borderColor: '#BDC3C7' }} />
+                <Divider sx={{ my: 2, borderColor: '#E0E0E0' }} />
 
                 <Typography 
                   variant="subtitle2" 
-                  sx={{ color: 'white !important', backgroundColor: '#3498DB', p: 1, borderRadius: 1, mb: 1, fontWeight: 500 }}
-                  style={{ color: 'white' }}
+                  sx={{ color: '#000000 !important', backgroundColor: '#E8F0FE', p: 1, borderRadius: 1, mb: 1, fontWeight: 500 }}
+                  style={{ color: '#000000' }}
                 >
                   Requester Information
                 </Typography>
-                <Box sx={{ mb: 2, p: 2, backgroundColor: '#34495E', borderRadius: 1 }}>
+                <Box sx={{ mb: 2, p: 2, backgroundColor: '#F5F5F5', borderRadius: 1 }}>
                   <Typography 
                     variant="body2" 
-                    sx={{ color: 'white !important', mb: 1 }}
-                    style={{ color: 'white' }}
+                    sx={{ color: '#000000 !important', mb: 1 }}
+                    style={{ color: '#000000' }}
                   >
                     <strong>Name:</strong> {selectedTicket.pwd_member?.firstName} {selectedTicket.pwd_member?.lastName}
                   </Typography>
                   <Typography 
                     variant="body2" 
-                    sx={{ color: 'white !important', mb: 1 }}
-                    style={{ color: 'white' }}
+                    sx={{ color: '#000000 !important', mb: 1 }}
+                    style={{ color: '#000000' }}
                   >
                     <strong>Email:</strong> {selectedTicket.pwd_member?.email || 'Not provided'}
                   </Typography>
                   <Typography 
                     variant="body2" 
-                    sx={{ color: 'white !important' }}
-                    style={{ color: 'white' }}
+                    sx={{ color: '#000000 !important' }}
+                    style={{ color: '#000000' }}
                   >
                     <strong>Phone:</strong> {selectedTicket.pwd_member?.contactNumber || 'Not provided'}
                   </Typography>
@@ -985,71 +986,71 @@ const PWDMemberSupportDesk = () => {
 
                 <Typography 
                   variant="subtitle2" 
-                  sx={{ color: 'white !important', backgroundColor: '#3498DB', p: 1, borderRadius: 1, mb: 1, fontWeight: 500 }}
-                  style={{ color: 'white' }}
+                  sx={{ color: '#000000 !important', backgroundColor: '#E8F0FE', p: 1, borderRadius: 1, mb: 1, fontWeight: 500 }}
+                  style={{ color: '#000000' }}
                 >
                   Description
                 </Typography>
                 <Typography 
                   variant="body1" 
-                  sx={{ mb: 3, p: 2, backgroundColor: '#3498DB', borderRadius: 1, color: 'white !important' }}
-                  style={{ color: 'white' }}
+                  sx={{ mb: 3, p: 2, backgroundColor: '#F5F5F5', borderRadius: 1, color: '#000000 !important' }}
+                  style={{ color: '#000000' }}
                 >
                   {selectedTicket.description}
                 </Typography>
 
                 <Typography 
                   variant="subtitle2" 
-                  sx={{ color: 'white !important', backgroundColor: '#3498DB', p: 1, borderRadius: 1, mb: 1, fontWeight: 500 }}
-                  style={{ color: 'white' }}
+                  sx={{ color: '#000000 !important', backgroundColor: '#E8F0FE', p: 1, borderRadius: 1, mb: 1, fontWeight: 500 }}
+                  style={{ color: '#000000' }}
                 >
                   Messages ({selectedTicket.messages?.length || 0})
                 </Typography>
-                <List sx={{ maxHeight: 300, overflow: 'auto', color: 'white !important' }} style={{ color: 'white' }}>
+                <List sx={{ maxHeight: 300, overflow: 'auto', color: '#000000 !important' }} style={{ color: '#000000' }}>
                   {selectedTicket.messages?.map((message, index) => (
                     <ListItem 
                       key={index} 
-                      sx={{ flexDirection: 'column', alignItems: 'flex-start', color: 'white !important' }}
-                      style={{ color: 'white' }}
+                      sx={{ flexDirection: 'column', alignItems: 'flex-start', color: '#000000 !important' }}
+                      style={{ color: '#000000' }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                         <Avatar 
-                          sx={{ width: 24, height: 24, mr: 1, fontSize: '0.75rem', backgroundColor: '#3498DB', color: 'white !important' }}
+                          sx={{ width: 24, height: 24, mr: 1, fontSize: '0.75rem', backgroundColor: '#0b87ac', color: 'white !important' }}
                           style={{ color: 'white' }}
                         >
                           {message.sender_type === 'admin' ? 'A' : 'P'}
                         </Avatar>
                         <Typography 
                           variant="subtitle2" 
-                          sx={{ fontWeight: 500, color: 'white !important' }}
-                          style={{ color: 'white' }}
+                          sx={{ fontWeight: 500, color: '#000000 !important' }}
+                          style={{ color: '#000000' }}
                         >
                           {message.sender_type === 'admin' ? 'Admin' : 'You'}
                         </Typography>
                         <Typography 
                           variant="caption" 
-                          sx={{ ml: 2, color: '#BDC3C7 !important' }}
-                          style={{ color: '#BDC3C7' }}
+                          sx={{ ml: 2, color: '#666666 !important' }}
+                          style={{ color: '#666666' }}
                         >
                           {new Date(message.created_at).toLocaleString()}
                         </Typography>
                       </Box>
                       <Typography 
                         variant="body2" 
-                        sx={{ ml: 4, backgroundColor: '#34495E', p: 1, borderRadius: 1, color: 'white !important' }}
-                        style={{ color: 'white' }}
+                        sx={{ ml: 4, backgroundColor: '#F5F5F5', p: 1, borderRadius: 1, color: '#000000 !important' }}
+                        style={{ color: '#000000' }}
                       >
                         {message.message}
                       </Typography>
                       
                       {/* Attachment Display */}
                       {message.attachment_path && (
-                        <Box sx={{ ml: 4, mt: 1, p: 1, backgroundColor: '#2C3E50', borderRadius: 1 }}>
+                        <Box sx={{ ml: 4, mt: 1, p: 1, backgroundColor: '#F5F5F5', borderRadius: 1 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <AttachFile sx={{ color: '#3498DB', fontSize: 16 }} />
+                            <AttachFile sx={{ color: '#0b87ac', fontSize: 16 }} />
                             <Typography 
                               variant="body2" 
-                              sx={{ color: 'white', flex: 1 }}
+                              sx={{ color: '#000000', flex: 1 }}
                             >
                               {message.attachment_name}
                             </Typography>
@@ -1095,8 +1096,8 @@ const PWDMemberSupportDesk = () => {
               </Box>
             )}
           </DialogContent>
-          <DialogActions sx={{ p: 2, backgroundColor: '#2C3E50' }}>
-            <Button onClick={handleCloseViewDialog} sx={{ color: 'white' }}>Close</Button>
+          <DialogActions sx={{ p: 2, backgroundColor: '#FFFFFF' }}>
+            <Button onClick={handleCloseViewDialog} sx={{ color: '#000000' }}>Close</Button>
             {selectedTicket?.status !== 'closed' && (
               <Button 
                 onClick={() => handleReplyTicket(selectedTicket)}
@@ -1111,13 +1112,13 @@ const PWDMemberSupportDesk = () => {
 
         {/* Reply Dialog */}
         <Dialog open={replyDialog} onClose={handleCloseReplyDialog} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ backgroundColor: '#2C3E50', color: 'white', fontWeight: 600 }}>
+          <DialogTitle sx={{ backgroundColor: '#FFFFFF', color: '#000000', fontWeight: 600 }}>
             Reply to Ticket
           </DialogTitle>
-          <DialogContent sx={{ backgroundColor: '#2C3E50', color: 'white' }}>
+          <DialogContent sx={{ backgroundColor: '#FFFFFF', color: '#000000' }}>
             <Box sx={{ pt: 1 }}>
               <Box sx={{ mb: 1 }}>
-                <Typography variant="body2" sx={{ color: '#BDC3C7', fontWeight: 500 }}>
+                <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500 }}>
                   Your Reply
                 </Typography>
               </Box>
@@ -1130,9 +1131,9 @@ const PWDMemberSupportDesk = () => {
                 placeholder="Type your reply here..."
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    color: 'white',
+                    color: '#000000',
                     '& fieldset': {
-                      borderColor: '#BDC3C7',
+                      borderColor: '#E0E0E0',
                     },
                     '&:hover fieldset': {
                       borderColor: '#3498DB',
@@ -1146,7 +1147,7 @@ const PWDMemberSupportDesk = () => {
               
               {/* File Upload Section */}
               <Box sx={{ mt: 2 }}>
-                <Typography variant="body2" sx={{ color: '#BDC3C7', fontWeight: 500, mb: 1 }}>
+                <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500, mb: 1 }}>
                   Attach File (Optional)
                 </Typography>
                 
@@ -1181,7 +1182,7 @@ const PWDMemberSupportDesk = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography 
                         variant="body2" 
-                        sx={{ color: 'white' }}
+                        sx={{ color: '#000000' }}
                       >
                         {selectedReplyFile.name}
                       </Typography>
@@ -1198,15 +1199,15 @@ const PWDMemberSupportDesk = () => {
                 
                 <Typography 
                   variant="caption" 
-                  sx={{ color: '#BDC3C7', mt: 1, display: 'block' }}
+                  sx={{ color: '#666666', mt: 1, display: 'block' }}
                 >
                   Supported formats: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF (Max 10MB)
                 </Typography>
               </Box>
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 2, backgroundColor: '#2C3E50' }}>
-            <Button onClick={handleCloseReplyDialog} sx={{ color: 'white' }}>Cancel</Button>
+          <DialogActions sx={{ p: 2, backgroundColor: '#FFFFFF' }}>
+            <Button onClick={handleCloseReplyDialog} sx={{ color: '#000000' }}>Cancel</Button>
             <Button 
               onClick={handleSubmitReply}
               variant="contained"

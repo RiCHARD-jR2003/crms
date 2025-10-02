@@ -567,47 +567,48 @@ const AdminSupportDesk = () => {
           }}
         >
           <DialogTitle sx={{ 
-            backgroundColor: '#2C3E50',
-            color: 'white !important', 
+            backgroundColor: '#FFFFFF',
+            color: '#000000 !important', 
             fontWeight: 600,
             fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' },
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            alignItems: 'center',
+            borderBottom: '1px solid #E0E0E0'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <SupportAgent sx={{ color: '#3498DB' }} />
-              <Typography variant="h6" sx={{ color: 'white !important' }}>
+              <SupportAgent sx={{ color: '#0b87ac' }} />
+              <Typography variant="h6" sx={{ color: '#000000 !important' }}>
                 Ticket Details
               </Typography>
             </Box>
-            <IconButton onClick={handleCloseViewDialog} sx={{ color: 'white !important' }}>
+            <IconButton onClick={handleCloseViewDialog} sx={{ color: '#000000 !important' }}>
               ×
             </IconButton>
           </DialogTitle>
           <DialogContent 
             sx={{ 
-              backgroundColor: '#2C3E50 !important',
-              color: 'white !important',
+              backgroundColor: '#FFFFFF !important',
+              color: '#000000 !important',
               p: { xs: 2, sm: 3 },
               '& *': { 
-                color: 'white !important',
-                '& .MuiTypography-root': { color: 'white !important' },
-                '& .MuiChip-root': { color: 'white !important' },
-                '& .MuiChip-label': { color: 'white !important' },
-                '& .MuiAvatar-root': { color: 'white !important' },
-                '& .MuiListItem-root': { color: 'white !important' },
-                '& .MuiBox-root': { color: 'white !important' },
-                '& .MuiGrid-root': { color: 'white !important' },
-                '& p': { color: 'white !important' },
-                '& span': { color: 'white !important' },
-                '& div': { color: 'white !important' }
+                color: '#000000 !important',
+                '& .MuiTypography-root': { color: '#000000 !important' },
+                '& .MuiChip-root': { color: '#000000 !important' },
+                '& .MuiChip-label': { color: '#000000 !important' },
+                '& .MuiAvatar-root': { color: '#000000 !important' },
+                '& .MuiListItem-root': { color: '#000000 !important' },
+                '& .MuiBox-root': { color: '#000000 !important' },
+                '& .MuiGrid-root': { color: '#000000 !important' },
+                '& p': { color: '#000000 !important' },
+                '& span': { color: '#000000 !important' },
+                '& div': { color: '#000000 !important' }
               }
             }}
             style={{
-              backgroundColor: '#2C3E50',
-              color: 'white',
-              '--text-color': 'white'
+              backgroundColor: '#FFFFFF',
+              color: '#000000',
+              '--text-color': '#000000'
             }}
           >
             {selectedTicket && (
@@ -952,7 +953,8 @@ const AdminSupportDesk = () => {
           </DialogContent>
           <DialogActions sx={{ 
             p: { xs: 2, sm: 3 }, 
-            backgroundColor: '#2C3E50',
+            backgroundColor: '#FFFFFF',
+            borderTop: '1px solid #E0E0E0',
             flexDirection: { xs: 'column', sm: 'row' },
             alignItems: { xs: 'stretch', sm: 'center' },
             gap: { xs: 1, sm: 2 }
@@ -960,7 +962,7 @@ const AdminSupportDesk = () => {
             <Button 
               onClick={handleCloseViewDialog} 
               sx={{ 
-                color: 'white',
+                color: '#000000',
                 fontSize: { xs: '0.8rem', sm: '0.9rem' },
                 py: { xs: 1.5, sm: 1 }
               }}

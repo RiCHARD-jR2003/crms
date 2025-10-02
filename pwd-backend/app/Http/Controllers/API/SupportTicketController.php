@@ -27,9 +27,9 @@ class SupportTicketController extends Controller
             
             if ($user->role === 'Admin') {
                 // Admin can see all tickets
-                $tickets = SupportTicket::with(['pwdMember', 'messages'])
-                    ->orderBy('created_at', 'desc')
-                    ->get();
+        $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
+            ->orderBy('created_at', 'desc')
+            ->get();
             } elseif ($user->role === 'PWDMember') {
                 // PWD member can only see their own tickets
                 $pwdMember = PWDMember::where('userID', $user->userID)->first();
@@ -37,7 +37,7 @@ class SupportTicketController extends Controller
                     return response()->json(['error' => 'PWD Member not found'], 404);
                 }
                 
-                $tickets = SupportTicket::with(['messages'])
+                $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
                     ->where('pwd_member_id', $pwdMember->id)
                     ->orderBy('created_at', 'desc')
                     ->get();
@@ -130,7 +130,7 @@ class SupportTicketController extends Controller
     {
         try {
             $user = Auth::user();
-            $ticket = SupportTicket::with(['pwdMember', 'messages'])->find($id);
+            $ticket = SupportTicket::with(['pwdMember.user', 'messages'])->find($id);
 
             if (!$ticket) {
                 return response()->json(['error' => 'Ticket not found'], 404);

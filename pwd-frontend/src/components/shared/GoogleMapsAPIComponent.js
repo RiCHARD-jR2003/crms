@@ -6,32 +6,11 @@ import { LocationOn, OpenInNew } from '@mui/icons-material';
 // PWD Office Location
 const PWD_OFFICE_LOCATION = {
   name: 'PWD Office - Poblacion Uno',
-  address: '74JF+3F6, P. Burgos, Publacion Uno, Cabuyao City, 4026 Laguna',
+  address: '74JF+3F6, P. Burgos, Poblacion Uno, Cabuyao City, 4026 Laguna',
   lat: 14.2488,
   lng: 121.1248
 };
 
-// Barangay information with coordinates
-const BARANGAYS = [
-  { name: 'Bigaa', color: '#1976d2', lat: 14.2500, lng: 121.1200 },
-  { name: 'Butong', color: '#d32f2f', lat: 14.2400, lng: 121.1300 },
-  { name: 'Marinig', color: '#388e3c', lat: 14.2600, lng: 121.1100 },
-  { name: 'Gulod', color: '#1976d2', lat: 14.2300, lng: 121.1400 },
-  { name: 'Pob. Uno', color: '#d32f2f', lat: 14.2488, lng: 121.1248 },
-  { name: 'Pob. Dos', color: '#388e3c', lat: 14.2500, lng: 121.1250 },
-  { name: 'Pob. Tres', color: '#1976d2', lat: 14.2520, lng: 121.1260 },
-  { name: 'Sala', color: '#d32f2f', lat: 14.2400, lng: 121.1200 },
-  { name: 'Niugan', color: '#388e3c', lat: 14.2600, lng: 121.1300 },
-  { name: 'Banaybanay', color: '#1976d2', lat: 14.2200, lng: 121.1100 },
-  { name: 'Pulo', color: '#d32f2f', lat: 14.2700, lng: 121.1400 },
-  { name: 'Diezmo', color: '#388e3c', lat: 14.2100, lng: 121.1200 },
-  { name: 'Pittland', color: '#1976d2', lat: 14.2800, lng: 121.1100 },
-  { name: 'San Isidro', color: '#d32f2f', lat: 14.2000, lng: 121.1300 },
-  { name: 'Mamatid', color: '#388e3c', lat: 14.2900, lng: 121.1200 },
-  { name: 'Baclaran', color: '#1976d2', lat: 14.1900, lng: 121.1400 },
-  { name: 'Casile', color: '#d32f2f', lat: 14.3000, lng: 121.1300 },
-  { name: 'Banlic', color: '#388e3c', lat: 14.1800, lng: 121.1100 }
-];
 
 // Google Maps API Key - You need to replace this with your actual API key
 const GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY_HERE';
@@ -87,9 +66,8 @@ const render = (status) => {
   }
 };
 
-const MapComponent = ({ onBarangaySelect, height = '400px' }) => {
+const MapComponent = ({ height = '400px' }) => {
   const [map, setMap] = useState(null);
-  const [selectedBarangay, setSelectedBarangay] = useState(null);
   const [markers, setMarkers] = useState([]);
 
   const onLoad = useCallback((map) => {
@@ -127,59 +105,9 @@ const MapComponent = ({ onBarangaySelect, height = '400px' }) => {
       pwdInfoWindow.open(map, pwdOfficeMarker);
     });
 
-    // Add barangay markers
-    const barangayMarkers = BARANGAYS.map((barangay) => {
-      const marker = new google.maps.Marker({
-        position: { lat: barangay.lat, lng: barangay.lng },
-        map: map,
-        title: barangay.name,
-        icon: {
-          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-            <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="15" cy="15" r="12" fill="${barangay.color}" stroke="#fff" stroke-width="2"/>
-              <text x="15" y="20" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">${barangay.name.charAt(0)}</text>
-            </svg>
-          `),
-          scaledSize: new google.maps.Size(30, 30),
-          anchor: new google.maps.Point(15, 15)
-        }
-      });
+    setMarkers([pwdOfficeMarker]);
+  }, []);
 
-      const infoWindow = new google.maps.InfoWindow({
-        content: `
-          <div style="padding: 8px; max-width: 200px;">
-            <h4 style="margin: 0 0 4px 0; color: ${barangay.color}; font-size: 14px;">${barangay.name}</h4>
-            <p style="margin: 0; color: #666; font-size: 12px;">Barangay in Cabuyao City</p>
-          </div>
-        `
-      });
-
-      marker.addListener('click', () => {
-        setSelectedBarangay(barangay);
-        if (onBarangaySelect) {
-          onBarangaySelect(barangay);
-        }
-        infoWindow.open(map, marker);
-      });
-
-      return marker;
-    });
-
-    setMarkers([pwdOfficeMarker, ...barangayMarkers]);
-  }, [onBarangaySelect]);
-
-  const handleBarangayClick = (barangay) => {
-    setSelectedBarangay(barangay);
-    if (onBarangaySelect) {
-      onBarangaySelect(barangay);
-    }
-    
-    // Pan to barangay location
-    if (map) {
-      map.panTo({ lat: barangay.lat, lng: barangay.lng });
-      map.setZoom(15);
-    }
-  };
 
   const openInGoogleMaps = () => {
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(PWD_OFFICE_LOCATION.address)}`;
@@ -219,61 +147,24 @@ const MapComponent = ({ onBarangaySelect, height = '400px' }) => {
         </Wrapper>
       </Box>
 
-      {/* Barangay Selection Grid */}
-      <Box sx={{ height: '30%', p: { xs: 0.5, sm: 1 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle2" sx={{ color: '#333', fontWeight: 'bold', fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
-            Select Barangay
-          </Typography>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<OpenInNew />}
-            onClick={openInGoogleMaps}
-            sx={{ 
-              fontSize: { xs: '0.7rem', sm: '0.8rem' },
-              padding: { xs: '4px 8px', sm: '6px 12px' }
-            }}
-          >
-            Open in Maps
-          </Button>
-        </Box>
-        
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(6, 1fr)' },
-            gap: { xs: 0.3, sm: 0.4, md: 0.5 },
-            height: 'calc(100% - 40px)',
-            overflow: 'auto'
+      {/* Action Button */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        p: 2
+      }}>
+        <Button
+          variant="contained"
+          startIcon={<OpenInNew />}
+          onClick={openInGoogleMaps}
+          sx={{ 
+            fontSize: { xs: '0.8rem', sm: '0.9rem' },
+            padding: { xs: '8px 16px', sm: '10px 20px' }
           }}
         >
-          {BARANGAYS.map((barangay, index) => (
-            <Button
-              key={index}
-              onClick={() => handleBarangayClick(barangay)}
-              sx={{
-                backgroundColor: selectedBarangay?.name === barangay.name ? barangay.color : '#fff',
-                color: selectedBarangay?.name === barangay.name ? '#fff' : barangay.color,
-                border: `1px solid ${barangay.color}`,
-                borderRadius: 1,
-                minHeight: { xs: '28px', sm: '30px', md: '32px' },
-                fontSize: { xs: '0.6rem', sm: '0.65rem', md: '0.7rem' },
-                fontWeight: 'bold',
-                textTransform: 'none',
-                padding: { xs: '4px 6px', sm: '6px 8px', md: '8px 12px' },
-                '&:hover': {
-                  backgroundColor: barangay.color,
-                  color: '#fff',
-                  transform: 'scale(1.02)'
-                },
-                transition: 'all 0.2s ease-in-out'
-              }}
-            >
-              {barangay.name}
-            </Button>
-          ))}
-        </Box>
+          Open in Google Maps
+        </Button>
       </Box>
     </Box>
   );
@@ -293,7 +184,7 @@ const Map = ({ onLoad, ...options }) => {
   return <div ref={ref} style={{ width: '100%', height: '100%' }} />;
 };
 
-const GoogleMapsAPIComponent = ({ onBarangaySelect, height = '400px' }) => {
+const GoogleMapsAPIComponent = ({ height = '400px' }) => {
   return (
     <Box sx={{ width: '100%', height: height }}>
       {GOOGLE_MAPS_API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY_HERE' ? (
@@ -337,7 +228,7 @@ const GoogleMapsAPIComponent = ({ onBarangaySelect, height = '400px' }) => {
           </Alert>
         </Box>
       ) : (
-        <MapComponent onBarangaySelect={onBarangaySelect} height={height} />
+        <MapComponent height={height} />
       )}
     </Box>
   );

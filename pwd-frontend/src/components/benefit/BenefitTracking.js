@@ -151,7 +151,7 @@ const BenefitTracking = () => {
   // Fetch benefit claims from database
   const fetchBenefitClaims = async (benefitId) => {
     try {
-      const response = await fetch(`http://192.168.18.25:8000/api/benefit-claims/${benefitId}`);
+      const response = await fetch(`http://192.168.18.18:8000/api/benefit-claims/${benefitId}`);
       if (response.ok) {
         const claims = await response.json();
         return claims;

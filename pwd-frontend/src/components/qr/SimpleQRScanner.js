@@ -156,7 +156,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
 
       // Check HTTPS requirement for camera access
       const isHTTPS = location.protocol === 'https:';
-      const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '192.168.18.25';
+      const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
       
       if (!isHTTPS && !isLocalhost) {
         setError('📱 Camera access requires HTTPS or localhost. Please access the app via HTTPS or use localhost.');

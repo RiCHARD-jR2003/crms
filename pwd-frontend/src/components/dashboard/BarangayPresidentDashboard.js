@@ -96,9 +96,24 @@ function BarangayPresidentDashboard() {
         const barangayMembers = pwdMembers.filter(member => member.barangay === targetBarangay);
         const barangayApplications = applications.filter(app => app.barangay === targetBarangay);
         
-        // Fetch announcements
+        // Fetch announcements filtered by barangay
         const announcementsResponse = await api.get('/announcements');
-        const announcements = announcementsResponse.data || [];
+        const allAnnouncements = announcementsResponse.data || [];
+        
+        // Filter announcements for this barangay:
+        // 1. Public announcements (targetAudience = 'All')
+        // 2. Barangay-specific announcements (targetAudience matches user's barangay)
+        const filteredAnnouncements = allAnnouncements.filter(announcement => {
+          const targetAudience = announcement.targetAudience;
+          
+          // Show public announcements
+          if (targetAudience === 'All') return true;
+          
+          // Show barangay-specific announcements
+          if (targetBarangay && targetAudience === targetBarangay) return true;
+          
+          return false;
+        });
         
         setStats({
           totalPWDMembers: barangayMembers.length,
@@ -108,7 +123,7 @@ function BarangayPresidentDashboard() {
         });
         
         setRecentApplications(barangayApplications.slice(0, 5));
-        setRecentAnnouncements(announcements.slice(0, 3));
+        setRecentAnnouncements(filteredAnnouncements.slice(0, 3));
         
       } catch (error) {
         console.error('Error fetching dashboard data:', error);

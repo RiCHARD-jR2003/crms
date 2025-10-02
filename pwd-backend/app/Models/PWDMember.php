@@ -15,6 +15,8 @@ class PWDMember extends Model
 
     protected $fillable = [
         'userID',
+        'pwd_id',
+        'pwd_id_generated_at',
         'firstName',
         'lastName',
         'middleName',

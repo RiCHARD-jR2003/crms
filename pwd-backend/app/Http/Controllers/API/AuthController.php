@@ -67,25 +67,16 @@ class AuthController extends Controller
     {
         $credentials = $request->only('username', 'password');
         
-        // First try to authenticate with username
-        if (!Auth::attempt($credentials)) {
-            // If username fails, try with email
-            $emailCredentials = [
-                'email' => $request->username,
-                'password' => $request->password
-            ];
-            
-            if (!Auth::attempt($emailCredentials)) {
-                return response()->json([
-                    'message' => 'Invalid login credentials'
-                ], 401);
-            }
-        }
-
         // Find user by username first, then by email if not found
         $user = User::where('username', $request->username)->first();
         if (!$user) {
-            $user = User::where('email', $request->username)->firstOrFail();
+            $user = User::where('email', $request->username)->first();
+        }
+        
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Invalid login credentials'
+            ], 401);
         }
         
         // Check if user is active

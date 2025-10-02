@@ -17,6 +17,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import AnnouncementIcon from '@mui/icons-material/Announcement';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import PersonIcon from '@mui/icons-material/Person';
+import DescriptionIcon from '@mui/icons-material/Description';
 import LogoutIcon from '@mui/icons-material/Logout';
 import Menu from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
@@ -32,7 +33,8 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/pwd-dashboard' },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: 'My Documents', icon: <DescriptionIcon />, path: '/pwd-documents' },
     { text: 'Announcements', icon: <AnnouncementIcon />, path: '/pwd-announcements' },
     { text: 'Support Desk', icon: <SupportAgentIcon />, path: '/pwd-support' },
     { text: 'Profile', icon: <PersonIcon />, path: '/pwd-profile' },
@@ -51,45 +53,59 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
     <Box sx={{
       width: 280,
       height: '100%',
-      bgcolor: '#2C3E50',
+      bgcolor: '#FFFFFF',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      borderRight: '1px solid #000000'
     }}>
       {/* Header */}
       <Box sx={{ 
-        p: { xs: 2, sm: 3 }, 
-        borderBottom: '1px solid #34495E',
+        p: 2.5, 
         display: 'flex',
         alignItems: 'center',
-        gap: 2
+        gap: 2,
+        justifyContent: 'space-between'
       }}>
-        <Box sx={{
-          width: 40,
-          height: 40,
-          bgcolor: '#2E86C1',
-          borderRadius: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem'
-        }}>
-          PDAO
-        </Box>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold', fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-            CABUYAO PDAO RMS
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#BDC3C7', fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>
-            PWD Member Portal
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{
+            width: 40,
+            height: 40,
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden'
+          }}>
+            <img 
+              src="/images/cropped_image.png" 
+              alt="PWD Logo" 
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'contain' 
+              }}
+            />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#2C3E50', lineHeight: 1.2 }}>
+              PWD MEMBER
+            </Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#2C3E50', lineHeight: 1.2 }}>
+              DASHBOARD
+            </Typography>
+          </Box>
         </Box>
         {isMobile && (
           <IconButton
             onClick={handleDrawerToggle}
-            sx={{ color: 'white', p: 0.5 }}
+            sx={{ 
+              color: '#566573',
+              '&:hover': {
+                backgroundColor: '#E8F0FE',
+                color: '#0b87ac'
+              }
+            }}
           >
             <CloseIcon />
           </IconButton>
@@ -97,102 +113,92 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
       </Box>
 
       {/* User Info */}
-      <Box sx={{ p: { xs: 1.5, sm: 2 }, borderBottom: '1px solid #34495E' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{
-            width: 32,
-            height: 32,
-            bgcolor: '#2E86C1',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '0.9rem'
-          }}>
-            <PersonIcon sx={{ fontSize: 20 }} />
-          </Box>
-          <Typography variant="body2" sx={{ color: '#BDC3C7', fontSize: { xs: '0.8rem', sm: '0.9rem' } }}>
-            Hello PWD Member
-          </Typography>
+      <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{
+          width: 40,
+          height: 40,
+          bgcolor: '#3498DB',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white'
+        }}>
+          <PersonIcon />
         </Box>
+        <Typography sx={{ fontWeight: 600, color: '#2C3E50' }}>
+          Hello PWD Member
+        </Typography>
       </Box>
 
       {/* Navigation Menu */}
-      <Box sx={{ flex: 1, overflowY: 'auto', py: 1 }}>
-        <List sx={{ px: 1 }}>
-          {menuItems.map((item) => (
-            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
-              <ListItemButton
-                onClick={() => {
-                  navigate(item.path);
-                  if (isMobile) {
-                    setMobileOpen(false);
-                  }
-                }}
-                sx={{
-                  borderRadius: 1,
-                  py: { xs: 1, sm: 1.5 },
-                  px: 2,
-                  bgcolor: location.pathname === item.path ? '#34495E' : 'transparent',
-                  '&:hover': {
-                    bgcolor: '#34495E',
-                  },
-                  minHeight: { xs: 48, sm: 56 }
-                }}
-              >
-                <ListItemIcon sx={{ 
-                  color: location.pathname === item.path ? '#2E86C1' : '#BDC3C7',
-                  minWidth: { xs: 40, sm: 48 }
-                }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.text}
-                  sx={{
-                    '& .MuiListItemText-primary': {
-                      color: location.pathname === item.path ? 'white' : '#BDC3C7',
-                      fontSize: { xs: '0.9rem', sm: '1rem' },
-                      fontWeight: location.pathname === item.path ? 600 : 400
-                    }
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
+      <Box sx={{ p: 2, flex: 1, mt: 2 }}>
+        {menuItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Box 
+              key={item.text}
+              onClick={() => {
+                navigate(item.path);
+                if (isMobile) {
+                  setMobileOpen(false);
+                }
+              }}
+              sx={{
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 2, 
+                px: 2, 
+                py: 1.5, 
+                borderRadius: 2, 
+                mb: 1,
+                bgcolor: isActive ? '#0b87ac' : 'transparent',
+                color: isActive ? '#FFFFFF' : '#566573',
+                fontWeight: isActive ? 600 : 500,
+                '&:hover': {
+                  background: isActive ? '#0a6b8a' : '#E8F0FE',
+                  cursor: 'pointer',
+                  color: isActive ? '#FFFFFF' : '#0b87ac'
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
+            >
+              {React.cloneElement(item.icon, { sx: { fontSize: 22, color: isActive ? '#FFFFFF' : '#566573' } })}
+              <Typography sx={{ fontWeight: 'inherit', fontSize: '0.95rem', color: isActive ? '#FFFFFF' : '#566573' }}>
+                {item.text}
+              </Typography>
+            </Box>
+          );
+        })}
       </Box>
 
       {/* Logout Section */}
-      <Box sx={{ p: 2, borderTop: '1px solid #34495E' }}>
-        <Divider sx={{ mb: 2, bgcolor: '#34495E' }} />
-        <ListItemButton
+      <Box sx={{ p: 3 }}>
+        <Box
           onClick={handleLogout}
           sx={{
-            borderRadius: 1,
-            py: { xs: 1, sm: 1.5 },
-            px: 2,
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2, 
+            px: 2, 
+            py: 1.5, 
+            borderRadius: 2, 
             bgcolor: 'transparent',
+            color: '#566573',
+            fontWeight: 500,
             '&:hover': {
-              bgcolor: '#E74C3C',
+              background: '#E8F0FE',
+              cursor: 'pointer',
+              color: '#0b87ac'
             },
-            minHeight: { xs: 48, sm: 56 }
+            transition: 'all 0.2s ease-in-out'
           }}
         >
-          <ListItemIcon sx={{ color: '#E74C3C', minWidth: { xs: 40, sm: 48 } }}>
-            <LogoutIcon />
-          </ListItemIcon>
-          <ListItemText 
-            primary="Logout"
-            sx={{
-              '& .MuiListItemText-primary': {
-                color: '#E74C3C',
-                fontSize: { xs: '0.9rem', sm: '1rem' },
-                fontWeight: 500
-              }
-            }}
-          />
-        </ListItemButton>
+          <LogoutIcon sx={{ fontSize: 22, color: 'inherit' }} />
+          <Typography sx={{ fontWeight: 'inherit', fontSize: '0.95rem', color: 'inherit' }}>
+            Logout
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );
@@ -225,13 +231,15 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
     <Box sx={{
       width: 280,
       height: '100vh',
-      bgcolor: '#2C3E50',
+      bgcolor: '#FFFFFF',
       position: 'fixed',
       left: 0,
       top: 0,
       display: { xs: 'none', md: 'flex' },
       flexDirection: 'column',
-      zIndex: 1000
+      zIndex: 1000,
+      borderRight: '1px solid #E0E0E0',
+      boxShadow: 'none'
     }}>
       {sidebarContent}
     </Box>

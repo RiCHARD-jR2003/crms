@@ -1,7 +1,7 @@
 // src/services/supportService.js
 import { api } from './api';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = 'http://192.168.18.18:8000/api';
 
 async function getStoredToken() {
   try {

@@ -786,11 +786,17 @@ class RouteServiceProvider extends ServiceProvider
                             'pwd_id_generated_at' => now(),
                             'firstName' => $application->firstName,
                             'lastName' => $application->lastName,
+                            'middleName' => $application->middleName,
                             'birthDate' => $application->birthDate,
                             'gender' => $application->gender,
                             'disabilityType' => $application->disabilityType,
                             'address' => $application->address,
-                            'contactNumber' => $application->contactNumber
+                            'barangay' => $application->barangay,
+                            'contactNumber' => $application->contactNumber,
+                            'email' => $application->email,
+                            'emergencyContact' => $application->emergencyContact,
+                            'emergencyPhone' => $application->emergencyPhone,
+                            'emergencyRelationship' => $application->emergencyRelationship
                         ]);
                         $pwdMember = $existingPwdMember;
                     } else {
@@ -801,11 +807,17 @@ class RouteServiceProvider extends ServiceProvider
                             'pwd_id_generated_at' => now(),
                             'firstName' => $application->firstName,
                             'lastName' => $application->lastName,
+                            'middleName' => $application->middleName,
                             'birthDate' => $application->birthDate,
                             'gender' => $application->gender,
                             'disabilityType' => $application->disabilityType,
                             'address' => $application->address,
-                            'contactNumber' => $application->contactNumber
+                            'barangay' => $application->barangay,
+                            'contactNumber' => $application->contactNumber,
+                            'email' => $application->email,
+                            'emergencyContact' => $application->emergencyContact,
+                            'emergencyPhone' => $application->emergencyPhone,
+                            'emergencyRelationship' => $application->emergencyRelationship
                         ]);
                     }
 
@@ -936,11 +948,17 @@ class RouteServiceProvider extends ServiceProvider
                             'pwd_id_generated_at' => now(),
                             'firstName' => $application->firstName,
                             'lastName' => $application->lastName,
+                            'middleName' => $application->middleName,
                             'birthDate' => $application->birthDate,
                             'gender' => $application->gender,
                             'disabilityType' => $application->disabilityType,
                             'address' => $application->address,
-                            'contactNumber' => $application->contactNumber
+                            'barangay' => $application->barangay,
+                            'contactNumber' => $application->contactNumber,
+                            'email' => $application->email,
+                            'emergencyContact' => $application->emergencyContact,
+                            'emergencyPhone' => $application->emergencyPhone,
+                            'emergencyRelationship' => $application->emergencyRelationship
                         ]);
                         $pwdMember = $existingPwdMember;
                     } else {
@@ -951,11 +969,17 @@ class RouteServiceProvider extends ServiceProvider
                             'pwd_id_generated_at' => now(),
                             'firstName' => $application->firstName,
                             'lastName' => $application->lastName,
+                            'middleName' => $application->middleName,
                             'birthDate' => $application->birthDate,
                             'gender' => $application->gender,
                             'disabilityType' => $application->disabilityType,
                             'address' => $application->address,
-                            'contactNumber' => $application->contactNumber
+                            'barangay' => $application->barangay,
+                            'contactNumber' => $application->contactNumber,
+                            'email' => $application->email,
+                            'emergencyContact' => $application->emergencyContact,
+                            'emergencyPhone' => $application->emergencyPhone,
+                            'emergencyRelationship' => $application->emergencyRelationship
                         ]);
                     }
 
@@ -1388,11 +1412,17 @@ class RouteServiceProvider extends ServiceProvider
                         'pwd_id_generated_at' => now(),
                         'firstName' => $application->firstName,
                         'lastName' => $application->lastName,
+                        'middleName' => $application->middleName,
                         'birthDate' => $application->birthDate,
                         'gender' => $application->gender,
                         'disabilityType' => $application->disabilityType,
                         'address' => $application->address,
-                        'contactNumber' => $application->contactNumber
+                        'barangay' => $application->barangay,
+                        'contactNumber' => $application->contactNumber,
+                        'email' => $application->email,
+                        'emergencyContact' => $application->emergencyContact,
+                        'emergencyPhone' => $application->emergencyPhone,
+                        'emergencyRelationship' => $application->emergencyRelationship
                     ]);
 
                     // Update application status

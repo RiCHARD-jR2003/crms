@@ -860,11 +860,12 @@ function BarangayPresidentPWDRecords() {
         }}
       >
         <DialogTitle sx={{ 
-          bgcolor: '#2C3E50', 
-          color: 'white', 
+          bgcolor: '#FFFFFF', 
+          color: '#000000', 
           textAlign: 'center',
           py: 2,
-          position: 'relative'
+          position: 'relative',
+          borderBottom: '1px solid #E0E0E0'
         }}>
           <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
             PWD Application Details
@@ -876,7 +877,7 @@ function BarangayPresidentPWDRecords() {
               right: 16,
               top: '50%',
               transform: 'translateY(-50%)',
-              color: 'white'
+              color: '#000000'
             }}
           >
             <CloseIcon />
@@ -1158,7 +1159,7 @@ function BarangayPresidentPWDRecords() {
                     {selectedApplication.idPicture ? (
                       <Box sx={{ textAlign: 'center' }}>
                         <img 
-                          src={`http://127.0.0.1:8000/storage/${selectedApplication.idPicture}`}
+                          src={`http://192.168.18.18:8000/storage/${selectedApplication.idPicture}`}
                           alt="ID Picture"
                           style={{
                             maxWidth: '150px',
@@ -1184,7 +1185,7 @@ function BarangayPresidentPWDRecords() {
                           size="small"
                           variant="outlined"
                           sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(`http://127.0.0.1:8000/storage/${selectedApplication.idPicture}`, '_blank')}
+                          onClick={() => window.open(`http://192.168.18.18:8000/storage/${selectedApplication.idPicture}`, '_blank')}
                         >
                           View Full Size
                         </Button>
@@ -1203,7 +1204,7 @@ function BarangayPresidentPWDRecords() {
                     {selectedApplication.medicalCertificate ? (
                       <Box sx={{ textAlign: 'center' }}>
                         <img 
-                          src={`http://127.0.0.1:8000/storage/${selectedApplication.medicalCertificate}`}
+                          src={`http://192.168.18.18:8000/storage/${selectedApplication.medicalCertificate}`}
                           alt="Medical Certificate"
                           style={{
                             maxWidth: '150px',
@@ -1229,7 +1230,7 @@ function BarangayPresidentPWDRecords() {
                           size="small"
                           variant="outlined"
                           sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(`http://127.0.0.1:8000/storage/${selectedApplication.medicalCertificate}`, '_blank')}
+                          onClick={() => window.open(`http://192.168.18.18:8000/storage/${selectedApplication.medicalCertificate}`, '_blank')}
                         >
                           View Full Size
                         </Button>
@@ -1248,7 +1249,7 @@ function BarangayPresidentPWDRecords() {
                     {selectedApplication.barangayClearance ? (
                       <Box sx={{ textAlign: 'center' }}>
                         <img 
-                          src={`http://127.0.0.1:8000/storage/${selectedApplication.barangayClearance}`}
+                          src={`http://192.168.18.18:8000/storage/${selectedApplication.barangayClearance}`}
                           alt="Barangay Clearance"
                           style={{
                             maxWidth: '150px',
@@ -1274,7 +1275,7 @@ function BarangayPresidentPWDRecords() {
                           size="small"
                           variant="outlined"
                           sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(`http://127.0.0.1:8000/storage/${selectedApplication.barangayClearance}`, '_blank')}
+                          onClick={() => window.open(`http://192.168.18.18:8000/storage/${selectedApplication.barangayClearance}`, '_blank')}
                         >
                           View Full Size
                         </Button>

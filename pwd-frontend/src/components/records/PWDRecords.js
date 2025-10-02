@@ -312,7 +312,7 @@ function PWDRecords() {
         setFileType('pdf');
       } else {
         // For other file types, open in new tab as fallback
-        window.open(`http://127.0.0.1:8000/storage/${filePath}`, '_blank');
+        window.open(`http://192.168.18.18:8000/storage/${filePath}`, '_blank');
         return;
       }
       
@@ -1292,11 +1292,12 @@ function PWDRecords() {
           }}
         >
           <DialogTitle sx={{ 
-            bgcolor: '#0b87ac', 
-            color: 'white', 
+            bgcolor: '#FFFFFF', 
+            color: '#000000', 
             textAlign: 'center',
             py: 2,
-            position: 'relative'
+            position: 'relative',
+            borderBottom: '1px solid #E0E0E0'
           }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
               PWD Application Details
@@ -1308,7 +1309,7 @@ function PWDRecords() {
                 right: 16,
                 top: '50%',
                 transform: 'translateY(-50%)',
-                color: 'white'
+                color: '#000000'
               }}
             >
               <CloseIcon />
@@ -1599,7 +1600,7 @@ function PWDRecords() {
                       {selectedApplication.medicalCertificate ? (
                         <Box sx={{ textAlign: 'center' }}>
                           <img 
-                            src={`http://127.0.0.1:8000/storage/${selectedApplication.medicalCertificate}`}
+                            src={`http://192.168.18.18:8000/storage/${selectedApplication.medicalCertificate}`}
                             alt="Medical Certificate"
                             style={{
                               maxWidth: '150px',
@@ -1644,7 +1645,7 @@ function PWDRecords() {
                       {selectedApplication.barangayCertificate ? (
                         <Box sx={{ textAlign: 'center' }}>
                           <img 
-                            src={`http://127.0.0.1:8000/storage/${selectedApplication.barangayCertificate}`}
+                            src={`http://192.168.18.18:8000/storage/${selectedApplication.barangayCertificate}`}
                             alt="Barangay Certificate"
                             style={{
                               maxWidth: '150px',
@@ -1690,7 +1691,7 @@ function PWDRecords() {
                       {selectedApplication.clinicalAbstract ? (
                         <Box sx={{ textAlign: 'center' }}>
                           <img 
-                            src={`http://127.0.0.1:8000/storage/${selectedApplication.clinicalAbstract}`}
+                            src={`http://192.168.18.18:8000/storage/${selectedApplication.clinicalAbstract}`}
                             alt="Clinical Abstract"
                             style={{
                               maxWidth: '150px',
@@ -1736,7 +1737,7 @@ function PWDRecords() {
                       {selectedApplication.voterCertificate ? (
                         <Box sx={{ textAlign: 'center' }}>
                           <img 
-                            src={`http://127.0.0.1:8000/storage/${selectedApplication.voterCertificate}`}
+                            src={`http://192.168.18.18:8000/storage/${selectedApplication.voterCertificate}`}
                             alt="Voter Certificate"
                             style={{
                               maxWidth: '150px',
@@ -1784,7 +1785,7 @@ function PWDRecords() {
                           {(Array.isArray(selectedApplication.idPictures) ? selectedApplication.idPictures : JSON.parse(selectedApplication.idPictures || '[]')).map((picture, index) => (
                               <Box key={index} sx={{ mb: 1 }}>
                                 <img 
-                                  src={`http://127.0.0.1:8000/storage/${picture}`}
+                                  src={`http://192.168.18.18:8000/storage/${picture}`}
                                   alt={`ID Picture ${index + 1}`}
                                   style={{
                                     maxWidth: '120px',
@@ -1833,7 +1834,7 @@ function PWDRecords() {
                       {selectedApplication.birthCertificate ? (
                         <Box sx={{ textAlign: 'center' }}>
                           <img 
-                            src={`http://127.0.0.1:8000/storage/${selectedApplication.birthCertificate}`}
+                            src={`http://192.168.18.18:8000/storage/${selectedApplication.birthCertificate}`}
                             alt="Birth Certificate"
                             style={{
                               maxWidth: '150px',
@@ -1879,7 +1880,7 @@ function PWDRecords() {
                       {selectedApplication.wholeBodyPicture ? (
                         <Box sx={{ textAlign: 'center' }}>
                           <img 
-                            src={`http://127.0.0.1:8000/storage/${selectedApplication.wholeBodyPicture}`}
+                            src={`http://192.168.18.18:8000/storage/${selectedApplication.wholeBodyPicture}`}
                             alt="Whole Body Picture"
                             style={{
                               maxWidth: '150px',
@@ -1925,7 +1926,7 @@ function PWDRecords() {
                       {selectedApplication.affidavit ? (
                         <Box sx={{ textAlign: 'center' }}>
                           <img 
-                            src={`http://127.0.0.1:8000/storage/${selectedApplication.affidavit}`}
+                            src={`http://192.168.18.18:8000/storage/${selectedApplication.affidavit}`}
                             alt="Affidavit"
                             style={{
                               maxWidth: '150px',
@@ -2109,7 +2110,7 @@ function PWDRecords() {
               }}>
                 {fileType === 'image' ? (
                   <img
-                    src={`http://127.0.0.1:8000/storage/${viewedFile.path}`}
+                    src={`http://192.168.18.18:8000/storage/${viewedFile.path}`}
                     alt={viewedFile.name}
                     style={{
                       maxWidth: '100%',
@@ -2125,7 +2126,7 @@ function PWDRecords() {
                   />
                 ) : fileType === 'pdf' ? (
                   <iframe
-                    src={`http://127.0.0.1:8000/storage/${viewedFile.path}`}
+                    src={`http://192.168.18.18:8000/storage/${viewedFile.path}`}
                     width="100%"
                     height="70vh"
                     style={{
@@ -2154,7 +2155,7 @@ function PWDRecords() {
                   </Typography>
                   <Button
                     variant="outlined"
-                    onClick={() => window.open(`http://127.0.0.1:8000/storage/${viewedFile.path}`, '_blank')}
+                    onClick={() => window.open(`http://192.168.18.18:8000/storage/${viewedFile.path}`, '_blank')}
                     sx={{
                       borderColor: '#0b87ac',
                       color: '#0b87ac',
@@ -2189,7 +2190,7 @@ function PWDRecords() {
               Close
             </Button>
             <Button
-              onClick={() => window.open(`http://127.0.0.1:8000/storage/${viewedFile?.path}`, '_blank')}
+              onClick={() => window.open(`http://192.168.18.18:8000/storage/${viewedFile?.path}`, '_blank')}
               variant="contained"
               sx={{
                 bgcolor: '#0b87ac',

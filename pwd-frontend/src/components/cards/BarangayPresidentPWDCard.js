@@ -534,10 +534,11 @@ function BarangayPresidentPWDCard() {
                   border: '1px solid #E0E0E0',
                   borderRadius: 4,
                   bgcolor: '#FFFFFF',
-                  flex: 1, // Use flex instead of fixed height
-                  minHeight: '300px' // Minimum height for content
+                  height: '500px', // Fixed height
+                  display: 'flex',
+                  flexDirection: 'column'
                 }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 2 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 2, flexShrink: 0 }}>
                      <Avatar sx={{ width: 56, height: 56, bgcolor: '#E8F0FE', mb: 1 }}>
                        <PersonIcon sx={{ fontSize: 32, color: '#1976D2' }} />
                      </Avatar>
@@ -546,7 +547,28 @@ function BarangayPresidentPWDCard() {
                     </Typography>
                   </Box>
 
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflow: 'auto' }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: 2, 
+                    flex: 1, 
+                    overflow: 'auto',
+                    pr: 1, // Add padding for scrollbar
+                    '&::-webkit-scrollbar': {
+                      width: '6px',
+                    },
+                    '&::-webkit-scrollbar-track': {
+                      background: '#f1f1f1',
+                      borderRadius: '3px',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      background: '#c1c1c1',
+                      borderRadius: '3px',
+                    },
+                    '&::-webkit-scrollbar-thumb:hover': {
+                      background: '#a8a8a8',
+                    }
+                  }}>
                     <Box>
                       <Typography sx={{ fontSize: '0.8rem', color: '#7F8C8D', mb: 0.5, fontWeight: 600 }}>Name</Typography>
                       <Grid container spacing={1}>
