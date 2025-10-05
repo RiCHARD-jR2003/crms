@@ -1,5 +1,6 @@
 // src/components/application/ApplicationForm.js
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -31,6 +32,7 @@ const steps = [
 ];
 
 function ApplicationForm() {
+  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [requiredDocuments, setRequiredDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(true);
@@ -172,6 +174,10 @@ function ApplicationForm() {
   };
 
   const handleBack = () => {
+    if (activeStep === 0) {
+      navigate('/');
+      return;
+    }
     setActiveStep(prev => prev - 1);
   };
 
@@ -1348,7 +1354,6 @@ function ApplicationForm() {
         borderTop: '1px solid #E0E0E0'
       }}>
         <Button
-          disabled={activeStep === 0}
           onClick={handleBack}
           sx={{
             color: '#34495E',
