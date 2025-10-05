@@ -89,6 +89,13 @@ const AdminSupportDesk = () => {
     setViewDialog(true);
   };
 
+  const handleReplyTicket = (ticket) => {
+    setSelectedTicket(ticket);
+    setViewDialog(true);
+    setReplyText(''); // Clear any existing reply text
+    setSelectedFile(null); // Clear any existing file selection
+  };
+
   const handleCloseViewDialog = () => {
     setViewDialog(false);
     setSelectedTicket(null);
@@ -275,19 +282,38 @@ const AdminSupportDesk = () => {
         {/* Statistics Cards */}
         <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: { xs: 2, sm: 3 } }}>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-              <CardContent sx={{ textAlign: 'center', p: { xs: 1.5, sm: 2 } }}>
-                <Warning sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#E74C3C', mb: 1 }} />
+            <Card sx={{ 
+              borderRadius: 3, 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
+              border: '1px solid #E9ECEF',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
+              }
+            }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                p: { xs: 2, sm: 2.5 },
+                background: 'linear-gradient(135deg, #FFF5F5 0%, #FFF0F0 100%)'
+              }}>
+                <Warning sx={{ 
+                  fontSize: { xs: 36, sm: 40, md: 44 }, 
+                  color: '#E53E3E', 
+                  mb: 1.5 
+                }} />
                 <Typography variant="h4" sx={{ 
-                  fontWeight: 'bold', 
-                  color: '#2C3E50',
-                  fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2rem' }
+                  fontWeight: 700, 
+                  color: '#2D3748',
+                  fontSize: { xs: '1.8rem', sm: '2.1rem', md: '2.3rem' },
+                  mb: 0.5
                 }}>
                   {openTickets}
                 </Typography>
                 <Typography variant="body2" sx={{ 
-                  color: '#7F8C8D',
-                  fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
+                  color: '#718096',
+                  fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' },
+                  fontWeight: 500
                 }}>
                   Open Tickets
                 </Typography>
@@ -295,19 +321,38 @@ const AdminSupportDesk = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
-              <CardContent sx={{ textAlign: 'center', p: { xs: 1.5, sm: 2 } }}>
-                <Schedule sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#F39C12', mb: 1 }} />
+            <Card sx={{ 
+              borderRadius: 3, 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
+              border: '1px solid #E9ECEF',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
+              }
+            }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                p: { xs: 2, sm: 2.5 },
+                background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF5E7 100%)'
+              }}>
+                <Schedule sx={{ 
+                  fontSize: { xs: 36, sm: 40, md: 44 }, 
+                  color: '#F59E0B', 
+                  mb: 1.5 
+                }} />
                 <Typography variant="h4" sx={{ 
-                  fontWeight: 'bold', 
-                  color: '#2C3E50',
-                  fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2rem' }
+                  fontWeight: 700, 
+                  color: '#2D3748',
+                  fontSize: { xs: '1.8rem', sm: '2.1rem', md: '2.3rem' },
+                  mb: 0.5
                 }}>
                   {inProgressTickets}
                 </Typography>
                 <Typography variant="body2" sx={{ 
-                  color: '#7F8C8D',
-                  fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
+                  color: '#718096',
+                  fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' },
+                  fontWeight: 500
                 }}>
                   In Progress
                 </Typography>
@@ -315,7 +360,16 @@ const AdminSupportDesk = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
+            <Card sx={{ 
+              borderRadius: 3, 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
+              border: '1px solid #E9ECEF',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
+              }
+            }}>
               <CardContent sx={{ textAlign: 'center', p: { xs: 1.5, sm: 2 } }}>
                 <CheckCircle sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#27AE60', mb: 1 }} />
                 <Typography variant="h4" sx={{ 
@@ -335,7 +389,16 @@ const AdminSupportDesk = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ borderRadius: 2, boxShadow: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
+            <Card sx={{ 
+              borderRadius: 3, 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
+              border: '1px solid #E9ECEF',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
+              }
+            }}>
               <CardContent sx={{ textAlign: 'center', p: { xs: 1.5, sm: 2 } }}>
                 <SupportAgent sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#3498DB', mb: 1 }} />
                 <Typography variant="h4" sx={{ 
@@ -557,414 +620,629 @@ const AdminSupportDesk = () => {
         <Dialog 
           open={viewDialog} 
           onClose={handleCloseViewDialog} 
-          maxWidth="md" 
+          maxWidth="lg" 
           fullWidth
           PaperProps={{
             sx: {
-              borderRadius: { xs: 0, sm: 2 },
-              m: { xs: 0, sm: 2 }
+              borderRadius: 3,
+              m: { xs: 1, sm: 2 },
+              boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+              overflow: 'hidden'
             }
           }}
         >
           <DialogTitle sx={{ 
-            backgroundColor: '#FFFFFF',
-            color: '#000000 !important', 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: '#FFFFFF',
             fontWeight: 600,
-            fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' },
+            fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.3rem' },
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            borderBottom: '1px solid #E0E0E0'
+            py: 2.5,
+            px: 3
           }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <SupportAgent sx={{ color: '#0b87ac' }} />
-              <Typography variant="h6" sx={{ color: '#000000 !important' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <SupportAgent sx={{ 
+                color: '#FFFFFF',
+                fontSize: { xs: 24, sm: 28 }
+              }} />
+              <Typography variant="h6" sx={{ 
+                color: '#FFFFFF',
+                fontWeight: 'bold',
+                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' }
+              }}>
                 Ticket Details
               </Typography>
             </Box>
-            <IconButton onClick={handleCloseViewDialog} sx={{ color: '#000000 !important' }}>
+            <IconButton 
+              onClick={handleCloseViewDialog} 
+              sx={{ 
+                color: '#FFFFFF',
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.2)'
+                },
+                borderRadius: 2,
+                p: 1
+              }}
+            >
               ×
             </IconButton>
           </DialogTitle>
           <DialogContent 
             sx={{ 
-              backgroundColor: '#FFFFFF !important',
-              color: '#000000 !important',
-              p: { xs: 2, sm: 3 },
-              '& *': { 
-                color: '#000000 !important',
-                '& .MuiTypography-root': { color: '#000000 !important' },
-                '& .MuiChip-root': { color: '#000000 !important' },
-                '& .MuiChip-label': { color: '#000000 !important' },
-                '& .MuiAvatar-root': { color: '#000000 !important' },
-                '& .MuiListItem-root': { color: '#000000 !important' },
-                '& .MuiBox-root': { color: '#000000 !important' },
-                '& .MuiGrid-root': { color: '#000000 !important' },
-                '& p': { color: '#000000 !important' },
-                '& span': { color: '#000000 !important' },
-                '& div': { color: '#000000 !important' }
-              }
-            }}
-            style={{
-              backgroundColor: '#FFFFFF',
-              color: '#000000',
-              '--text-color': '#000000'
+              backgroundColor: '#FAFBFC',
+              p: { xs: 3, sm: 4 }
             }}
           >
             {selectedTicket && (
               <Box sx={{ mt: { xs: 0.5, sm: 1 } }}>
                 {/* Ticket Header */}
-                <Box sx={{ mb: { xs: 2, sm: 3 } }}>
-                  <Typography 
-                    variant="h5" 
-                    sx={{ 
-                      fontWeight: 700, 
-                      color: 'white !important', 
-                      mb: { xs: 1, sm: 2 }, 
-                      backgroundColor: '#3498DB', 
-                      p: { xs: 0.8, sm: 1 }, 
-                      borderRadius: 1,
-                      fontSize: { xs: '1.1rem', sm: '1.3rem', md: '1.5rem' }
-                    }}
-                    style={{ color: 'white' }}
-                  >
-                    {selectedTicket.subject}
-                  </Typography>
+                <Card sx={{ 
+                  mb: 3,
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+                }}>
                   <Box sx={{ 
-                    display: 'flex', 
-                    gap: { xs: 0.5, sm: 1 }, 
-                    mb: { xs: 1, sm: 2 },
-                    flexWrap: 'wrap'
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    p: 3,
+                    color: 'white'
                   }}>
-                    <Chip
-                      label={selectedTicket.category}
-                      size="small"
-                      sx={{
-                        color: 'white',
-                        backgroundColor: '#3498DB',
-                        fontWeight: 600,
-                        fontSize: { xs: '0.6rem', sm: '0.7rem' },
-                        height: { xs: '20px', sm: '24px' },
-                        '& .MuiChip-label': {
-                          color: 'white'
-                        }
+                    <Typography 
+                      variant="h4" 
+                      sx={{ 
+                        fontWeight: 700, 
+                        mb: 2,
+                        fontSize: { xs: '1.2rem', sm: '1.4rem', md: '1.6rem' },
+                        lineHeight: 1.2
                       }}
-                    />
-                    <Chip
-                      label={selectedTicket.priority}
-                      size="small"
-                      sx={{
-                        color: 'white',
-                        backgroundColor: '#3498DB',
-                        fontWeight: 600,
-                        fontSize: { xs: '0.6rem', sm: '0.7rem' },
-                        height: { xs: '20px', sm: '24px' },
-                        '& .MuiChip-label': {
-                          color: 'white'
-                        }
-                      }}
-                    />
-                    <Chip
-                      label={selectedTicket.status}
-                      size="small"
-                      sx={{
-                        color: 'white',
-                        backgroundColor: '#3498DB',
-                        fontWeight: 600,
-                        fontSize: { xs: '0.6rem', sm: '0.7rem' },
-                        height: { xs: '20px', sm: '24px' },
-                        '& .MuiChip-label': {
-                          color: 'white'
-                        }
-                      }}
-                    />
+                    >
+                      {selectedTicket.subject}
+                    </Typography>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      gap: 1.5, 
+                      flexWrap: 'wrap'
+                    }}>
+                      <Chip
+                        label={selectedTicket.category || 'General'}
+                        sx={{
+                          backgroundColor: 'rgba(255,255,255,0.2)',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '0.75rem',
+                          backdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.3)',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255,255,255,0.3)'
+                          }
+                        }}
+                      />
+                      <Chip
+                        label={selectedTicket.priority?.toUpperCase() || 'Medium'}
+                        sx={{
+                          backgroundColor: 
+                            selectedTicket.priority === 'urgent' ? 'rgba(231, 76, 60, 0.9)' :
+                            selectedTicket.priority === 'high' ? 'rgba(241, 196, 15, 0.9)' :
+                            selectedTicket.priority === 'low' ? 'rgba(46, 204, 113, 0.9)' :
+                            'rgba(255,255,255,0.2)',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '0.75rem',
+                          backdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.3)'
+                        }}
+                      />
+                      <Chip
+                        label={selectedTicket.status?.replace('_', ' ').toUpperCase() || 'Open'}
+                        sx={{
+                          backgroundColor: 
+                            selectedTicket.status === 'resolved' ? 'rgba(46, 204, 113, 0.9)' :
+                            selectedTicket.status === 'in_progress' ? 'rgba(52, 152, 219, 0.9)' :
+                            selectedTicket.status === 'closed' ? 'rgba(127, 140, 141, 0.9)' :
+                            'rgba(231, 76, 60, 0.9)',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '0.75rem',
+                          backdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(255,255,255,0.3)'
+                        }}
+                      />
+                    </Box>
                   </Box>
-                </Box>
+                </Card>
 
                 <Divider sx={{ mb: 3, borderColor: '#BDC3C7' }} />
 
                 {/* Requester Info */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography 
-                    variant="h6" 
-                    sx={{ fontWeight: 600, color: 'white !important', mb: 1, backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                    style={{ color: 'white' }}
-                  >
-                    Requester Information
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 3, p: 2, backgroundColor: '#34495E', borderRadius: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Person sx={{ color: '#3498DB', fontSize: 20 }} />
+                <Card sx={{ 
+                  mb: 3,
+                  borderRadius: 2,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+                }}>
+                  <Box sx={{ p: 3 }}>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 600, 
+                        color: '#2C3E50',
+                        mb: 2,
+                        fontSize: '1.1rem'
+                      }}
+                    >
+                      Requester Information
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={4}>
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 1.5,
+                          p: 2,
+                          backgroundColor: '#F8F9FA',
+                          borderRadius: 2,
+                          border: '1px solid #E9ECEF'
+                        }}>
+                          <Person sx={{ 
+                            color: '#667eea', 
+                            fontSize: 22 
+                          }} />
+                          <Box>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                color: '#6C757D',
+                                fontSize: '0.75rem',
+                                fontWeight: 500
+                              }}
+                            >
+                              Name
+                            </Typography>
+                            <Typography 
+                              variant="body1" 
+                              sx={{ 
+                                color: '#2C3E50',
+                                fontWeight: 600
+                              }}
+                            >
+                              {selectedTicket.pwd_member ? `${selectedTicket.pwd_member.firstName} ${selectedTicket.pwd_member.lastName}` : 'PWD Member'}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 1.5,
+                          p: 2,
+                          backgroundColor: '#F8F9FA',
+                          borderRadius: 2,
+                          border: '1px solid #E9ECEF'
+                        }}>
+                          <Email sx={{ 
+                            color: '#667eea', 
+                            fontSize: 22 
+                          }} />
+                          <Box>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                color: '#6C757D',
+                                fontSize: '0.75rem',
+                                fontWeight: 500
+                              }}
+                            >
+                              Email
+                            </Typography>
+                            <Typography 
+                              variant="body1" 
+                              sx={{ 
+                                color: '#2C3E50',
+                                fontWeight: 600,
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              {selectedTicket.pwd_member?.user?.email || 'Not provided'}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 1.5,
+                          p: 2,
+                          backgroundColor: '#F8F9FA',
+                          borderRadius: 2,
+                          border: '1px solid #E9ECEF'
+                        }}>
+                          <Phone sx={{ 
+                            color: '#667eea', 
+                            fontSize: 22 
+                          }} />
+                          <Box>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                color: '#6C757D',
+                                fontSize: '0.75rem',
+                                fontWeight: 500
+                              }}
+                            >
+                              Phone
+                            </Typography>
+                            <Typography 
+                              variant="body1" 
+                              sx={{ 
+                                color: '#2C3E50',
+                                fontWeight: 600
+                              }}
+                            >
+                              {selectedTicket.pwd_member?.contactNumber || 'Not provided'}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </Card>
+
+                {/* Description */}
+                <Card sx={{ 
+                  mb: 3,
+                  borderRadius: 2,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+                }}>
+                  <Box sx={{ p: 3 }}>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 600, 
+                        color: '#2C3E50',
+                        mb: 2,
+                        fontSize: '1.1rem'
+                      }}
+                    >
+                      Description
+                    </Typography>
+                    <Box sx={{
+                      backgroundColor: '#F8F9FA',
+                      border: '1px solid #E9ECEF',
+                      borderRadius: 2,
+                      p: 3
+                    }}>
                       <Typography 
-                        variant="body2" 
-                        sx={{ color: 'white !important' }}
-                        style={{ color: 'white' }}
+                        variant="body1" 
+                        sx={{ 
+                          color: '#495057',
+                          lineHeight: 1.6,
+                          whiteSpace: 'pre-wrap'
+                        }}
                       >
-                        {selectedTicket.pwd_member ? `${selectedTicket.pwd_member.firstName} ${selectedTicket.pwd_member.lastName}` : 'PWD Member'}
-                      </Typography>
-                    </Box>
-                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                       <Email sx={{ color: '#3498DB', fontSize: 20 }} />
-                       <Typography 
-                         variant="body2" 
-                         sx={{ color: 'white !important' }}
-                         style={{ color: 'white' }}
-                       >
-                         {selectedTicket.pwd_member?.user?.email || 'Not provided'}
-                       </Typography>
-                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Phone sx={{ color: '#3498DB', fontSize: 20 }} />
-                      <Typography 
-                        variant="body2" 
-                        sx={{ color: 'white !important' }}
-                        style={{ color: 'white' }}
-                      >
-                        {selectedTicket.pwd_member?.contactNumber || 'Not provided'}
+                        {selectedTicket.description}
                       </Typography>
                     </Box>
                   </Box>
-                </Box>
-
-                {/* Description */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography 
-                    variant="h6" 
-                    sx={{ fontWeight: 600, color: 'white !important', mb: 1, backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                    style={{ color: 'white' }}
-                  >
-                    Description
-                  </Typography>
-                  <Typography 
-                    variant="body1" 
-                    sx={{ color: 'white !important', lineHeight: 1.6, p: 2, backgroundColor: '#3498DB', borderRadius: 1 }}
-                    style={{ color: 'white' }}
-                  >
-                    {selectedTicket.description}
-                  </Typography>
-                                 </Box>
+                </Card>
 
                  {/* Messages */}
                  {selectedTicket.messages && selectedTicket.messages.length > 0 && (
-                   <Box>
-                     <Typography 
-                       variant="h6" 
-                       sx={{ fontWeight: 600, color: 'white !important', mb: 2, backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                       style={{ color: 'white' }}
-                     >
-                       Messages ({selectedTicket.messages.length})
-                     </Typography>
-                     {selectedTicket.messages.map((message, index) => (
-                       <Box key={index} sx={{ mb: 2, p: 2, backgroundColor: '#34495E', borderRadius: 2 }}>
-                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                           <Typography 
-                             variant="body2" 
-                             sx={{ fontWeight: 600, color: 'white !important' }}
-                             style={{ color: 'white' }}
-                           >
-                             {message.sender_type === 'admin' ? 'Admin' : 'PWD Member'}
-                           </Typography>
-                           <Typography 
-                             variant="body2" 
-                             sx={{ color: '#BDC3C7 !important' }}
-                             style={{ color: '#BDC3C7' }}
-                           >
-                             {new Date(message.created_at).toLocaleString()}
-                           </Typography>
-                         </Box>
-                         <Typography 
-                           variant="body2" 
-                           sx={{ color: 'white !important' }}
-                           style={{ color: 'white' }}
-                         >
-                           {message.message}
-                         </Typography>
-                         
-                         {/* Attachment Display */}
-                         {message.attachment_path && (
-                           <Box sx={{ mt: 2, p: 1, backgroundColor: '#2C3E50', borderRadius: 1 }}>
-                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                               <AttachFile sx={{ color: '#3498DB', fontSize: 16 }} />
-                               <Typography 
-                                 variant="body2" 
-                                 sx={{ color: 'white !important', flex: 1 }}
-                                 style={{ color: 'white' }}
-                               >
-                                 {message.attachment_name}
-                               </Typography>
-                               <Button
-                                 size="small"
-                                 startIcon={<Visibility />}
-                                 onClick={() => handlePreviewFile(message)}
-                                 sx={{
-                                   color: '#3498DB',
-                                   textTransform: 'none',
-                                   fontSize: '0.75rem',
-                                   mr: 1,
-                                   '&:hover': {
-                                     backgroundColor: '#3498DB',
-                                     color: '#FFFFFF'
-                                   }
-                                 }}
-                               >
-                                 Preview
-                               </Button>
-                               <Button
-                                 size="small"
-                                 startIcon={<Download />}
-                                 onClick={() => handleDownloadAttachment(message.id, message.attachment_name)}
-                                 sx={{
-                                   color: '#3498DB',
-                                   textTransform: 'none',
-                                   fontSize: '0.75rem',
-                                   '&:hover': {
-                                     backgroundColor: '#3498DB',
-                                     color: '#FFFFFF'
-                                   }
-                                 }}
-                               >
-                                 Download
-                               </Button>
+                   <Card sx={{ 
+                     mb: 3,
+                     borderRadius: 2,
+                     boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+                   }}>
+                     <Box sx={{ p: 3 }}>
+                       <Typography 
+                         variant="h6" 
+                         sx={{ 
+                           fontWeight: 600, 
+                           color: '#2C3E50',
+                           mb: 3,
+                           fontSize: '1.1rem'
+                         }}
+                       >
+                         Messages ({selectedTicket.messages.length})
+                       </Typography>
+                       {selectedTicket.messages.map((message, index) => (
+                         <Card key={index} sx={{ 
+                           mb: 2, 
+                           border: '1px solid #E9ECEF',
+                           borderRadius: 2,
+                           backgroundColor: message.sender_type === 'admin' ? '#F0F8FF' : '#F8F9FA'
+                         }}>
+                           <Box sx={{ p: 3 }}>
+                             <Box sx={{ 
+                               display: 'flex', 
+                               justifyContent: 'space-between', 
+                               alignItems: 'center',
+                               mb: 2,
+                               pb: 2,
+                               borderBottom: '1px solid #E9ECEF'
+                             }}>
+                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                 <Avatar sx={{
+                                   width: 32,
+                                   height: 32,
+                                   backgroundColor: message.sender_type === 'admin' ? '#667eea' : '#6C757D',
+                                   fontSize: '0.8rem'
+                                 }}>
+                                   {message.sender_type === 'admin' ? 'A' : 'M'}
+                                 </Avatar>
+                                 <Box>
+                                   <Typography 
+                                     variant="body2" 
+                                     sx={{ 
+                                       fontWeight: 600, 
+                                       color: '#2C3E50',
+                                       fontSize: '0.95rem'
+                                     }}
+                                   >
+                                     {message.sender_type === 'admin' ? 'Admin' : 'PWD Member'}
+                                   </Typography>
+                                   <Typography 
+                                     variant="caption" 
+                                     sx={{ color: '#6C757D' }}
+                                   >
+                                     {new Date(message.created_at).toLocaleString()}
+                                   </Typography>
+                                 </Box>
+                               </Box>
                              </Box>
+                             <Typography 
+                               variant="body2" 
+                               sx={{ 
+                                 color: '#495057',
+                                 lineHeight: 1.6,
+                                 whiteSpace: 'pre-wrap'
+                               }}
+                             >
+                               {message.message}
+                             </Typography>
+                             
+                             {/* Attachment Display */}
+                             {message.attachment_path && (
+                               <Box sx={{ 
+                                 mt: 2, 
+                                 p: 2, 
+                                 backgroundColor: '#FFFFFF',
+                                 borderRadius: 2,
+                                 border: '1px solid #E9ECEF'
+                               }}>
+                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                   <AttachFile sx={{ color: '#667eea', fontSize: 20 }} />
+                                   <Typography 
+                                     variant="body2" 
+                                     sx={{ 
+                                       color: '#2C3E50',
+                                       flex: 1,
+                                       fontWeight: 500
+                                     }}
+                                   >
+                                     {message.attachment_name}
+                                   </Typography>
+                                   <Button
+                                     size="small"
+                                     startIcon={<Visibility />}
+                                     onClick={() => handlePreviewFile(message)}
+                                     sx={{
+                                       color: '#667eea',
+                                       textTransform: 'none',
+                                       fontSize: '0.75rem',
+                                       mr: 1,
+                                       border: '1px solid #667eea',
+                                       '&:hover': {
+                                         backgroundColor: '#667eea',
+                                         color: '#FFFFFF'
+                                       }
+                                     }}
+                                   >
+                                     Preview
+                                   </Button>
+                                   <Button
+                                     size="small"
+                                     startIcon={<Download />}
+                                     onClick={() => handleDownloadAttachment(message.id, message.attachment_name)}
+                                     sx={{
+                                       color: '#28a745',
+                                       textTransform: 'none',
+                                       fontSize: '0.75rem',
+                                       border: '1px solid #28a745',
+                                       '&:hover': {
+                                         backgroundColor: '#28a745',
+                                         color: '#FFFFFF'
+                                       }
+                                     }}
+                                   >
+                                     Download
+                                   </Button>
+                                 </Box>
+                               </Box>
+                             )}
                            </Box>
-                         )}
-                       </Box>
-                     ))}
-                   </Box>
+                         </Card>
+                       ))}
+                     </Box>
+                   </Card>
                  )}
 
                 <Divider sx={{ mb: 3, borderColor: '#BDC3C7' }} />
 
                 {/* Reply Section */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography 
-                    variant="h6" 
-                    sx={{ fontWeight: 600, color: 'white !important', mb: 2, backgroundColor: '#3498DB', p: 1, borderRadius: 1 }}
-                    style={{ color: 'white' }}
-                  >
-                    Reply to Ticket
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={4}
-                    placeholder="Type your reply here..."
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        color: 'white !important',
-                        backgroundColor: '#34495E',
-                        '& fieldset': {
-                          borderColor: '#BDC3C7',
-                        },
-                        '&:hover fieldset': {
-                          borderColor: '#3498DB',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#3498DB',
-                        },
-                      },
-                      '& .MuiInputLabel-root': {
-                        color: '#BDC3C7 !important',
-                        '&.Mui-focused': {
-                          color: '#3498DB !important',
-                        },
-                      },
-                      '& .MuiOutlinedInput-input': {
-                        color: 'white !important',
-                      },
-                      '& .MuiInputBase-input::placeholder': {
-                        color: '#BDC3C7 !important',
-                        opacity: 1,
-                      },
-                    }}
-                    style={{ color: 'white' }}
-                  />
-                  
-                  {/* File Upload Section */}
-                  <Box sx={{ mt: 2 }}>
+                <Card sx={{ 
+                  mb: 3,
+                  borderRadius: 2,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+                }}>
+                  <Box sx={{ p: 3 }}>
                     <Typography 
-                      variant="body2" 
-                      sx={{ color: '#BDC3C7 !important', mb: 1 }}
-                      style={{ color: '#BDC3C7' }}
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 600, 
+                        color: '#2C3E50',
+                        mb: 3,
+                        fontSize: '1.1rem'
+                      }}
                     >
-                      Attach File (Optional)
+                      Reply to Ticket
                     </Typography>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={4}
+                      placeholder="Type your reply here..."
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: '#FFFFFF',
+                          '& fieldset': {
+                            borderColor: '#DDE0E1',
+                            borderWidth: 2
+                          },
+                          '&:hover fieldset': {
+                            borderColor: '#667eea',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: '#667eea',
+                          },
+                        },
+                        '& .MuiOutlinedInput-input': {
+                          color: '#2C3E50',
+                        },
+                        '& .MuiInputBase-input::placeholder': {
+                          color: '#6C757D',
+                          opacity: 0.8,
+                        },
+                      }}
+                    />
                     
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Input
-                        type="file"
-                        onChange={handleFileSelect}
-                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
-                        sx={{ display: 'none' }}
-                        id="file-upload"
-                      />
-                      <label htmlFor="file-upload">
-                        <Button
-                          component="span"
-                          variant="outlined"
-                          startIcon={<AttachFile />}
-                          sx={{
-                            color: '#3498DB',
-                            borderColor: '#3498DB',
-                            '&:hover': {
-                              backgroundColor: '#3498DB',
-                              color: '#FFFFFF',
-                              borderColor: '#3498DB'
-                            }
-                          }}
-                        >
-                          Choose File
-                        </Button>
-                      </label>
+                    {/* File Upload Section */}
+                    <Box sx={{ mt: 3 }}>
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          color: '#6C757D', 
+                          mb: 2,
+                          fontWeight: 500
+                        }}
+                      >
+                        Attach File (Optional)
+                      </Typography>
+                    
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Input
+                          type="file"
+                          onChange={handleFileSelect}
+                          accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
+                          sx={{ display: 'none' }}
+                          id="file-upload"
+                        />
+                        <label htmlFor="file-upload">
+                          <Button
+                            component="span"
+                            variant="outlined"
+                            startIcon={<AttachFile />}
+                            sx={{
+                              color: '#667eea',
+                              borderColor: '#667eea',
+                              fontWeight: 500,
+                              textTransform: 'none',
+                              '&:hover': {
+                                backgroundColor: '#667eea',
+                                color: '#FFFFFF',
+                                borderColor: '#667eea'
+                              }
+                            }}
+                          >
+                            Choose File
+                          </Button>
+                        </label>
+                        
+                        {selectedFile && (
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 1,
+                            p: 1,
+                            backgroundColor: '#F8F9FA',
+                            borderRadius: 1,
+                            border: '1px solid #E9ECEF'
+                          }}>
+                            <AttachFile sx={{ color: '#667eea', fontSize: 16 }} />
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                color: '#2C3E50',
+                                fontWeight: 500
+                              }}
+                            >
+                              {selectedFile.name}
+                            </Typography>
+                            <IconButton
+                              onClick={handleRemoveFile}
+                              size="small"
+                              sx={{ 
+                                color: '#DC3545',
+                                '&:hover': {
+                                  backgroundColor: '#DC3545',
+                                  color: '#FFFFFF'
+                                }
+                              }}
+                            >
+                              <Delete />
+                            </IconButton>
+                          </Box>
+                        )}
+                      </Box>
                       
-                      {selectedFile && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography 
-                            variant="body2" 
-                            sx={{ color: 'white !important' }}
-                            style={{ color: 'white' }}
-                          >
-                            {selectedFile.name}
-                          </Typography>
-                          <IconButton
-                            onClick={handleRemoveFile}
-                            size="small"
-                            sx={{ color: '#E74C3C' }}
-                          >
-                            <Delete />
-                          </IconButton>
-                        </Box>
-                      )}
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: '#6C757D', 
+                          mt: 2, 
+                          display: 'block',
+                          fontSize: '0.75rem'
+                        }}
+                      >
+                        Supported formats: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF (Max 10MB)
+                      </Typography>
                     </Box>
-                    
-                    <Typography 
-                      variant="caption" 
-                      sx={{ color: '#BDC3C7 !important', mt: 1, display: 'block' }}
-                      style={{ color: '#BDC3C7' }}
-                    >
-                      Supported formats: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF (Max 10MB)
-                    </Typography>
                   </Box>
-                </Box>
+                </Card>
               </Box>
             )}
           </DialogContent>
           <DialogActions sx={{ 
             p: { xs: 2, sm: 3 }, 
-            backgroundColor: '#FFFFFF',
-            borderTop: '1px solid #E0E0E0',
+            backgroundColor: '#FAFBFC',
+            borderTop: '1px solid #E9ECEF',
+            borderRadius: '0 0 12px 12px',
             flexDirection: { xs: 'column', sm: 'row' },
             alignItems: { xs: 'stretch', sm: 'center' },
-            gap: { xs: 1, sm: 2 }
+            gap: { xs: 1, sm: 2 },
+            justifyContent: 'flex-end'
           }}>
             <Button 
               onClick={handleCloseViewDialog} 
               sx={{ 
-                color: '#000000',
-                fontSize: { xs: '0.8rem', sm: '0.9rem' },
-                py: { xs: 1.5, sm: 1 }
+                color: '#6C757D',
+                fontSize: { xs: '0.9rem', sm: '0.95rem' },
+                py: { xs: 1.5, sm: 1.25 },
+                px: { xs: 2, sm: 3 },
+                fontWeight: 500,
+                textTransform: 'none',
+                borderRadius: 2,
+                border: '1px solid #E9ECEF',
+                backgroundColor: '#FFFFFF',
+                '&:hover': {
+                  backgroundColor: '#F8F9FA',
+                  borderColor: '#DDE0E1'
+                }
               }}
             >
               Close
@@ -975,8 +1253,23 @@ const AdminSupportDesk = () => {
               disabled={!replyText.trim()}
               startIcon={<Reply />}
               sx={{
-                fontSize: { xs: '0.8rem', sm: '0.9rem' },
-                py: { xs: 1.5, sm: 1 }
+                fontSize: { xs: '0.9rem', sm: '0.95rem' },
+                py: { xs: 1.5, sm: 1.25 },
+                px: { xs: 2, sm: 3 },
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: 2,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                },
+                '&:disabled': {
+                  background: '#E9ECEF',
+                  color: '#6C757D',
+                  boxShadow: 'none'
+                }
               }}
             >
               Send Reply

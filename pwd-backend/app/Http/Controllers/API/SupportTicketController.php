@@ -289,7 +289,7 @@ class SupportTicketController extends Controller
                     return response()->json(['error' => 'Admin not found'], 404);
                 }
                 $senderType = 'admin';
-                $senderId = $admin->id;
+                $senderId = $admin->userID;
             } elseif ($user->role === 'PWDMember') {
                 $pwdMember = PWDMember::where('userID', $user->userID)->first();
                 if (!$pwdMember || $ticket->pwd_member_id !== $pwdMember->id) {

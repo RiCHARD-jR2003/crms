@@ -85,7 +85,7 @@ function AdminDashboard() {
     pendingApplications: 0,
     approvedApplications: 0,
     activeMembers: 0,
-    complaintsFeedback: 1 // User mentioned there's already 1 complaint
+    complaintsFeedback: 0 // User mentioned there's already 1 complaint
   });
   const [recentActivities, setRecentActivities] = useState([]);
   const [barangayContacts, setBarangayContacts] = useState([]);

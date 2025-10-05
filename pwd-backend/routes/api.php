@@ -61,6 +61,20 @@ Route::get('/applications/status/{status}', function ($status) {
     }
 });
 
+// Get all applications (adjusting for singular table name)
+Route::get('/applications', function () {
+    try {
+        $applications = \App\Models\Application::all();
+        
+        return response()->json($applications);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
 // PWD Members fallback route (when pwd_member table doesn't exist)
 Route::get('/pwd-members-fallback', function () {
     try {
