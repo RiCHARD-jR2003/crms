@@ -60,14 +60,13 @@ import {
   Psychology
 } from '@mui/icons-material';
 import AdminSidebar from '../shared/AdminSidebar';
-import SuggestionsSection from './SuggestionsSection';
-import SuggestionsDialog from './SuggestionsDialog';
+// Suggestions removed per requirement
 import analyticsService from '../../services/analyticsService';
 import { reportsService } from '../../services/reportsService';
 import pwdMemberService from '../../services/pwdMemberService';
 import { applicationService } from '../../services/applicationService';
 import benefitService from '../../services/benefitService';
-import suggestionsService from '../../services/suggestionsService';
+// import suggestionsService from '../../services/suggestionsService';
 import {
   LineChartComponent,
   BarChartComponent,
@@ -110,10 +109,8 @@ const Reports = () => {
   const [pdfBlob, setPdfBlob] = useState(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState('all');
-  const [suggestionsDialogOpen, setSuggestionsDialogOpen] = useState(false);
-  const [contextualSuggestions, setContextualSuggestions] = useState([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [currentReportType, setCurrentReportType] = useState('general');
+  const [dataLoading, setDataLoading] = useState(false);
+  // Suggestions disabled
   
   // PWD Registration Report Data
   const [pwdRegistrationData, setPwdRegistrationData] = useState({
@@ -234,47 +231,103 @@ const Reports = () => {
     if (!dateRange) return data;
     
     return data.filter(item => {
-      if (!item[dateField]) return false;
-      const itemDate = new Date(item[dateField]);
-      return itemDate >= dateRange.start && itemDate <= dateRange.end;
+      // Try multiple date fields for PWD members
+      const dateFields = [dateField, 'created_at', 'createdAt', 'registrationDate', 'submissionDate', 'date', 'approved_at', 'approvalDate'];
+      let itemDate = null;
+      
+      for (const field of dateFields) {
+        if (item[field]) {
+          itemDate = new Date(item[field]);
+          if (!isNaN(itemDate.getTime())) {
+            break;
+          }
+        }
+      }
+      
+      // If no date found, include the item to avoid filtering out all data
+      if (!itemDate) {
+        console.log('Item without date included:', item);
+        return true;
+      }
+      
+      const isInRange = itemDate >= dateRange.start && itemDate <= dateRange.end;
+      if (!isInRange) {
+        console.log('Item filtered out by date range:', item, 'Date:', itemDate, 'Range:', dateRange);
+      }
+      return isInRange;
     });
   };
 
   const fetchPWDRegistrationData = async () => {
     try {
+      setDataLoading(true);
       // Fetch PWD members data
       const pwdResponse = await pwdMemberService.getAll();
       const pwdMembers = pwdResponse.data?.members || pwdResponse.members || [];
+      console.log('PWD Members fetched:', pwdMembers.length, pwdMembers);
       
       // Fetch applications data
       const applicationsResponse = await applicationService.getAll();
       const applications = applicationsResponse.data || applicationsResponse || [];
+      console.log('Applications fetched:', applications.length, applications);
       
       // Filter data by selected date range
-      const filteredMembers = filterDataByDateRange(pwdMembers);
-      const filteredApplications = filterDataByDateRange(applications);
+      console.log('Selected date range:', selectedDateRange);
+      const dateRange = getDateRange(selectedDateRange);
+      console.log('Date range object:', dateRange);
       
-      // Calculate statistics
-      const totalRegistrations = filteredMembers.length;
+      let filteredMembers = filterDataByDateRange(pwdMembers);
+      let filteredApplications = filterDataByDateRange(applications);
       
-      // Monthly trends (last 12 months)
+      // If no data found with current filter, fallback to all data
+      if (filteredMembers.length === 0 && pwdMembers.length > 0) {
+        console.log('No members found with current date filter, using all data');
+        filteredMembers = pwdMembers;
+      }
+      if (filteredApplications.length === 0 && applications.length > 0) {
+        console.log('No applications found with current date filter, using all data');
+        filteredApplications = applications;
+      }
+      
+      console.log('Filtered members:', filteredMembers.length, filteredMembers);
+      console.log('Filtered applications:', filteredApplications.length, filteredApplications);
+      
+      // Calculate statistics - use applications as primary source since they show actual registrations
+      const totalRegistrations = Math.max(filteredApplications.length, filteredMembers.length);
+      console.log('Total registrations calculation:', {
+        filteredApplications: filteredApplications.length,
+        filteredMembers: filteredMembers.length,
+        totalRegistrations
+      });
+      
+      // Monthly trends (last 12 months) - compute from applications first to ensure Sept/Oct are captured
       const monthlyTrends = [];
       const currentDate = new Date();
       for (let i = 11; i >= 0; i--) {
         const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
         const monthName = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        const monthRegistrations = filteredMembers.filter(member => {
-          if (!member.created_at) return false;
-          const memberDate = new Date(member.created_at);
-          return memberDate.getFullYear() === date.getFullYear() && 
-                 memberDate.getMonth() === date.getMonth();
+        // Prefer application creation/submission date as ground truth for registrations
+        let monthRegistrations = filteredApplications.filter(app => {
+          const dateStr = app.submissionDate || app.created_at || app.date || app.registrationDate;
+          if (!dateStr) return false;
+          const appDate = new Date(dateStr);
+          return appDate.getFullYear() === date.getFullYear() && appDate.getMonth() === date.getMonth();
         }).length;
+        // If zero, fallback to member created_at to avoid gaps
+        if (monthRegistrations === 0) {
+          monthRegistrations = filteredMembers.filter(member => {
+            const dateStr = member.created_at || member.registrationDate || member.submissionDate;
+            if (!dateStr) return false;
+            const memberDate = new Date(dateStr);
+            return memberDate.getFullYear() === date.getFullYear() && memberDate.getMonth() === date.getMonth();
+          }).length;
+        }
         
         const monthApplications = filteredApplications.filter(app => {
-          if (!app.created_at) return false;
-          const appDate = new Date(app.created_at);
-          return appDate.getFullYear() === date.getFullYear() && 
-                 appDate.getMonth() === date.getMonth();
+          const dateStr = app.submissionDate || app.created_at || app.date || app.registrationDate;
+          if (!dateStr) return false;
+          const appDate = new Date(dateStr);
+          return appDate.getFullYear() === date.getFullYear() && appDate.getMonth() === date.getMonth();
         }).length;
         
         monthlyTrends.push({
@@ -282,12 +335,26 @@ const Reports = () => {
           registrations: monthRegistrations,
           applications: monthApplications
         });
+        
+        console.log(`Month ${monthName}:`, {
+          monthRegistrations,
+          monthApplications,
+          dateRange: { start: date, end: new Date(date.getFullYear(), date.getMonth() + 1, 0) }
+        });
       }
       
-      // Barangay distribution - include all barangays
+      // Barangay distribution - include all barangays from both members and applications
       const barangayCounts = {};
+      
+      // Count from members
       filteredMembers.forEach(member => {
         const barangay = member.barangay || 'Unknown';
+        barangayCounts[barangay] = (barangayCounts[barangay] || 0) + 1;
+      });
+      
+      // Also count from applications to capture more data
+      filteredApplications.forEach(app => {
+        const barangay = app.barangay || app.Barangay || 'Unknown';
         barangayCounts[barangay] = (barangayCounts[barangay] || 0) + 1;
       });
       
@@ -299,20 +366,36 @@ const Reports = () => {
         }
       });
       
+      console.log('Barangay counts:', barangayCounts);
+      console.log('All barangays:', allBarangays);
+      
       const barangayDistribution = Object.entries(barangayCounts)
         .map(([barangay, count]) => ({ barangay, count }))
         .sort((a, b) => b.count - a.count);
       
-      // Disability type distribution
+      console.log('Barangay distribution:', barangayDistribution);
+      
+      // Disability type distribution - use both members and applications
       const disabilityCounts = {};
+      
+      // Count from members
       filteredMembers.forEach(member => {
         const disability = member.disabilityType || 'Not Specified';
+        disabilityCounts[disability] = (disabilityCounts[disability] || 0) + 1;
+      });
+      
+      // Also count from applications to capture more data
+      filteredApplications.forEach(app => {
+        const disability = app.disabilityType || app.typeOfDisability || 'Not Specified';
         disabilityCounts[disability] = (disabilityCounts[disability] || 0) + 1;
       });
       
       const disabilityTypeDistribution = Object.entries(disabilityCounts)
         .map(([disability, count]) => ({ disability, count }))
         .sort((a, b) => b.count - a.count);
+      
+      console.log('Disability counts:', disabilityCounts);
+      console.log('Disability type distribution:', disabilityTypeDistribution);
       
       // Age group distribution
       const ageGroups = {
@@ -347,17 +430,30 @@ const Reports = () => {
         .sort((a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt))
         .slice(0, 10);
       
-      setPwdRegistrationData({
-        totalRegistrations,
+      // Calculate total registrations from monthly trends for consistency
+      const totalFromMonthlyTrends = monthlyTrends.reduce((sum, month) => sum + month.registrations, 0);
+      console.log('Total registrations from monthly trends:', totalFromMonthlyTrends);
+      
+      // Use the higher of the two calculations
+      const finalTotalRegistrations = Math.max(totalRegistrations, totalFromMonthlyTrends);
+      console.log('Final total registrations:', finalTotalRegistrations);
+      
+      const finalData = {
+        totalRegistrations: finalTotalRegistrations,
         monthlyTrends,
         barangayDistribution,
         disabilityTypeDistribution,
         ageGroupDistribution,
         recentRegistrations
-      });
+      };
+      
+      console.log('Final PWD registration data:', finalData);
+      setPwdRegistrationData(finalData);
       
     } catch (error) {
       console.error('Error fetching PWD registration data:', error);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -462,17 +558,33 @@ const Reports = () => {
 
   const fetchBenefitsDistributionData = async () => {
     try {
+      setDataLoading(true);
       // Fetch benefits data
       const benefitsResponse = await benefitService.getAll();
       const benefits = benefitsResponse.data || benefitsResponse || [];
+      console.log('Benefits fetched:', benefits.length, benefits);
       
       // Fetch PWD members data to analyze benefit distribution
       const pwdResponse = await pwdMemberService.getAll();
       const pwdMembers = pwdResponse.data?.members || pwdResponse.members || [];
+      console.log('PWD Members for benefits:', pwdMembers.length, pwdMembers);
       
       // Filter data by selected date range
-      const filteredBenefits = filterDataByDateRange(benefits);
-      const filteredMembers = filterDataByDateRange(pwdMembers);
+      let filteredBenefits = filterDataByDateRange(benefits);
+      let filteredMembers = filterDataByDateRange(pwdMembers);
+      
+      // If no data found with current filter, fallback to all data
+      if (filteredBenefits.length === 0 && benefits.length > 0) {
+        console.log('No benefits found with current date filter, using all data');
+        filteredBenefits = benefits;
+      }
+      if (filteredMembers.length === 0 && pwdMembers.length > 0) {
+        console.log('No members found with current date filter, using all data');
+        filteredMembers = pwdMembers;
+      }
+      
+      console.log('Filtered benefits:', filteredBenefits.length, filteredBenefits);
+      console.log('Filtered members for benefits:', filteredMembers.length, filteredMembers);
       
       // Calculate benefits statistics
       const totalBenefitsDistributed = filteredBenefits.filter(benefit => benefit.status === 'approved').length;
@@ -507,6 +619,9 @@ const Reports = () => {
       const benefitTypeDistribution = Object.entries(benefitTypeCounts)
         .map(([type, count]) => ({ type, count }))
         .sort((a, b) => b.count - a.count);
+      
+      console.log('Benefit type counts:', benefitTypeCounts);
+      console.log('Benefit type distribution:', benefitTypeDistribution);
       
       // Barangay benefits distribution - include all barangays
       const barangayBenefitsCounts = {};
@@ -554,7 +669,7 @@ const Reports = () => {
       
       const totalBenefitValue = benefitAmounts.reduce((sum, amount) => sum + amount, 0);
       
-      setBenefitsDistributionData({
+      const finalBenefitsData = {
         totalBenefitsDistributed,
         totalBenefitsPending,
         monthlyBenefitsTrends,
@@ -563,10 +678,15 @@ const Reports = () => {
         recentBenefitsDistributed,
         averageBenefitAmount,
         totalBenefitValue
-      });
+      };
+      
+      console.log('Final benefits distribution data:', finalBenefitsData);
+      setBenefitsDistributionData(finalBenefitsData);
       
     } catch (error) {
       console.error('Error fetching benefits distribution data:', error);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -1274,54 +1394,6 @@ const Reports = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
-  const handleOpenSuggestionsDialog = async () => {
-    if (!selectedReportData) return;
-    
-    setCurrentReportType(selectedReportData.reportType || 'general');
-    setLoadingSuggestions(true);
-    setSuggestionsDialogOpen(true);
-    
-    try {
-      // Generate suggestions based on report type and data
-      let suggestions = [];
-      
-      switch (selectedReportData.reportType) {
-        case 'pwd-registration':
-          suggestions = suggestionsService.generatePWDRegistrationSuggestions(pwdRegistrationData);
-          break;
-        case 'card-distribution':
-          suggestions = suggestionsService.generateCardDistributionSuggestions(cardDistributionData);
-          break;
-        case 'benefits-distribution':
-          suggestions = suggestionsService.generateBenefitsDistributionSuggestions(benefitsDistributionData);
-          break;
-        case 'complaints-analysis':
-          suggestions = suggestionsService.generateComplaintsAnalysisSuggestions(complaintsAnalysisData);
-          break;
-        case 'barangay-performance':
-          suggestions = suggestionsService.generateMonthlyActivitySuggestions(barangayPerformanceData);
-          break;
-        default:
-          suggestions = [];
-      }
-      
-      // Simulate loading time for better UX
-      setTimeout(() => {
-        setContextualSuggestions(suggestions);
-        setLoadingSuggestions(false);
-      }, 1500);
-      
-    } catch (error) {
-      console.error('Error generating suggestions:', error);
-      setContextualSuggestions([]);
-      setLoadingSuggestions(false);
-    }
-  };
-
-  const handleCloseSuggestionsDialog = () => {
-    setSuggestionsDialogOpen(false);
-    setContextualSuggestions([]);
-  };
 
   const getReportCategory = (reportType) => {
     const categoryMap = {
@@ -1412,8 +1484,21 @@ const Reports = () => {
     return status === 'Available' ? 'success' : 'warning';
   };
 
+  // Filter reports based on selected report type
+  const filteredReports = selectedReport 
+    ? reports.filter(report => report.reportType === selectedReport)
+    : reports;
+
   const renderPWDRegistrationReport = () => {
     const { totalRegistrations, monthlyTrends, barangayDistribution, disabilityTypeDistribution, ageGroupDistribution, recentRegistrations } = pwdRegistrationData;
+    
+    if (dataLoading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
     
     return (
       <Box>
@@ -1579,14 +1664,22 @@ const Reports = () => {
 
         {/* Barangay Distribution Chart */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
-          <BarChartComponent
-            data={barangayDistribution.slice(0, 10)}
-            title="Registration by Barangay (Top 10)"
-            xKey="barangay"
-            yKey="count"
-            color="#27AE60"
-            height={300}
-          />
+          {barangayDistribution.length > 0 ? (
+            <BarChartComponent
+              data={barangayDistribution}
+              title="Registration by Barangay"
+              xKey="barangay"
+              yKey="count"
+              color="#27AE60"
+              height={400}
+            />
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+              <Typography variant="h6" color="textSecondary">
+                No barangay registration data available
+              </Typography>
+            </Box>
+          )}
         </Paper>
 
         {/* Barangay Distribution Table */}
@@ -1604,15 +1697,23 @@ const Reports = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {barangayDistribution.slice(0, 10).map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell sx={{ fontWeight: 500, color: '#2C3E50' }}>{item.barangay}</TableCell>
-                    <TableCell sx={{ color: '#2C3E50' }}>{item.count}</TableCell>
-                    <TableCell sx={{ color: '#2C3E50' }}>
-                      {totalRegistrations > 0 ? ((item.count / totalRegistrations) * 100).toFixed(1) : 0}%
+                {barangayDistribution.length > 0 ? (
+                  barangayDistribution.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell sx={{ fontWeight: 500, color: '#2C3E50' }}>{item.barangay}</TableCell>
+                      <TableCell sx={{ color: '#2C3E50' }}>{item.count}</TableCell>
+                      <TableCell sx={{ color: '#2C3E50' }}>
+                        {totalRegistrations > 0 ? ((item.count / totalRegistrations) * 100).toFixed(1) : 0}%
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} sx={{ textAlign: 'center', color: '#7F8C8D', py: 4 }}>
+                      No barangay registration data available
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -1620,13 +1721,21 @@ const Reports = () => {
 
         {/* Disability Type Distribution Chart */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
-          <PieChartComponent
-            data={disabilityTypeDistribution}
-            title="Disability Type Distribution"
-            dataKey="count"
-            nameKey="disability"
-            height={300}
-          />
+          {disabilityTypeDistribution.length > 0 ? (
+            <PieChartComponent
+              data={disabilityTypeDistribution}
+              title="Disability Type Distribution"
+              dataKey="count"
+              nameKey="disability"
+              height={300}
+            />
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+              <Typography variant="h6" color="textSecondary">
+                No disability type data available
+              </Typography>
+            </Box>
+          )}
         </Paper>
 
         {/* Disability Type Distribution Table */}
@@ -2020,6 +2129,14 @@ const Reports = () => {
       totalBenefitValue 
     } = benefitsDistributionData;
     
+    if (dataLoading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+    
     return (
       <Box>
         {/* Summary Cards */}
@@ -2143,13 +2260,21 @@ const Reports = () => {
 
         {/* Benefit Type Distribution Chart */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>
-          <PieChartComponent
-            data={benefitTypeDistribution}
-            title="Benefit Type Distribution"
-            dataKey="count"
-            nameKey="type"
-            height={300}
-          />
+          {benefitTypeDistribution.length > 0 ? (
+            <PieChartComponent
+              data={benefitTypeDistribution}
+              title="Benefit Type Distribution"
+              dataKey="count"
+              nameKey="type"
+              height={300}
+            />
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+              <Typography variant="h6" color="textSecondary">
+                No benefit type data available
+              </Typography>
+            </Box>
+          )}
         </Paper>
 
         {/* Benefit Type Distribution Table */}
@@ -3362,6 +3487,11 @@ const Reports = () => {
     setGeneratingPdf(true);
     try {
       console.log('Generating PDF for report type:', reportType);
+      console.log('Available data:', {
+        pwdRegistrationData,
+        cardDistributionData,
+        benefitsDistributionData
+      });
       
       const doc = new jsPDF();
       const currentDate = new Date().toLocaleDateString();
@@ -3434,6 +3564,7 @@ const Reports = () => {
       
       // Convert to blob for preview
       const pdfBlob = doc.output('blob');
+      console.log('PDF blob created:', pdfBlob);
       setPdfBlob(pdfBlob);
       setPdfPreviewOpen(true);
       
@@ -4104,15 +4235,25 @@ const Reports = () => {
 
   const handleDownloadPDF = () => {
     if (pdfBlob) {
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${getReportTitle(selectedReportData?.reportType)}_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      setPdfPreviewOpen(false);
+      try {
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${getReportTitle(selectedReportData?.reportType)}_${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setPdfPreviewOpen(false);
+        
+        console.log('PDF download initiated successfully');
+      } catch (error) {
+        console.error('Error downloading PDF:', error);
+        alert('Failed to download PDF: ' + (error.message || 'Unknown error'));
+      }
+    } else {
+      console.error('No PDF blob available for download');
+      alert('No PDF available to download. Please generate the report first.');
     }
   };
 
@@ -4242,8 +4383,26 @@ const Reports = () => {
           </Box>
 
           <Grid container spacing={4} sx={{ mb: 5, mt: 2 }}>
-            {reports.map((report) => (
-              <Grid item xs={12} sm={6} md={4} key={report.id}>
+            {filteredReports.length === 0 ? (
+              <Grid item xs={12}>
+                <Box sx={{ 
+                  textAlign: 'center', 
+                  py: 8, 
+                  bgcolor: '#F8F9FA', 
+                  borderRadius: 3, 
+                  border: '1px solid #E0E0E0' 
+                }}>
+                  <Typography variant="h6" sx={{ color: '#7F8C8D', mb: 2 }}>
+                    No reports found for the selected filter
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#95A5A6' }}>
+                    Try selecting a different report type or "All Reports"
+                  </Typography>
+                </Box>
+              </Grid>
+            ) : (
+              filteredReports.map((report) => (
+                <Grid item xs={12} sm={6} md={4} key={report.id}>
                 <Card 
                   elevation={0} 
                   sx={{ 
@@ -4328,83 +4487,11 @@ const Reports = () => {
                     </IconButton>
                   </CardActions>
                 </Card>
-              </Grid>
-            ))}
+                </Grid>
+              ))
+            )}
           </Grid>
 
-          {/* Quick Stats Table */}
-          <Box sx={{ mt: 5, mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 4, color: '#2C3E50', fontSize: '1.2rem' }}>
-              Barangay Performance Summary
-            </Typography>
-            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E0E0E0', borderRadius: 3, bgcolor: 'white', p: 3, m: 1 }}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#F8FAFC' }}>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem', py: 2, px: 3 }}>Barangay</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem', py: 2, px: 3 }}>Registered PWDs</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem', py: 2, px: 3 }}>Cards Issued</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem', py: 2, px: 3 }}>Benefits Distributed</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem', py: 2, px: 3 }}>Complaints</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem', py: 2, px: 3 }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} sx={{ textAlign: 'center', p: 4 }}>
-                        <CircularProgress />
-                      </TableCell>
-                    </TableRow>
-                  ) : (barangayPerformance.length === 0 && barangayPerformanceData.barangayRankings.length === 0) ? (
-                    <TableRow>
-                      <TableCell colSpan={6} sx={{ textAlign: 'center', p: 4, color: '#7F8C8D' }}>
-                        <Typography variant="body1">
-                          No barangay data available. Please check your connection and try again.
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (barangayPerformance.length > 0 ? barangayPerformance : barangayPerformanceData.barangayRankings).map((row, index) => (
-                      <TableRow key={row.barangay} sx={{ bgcolor: 'white' }}>
-                        <TableCell sx={{ fontWeight: 500, color: '#2C3E50', py: 2, px: 3 }}>{row.barangay}</TableCell>
-                        <TableCell sx={{ color: '#2C3E50', fontWeight: 500, py: 2, px: 3 }}>{row.registered}</TableCell>
-                        <TableCell sx={{ color: '#2C3E50', fontWeight: 500, py: 2, px: 3 }}>{row.cards}</TableCell>
-                        <TableCell sx={{ color: '#2C3E50', fontWeight: 500, py: 2, px: 3 }}>{row.benefits}</TableCell>
-                        <TableCell sx={{ py: 2, px: 3 }}>
-                          <Chip 
-                            label={row.complaints} 
-                            color={row.complaints > 5 ? 'error' : 'success'} 
-                            size="small" 
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell sx={{ py: 2, px: 3 }}>
-                          <Button 
-                            size="small" 
-                            variant="outlined" 
-                            sx={{ 
-                              textTransform: 'none', 
-                              fontWeight: 600,
-                              borderColor: '#3498DB',
-                              color: '#3498DB',
-                              '&:hover': { 
-                                bgcolor: '#3498DB', 
-                                color: '#FFFFFF',
-                                borderColor: '#3498DB'
-                              }
-                            }}
-                          >
-                            Details
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
 
         {/* Report Dialog */}
         <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth sx={{ ...dialogStyles, '& .MuiDialog-paper': { bgcolor: 'white', borderRadius: 3, p: 3, m: 2 } }}>
@@ -4459,21 +4546,15 @@ const Reports = () => {
           <DialogActions sx={{ ...dialogActionsStyles, bgcolor: 'white', p: 5, m: 1 }}>
             <Button onClick={handleCloseDialog}>Close</Button>
             <Button 
-              variant="outlined" 
-              startIcon={<Lightbulb />}
-              onClick={handleOpenSuggestionsDialog}
+              variant="contained" 
+              startIcon={<Download />}
               sx={{ 
-                borderColor: '#9B59B6', 
-                color: '#9B59B6',
+                bgcolor: '#27AE60',
                 '&:hover': { 
-                  borderColor: '#8E44AD', 
-                  bgcolor: '#F8F4FF' 
+                  bgcolor: '#229954' 
                 }
               }}
             >
-              Get AI Suggestions
-            </Button>
-            <Button variant="contained" startIcon={<Download />}>
               Download Report
             </Button>
           </DialogActions>
@@ -4592,14 +4673,7 @@ const Reports = () => {
           </DialogActions>
         </Dialog>
         
-        {/* Contextual Suggestions Dialog */}
-        <SuggestionsDialog
-          open={suggestionsDialogOpen}
-          onClose={handleCloseSuggestionsDialog}
-          suggestions={contextualSuggestions}
-          loading={loadingSuggestions}
-          reportType={currentReportType}
-        />
+        {/* Contextual Suggestions Dialog removed */}
       </Paper>
     </Box>
   </Box>

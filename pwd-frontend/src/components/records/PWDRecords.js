@@ -92,9 +92,19 @@ function PWDRecords() {
     ];
 
     const disabilityTypes = [
-      'Visual Impairment', 'Hearing Impairment', 'Physical Disability',
-      'Intellectual Disability', 'Learning Disability', 'Mental Health',
-      'Speech Impairment', 'Multiple Disabilities', 'Other'
+      'Visual Impairment',
+      'Hearing Impairment',
+      'Physical Disability',
+      'Speech and Language Impairment',
+      'Intellectual Disability',
+      'Mental Health Condition',
+      'Learning Disability',
+      'Psychosocial Disability',
+      'Autism Spectrum Disorder',
+      'ADHD',
+      'Orthopedic/Physical Disability',
+      'Chronic Illness',
+      'Multiple Disabilities'
     ];
 
     const ageRanges = [
@@ -420,8 +430,12 @@ function PWDRecords() {
         let matchesDisability = true;
         if (filters.disability) {
           if (tab === 0) {
-            // Masterlist data
-            matchesDisability = row.disability && row.disability === filters.disability;
+            // Masterlist data - support both disability and disabilityType fields, case-insensitive and partial match
+            const rowDisability = (row.disabilityType || row.disability || '').toString().toLowerCase();
+            const filterDisability = filters.disability.toLowerCase();
+            matchesDisability = rowDisability === filterDisability ||
+                                rowDisability.includes(filterDisability) ||
+                                filterDisability.includes(rowDisability);
           } else {
             // Application data - handle case sensitivity and partial matches
             const rowDisability = row.disabilityType ? row.disabilityType.toLowerCase() : '';
@@ -608,6 +622,34 @@ function PWDRecords() {
                   <Button 
                     startIcon={<PrintIcon />} 
                     variant="outlined" 
+                    onClick={() => {
+                      const listArea = document.getElementById('pwd-masterlist-table');
+                      if (!listArea) return;
+                      const printWindow = window.open('', '_blank');
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>PWD Masterlist</title>
+                            <style>
+                              body { font-family: Arial, sans-serif; margin: 16px; }
+                              h2 { text-align: center; }
+                              table { width: 100%; border-collapse: collapse; }
+                              th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
+                              th { background: #f5f5f5; }
+                              @media print { body { margin: 0; } }
+                            </style>
+                          </head>
+                          <body>
+                            <h2>PWD MASTERLIST</h2>
+                            <p>Date: ${new Date().toLocaleDateString()}</p>
+                            ${listArea.outerHTML}
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                      printWindow.focus();
+                      printWindow.print();
+                    }}
                     sx={{ 
                       textTransform: 'none',
                       color: '#FFFFFF',
@@ -1043,7 +1085,7 @@ function PWDRecords() {
                   )}
 
                   {!loading && !error && (
-                  <Table size="small">
+                  <Table id="pwd-masterlist-table" size="small">
                     <TableHead>
                       <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
                           {tab === 0 ? (
@@ -1098,9 +1140,6 @@ function PWDRecords() {
                               </TableCell>
                             </>
                           )}
-                          <TableCell align="right" sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
-                            Actions
-                          </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -1182,88 +1221,7 @@ function PWDRecords() {
                                   />
                                 </TableCell>
                               </>
-                            )}
-                          <TableCell align="right" sx={{ py: 2, px: 2 }}>
-                            {tab === 0 ? (
-                              <Button 
-                                size="small" 
-                                variant="outlined" 
-                                sx={{ 
-                                  textTransform: 'none',
-                                  color: '#0b87ac',
-                                  borderColor: '#0b87ac',
-                                  fontWeight: 600,
-                                  '&:hover': {
-                                    bgcolor: '#0b87ac',
-                                    color: '#FFFFFF',
-                                    borderColor: '#0b87ac'
-                                  }
-                                }}
-                              >
-                                View/Edit
-                              </Button>
-                            ) : (
-                              <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  startIcon={<VisibilityIcon />}
-                                  onClick={() => handleViewDetails(row)}
-                                  sx={{
-                                    borderColor: '#0b87ac',
-                                    color: '#0b87ac',
-                                    textTransform: 'none',
-                                    fontSize: '0.7rem',
-                                    py: 0.5,
-                                    px: 1,
-                                    '&:hover': {
-                                      borderColor: '#0a6b8a',
-                                      bgcolor: '#0b87ac',
-                                      color: '#FFFFFF'
-                                    }
-                                  }}
-                                >
-                                  View Details
-                                </Button>
-                                <Button
-                                  variant="contained"
-                                  size="small"
-                                  onClick={() => handleApproveApplication(row.applicationID)}
-                                  sx={{
-                                    bgcolor: '#27AE60',
-                                    textTransform: 'none',
-                                    fontSize: '0.7rem',
-                                    py: 0.5,
-                                    px: 1,
-                                    '&:hover': {
-                                      bgcolor: '#229954'
-                                    }
-                                  }}
-                                >
-                                  Approve
-                                </Button>
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  onClick={() => handleRejectApplication(row.applicationID)}
-                                  sx={{
-                                    borderColor: '#E74C3C',
-                                    color: '#E74C3C',
-                                    textTransform: 'none',
-                                    fontSize: '0.7rem',
-                                    py: 0.5,
-                                    px: 1,
-                                    '&:hover': {
-                                      borderColor: '#C0392B',
-                                      bgcolor: '#FDF2F2'
-                                    }
-                                  }}
-                                >
-                                  Reject
-                                </Button>
-                              </Box>
-                            )}
-                          </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>

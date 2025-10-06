@@ -25,6 +25,7 @@ import {
   Chip
 } from '@mui/material';
 import { Edit as EditIcon } from '@mui/icons-material';
+import Radio from '@mui/material/Radio';
 import passwordService from '../../services/passwordService';
 import api from '../../services/api';
 
@@ -88,10 +89,65 @@ function AdminPasswordReset({ open, onClose }) {
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
-      const response = await api.get('/users');
-      setUsers(response.data.users || []);
+      const combined = [];
+
+      // Helper to normalize arrays from various shapes
+      const pickArray = (res) => {
+        const candidates = [res?.data?.users, res?.data?.members, res?.data?.data, res?.users, res?.members, res?.data, res];
+        return candidates.find(a => Array.isArray(a));
+      };
+
+      // 1) Fetch standard users (for Barangay Presidents if present)
+      try {
+        const resUsers = await api.get('/users');
+        const arr = pickArray(resUsers) || [];
+        arr.forEach(u => {
+          const role = u.role || u.userType || u.type || 'User';
+          if (role?.toLowerCase().includes('barangay')) {
+            combined.push({ email: u.email || u.user?.email, role: 'Barangay President' });
+          }
+        });
+      } catch (e) {
+        console.warn('Users endpoint not available:', e?.message || e);
+      }
+
+      // 2) Fetch Barangay Presidents (explicit endpoint if available)
+      try {
+        const resBp = await api.get('/barangay-presidents');
+        const arr = pickArray(resBp) || [];
+        arr.forEach(b => {
+          combined.push({ email: b.email || b.user?.email, role: 'Barangay President' });
+        });
+      } catch (e) {
+        // optional endpoint; ignore if missing
+      }
+
+      // 3) Fetch PWD Members
+      try {
+        const resPwd = await api.get('/pwd-members');
+        const arr = pickArray(resPwd) || [];
+        arr.forEach(m => {
+          const email = m?.email || m?.user?.email;
+          if (email) combined.push({ email, role: 'PWD Member' });
+        });
+      } catch (e) {
+        console.warn('PWD members endpoint not available:', e?.message || e);
+      }
+
+      // De-duplicate by email
+      const seen = new Set();
+      const unique = combined.filter(u => {
+        if (!u.email) return false;
+        const key = u.email.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      setUsers(unique);
     } catch (err) {
       console.error('Failed to fetch users:', err);
+      setUsers([]);
     } finally {
       setLoadingUsers(false);
     }
@@ -133,13 +189,19 @@ function AdminPasswordReset({ open, onClose }) {
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
-      <DialogTitle>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="lg" 
+      fullWidth
+      PaperProps={{ sx: { bgcolor: '#FFFFFF' } }}
+    >
+      <DialogTitle sx={{ bgcolor: '#FFFFFF', borderBottom: '1px solid #E0E0E0' }}>
         <Typography variant="h5" sx={{ color: '#2C3E50' }}>
           Admin Password Reset
         </Typography>
       </DialogTitle>
-      <DialogContent>
+      <DialogContent sx={{ bgcolor: '#FFFFFF' }}>
         <Box sx={{ mt: 2 }}>
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -154,7 +216,7 @@ function AdminPasswordReset({ open, onClose }) {
           )}
 
           {/* Password Reset Form */}
-          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+          <Paper elevation={2} sx={{ p: 3, mb: 3, bgcolor: '#FFFFFF' }}>
             <Typography variant="h6" sx={{ mb: 2, color: '#2C3E50' }}>
               Reset User Password
             </Typography>
@@ -203,13 +265,17 @@ function AdminPasswordReset({ open, onClose }) {
           </Paper>
 
           {/* Users List */}
-          <Paper elevation={2} sx={{ p: 3 }}>
+          <Paper elevation={2} sx={{ p: 3, bgcolor: '#FFFFFF' }}>
             <Typography variant="h6" sx={{ mb: 2, color: '#2C3E50' }}>
               All Users
             </Typography>
             {loadingUsers ? (
               <Box display="flex" justifyContent="center" p={3}>
                 <CircularProgress />
+              </Box>
+            ) : users.length === 0 ? (
+              <Box display="flex" justifyContent="center" p={3}>
+                <Typography variant="body2" color="text.secondary">No users found.</Typography>
               </Box>
             ) : (
               <TableContainer>
@@ -218,7 +284,7 @@ function AdminPasswordReset({ open, onClose }) {
                     <TableRow>
                       <TableCell>Email</TableCell>
                       <TableCell>Role</TableCell>
-                      <TableCell>Actions</TableCell>
+                      <TableCell>Select</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -233,13 +299,12 @@ function AdminPasswordReset({ open, onClose }) {
                           />
                         </TableCell>
                         <TableCell>
-                          <IconButton
-                            onClick={() => handleEditUser(user.email)}
+                          <Radio
+                            checked={formData.email === user.email}
+                            onChange={() => handleEditUser(user.email)}
                             color="primary"
                             size="small"
-                          >
-                            <EditIcon />
-                          </IconButton>
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -250,7 +315,7 @@ function AdminPasswordReset({ open, onClose }) {
           </Paper>
         </Box>
       </DialogContent>
-      <DialogActions sx={{ p: 3 }}>
+      <DialogActions sx={{ p: 3, bgcolor: '#FFFFFF', borderTop: '1px solid #E0E0E0' }}>
         <Button
           onClick={handleClose}
           disabled={loading}

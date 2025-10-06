@@ -140,6 +140,37 @@ function PWDMemberDashboard() {
     }
   }, [currentUser]);
 
+  // Real-time updates - refresh data every 30 seconds
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const interval = setInterval(async () => {
+      try {
+        // Get user's barangay from currentUser
+        const userBarangay = currentUser?.barangay || currentUser?.pwd_member?.barangay;
+        
+        // Use announcementService to get filtered announcements
+        const filteredAnnouncements = await announcementService.getFilteredForPWDMember(userBarangay);
+        
+        // Fetch support tickets for this user
+        const ticketsResponse = await api.get('/support-tickets');
+        const ticketsData = ticketsResponse || [];
+        const userTickets = ticketsData.filter(ticket => 
+          ticket.pwd_member?.user?.id === currentUser?.id
+        );
+        
+        setAnnouncements(filteredAnnouncements.slice(0, 3));
+        setSupportTickets(userTickets);
+        
+        console.log('Dashboard data refreshed automatically');
+      } catch (error) {
+        console.error('Error refreshing dashboard data:', error);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -224,157 +255,13 @@ function PWDMemberDashboard() {
           </Alert>
         )}
 
-          {/* Dashboard Content */}
-          <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: 3 }}>
-            {/* Latest Announcements */}
-            <Grid item xs={12} md={6}>
-              <Card sx={cardStyles}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                    <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
-                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                      Latest Announcements
-                    </Typography>
-                  </Box>
-              
-              {announcements.length > 0 ? (
-                <List>
-                  {announcements.map((announcement, index) => (
-                    <React.Fragment key={announcement.id}>
-                      <ListItem sx={{ px: 0 }}>
-                        <ListItemIcon sx={{ minWidth: 36 }}>
-                          <Campaign sx={{ color: '#F39C12', fontSize: 20 }} />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50' }}>
-                                {announcement.title}
-                              </Typography>
-                              {/* Show barangay-specific badge */}
-                              {announcement.targetAudience !== 'All' && 
-                               announcement.targetAudience !== 'PWD Members' && 
-                               announcement.targetAudience !== 'PWDMember' && (
-                                <Box
-                                  sx={{
-                                    backgroundColor: '#3498DB',
-                                    color: 'white',
-                                    px: 1,
-                                    py: 0.25,
-                                    borderRadius: 1,
-                                    fontSize: '0.6rem',
-                                    fontWeight: 600
-                                  }}
-                                >
-                                  {announcement.targetAudience}
-                                </Box>
-                              )}
-                            </Box>
-                          }
-                          secondary={
-                            <Typography variant="caption" sx={{ color: '#000000' }}>
-                              {new Date(announcement.created_at).toLocaleDateString()}
-                            </Typography>
-                          }
-                        />
-                      </ListItem>
-                      {index < announcements.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </List>
-              ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <ErrorOutline sx={{ fontSize: 48, color: '#000000', mb: 2 }} />
-                  <Typography variant="body1" sx={{ color: '#000000', mb: 1 }}>
-                    No announcements at the moment
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#000000' }}>
-                    Check back later for important updates
-                  </Typography>
-                </Box>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Support Desk */}
-            <Grid item xs={12} md={6}>
-              <Card sx={cardStyles}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                    <Support sx={{ color: '#E74C3C', fontSize: 24 }} />
-                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                      Support Desk
-                    </Typography>
-                  </Box>
-              
-              <Typography variant="body2" sx={{ color: '#000000', mb: 3 }}>
-                Need help? Our support team is here to assist you with any questions or concerns.
-              </Typography>
-              
-              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <Button
-                  variant="contained"
-                  onClick={handleCreateSupportTicket}
-                  sx={{ 
-                    bgcolor: '#E74C3C', 
-                    color: 'white',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    px: 3,
-                    '&:hover': { bgcolor: '#C0392B' }
-                  }}
-                >
-                  Create Support Ticket
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={handleViewMyTickets}
-                  sx={{ 
-                    borderColor: '#E74C3C', 
-                    color: '#E74C3C',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    px: 3,
-                    '&:hover': { borderColor: '#C0392B', backgroundColor: '#E74C3C15' }
-                  }}
-                >
-                  View My Tickets
-                </Button>
-              </Box>
-              
-              <Box sx={{ mt: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <Phone sx={{ color: '#E74C3C', fontSize: 16 }} />
-                  <Typography variant="body2" sx={{ color: '#000000' }}>
-                    Phone: (049) 123-4567
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <Email sx={{ color: '#E74C3C', fontSize: 16 }} />
-                  <Typography variant="body2" sx={{ color: '#000000' }}>
-                    Email: support@pdao.cabuyao.gov.ph
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AccessTime sx={{ color: '#E74C3C', fontSize: 16 }} />
-                  <Typography variant="body2" sx={{ color: '#000000' }}>
-                    Hours: Mon-Fri, 8AM-5PM
-                  </Typography>
-                </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-
-          {/* Summary Cards */}
-          <Grid container spacing={3}>
+          {/* Status Cards - Top Section */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={cardStyles}>
-                <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                  <CheckCircle sx={{ fontSize: 40, color: '#27AE60', mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#27AE60' }}>
+              <Card sx={{ ...cardStyles, height: '100%', minHeight: 140 }}>
+                <CardContent sx={{ textAlign: 'center', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <CheckCircle sx={{ fontSize: 48, color: '#27AE60', mb: 1 }} />
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#27AE60', mb: 0.5 }}>
                     Approved
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#000000' }}>
@@ -384,26 +271,26 @@ function PWDMemberDashboard() {
               </Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={cardStyles}>
-                <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                  <Person sx={{ fontSize: 40, color: '#3498DB', mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#3498DB' }}>
+              <Card sx={{ ...cardStyles, height: '100%', minHeight: 140 }}>
+                <CardContent sx={{ textAlign: 'center', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <Person sx={{ fontSize: 48, color: '#3498DB', mb: 1 }} />
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#3498DB', mb: 0.5 }}>
                     PWD
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#000000' }}>
+                  <Typography variant="body2" sx={{ color: '#000000', mb: 0.5 }}>
                     Member Since
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#3498DB', fontWeight: 'bold', mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: '#3498DB', fontWeight: 'bold' }}>
                     {formatDate(memberSinceDate)}
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={cardStyles}>
-                <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                  <Campaign sx={{ fontSize: 40, color: '#F39C12', mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#F39C12' }}>
+              <Card sx={{ ...cardStyles, height: '100%', minHeight: 140 }}>
+                <CardContent sx={{ textAlign: 'center', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <Campaign sx={{ fontSize: 48, color: '#F39C12', mb: 1 }} />
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#F39C12', mb: 0.5 }}>
                     {announcements.length}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#000000' }}>
@@ -413,15 +300,163 @@ function PWDMemberDashboard() {
               </Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={cardStyles}>
-                <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                  <Support sx={{ fontSize: 40, color: '#E74C3C', mb: 1 }} />
-                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#E74C3C' }}>
+              <Card sx={{ ...cardStyles, height: '100%', minHeight: 140 }}>
+                <CardContent sx={{ textAlign: 'center', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <Support sx={{ fontSize: 48, color: '#E74C3C', mb: 1 }} />
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#E74C3C', mb: 0.5 }}>
                     {supportTickets.length}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#000000' }}>
                     Support Tickets
                   </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Dashboard Content */}
+          <Grid container spacing={{ xs: 2, sm: 3 }}>
+            {/* Latest Announcements */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ ...cardStyles, height: '100%', minHeight: 400 }}>
+                <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                    <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
+                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
+                      Latest Announcements
+                    </Typography>
+                  </Box>
+              
+                  <Box sx={{ flex: 1 }}>
+                    {announcements.length > 0 ? (
+                      <List>
+                        {announcements.map((announcement, index) => (
+                          <React.Fragment key={announcement.id}>
+                            <ListItem sx={{ px: 0 }}>
+                              <ListItemIcon sx={{ minWidth: 36 }}>
+                                <Campaign sx={{ color: '#F39C12', fontSize: 20 }} />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50' }}>
+                                      {announcement.title}
+                                    </Typography>
+                                    {/* Show barangay-specific badge */}
+                                    {announcement.targetAudience !== 'All' && 
+                                     announcement.targetAudience !== 'PWD Members' && 
+                                     announcement.targetAudience !== 'PWDMember' && (
+                                      <Box
+                                        sx={{
+                                          backgroundColor: '#3498DB',
+                                          color: 'white',
+                                          px: 1,
+                                          py: 0.25,
+                                          borderRadius: 1,
+                                          fontSize: '0.6rem',
+                                          fontWeight: 600
+                                        }}
+                                      >
+                                        {announcement.targetAudience}
+                                      </Box>
+                                    )}
+                                  </Box>
+                                }
+                                secondary={
+                                  <Typography variant="caption" sx={{ color: '#000000' }}>
+                                    {new Date(announcement.created_at).toLocaleDateString()}
+                                  </Typography>
+                                }
+                              />
+                            </ListItem>
+                            {index < announcements.length - 1 && <Divider />}
+                          </React.Fragment>
+                        ))}
+                      </List>
+                    ) : (
+                      <Box sx={{ textAlign: 'center', py: 4, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <ErrorOutline sx={{ fontSize: 48, color: '#000000', mb: 2 }} />
+                        <Typography variant="body1" sx={{ color: '#000000', mb: 1 }}>
+                          No announcements at the moment
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#000000' }}>
+                          Check back later for important updates
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Support Desk */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ ...cardStyles, height: '100%', minHeight: 400 }}>
+                <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                    <Support sx={{ color: '#E74C3C', fontSize: 24 }} />
+                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
+                      Support Desk
+                    </Typography>
+                  </Box>
+              
+                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" sx={{ color: '#000000', mb: 3 }}>
+                      Need help? Our support team is here to assist you with any questions or concerns.
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                      <Button
+                        variant="contained"
+                        onClick={handleCreateSupportTicket}
+                        sx={{ 
+                          bgcolor: '#E74C3C', 
+                          color: 'white',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          px: 3,
+                          '&:hover': { bgcolor: '#C0392B' }
+                        }}
+                      >
+                        Create Support Ticket
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={handleViewMyTickets}
+                        sx={{ 
+                          borderColor: '#E74C3C', 
+                          color: '#E74C3C',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          px: 3,
+                          '&:hover': { borderColor: '#C0392B', backgroundColor: '#E74C3C15' }
+                        }}
+                      >
+                        View My Tickets
+                      </Button>
+                    </Box>
+                    
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Phone sx={{ color: '#E74C3C', fontSize: 16 }} />
+                        <Typography variant="body2" sx={{ color: '#000000' }}>
+                          Phone: (049) 123-4567
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Email sx={{ color: '#E74C3C', fontSize: 16 }} />
+                        <Typography variant="body2" sx={{ color: '#000000' }}>
+                          Email: support@pdao.cabuyao.gov.ph
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AccessTime sx={{ color: '#E74C3C', fontSize: 16 }} />
+                        <Typography variant="body2" sx={{ color: '#000000' }}>
+                          Hours: Mon-Fri, 8AM-5PM
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
                 </CardContent>
               </Card>
             </Grid>

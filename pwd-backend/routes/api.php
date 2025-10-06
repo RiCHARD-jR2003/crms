@@ -42,6 +42,60 @@ Route::get('/dashboard-monthly', [MainDashboardController::class, 'getMonthlySta
 Route::get('/dashboard-activities', [MainDashboardController::class, 'getRecentActivities']);
 Route::get('/dashboard-coordination', [MainDashboardController::class, 'getBarangayCoordination']);
 
+// Public user status check route (for troubleshooting login issues)
+Route::get('/check-user-status/{email}', function ($email) {
+    try {
+        $user = \App\Models\User::where('email', $email)->first();
+        $application = \App\Models\Application::where('email', $email)->first();
+        
+        if (!$user && !$application) {
+            return response()->json([
+                'exists' => false,
+                'message' => 'No account or application found with this email address'
+            ]);
+        }
+        
+        $response = [
+            'email' => $email,
+            'user_account' => null,
+            'application' => null
+        ];
+        
+        if ($user) {
+            $response['user_account'] = [
+                'userID' => $user->userID,
+                'email' => $user->email,
+                'username' => $user->username,
+                'role' => $user->role,
+                'status' => $user->status,
+                'created_at' => $user->created_at,
+                'updated_at' => $user->updated_at
+            ];
+        }
+        
+        if ($application) {
+            $response['application'] = [
+                'applicationID' => $application->applicationID,
+                'firstName' => $application->firstName,
+                'lastName' => $application->lastName,
+                'email' => $application->email,
+                'status' => $application->status,
+                'submissionDate' => $application->submissionDate,
+                'created_at' => $application->created_at,
+                'updated_at' => $application->updated_at
+            ];
+        }
+        
+        return response()->json($response);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to check user status',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+
 
 
 
@@ -301,31 +355,34 @@ Route::post('/test-application-submission', function (Request $request) {
             'has_files' => $request->hasFile('idPicture') || $request->hasFile('medicalCertificate') || $request->hasFile('barangayClearance')
         ]);
 
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
-            'firstName' => 'required|string|max:50',
-            'lastName' => 'required|string|max:50',
-            'email' => 'required|email|unique:application,email',
-            'contactNumber' => 'required|string|max:20',
-            'barangay' => 'nullable|string|max:100',
-            'disabilityType' => 'required|string|max:100',
-            'address' => 'required|string',
-            'birthDate' => 'required|date',
-            'gender' => 'required|string|max:10',
-            'idType' => 'required|string|max:50',
-            'idNumber' => 'required|string|max:50',
-            // Document validation rules
-            'idPicture' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
-            'medicalCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'clinicalAbstract' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'voterCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'idPicture_0' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
-            'idPicture_1' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
-            'birthCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'wholeBodyPicture' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
-            'affidavit' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'barangayCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'barangayClearance' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-        ]);
+        // Use the validation service for comprehensive duplicate checking
+        $validationService = new \App\Services\ApplicationValidationService();
+        
+        // First, check for duplicates before validation
+        $duplicates = $validationService->checkForDuplicates($request->all());
+        if (!empty($duplicates)) {
+            \Illuminate\Support\Facades\Log::warning('Duplicate test application detected', [
+                'duplicates' => $duplicates,
+                'request_data' => $request->all()
+            ]);
+            
+            return response()->json([
+                'error' => 'Duplicate application detected',
+                'message' => 'An application with similar information already exists.',
+                'duplicates' => $duplicates,
+                'suggestions' => [
+                    'Check your existing application status',
+                    'Contact support if you believe this is an error',
+                    'Use a different email address if this is for a different person'
+                ]
+            ], 409); // 409 Conflict
+        }
+
+        // Get validation rules from service
+        $rules = $validationService->getValidationRules();
+        $messages = $validationService->getValidationMessages();
+        
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules, $messages);
 
         if ($validator->fails()) {
             \Illuminate\Support\Facades\Log::error('Validation failed', [
@@ -764,6 +821,26 @@ Route::put('/pwd-member/profile', function (Request $request) {
 // Public route to get active required documents for application form
 Route::get('/documents/public', [App\Http\Controllers\API\DocumentManagementController::class, 'getPublicDocuments']);
 
+// Public route to check for duplicate applications before submission
+Route::post('/applications/check-duplicates', function (Request $request) {
+    try {
+        $validationService = new \App\Services\ApplicationValidationService();
+        $duplicates = $validationService->checkForDuplicates($request->all());
+        
+        return response()->json([
+            'has_duplicates' => !empty($duplicates),
+            'duplicates' => $duplicates,
+            'message' => empty($duplicates) ? 'No duplicates found. You can proceed with your application.' : 'Duplicate applications detected.'
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to check for duplicates',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+
 // Public application submission route
 Route::post('/applications', function (Request $request) {
     try {
@@ -773,31 +850,34 @@ Route::post('/applications', function (Request $request) {
             'has_files' => $request->hasFile('idPicture') || $request->hasFile('medicalCertificate') || $request->hasFile('barangayClearance')
         ]);
 
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
-            'firstName' => 'required|string|max:50',
-            'lastName' => 'required|string|max:50',
-            'email' => 'required|email|unique:application,email',
-            'contactNumber' => 'required|string|max:20',
-            'barangay' => 'nullable|string|max:100',
-            'disabilityType' => 'required|string|max:100',
-            'address' => 'required|string',
-            'birthDate' => 'required|date',
-            'gender' => 'required|string|max:10',
-            'idType' => 'required|string|max:50',
-            'idNumber' => 'required|string|max:50',
-            // Document validation rules
-            'idPicture' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
-            'medicalCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'clinicalAbstract' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'voterCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'idPicture_0' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
-            'idPicture_1' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
-            'birthCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'wholeBodyPicture' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
-            'affidavit' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'barangayCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            'barangayClearance' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-        ]);
+        // Use the validation service for comprehensive duplicate checking
+        $validationService = new \App\Services\ApplicationValidationService();
+        
+        // First, check for duplicates before validation
+        $duplicates = $validationService->checkForDuplicates($request->all());
+        if (!empty($duplicates)) {
+            \Illuminate\Support\Facades\Log::warning('Duplicate application detected', [
+                'duplicates' => $duplicates,
+                'request_data' => $request->all()
+            ]);
+            
+            return response()->json([
+                'error' => 'Duplicate application detected',
+                'message' => 'An application with similar information already exists.',
+                'duplicates' => $duplicates,
+                'suggestions' => [
+                    'Check your existing application status',
+                    'Contact support if you believe this is an error',
+                    'Use a different email address if this is for a different person'
+                ]
+            ], 409); // 409 Conflict
+        }
+
+        // Get validation rules from service
+        $rules = $validationService->getValidationRules();
+        $messages = $validationService->getValidationMessages();
+        
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules, $messages);
 
         if ($validator->fails()) {
             \Illuminate\Support\Facades\Log::error('Application validation failed', [
@@ -1084,6 +1164,12 @@ Route::middleware('auth:sanctum')->group(function () {
         // Notification routes
         Route::get('/notifications', [DocumentManagementController::class, 'getNotifications']);
         Route::post('/notifications/{id}/read', [DocumentManagementController::class, 'markNotificationAsRead']);
+    });
+
+    // Document Migration routes (Admin only)
+    Route::prefix('admin')->group(function () {
+        Route::post('/migrate-documents', [App\Http\Controllers\API\DocumentMigrationController::class, 'migrateApplicationDocuments']);
+        Route::get('/migration-status', [App\Http\Controllers\API\DocumentMigrationController::class, 'getMigrationStatus']);
     });
 });
 

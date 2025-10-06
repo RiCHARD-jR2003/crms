@@ -150,7 +150,7 @@ export const PieChartComponent = ({ data, title, dataKey, nameKey, height = 300 
         {title}
       </Typography>
       <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
+        <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
           <Pie
             data={data}
             cx="50%"
@@ -167,7 +167,11 @@ export const PieChartComponent = ({ data, title, dataKey, nameKey, height = 300 
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
-          <Legend />
+          <Legend 
+            verticalAlign="bottom" 
+            height={36}
+            wrapperStyle={{ paddingTop: '20px' }}
+          />
         </PieChart>
       </ResponsiveContainer>
     </Box>

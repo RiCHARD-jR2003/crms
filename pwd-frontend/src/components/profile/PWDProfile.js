@@ -386,7 +386,7 @@ function PWDProfile() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#2C3E50' }}>
+      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#FFFFFF' }}>
         <PWDMemberSidebar />
         <Box sx={{ 
           flexGrow: 1, 
@@ -396,7 +396,7 @@ function PWDProfile() {
           justifyContent: 'center', 
           alignItems: 'center',
           minHeight: '100vh',
-          bgcolor: '#2C3E50',
+          bgcolor: '#FFFFFF',
           width: { xs: '100%', md: 'calc(100% - 280px)' } // Ensure proper width calculation
         }}>
           <CircularProgress />
@@ -475,7 +475,7 @@ function PWDProfile() {
                   </Typography>
                 </Box>
                 
-                <CardContent sx={{ p: 3, bgcolor: '#2C3E50' }}>
+                <CardContent sx={{ p: 3, bgcolor: '#FFFFFF' }}>
                   <Grid container spacing={3}>
                     <Grid item xs={12} md={6}>
                       <TextField
@@ -486,14 +486,14 @@ function PWDProfile() {
                         onChange={handleInputChange}
                         sx={{
                           '& .MuiOutlinedInput-root': {
-                            bgcolor: '#34495E',
-                            color: '#FFFFFF',
-                            '& fieldset': { borderColor: '#5D6D7E' },
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& fieldset': { borderColor: '#E0E0E0' },
                             '&:hover fieldset': { borderColor: '#3498DB' },
                             '&.Mui-focused fieldset': { borderColor: '#3498DB' },
                           },
-                          '& .MuiInputLabel-root': { color: '#BDC3C7', '&.Mui-focused': { color: '#3498DB' } },
-                          '& .MuiInputBase-input': { color: '#FFFFFF' },
+                          '& .MuiInputLabel-root': { color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } },
+                          '& .MuiInputBase-input': { color: '#2C3E50' },
                         }}
                       />
                     </Grid>
@@ -506,14 +506,14 @@ function PWDProfile() {
                         onChange={handleInputChange}
                         sx={{
                           '& .MuiOutlinedInput-root': {
-                            bgcolor: '#34495E',
-                            color: '#FFFFFF',
-                            '& fieldset': { borderColor: '#5D6D7E' },
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& fieldset': { borderColor: '#E0E0E0' },
                             '&:hover fieldset': { borderColor: '#3498DB' },
                             '&.Mui-focused fieldset': { borderColor: '#3498DB' },
                           },
-                          '& .MuiInputLabel-root': { color: '#BDC3C7', '&.Mui-focused': { color: '#3498DB' } },
-                          '& .MuiInputBase-input': { color: '#FFFFFF' },
+                          '& .MuiInputLabel-root': { color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } },
+                          '& .MuiInputBase-input': { color: '#2C3E50' },
                         }}
                       />
                     </Grid>
@@ -527,14 +527,14 @@ function PWDProfile() {
                         onChange={handleInputChange}
                         sx={{
                           '& .MuiOutlinedInput-root': {
-                            bgcolor: '#34495E',
-                            color: '#FFFFFF',
-                            '& fieldset': { borderColor: '#5D6D7E' },
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& fieldset': { borderColor: '#E0E0E0' },
                             '&:hover fieldset': { borderColor: '#3498DB' },
                             '&.Mui-focused fieldset': { borderColor: '#3498DB' },
                           },
-                          '& .MuiInputLabel-root': { color: '#BDC3C7', '&.Mui-focused': { color: '#3498DB' } },
-                          '& .MuiInputBase-input': { color: '#FFFFFF' },
+                          '& .MuiInputLabel-root': { color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } },
+                          '& .MuiInputBase-input': { color: '#2C3E50' },
                         }}
                       />
                     </Grid>
@@ -547,14 +547,14 @@ function PWDProfile() {
                         onChange={handleInputChange}
                         sx={{
                           '& .MuiOutlinedInput-root': {
-                            bgcolor: '#34495E',
-                            color: '#FFFFFF',
-                            '& fieldset': { borderColor: '#5D6D7E' },
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& fieldset': { borderColor: '#E0E0E0' },
                             '&:hover fieldset': { borderColor: '#3498DB' },
                             '&.Mui-focused fieldset': { borderColor: '#3498DB' },
                           },
-                          '& .MuiInputLabel-root': { color: '#BDC3C7', '&.Mui-focused': { color: '#3498DB' } },
-                          '& .MuiInputBase-input': { color: '#FFFFFF' },
+                          '& .MuiInputLabel-root': { color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } },
+                          '& .MuiInputBase-input': { color: '#2C3E50' },
                         }}
                       />
                     </Grid>
@@ -569,14 +569,14 @@ function PWDProfile() {
                         onChange={handleInputChange}
                         sx={{
                           '& .MuiOutlinedInput-root': {
-                            bgcolor: '#34495E',
-                            color: '#FFFFFF',
-                            '& fieldset': { borderColor: '#5D6D7E' },
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& fieldset': { borderColor: '#E0E0E0' },
                             '&:hover fieldset': { borderColor: '#3498DB' },
                             '&.Mui-focused fieldset': { borderColor: '#3498DB' },
                           },
-                          '& .MuiInputLabel-root': { color: '#BDC3C7', '&.Mui-focused': { color: '#3498DB' } },
-                          '& .MuiInputBase-input': { color: '#FFFFFF' },
+                          '& .MuiInputLabel-root': { color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } },
+                          '& .MuiInputBase-input': { color: '#2C3E50' },
                         }}
                       />
                     </Grid>
@@ -591,28 +591,28 @@ function PWDProfile() {
                         InputLabelProps={{ shrink: true }}
                         sx={{
                           '& .MuiOutlinedInput-root': {
-                            bgcolor: '#34495E',
-                            color: '#FFFFFF',
-                            '& fieldset': { borderColor: '#5D6D7E' },
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& fieldset': { borderColor: '#E0E0E0' },
                             '&:hover fieldset': { borderColor: '#3498DB' },
                             '&.Mui-focused fieldset': { borderColor: '#3498DB' },
                           },
-                          '& .MuiInputLabel-root': { color: '#BDC3C7', '&.Mui-focused': { color: '#3498DB' } },
-                          '& .MuiInputBase-input': { color: '#FFFFFF' },
+                          '& .MuiInputLabel-root': { color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } },
+                          '& .MuiInputBase-input': { color: '#2C3E50' },
                         }}
                       />
                     </Grid>
                     <Grid item xs={12} md={4}>
                       <FormControl fullWidth>
-                        <InputLabel sx={{ color: '#BDC3C7', '&.Mui-focused': { color: '#3498DB' } }}>Gender</InputLabel>
+                        <InputLabel sx={{ color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } }}>Gender</InputLabel>
                         <Select
                           name="gender"
                           value={formData.gender}
                           onChange={handleInputChange}
                           sx={{
-                            bgcolor: '#34495E',
-                            color: '#FFFFFF',
-                            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#5D6D7E' },
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E0E0E0' },
                             '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#3498DB' },
                             '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#3498DB' },
                           }}
@@ -624,15 +624,15 @@ function PWDProfile() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                       <FormControl fullWidth>
-                        <InputLabel sx={{ color: '#BDC3C7', '&.Mui-focused': { color: '#3498DB' } }}>Disability Type</InputLabel>
+                        <InputLabel sx={{ color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } }}>Disability Type</InputLabel>
                         <Select
                           name="disabilityType"
                           value={formData.disabilityType}
                           onChange={handleInputChange}
                           sx={{
-                            bgcolor: '#34495E',
-                            color: '#FFFFFF',
-                            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#5D6D7E' },
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E0E0E0' },
                             '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#3498DB' },
                             '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#3498DB' },
                           }}
@@ -666,7 +666,7 @@ function PWDProfile() {
                           variant="outlined"
                           startIcon={<CancelIcon />}
                           onClick={handleCancel}
-                          sx={{ color: '#BDC3C7', borderColor: '#BDC3C7' }}
+                          sx={{ color: '#2C3E50', borderColor: '#2C3E50' }}
                         >
                           Cancel
                         </Button>
@@ -678,20 +678,18 @@ function PWDProfile() {
             </Grid>
           )}
 
-          {/* PWD ID Card & Account Information */}
+          {/* PWD ID Card */}
           <Grid item xs={12} md={6}>
-            <Grid container spacing={2}>
-              {/* PWD ID Card */}
-              <Grid item xs={12}>
-                <Card sx={{ 
-                  borderRadius: 1, 
-                  boxShadow: 4, 
-                  overflow: 'hidden',
-                  border: '3px solid #1976d2',
-                  bgcolor: 'white',
-                  minHeight: '400px',
-                  maxWidth: '100%'
-                }}>
+            <Card sx={{ 
+              borderRadius: 1, 
+              boxShadow: 4, 
+              overflow: 'hidden',
+              border: '3px solid #1976d2',
+              bgcolor: 'white',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
                   {/* Header Section */}
                   <Box sx={{ 
                     p: 2.5,
@@ -1104,92 +1102,135 @@ function PWDProfile() {
                     </Typography>
                   </Box>
                 </Card>
-              </Grid>
+          </Grid>
 
-              {/* Account Information */}
-              <Grid item xs={12}>
-                <Card sx={{ borderRadius: 2, boxShadow: 3, overflow: 'hidden' }}>
-                  <Box sx={{ 
-                    background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-                    p: 3,
-                    color: 'white'
-                  }}>
-                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', color: 'white' }}>
-                      ACCOUNT INFORMATION
+          {/* Account Information */}
+          <Grid item xs={12} md={6}>
+            <Card sx={{ 
+              borderRadius: 2, 
+              boxShadow: 3, 
+              overflow: 'hidden',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <Box sx={{ 
+                background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                p: 3,
+                color: 'white'
+              }}>
+                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', color: 'white' }}>
+                  ACCOUNT INFORMATION
+                </Typography>
+                <Typography variant="body2" sx={{ textAlign: 'center', color: 'white', fontWeight: 500 }}>
+                  Member Account Details
+                </Typography>
+              </Box>
+              
+              <CardContent sx={{ p: 3, bgcolor: '#FFFFFF', flex: 1 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      Account Status
                     </Typography>
-                    <Typography variant="body2" sx={{ textAlign: 'center', color: 'white', fontWeight: 500 }}>
-                      Member Account Details
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      Active
                     </Typography>
-                  </Box>
-                  
-                  <CardContent sx={{ p: 3, bgcolor: '#2C3E50' }}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" sx={{ color: 'white', fontWeight: 500 }}>
-                          Account Status
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'white' }}>
-                          Active
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" sx={{ color: 'white', fontWeight: 500 }}>
-                          Age
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'white' }}>
-                          {getAge(formData.birthDate)} years old
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" sx={{ color: 'white', fontWeight: 500 }}>
-                          Member Since
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'white' }}>
-                          {profile?.created_at ? formatDate(profile.created_at) : 'Not available'}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" sx={{ color: 'white', fontWeight: 500 }}>
-                          User ID
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'white' }}>
-                          {profile?.userID || 'N/A'}
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                    
-                    <Box sx={{ mt: 2, textAlign: 'center', display: 'flex', gap: 2, justifyContent: 'center' }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<EditIcon />}
-                        onClick={() => setEditMode(true)}
-                        sx={{ color: 'white', borderColor: 'white' }}
-                        size="small"
-                      >
-                        Edit Profile
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        startIcon={<SecurityIcon />}
-                        onClick={() => setPasswordDialog(true)}
-                        sx={{ color: 'white', borderColor: 'white' }}
-                        size="small"
-                      >
-                        Change Password
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        onClick={refreshUserData}
-                        sx={{ color: 'white', borderColor: 'white' }}
-                        size="small"
-                      >
-                        Refresh Data
-                      </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      Age
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      {getAge(formData.birthDate)} years old
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      Member Since
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      {profile?.created_at ? formatDate(profile.created_at) : 'Not available'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      User ID
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      {profile?.userID || 'N/A'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      PWD ID
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      {profile?.pwd_id || `PWD-${profile?.userID?.toString().padStart(6, '0') || 'N/A'}`}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      Barangay
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      {profile?.barangay || 'Not specified'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      Contact Number
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      {formData.contactNumber || 'Not provided'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      Email Address
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      {formData.email || 'Not provided'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                      Complete Address
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                      {(() => {
+                        const addressParts = [];
+                        
+                        // Add complete address if available
+                        if (formData.address) {
+                          addressParts.push(formData.address);
+                        }
+                        
+                        // Add barangay if available
+                        if (profile?.barangay && profile.barangay !== 'N/A') {
+                          addressParts.push(profile.barangay);
+                        }
+                        
+                        // Add city (default to Cabuyao if not specified)
+                        const city = profile?.city && profile.city !== 'N/A' 
+                          ? profile.city 
+                          : 'Cabuyao';
+                        addressParts.push(city);
+                        
+                        // Add province (default to Laguna if not specified)
+                        const province = profile?.province && profile.province !== 'N/A' 
+                          ? profile.province 
+                          : 'Laguna';
+                        addressParts.push(province);
+                        
+                        // Join all parts with commas and return
+                        return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
+                      })()}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
           </Grid>
 
         </Grid>

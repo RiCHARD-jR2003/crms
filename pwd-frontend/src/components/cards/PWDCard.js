@@ -306,13 +306,46 @@ function PWDCard() {
   }, [selectedMember, pwdMembers]);
 
   const handleDownloadPDF = () => {
-    // TODO: Implement PDF download functionality
     console.log('Download PDF clicked');
   };
 
   const handlePrint = () => {
-    // TODO: Implement print functionality
-    window.print();
+    try {
+      const table = document.getElementById('pwd-card-masterlist');
+      if (!table) {
+        console.error('Masterlist table not found');
+        window.print();
+        return;
+      }
+      const printWindow = window.open('', '_blank');
+      const appliedFilters = `Barangay: ${filters.barangay || 'All'} | Disability: ${filters.disability || 'All'} | Age: ${filters.ageRange || 'All'} | Status: ${filters.status || 'All'}`;
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>PWD Members Master List</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 24px; }
+              h1 { font-size: 18px; margin: 0 0 8px; }
+              .meta { color: #555; font-size: 12px; margin-bottom: 12px; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
+              th { background: #f5f5f5; text-align: left; }
+              @media print { body { margin: 0; } }
+            </style>
+          </head>
+          <body>
+            <h1>Cabuyao PDAO RMS - PWD Members Master List</h1>
+            <div class="meta">${appliedFilters} | Total Records: ${filteredMembers.length} | Generated: ${new Date().toLocaleString()}</div>
+            ${document.getElementById('pwd-card-table-wrapper')?.innerHTML || table.outerHTML}
+            <script>window.onload = function(){ window.print(); window.close(); }<\/script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } catch (e) {
+      console.error('Print failed, fallback to window.print()', e);
+      window.print();
+    }
   };
 
   // Filter options
@@ -323,9 +356,19 @@ function PWDCard() {
   ];
 
   const disabilityTypes = [
-    'Visual Impairment', 'Hearing Impairment', 'Physical Disability',
-    'Intellectual Disability', 'Learning Disability', 'Mental Health',
-    'Speech Impairment', 'Multiple Disabilities', 'Other'
+    'Visual Impairment',
+    'Hearing Impairment',
+    'Physical Disability',
+    'Speech and Language Impairment',
+    'Intellectual Disability',
+    'Mental Health Condition',
+    'Learning Disability',
+    'Psychosocial Disability',
+    'Autism Spectrum Disorder',
+    'ADHD',
+    'Orthopedic/Physical Disability',
+    'Chronic Illness',
+    'Multiple Disabilities'
   ];
 
   const ageRanges = [
@@ -521,7 +564,7 @@ function PWDCard() {
           <Grid container spacing={3}>
             {/* Left Panel - PWD Masterlist */}
             <Grid item xs={12} md={8}>
-              <Card elevation={3} sx={{ height: '700px', display: 'flex', flexDirection: 'column', backgroundColor: 'white' }}>
+              <Card elevation={3} sx={{ height: '700px', display: 'flex', flexDirection: 'column', backgroundColor: 'white' }} id="pwd-card-table-wrapper">
                 <CardContent sx={{ p: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'white' }}>
 
                   {/* Header with tabs and controls */}
@@ -604,6 +647,7 @@ function PWDCard() {
                           color: 'white',
                           textTransform: 'none'
                         }}
+                        onClick={handlePrint}
                       >
                         Print List
                       </Button>
@@ -838,7 +882,7 @@ function PWDCard() {
                       overflowX: 'auto'
                     }}
                   >
-                    <Table stickyHeader>
+                    <Table stickyHeader id="pwd-card-masterlist">
                       <TableHead>
                         <TableRow sx={{ backgroundColor: '#0b87ac' }}>
                           <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>PWD ID NO.</TableCell>
@@ -1203,27 +1247,28 @@ function PWDCard() {
               </Card>
 
               {/* PWD Information Section */}
-              <Card elevation={0} sx={{ height: '500px', backgroundColor: 'transparent' }}>
-                <CardContent sx={{ p: 0, height: '100%' }}>
+              <Card elevation={0} sx={{ backgroundColor: 'transparent' }}>
+                <CardContent sx={{ p: 0 }}>
                   <Box sx={{ 
                     background: '#FFFFFF',
                     borderRadius: 2,
                     border: '2px solid #E0E0E0',
-                    p: 2,
-                    height: '100%',
+                    p: 1.5,
                     width: '100%',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                    aspectRatio: '85.6 / 54',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
                     display: 'flex',
-                    flexDirection: 'column'
+                    flexDirection: 'column',
+                    overflow: 'hidden'
                   }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexShrink: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexShrink: 0 }}>
                       <Box sx={{ 
                         position: 'relative',
                         mr: 2
                       }}>
                         <Avatar sx={{ 
-                          width: 40, 
-                          height: 40, 
+                          width: 28, 
+                          height: 28, 
                           backgroundColor: '#0b87ac',
                           border: '2px solid white',
                           boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
@@ -1232,10 +1277,10 @@ function PWDCard() {
                         </Avatar>
                         <Box sx={{
                           position: 'absolute',
-                          bottom: -2,
-                          right: -2,
-                          width: 16,
-                          height: 16,
+                          bottom: -1,
+                          right: -1,
+                          width: 12,
+                          height: 12,
                           backgroundColor: '#27AE60',
                           borderRadius: '50%',
                           display: 'flex',
@@ -1243,10 +1288,10 @@ function PWDCard() {
                           justifyContent: 'center',
                           border: '2px solid white'
                         }}>
-                          <EditIcon sx={{ fontSize: 8, color: 'white' }} />
+                          <EditIcon sx={{ fontSize: 7, color: 'white' }} />
                         </Box>
                       </Box>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#FFFFFF' }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#FFFFFF' }}>
                         PWD Information
                       </Typography>
                     </Box>
@@ -1255,10 +1300,10 @@ function PWDCard() {
                     <Box sx={{ 
                       display: 'flex', 
                       flexDirection: 'column', 
-                      gap: 2, 
+                      gap: 1, 
                       flex: 1,
                       overflow: 'auto',
-                      pr: 1, // Add padding for scrollbar
+                      pr: 0.5, // Add padding for scrollbar
                       '&::-webkit-scrollbar': {
                         width: '6px',
                       },

@@ -325,8 +325,18 @@ function MemberDocumentUpload() {
               
               return (
                 <Grid item xs={12} md={6} lg={4} key={document.id}>
-                  <Card sx={cardStyles}>
-                    <CardContent>
+                  <Card sx={{ 
+                    ...cardStyles, 
+                    height: '100%', 
+                    display: 'flex', 
+                    flexDirection: 'column' 
+                  }}>
+                    <CardContent sx={{ 
+                      flex: 1, 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      minHeight: '280px'
+                    }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                         <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
                           {document.name}
@@ -357,29 +367,45 @@ function MemberDocumentUpload() {
                         </Typography>
                       </Box>
 
-                      {memberDoc && (
-                        <Box sx={{ mb: 2 }}>
+                      {/* Always show uploaded date section for consistency */}
+                      <Box sx={{ mb: 2, minHeight: '40px' }}>
+                        {memberDoc ? (
+                          <>
+                            <Typography variant="caption" color="text.secondary">
+                              Uploaded: {new Date(memberDoc.uploaded_at).toLocaleDateString()}
+                            </Typography>
+                            {memberDoc.notes && (
+                              <>
+                                <br />
+                                <Typography variant="caption" color="text.secondary">
+                                  Notes: {memberDoc.notes}
+                                </Typography>
+                              </>
+                            )}
+                          </>
+                        ) : (
                           <Typography variant="caption" color="text.secondary">
-                            Uploaded: {new Date(memberDoc.uploaded_at).toLocaleDateString()}
+                            Status: Not uploaded
                           </Typography>
-                          {memberDoc.notes && (
-                            <>
-                              <br />
-                              <Typography variant="caption" color="text.secondary">
-                                Notes: {memberDoc.notes}
-                              </Typography>
-                            </>
-                          )}
-                        </Box>
-                      )}
+                        )}
+                      </Box>
 
-                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {/* Button section with consistent height */}
+                      <Box sx={{ 
+                        display: 'flex', 
+                        gap: 1, 
+                        flexWrap: 'wrap',
+                        mt: 'auto',
+                        minHeight: '40px',
+                        alignItems: 'flex-end'
+                      }}>
                         {memberDoc ? (
                           <>
                             <Button
                               size="small"
                               startIcon={<VisibilityIcon />}
                               onClick={() => window.open(`/api/documents/file/${memberDoc.id}`, '_blank')}
+                              variant="outlined"
                             >
                               View
                             </Button>
@@ -424,23 +450,42 @@ function MemberDocumentUpload() {
       </Box>
 
       {/* Upload Dialog */}
-      <Dialog open={uploadDialogOpen} onClose={handleDialogClose} maxWidth="sm" fullWidth>
-        <DialogTitle>Upload Document</DialogTitle>
-        <DialogContent>
+      <Dialog 
+        open={uploadDialogOpen} 
+        onClose={handleDialogClose} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#FFFFFF',
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#FFFFFF', 
+          color: '#2C3E50',
+          fontWeight: 'bold',
+          borderBottom: '1px solid #E0E0E0'
+        }}>
+          Upload Document
+        </DialogTitle>
+        <DialogContent sx={{ bgcolor: '#FFFFFF', color: '#2C3E50' }}>
           {selectedDocument && (
             <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" sx={{ mb: 1 }}>
+              <Typography variant="h6" sx={{ mb: 1, color: '#2C3E50', fontWeight: 'bold' }}>
                 {selectedDocument.name}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 2, color: '#7F8C8D' }}>
                 {selectedDocument.description}
               </Typography>
               <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
                   Allowed file types: {selectedDocument.file_types?.join(', ')}
                 </Typography>
                 <br />
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
                   Maximum file size: {selectedDocument.max_file_size} KB
                 </Typography>
               </Box>
@@ -460,18 +505,26 @@ function MemberDocumentUpload() {
               component="span"
               startIcon={<CloudUploadIcon />}
               fullWidth
-              sx={{ mb: 2 }}
+              sx={{ 
+                mb: 2,
+                borderColor: '#3498DB',
+                color: '#3498DB',
+                '&:hover': {
+                  borderColor: '#2980B9',
+                  bgcolor: '#E8F4FD'
+                }
+              }}
             >
               Select File
             </Button>
           </label>
           
           {selectedFile && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2">
+            <Box sx={{ mt: 2, p: 2, bgcolor: '#F8F9FA', borderRadius: 2, border: '1px solid #E0E0E0' }}>
+              <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
                 Selected: {selectedFile.name}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
                 Size: {(selectedFile.size / 1024).toFixed(2)} KB
               </Typography>
             </Box>
@@ -479,22 +532,48 @@ function MemberDocumentUpload() {
           
           {uploading && (
             <Box sx={{ mt: 2 }}>
-              <LinearProgress />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+              <LinearProgress sx={{ 
+                '& .MuiLinearProgress-bar': { 
+                  bgcolor: '#3498DB' 
+                } 
+              }} />
+              <Typography variant="caption" sx={{ mt: 1, color: '#7F8C8D' }}>
                 Uploading...
               </Typography>
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDialogClose} disabled={uploading}>
+        <DialogActions sx={{ 
+          bgcolor: '#FFFFFF', 
+          borderTop: '1px solid #E0E0E0',
+          p: 2
+        }}>
+          <Button 
+            onClick={handleDialogClose} 
+            disabled={uploading}
+            sx={{ 
+              color: '#7F8C8D',
+              '&:hover': {
+                bgcolor: '#F8F9FA'
+              }
+            }}
+          >
             Cancel
           </Button>
           <Button 
             onClick={handleUpload} 
             variant="contained" 
             disabled={!selectedFile || uploading}
-            sx={buttonStyles}
+            sx={{
+              bgcolor: '#3498DB',
+              color: '#FFFFFF',
+              '&:hover': {
+                bgcolor: '#2980B9'
+              },
+              '&:disabled': {
+                bgcolor: '#BDC3C7'
+              }
+            }}
           >
             Upload
           </Button>

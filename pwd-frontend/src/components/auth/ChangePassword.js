@@ -108,13 +108,23 @@ function ChangePassword({ open, onClose }) {
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          bgcolor: '#FFFFFF'
+        }
+      }}
+    >
+      <DialogTitle sx={{ bgcolor: '#FFFFFF', borderBottom: '1px solid #E0E0E0' }}>
         <Typography variant="h5" sx={{ color: '#2C3E50' }}>
           Change Password
         </Typography>
       </DialogTitle>
-      <DialogContent>
+      <DialogContent sx={{ bgcolor: '#FFFFFF' }}>
         <Box sx={{ mt: 2 }}>
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -172,7 +182,7 @@ function ChangePassword({ open, onClose }) {
           </Box>
         </Box>
       </DialogContent>
-      <DialogActions sx={{ p: 3 }}>
+      <DialogActions sx={{ p: 3, bgcolor: '#FFFFFF', borderTop: '1px solid #E0E0E0' }}>
         <Button
           onClick={handleClose}
           disabled={loading}

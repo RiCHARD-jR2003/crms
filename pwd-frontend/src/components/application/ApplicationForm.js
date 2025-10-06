@@ -19,8 +19,24 @@ import {
   Paper,
   Divider,
   Chip,
-  CircularProgress
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Card,
+  CardMedia,
+  CardContent,
+  Container
 } from '@mui/material';
+import {
+  Close as CloseIcon,
+  Visibility as VisibilityIcon,
+  PictureAsPdf as PdfIcon,
+  Image as ImageIcon,
+  Description as DocumentIcon
+} from '@mui/icons-material';
 import { api } from '../../services/api';
 import applicationService from '../../services/applicationService';
 
@@ -36,6 +52,87 @@ function ApplicationForm() {
   const [activeStep, setActiveStep] = useState(0);
   const [requiredDocuments, setRequiredDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewFileName, setPreviewFileName] = useState('');
+  const [duplicateCheckLoading, setDuplicateCheckLoading] = useState(false);
+  const [duplicateErrors, setDuplicateErrors] = useState({});
+
+  // Reusable styling for form fields
+  const getTextFieldStyles = (hasError = false) => ({
+    '& .MuiInputLabel-root': {
+      color: hasError ? '#E74C3C' : '#2C3E50',
+      fontWeight: 500,
+      fontSize: '0.9rem'
+    },
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 3,
+      backgroundColor: '#f8f9fa',
+      '& fieldset': {
+        borderColor: hasError ? '#E74C3C' : '#e9ecef',
+      },
+      '&:hover fieldset': {
+        borderColor: hasError ? '#E74C3C' : '#0b87ac',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: hasError ? '#E74C3C' : '#0b87ac',
+        borderWidth: 2,
+      },
+    },
+    '& .MuiInputBase-input': {
+      color: '#2C3E50',
+      py: 1.2,
+      fontSize: '0.95rem'
+    },
+    '& .MuiFormHelperText-root': {
+      color: '#E74C3C',
+      fontSize: '0.8rem',
+      fontWeight: 500
+    }
+  });
+
+  // Reusable styling for select fields
+  const getSelectStyles = (hasError = false) => ({
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 3,
+      backgroundColor: '#f8f9fa',
+      '& fieldset': {
+        borderColor: hasError ? '#E74C3C' : '#e9ecef',
+      },
+      '&:hover fieldset': {
+        borderColor: hasError ? '#E74C3C' : '#0b87ac',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: hasError ? '#E74C3C' : '#0b87ac',
+        borderWidth: 2,
+      },
+    },
+    '& .MuiSelect-select': {
+      color: '#2C3E50',
+      py: 1.2,
+      fontSize: '0.95rem'
+    },
+    '& .MuiPaper-root': {
+      backgroundColor: '#FFFFFF',
+      border: '1px solid #e9ecef',
+      borderRadius: 3,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      '& .MuiMenuItem-root': {
+        color: '#2C3E50',
+        fontSize: '0.95rem',
+        '&:hover': {
+          backgroundColor: '#f8f9fa',
+        },
+        '&.Mui-selected': {
+          backgroundColor: '#0b87ac',
+          color: '#FFFFFF',
+          '&:hover': {
+            backgroundColor: '#0a6b8a',
+          },
+        },
+      },
+    }
+  });
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -65,8 +162,61 @@ function ApplicationForm() {
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear existing error for this field
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    
+    // Clear duplicate errors for this field
+    if (duplicateErrors[field]) {
+      setDuplicateErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    
+    // Real-time validation for date of birth
+    if (field === 'dateOfBirth' && value) {
+      const dateError = validateDateOfBirth(value);
+      if (dateError) {
+        setErrors(prev => ({ ...prev, [field]: dateError }));
+      }
+    }
+    
+    // Check for duplicates on key fields
+    if (['email', 'phoneNumber'].includes(field) && value) {
+      checkForDuplicates(field, value);
+    }
+  };
+
+  // Function to check for duplicates
+  const checkForDuplicates = async (field, value) => {
+    if (!value || value.length < 3) return; // Don't check for very short values
+    
+    setDuplicateCheckLoading(true);
+    try {
+      const checkData = { [field]: value };
+      
+      // Add name and birth date if available for comprehensive checking
+      if (formData.firstName && formData.lastName && formData.dateOfBirth) {
+        checkData.firstName = formData.firstName;
+        checkData.lastName = formData.lastName;
+        checkData.dateOfBirth = formData.dateOfBirth;
+      }
+      
+      const response = await api.post('/applications/check-duplicates', checkData, { auth: false });
+      
+      if (response.has_duplicates) {
+        setDuplicateErrors(prev => ({
+          ...prev,
+          [field]: `This ${field} is already associated with an existing application. Please check your application status or contact support.`
+        }));
+      } else {
+        setDuplicateErrors(prev => ({ ...prev, [field]: '' }));
+      }
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      // Don't show error to user for duplicate check failures
+    } finally {
+      setDuplicateCheckLoading(false);
     }
   };
 
@@ -78,6 +228,52 @@ function ApplicationForm() {
         [field]: file 
       } 
     }));
+  };
+
+  // Helper function to get file type
+  const getFileType = (file) => {
+    if (!file) return 'unknown';
+    const type = file.type.toLowerCase();
+    if (type.startsWith('image/')) return 'image';
+    if (type === 'application/pdf') return 'pdf';
+    return 'document';
+  };
+
+  // Helper function to get file icon
+  const getFileIcon = (file) => {
+    const fileType = getFileType(file);
+    switch (fileType) {
+      case 'image':
+        return <ImageIcon sx={{ color: '#4CAF50' }} />;
+      case 'pdf':
+        return <PdfIcon sx={{ color: '#F44336' }} />;
+      default:
+        return <DocumentIcon sx={{ color: '#2196F3' }} />;
+    }
+  };
+
+  // Helper function to create preview URL
+  const createPreviewUrl = (file) => {
+    if (!file) return null;
+    return URL.createObjectURL(file);
+  };
+
+  // Handle file preview
+  const handlePreviewFile = (file, fileName) => {
+    setPreviewFile(file);
+    setPreviewFileName(fileName);
+    setPreviewOpen(true);
+  };
+
+  // Close preview modal
+  const handleClosePreview = () => {
+    setPreviewOpen(false);
+    setPreviewFile(null);
+    setPreviewFileName('');
+    // Clean up object URL to prevent memory leaks
+    if (previewFile) {
+      URL.revokeObjectURL(createPreviewUrl(previewFile));
+    }
   };
 
   // Fetch required documents on component mount
@@ -100,6 +296,18 @@ function ApplicationForm() {
     fetchRequiredDocuments();
   }, []);
 
+  // Cleanup effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Clean up any object URLs when component unmounts
+      Object.values(formData.documents).forEach(file => {
+        if (file && file.type) {
+          URL.revokeObjectURL(createPreviewUrl(file));
+        }
+      });
+    };
+  }, []);
+
   // Calculate age from date of birth
   const calculateAge = (dateOfBirth) => {
     if (!dateOfBirth) return null;
@@ -117,6 +325,39 @@ function ApplicationForm() {
   const isMinor = () => {
     const age = calculateAge(formData.dateOfBirth);
     return age !== null && age < 18;
+  };
+
+  // Validate date of birth
+  const validateDateOfBirth = (dateOfBirth) => {
+    if (!dateOfBirth) return 'Date of Birth is required';
+    
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    const currentYear = today.getFullYear();
+    const birthYear = birthDate.getFullYear();
+    
+    // Check if date is in the future
+    if (birthDate > today) {
+      return 'Date of birth cannot be in the future';
+    }
+    
+    // Check if date is within current year (not born this year)
+    if (birthYear === currentYear) {
+      return 'Date of birth cannot be within the current year';
+    }
+    
+    // Check if person is too old (more than 120 years)
+    const age = calculateAge(dateOfBirth);
+    if (age > 120) {
+      return 'Please enter a valid date of birth (maximum age is 120 years)';
+    }
+    
+    // Check if person is too young (less than 1 year old)
+    if (age < 1) {
+      return 'Please enter a valid date of birth (minimum age is 1 year)';
+    }
+    
+    return null; // No error
   };
 
   const handleNext = () => {
@@ -139,7 +380,11 @@ function ApplicationForm() {
       case 0: // Personal Information
         if (!formData.firstName) currentErrors.firstName = 'First Name is required';
         if (!formData.lastName) currentErrors.lastName = 'Last Name is required';
-        if (!formData.dateOfBirth) currentErrors.dateOfBirth = 'Date of Birth is required';
+        
+        // Validate date of birth with comprehensive checks
+        const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
+        if (dateOfBirthError) currentErrors.dateOfBirth = dateOfBirthError;
+        
         if (!formData.gender) currentErrors.gender = 'Gender is required';
         break;
         
@@ -307,96 +552,44 @@ function ApplicationForm() {
     switch (step) {
       case 0:
         return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ 
+          <Box>
+            <Typography variant="h5" sx={{ 
               mb: 3, 
               color: '#2C3E50',
-              fontWeight: 'bold',
-              fontSize: '1.25rem'
+              fontWeight: 700,
+              fontSize: '1.5rem'
             }}>
               Personal Information
             </Typography>
-            <Grid container spacing={3}>
+            <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="First Name *"
+                  label="First Name"
                   value={formData.firstName}
                   onChange={(e) => handleInputChange('firstName', e.target.value)}
                   error={!!errors.firstName}
                   helperText={errors.firstName}
                   required
-                  sx={{
-                    '& .MuiInputLabel-root': {
-                      color: errors.firstName ? '#E74C3C' : '#34495E',
-                      fontWeight: 500,
-                      fontSize: '0.95rem'
-                    },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': {
-                        borderColor: errors.firstName ? '#E74C3C' : '#BDC3C7',
-                        borderWidth: errors.firstName ? 2 : 2
-                      },
-                      '&:hover fieldset': {
-                        borderColor: errors.firstName ? '#E74C3C' : '#3498DB'
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: errors.firstName ? '#E74C3C' : '#3498DB',
-                        borderWidth: 2
-                      }
-                    },
-                    '& .MuiInputBase-input': {
-                      color: '#2C3E50',
-                      fontSize: '1rem',
-                      fontWeight: 500
-                    },
-                    '& .MuiFormHelperText-root': {
-                      color: '#E74C3C',
-                      fontSize: '0.8rem',
-                      fontWeight: 500
-                    }
+                  InputLabelProps={{
+                    shrink: true,
                   }}
+                  sx={getTextFieldStyles(!!errors.firstName)}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="Last Name *"
+                  label="Last Name"
                   value={formData.lastName}
                   onChange={(e) => handleInputChange('lastName', e.target.value)}
                   error={!!errors.lastName}
                   helperText={errors.lastName}
                   required
-                  sx={{
-                    '& .MuiInputLabel-root': {
-                      color: errors.lastName ? '#E74C3C' : '#34495E',
-                      fontWeight: 500,
-                      fontSize: '0.95rem'
-                    },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': {
-                        borderColor: errors.lastName ? '#E74C3C' : '#BDC3C7',
-                        borderWidth: 2
-                      },
-                      '&:hover fieldset': {
-                        borderColor: errors.lastName ? '#E74C3C' : '#3498DB'
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: errors.lastName ? '#E74C3C' : '#3498DB',
-                        borderWidth: 2
-                      }
-                    },
-                    '& .MuiInputBase-input': {
-                      color: '#2C3E50',
-                      fontSize: '1rem',
-                      fontWeight: 500
-                    },
-                    '& .MuiFormHelperText-root': {
-                      color: '#E74C3C',
-                      fontSize: '0.8rem',
-                      fontWeight: 500
-                    }
+                  InputLabelProps={{
+                    shrink: true,
                   }}
+                  sx={getTextFieldStyles(!!errors.lastName)}
                 />
               </Grid>
                              <Grid item xs={12} sm={6}>
@@ -405,106 +598,74 @@ function ApplicationForm() {
                    label="Middle Name"
                    value={formData.middleName}
                    onChange={(e) => handleInputChange('middleName', e.target.value)}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
+                   InputLabelProps={{
+                     shrink: true,
                    }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
                              <Grid item xs={12} sm={6}>
                  <TextField
                    fullWidth
                    type="date"
-                   label="Date of Birth *"
+                   label="Date of Birth"
                    value={formData.dateOfBirth}
                    onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
                    InputLabelProps={{ shrink: true }}
                    error={!!errors.dateOfBirth}
                    helperText={errors.dateOfBirth}
                    required
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: errors.dateOfBirth ? '#E74C3C' : '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: errors.dateOfBirth ? '#E74C3C' : '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: errors.dateOfBirth ? '#E74C3C' : '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: errors.dateOfBirth ? '#E74C3C' : '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     },
-                     '& .MuiFormHelperText-root': {
-                       color: '#E74C3C',
-                       fontSize: '0.8rem',
-                       fontWeight: 500
-                     }
+                   inputProps={{
+                     max: new Date(new Date().getFullYear() - 1, 11, 31).toISOString().split('T')[0], // Last day of previous year
+                     min: new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0] // First day 120 years ago
                    }}
+                   sx={getTextFieldStyles(!!errors.dateOfBirth)}
                  />
                </Grid>
                              <Grid item xs={12} sm={6}>
                  <FormControl fullWidth required error={!!errors.gender}>
-                   <InputLabel sx={{ 
-                     color: errors.gender ? '#E74C3C' : '#34495E',
-                     fontWeight: 500,
-                     fontSize: '0.95rem'
-                   }}>
-                     Gender *
+                   <InputLabel 
+                     shrink={true}
+                     sx={{ 
+                       color: errors.gender ? '#E74C3C' : '#2C3E50',
+                       fontWeight: 500,
+                       fontSize: '0.95rem',
+                       backgroundColor: 'white',
+                       px: 1,
+                       transform: 'translate(14px, -9px) scale(0.75)',
+                       '&.Mui-focused': {
+                         color: errors.gender ? '#E74C3C' : '#0b87ac'
+                       }
+                     }}
+                   >
+                     Gender
                    </InputLabel>
                    <Select
                      value={formData.gender}
                      onChange={(e) => handleInputChange('gender', e.target.value)}
-                     sx={{
-                       '& .MuiOutlinedInput-root': {
-                         '& fieldset': {
-                           borderColor: errors.gender ? '#E74C3C' : '#BDC3C7',
-                           borderWidth: 2
-                         },
-                         '&:hover fieldset': {
-                           borderColor: errors.gender ? '#E74C3C' : '#3498DB'
-                         },
-                         '&.Mui-focused fieldset': {
-                           borderColor: errors.gender ? '#E74C3C' : '#3498DB',
-                           borderWidth: 2
+                     sx={getSelectStyles(!!errors.gender)}
+                     MenuProps={{
+                       PaperProps: {
+                         sx: {
+                           backgroundColor: '#FFFFFF',
+                           border: '1px solid #e9ecef',
+                           borderRadius: 3,
+                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                           '& .MuiMenuItem-root': {
+                             color: '#2C3E50',
+                             fontSize: '0.95rem',
+                             '&:hover': {
+                               backgroundColor: '#f8f9fa',
+                             },
+                             '&.Mui-selected': {
+                               backgroundColor: '#0b87ac',
+                               color: '#FFFFFF',
+                               '&:hover': {
+                                 backgroundColor: '#0a6b8a',
+                               },
+                             },
+                           },
                          }
-                       },
-                       '& .MuiSelect-select': {
-                         color: '#2C3E50',
-                         fontSize: '1rem',
-                         fontWeight: 500
                        }
                      }}
                    >
@@ -520,34 +681,48 @@ function ApplicationForm() {
                </Grid>
                                                            <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
-                    <InputLabel sx={{ 
-                      color: '#34495E',
-                      fontWeight: 500,
-                      fontSize: '0.95rem'
-                    }}>
+                    <InputLabel 
+                      shrink={true}
+                      sx={{ 
+                        color: '#2C3E50',
+                        fontWeight: 500,
+                        fontSize: '0.95rem',
+                        backgroundColor: 'white',
+                        px: 1,
+                        transform: 'translate(14px, -9px) scale(0.75)',
+                        '&.Mui-focused': {
+                          color: '#0b87ac'
+                        }
+                      }}
+                    >
                       Civil Status
                     </InputLabel>
                     <Select
                       value={formData.civilStatus}
                       onChange={(e) => handleInputChange('civilStatus', e.target.value)}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: '#BDC3C7',
-                            borderWidth: 2
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#3498DB'
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#3498DB',
-                            borderWidth: 2
+                      sx={getSelectStyles()}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: {
+                            backgroundColor: '#FFFFFF',
+                            border: '1px solid #e9ecef',
+                            borderRadius: 3,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            '& .MuiMenuItem-root': {
+                              color: '#2C3E50',
+                              fontSize: '0.95rem',
+                              '&:hover': {
+                                backgroundColor: '#f8f9fa',
+                              },
+                              '&.Mui-selected': {
+                                backgroundColor: '#0b87ac',
+                                color: '#FFFFFF',
+                                '&:hover': {
+                                  backgroundColor: '#0a6b8a',
+                                },
+                              },
+                            },
                           }
-                        },
-                        '& .MuiSelect-select': {
-                          color: '#2C3E50',
-                          fontSize: '1rem',
-                          fontWeight: 500
                         }
                       }}
                     >
@@ -559,37 +734,16 @@ function ApplicationForm() {
                   </FormControl>
                 </Grid>
                               <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Nationality"
-                    value={formData.nationality}
-                    onChange={(e) => handleInputChange('nationality', e.target.value)}
-                    sx={{
-                      '& .MuiInputLabel-root': {
-                        color: '#34495E',
-                        fontWeight: 500,
-                        fontSize: '0.95rem'
-                      },
-                      '& .MuiOutlinedInput-root': {
-                        '& fieldset': {
-                          borderColor: '#BDC3C7',
-                          borderWidth: 2
-                        },
-                        '&:hover fieldset': {
-                          borderColor: '#3498DB'
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#3498DB',
-                          borderWidth: 2
-                        }
-                      },
-                      '& .MuiInputBase-input': {
-                        color: '#2C3E50',
-                        fontSize: '1rem',
-                        fontWeight: 500
-                      }
-                    }}
-                  />
+                 <TextField
+                   fullWidth
+                   label="Nationality"
+                   value={formData.nationality}
+                   onChange={(e) => handleInputChange('nationality', e.target.value)}
+                   InputLabelProps={{
+                     shrink: true,
+                   }}
+                   sx={getTextFieldStyles()}
+                 />
                 </Grid>
             </Grid>
           </Box>
@@ -597,55 +751,76 @@ function ApplicationForm() {
 
       case 1:
         return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ 
+          <Box>
+            <Typography variant="h5" sx={{ 
               mb: 3, 
               color: '#2C3E50',
-              fontWeight: 'bold',
-              fontSize: '1.25rem'
+              fontWeight: 700,
+              fontSize: '1.5rem'
             }}>
               Disability Details
             </Typography>
-            <Grid container spacing={3}>
+            <Grid container spacing={2}>
               <Grid item xs={12}>
                 <FormControl fullWidth required error={!!errors.disabilityType}>
-                  <InputLabel sx={{ 
-                    color: errors.disabilityType ? '#E74C3C' : '#34495E',
-                    fontWeight: 500,
-                    fontSize: '0.95rem'
-                  }}>
-                    Type of Disability *
+                  <InputLabel 
+                    shrink={true}
+                    sx={{ 
+                      color: errors.disabilityType ? '#E74C3C' : '#2C3E50',
+                      fontWeight: 500,
+                      fontSize: '0.95rem',
+                      backgroundColor: 'white',
+                      px: 1,
+                      transform: 'translate(14px, -9px) scale(0.75)',
+                      '&.Mui-focused': {
+                        color: errors.disabilityType ? '#E74C3C' : '#0b87ac'
+                      }
+                    }}
+                  >
+                    Type of Disability
                   </InputLabel>
                   <Select
                     value={formData.disabilityType}
                     onChange={(e) => handleInputChange('disabilityType', e.target.value)}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        '& fieldset': {
-                          borderColor: errors.disabilityType ? '#E74C3C' : '#BDC3C7',
-                          borderWidth: 2
-                        },
-                        '&:hover fieldset': {
-                          borderColor: errors.disabilityType ? '#E74C3C' : '#3498DB'
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: errors.disabilityType ? '#E74C3C' : '#3498DB',
-                          borderWidth: 2
+                    sx={getSelectStyles(!!errors.disabilityType)}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid #e9ecef',
+                          borderRadius: 3,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          '& .MuiMenuItem-root': {
+                            color: '#2C3E50',
+                            fontSize: '0.95rem',
+                            '&:hover': {
+                              backgroundColor: '#f8f9fa',
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: '#0b87ac',
+                              color: '#FFFFFF',
+                              '&:hover': {
+                                backgroundColor: '#0a6b8a',
+                              },
+                            },
+                          },
                         }
-                      },
-                      '& .MuiSelect-select': {
-                        color: '#2C3E50',
-                        fontSize: '1rem',
-                        fontWeight: 500
                       }
                     }}
                   >
-                    <MenuItem value="physical">Physical Disability</MenuItem>
-                    <MenuItem value="visual">Visual Impairment</MenuItem>
-                    <MenuItem value="hearing">Hearing Impairment</MenuItem>
-                    <MenuItem value="intellectual">Intellectual Disability</MenuItem>
-                    <MenuItem value="mental">Mental Health Condition</MenuItem>
-                    <MenuItem value="other">Other</MenuItem>
+                    <MenuItem value="Visual Impairment">Visual Impairment</MenuItem>
+                    <MenuItem value="Hearing Impairment">Hearing Impairment</MenuItem>
+                    <MenuItem value="Speech and Language Impairment">Speech and Language Impairment</MenuItem>
+                    <MenuItem value="Intellectual Disability">Intellectual Disability</MenuItem>
+                    <MenuItem value="Mental Health Condition">Mental Health Condition</MenuItem>
+                    <MenuItem value="Learning Disability">Learning Disability</MenuItem>
+                    <MenuItem value="Psychosocial Disability">Psychosocial Disability</MenuItem>
+                    <MenuItem value="Autism Spectrum Disorder">Autism Spectrum Disorder</MenuItem>
+                    <MenuItem value="ADHD">ADHD</MenuItem>
+                    <MenuItem value="Physical Disability">Physical Disability</MenuItem>
+                    <MenuItem value="Orthopedic/Physical Disability">Orthopedic/Physical Disability</MenuItem>
+                    <MenuItem value="Chronic Illness">Chronic Illness</MenuItem>
+                    <MenuItem value="Multiple Disabilities">Multiple Disabilities</MenuItem>
                   </Select>
                   {errors.disabilityType && (
                     <FormHelperText sx={{ color: '#E74C3C', fontSize: '0.8rem', fontWeight: 500 }}>
@@ -662,31 +837,10 @@ function ApplicationForm() {
                    onChange={(e) => handleInputChange('disabilityCause', e.target.value)}
                    multiline
                    rows={3}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
+                   InputLabelProps={{
+                     shrink: true,
                    }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
                <Grid item xs={12} sm={6}>
@@ -697,31 +851,7 @@ function ApplicationForm() {
                    value={formData.disabilityDate}
                    onChange={(e) => handleInputChange('disabilityDate', e.target.value)}
                    InputLabelProps={{ shrink: true }}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
-                   }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
             </Grid>
@@ -730,20 +860,20 @@ function ApplicationForm() {
 
       case 2:
         return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ 
+          <Box>
+            <Typography variant="h5" sx={{ 
               mb: 3, 
               color: '#2C3E50',
-              fontWeight: 'bold',
-              fontSize: '1.25rem'
+              fontWeight: 700,
+              fontSize: '1.5rem'
             }}>
               Contact Information
             </Typography>
-            <Grid container spacing={3}>
+            <Grid container spacing={2}>
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Complete Address *"
+                  label="Complete Address"
                   value={formData.address}
                   onChange={(e) => handleInputChange('address', e.target.value)}
                   multiline
@@ -751,68 +881,56 @@ function ApplicationForm() {
                   error={!!errors.address}
                   helperText={errors.address}
                   required
-                  sx={{
-                    '& .MuiInputLabel-root': {
-                      color: errors.address ? '#E74C3C' : '#34495E',
-                      fontWeight: 500,
-                      fontSize: '0.95rem'
-                    },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': {
-                        borderColor: errors.address ? '#E74C3C' : '#BDC3C7',
-                        borderWidth: 2
-                      },
-                      '&:hover fieldset': {
-                        borderColor: errors.address ? '#E74C3C' : '#3498DB'
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: errors.address ? '#E74C3C' : '#3498DB',
-                        borderWidth: 2
-                      }
-                    },
-                    '& .MuiInputBase-input': {
-                      color: '#2C3E50',
-                      fontSize: '1rem',
-                      fontWeight: 500
-                    },
-                    '& .MuiFormHelperText-root': {
-                      color: '#E74C3C',
-                      fontSize: '0.8rem',
-                      fontWeight: 500
-                    }
+                  InputLabelProps={{
+                    shrink: true,
                   }}
+                  sx={getTextFieldStyles(!!errors.address)}
                 />
               </Grid>
                              <Grid item xs={12} sm={6}>
                  <FormControl fullWidth>
-                   <InputLabel sx={{ 
-                     color: '#34495E',
-                     fontWeight: 500,
-                     fontSize: '0.95rem'
-                   }}>
+                   <InputLabel 
+                     shrink={true}
+                     sx={{ 
+                       color: '#2C3E50',
+                       fontWeight: 500,
+                       fontSize: '0.95rem',
+                       backgroundColor: 'white',
+                       px: 1,
+                       transform: 'translate(14px, -9px) scale(0.75)',
+                       '&.Mui-focused': {
+                         color: '#0b87ac'
+                       }
+                     }}
+                   >
                      Barangay
                    </InputLabel>
                    <Select
                      value={formData.barangay}
                      onChange={(e) => handleInputChange('barangay', e.target.value)}
-                     sx={{
-                       '& .MuiOutlinedInput-root': {
-                         '& fieldset': {
-                           borderColor: '#BDC3C7',
-                           borderWidth: 2
-                         },
-                         '&:hover fieldset': {
-                           borderColor: '#3498DB'
-                         },
-                         '&.Mui-focused fieldset': {
-                           borderColor: '#3498DB',
-                           borderWidth: 2
+                     sx={getSelectStyles()}
+                     MenuProps={{
+                       PaperProps: {
+                         sx: {
+                           backgroundColor: '#FFFFFF',
+                           border: '1px solid #e9ecef',
+                           borderRadius: 3,
+                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                           '& .MuiMenuItem-root': {
+                             color: '#2C3E50',
+                             fontSize: '0.95rem',
+                             '&:hover': {
+                               backgroundColor: '#f8f9fa',
+                             },
+                             '&.Mui-selected': {
+                               backgroundColor: '#0b87ac',
+                               color: '#FFFFFF',
+                               '&:hover': {
+                                 backgroundColor: '#0a6b8a',
+                               },
+                             },
+                           },
                          }
-                       },
-                       '& .MuiSelect-select': {
-                         color: '#2C3E50',
-                         fontSize: '1rem',
-                         fontWeight: 500
                        }
                      }}
                    >
@@ -843,31 +961,10 @@ function ApplicationForm() {
                    label="City"
                    value={formData.city}
                    onChange={(e) => handleInputChange('city', e.target.value)}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
+                   InputLabelProps={{
+                     shrink: true,
                    }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
                <Grid item xs={12} sm={6}>
@@ -876,31 +973,10 @@ function ApplicationForm() {
                    label="Province"
                    value={formData.province}
                    onChange={(e) => handleInputChange('province', e.target.value)}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
+                   InputLabelProps={{
+                     shrink: true,
                    }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
                <Grid item xs={12} sm={6}>
@@ -909,114 +985,41 @@ function ApplicationForm() {
                    label="Postal Code"
                    value={formData.postalCode}
                    onChange={(e) => handleInputChange('postalCode', e.target.value)}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
+                   InputLabelProps={{
+                     shrink: true,
                    }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="Phone Number *"
+                  label="Phone Number"
                   value={formData.phoneNumber}
                   onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                  error={!!errors.phoneNumber}
-                  helperText={errors.phoneNumber}
+                  error={!!errors.phoneNumber || !!duplicateErrors.phoneNumber}
+                  helperText={errors.phoneNumber || duplicateErrors.phoneNumber}
                   required
-                  sx={{
-                    '& .MuiInputLabel-root': {
-                      color: errors.phoneNumber ? '#E74C3C' : '#34495E',
-                      fontWeight: 500,
-                      fontSize: '0.95rem'
-                    },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': {
-                        borderColor: errors.phoneNumber ? '#E74C3C' : '#BDC3C7',
-                        borderWidth: 2
-                      },
-                      '&:hover fieldset': {
-                        borderColor: errors.phoneNumber ? '#E74C3C' : '#3498DB'
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: errors.phoneNumber ? '#E74C3C' : '#3498DB',
-                        borderWidth: 2
-                      }
-                    },
-                    '& .MuiInputBase-input': {
-                      color: '#2C3E50',
-                      fontSize: '1rem',
-                      fontWeight: 500
-                    },
-                    '& .MuiFormHelperText-root': {
-                      color: '#E74C3C',
-                      fontSize: '0.8rem',
-                      fontWeight: 500
-                    }
+                  InputLabelProps={{
+                    shrink: true,
                   }}
+                  sx={getTextFieldStyles(!!errors.phoneNumber || !!duplicateErrors.phoneNumber)}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="Email *"
+                  label="Email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  error={!!errors.email}
-                  helperText={errors.email}
+                  error={!!errors.email || !!duplicateErrors.email}
+                  helperText={errors.email || duplicateErrors.email}
                   required
-                  sx={{
-                    '& .MuiInputLabel-root': {
-                      color: errors.email ? '#E74C3C' : '#34495E',
-                      fontWeight: 500,
-                      fontSize: '0.95rem'
-                    },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': {
-                        borderColor: errors.email ? '#E74C3C' : '#BDC3C7',
-                        borderWidth: 2
-                      },
-                      '&:hover fieldset': {
-                        borderColor: errors.email ? '#E74C3C' : '#3498DB'
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: errors.email ? '#E74C3C' : '#3498DB',
-                        borderWidth: 2
-                      }
-                    },
-                    '& .MuiInputBase-input': {
-                      color: '#2C3E50',
-                      fontSize: '1rem',
-                      fontWeight: 500
-                    },
-                    '& .MuiFormHelperText-root': {
-                      color: '#E74C3C',
-                      fontSize: '0.8rem',
-                      fontWeight: 500
-                    }
+                  InputLabelProps={{
+                    shrink: true,
                   }}
+                  sx={getTextFieldStyles(!!errors.email || !!duplicateErrors.email)}
                 />
               </Grid>
                              <Grid item xs={12} sm={6}>
@@ -1025,31 +1028,10 @@ function ApplicationForm() {
                    label="Emergency Contact Name"
                    value={formData.emergencyContact}
                    onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
+                   InputLabelProps={{
+                     shrink: true,
                    }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
                <Grid item xs={12} sm={6}>
@@ -1058,31 +1040,10 @@ function ApplicationForm() {
                    label="Emergency Contact Phone"
                    value={formData.emergencyPhone}
                    onChange={(e) => handleInputChange('emergencyPhone', e.target.value)}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
+                   InputLabelProps={{
+                     shrink: true,
                    }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
                <Grid item xs={12} sm={6}>
@@ -1091,31 +1052,10 @@ function ApplicationForm() {
                    label="Relationship to Emergency Contact"
                    value={formData.emergencyRelationship}
                    onChange={(e) => handleInputChange('emergencyRelationship', e.target.value)}
-                   sx={{
-                     '& .MuiInputLabel-root': {
-                       color: '#34495E',
-                       fontWeight: 500,
-                       fontSize: '0.95rem'
-                     },
-                     '& .MuiOutlinedInput-root': {
-                       '& fieldset': {
-                         borderColor: '#BDC3C7',
-                         borderWidth: 2
-                       },
-                       '&:hover fieldset': {
-                         borderColor: '#3498DB'
-                       },
-                       '&.Mui-focused fieldset': {
-                         borderColor: '#3498DB',
-                         borderWidth: 2
-                       }
-                     },
-                     '& .MuiInputBase-input': {
-                       color: '#2C3E50',
-                       fontSize: '1rem',
-                       fontWeight: 500
-                     }
+                   InputLabelProps={{
+                     shrink: true,
                    }}
+                   sx={getTextFieldStyles()}
                  />
                </Grid>
             </Grid>
@@ -1124,28 +1064,28 @@ function ApplicationForm() {
 
       case 3:
         return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ 
+          <Box>
+            <Typography variant="h5" sx={{ 
               mb: 3, 
               color: '#2C3E50',
-              fontWeight: 'bold',
-              fontSize: '1.25rem'
+              fontWeight: 700,
+              fontSize: '1.5rem'
             }}>
               Required Documents
             </Typography>
             
             {/* Document Requirements Checklist */}
             <Paper sx={{ 
-              p: 3, 
+              p: 2, 
               mb: 3, 
               bgcolor: '#FFF5F5', 
-              border: '2px solid #FFE0E0',
-              borderRadius: 2
+              border: '1px solid #FFE0E0',
+              borderRadius: 3
             }}>
               <Typography variant="h6" sx={{ 
                 mb: 2, 
                 color: '#D32F2F',
-                fontWeight: 'bold',
+                fontWeight: 700,
                 fontSize: '1.1rem'
               }}>
                 📋 Document Requirements Checklist
@@ -1180,7 +1120,13 @@ function ApplicationForm() {
               </Box>
             </Paper>
 
-            <Alert severity="info" sx={{ mb: 3, bgcolor: '#E3F2FD', color: '#1565C0' }}>
+            <Alert severity="info" sx={{ 
+              mb: 3, 
+              bgcolor: '#E3F2FD', 
+              color: '#1565C0',
+              borderRadius: 3,
+              border: '1px solid #BBDEFB'
+            }}>
               Please upload the following documents in PDF, JPG, or PNG format (max 2MB each)
             </Alert>
             
@@ -1192,13 +1138,13 @@ function ApplicationForm() {
                 </Typography>
               </Box>
             ) : (
-              <Grid container spacing={3}>
+              <Grid container spacing={2}>
                 {requiredDocuments.map((document) => (
                   <Grid item xs={12} key={document.id}>
                     <Box sx={{ 
                       p: 2, 
                       border: '1px solid #E0E0E0', 
-                      borderRadius: '8px', 
+                      borderRadius: 3, 
                       backgroundColor: '#FAFAFA' 
                     }}>
                       <Typography variant="subtitle1" sx={{ 
@@ -1258,13 +1204,64 @@ function ApplicationForm() {
                       />
                       
                       {formData.documents[`doc_${document.id}`] && (
-                        <Typography variant="caption" sx={{ 
-                          mt: 1, 
-                          display: 'block', 
-                          color: '#4CAF50' 
-                        }}>
-                          ✓ File selected: {formData.documents[`doc_${document.id}`].name}
-                        </Typography>
+                        <Box sx={{ mt: 2 }}>
+                          <Card sx={{ 
+                            border: '1px solid #E0E0E0', 
+                            borderRadius: 3,
+                            backgroundColor: '#FAFAFA',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                          }}>
+                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                              <Box sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between',
+                                mb: 1
+                              }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  {getFileIcon(formData.documents[`doc_${document.id}`])}
+                                  <Typography variant="body2" sx={{ 
+                                    color: '#4CAF50',
+                                    fontWeight: 600,
+                                    fontSize: '0.9rem'
+                                  }}>
+                                    ✓ {formData.documents[`doc_${document.id}`].name}
+                                  </Typography>
+                                </Box>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  startIcon={<VisibilityIcon />}
+                                  onClick={() => handlePreviewFile(
+                                    formData.documents[`doc_${document.id}`], 
+                                    formData.documents[`doc_${document.id}`].name
+                                  )}
+                                  sx={{
+                                    borderColor: '#0b87ac',
+                                    color: '#0b87ac',
+                                    fontSize: '0.75rem',
+                                    py: 0.5,
+                                    px: 1,
+                                    borderRadius: 2,
+                                    textTransform: 'none',
+                                    '&:hover': {
+                                      borderColor: '#0a6b8a',
+                                      backgroundColor: 'rgba(11, 135, 172, 0.1)'
+                                    }
+                                  }}
+                                >
+                                  Preview
+                                </Button>
+                              </Box>
+                              <Typography variant="caption" sx={{ 
+                                color: '#666',
+                                fontSize: '0.8rem'
+                              }}>
+                                Size: {(formData.documents[`doc_${document.id}`].size / 1024 / 1024).toFixed(2)} MB
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                        </Box>
                       )}
                     </Box>
                   </Grid>
@@ -1288,107 +1285,296 @@ function ApplicationForm() {
   };
 
   return (
-    <Box sx={{ bgcolor: 'white', minHeight: '600px' }}>
-      {/* Header */}
-      <Box sx={{ 
-        bgcolor: '#2C3E50', 
-        color: 'white', 
-        p: 3, 
-        textAlign: 'center',
-        borderBottom: '3px solid #3498DB'
-      }}>
-        <Typography variant="h4" sx={{ 
-          fontWeight: 'bold',
-          mb: 1,
-          textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+    <Box sx={{ 
+      minHeight: '100vh',
+      backgroundColor: '#f8f9fa',
+      py: 4,
+      px: 2
+    }}>
+      <Container maxWidth="lg">
+        {/* Header */}
+        <Box sx={{ 
+          textAlign: 'center', 
+          mb: 4,
+          color: '#2C3E50'
         }}>
-          PWD Application Form
-        </Typography>
-        <Typography variant="subtitle1" sx={{ 
-          opacity: 0.9,
-          fontSize: '1.1rem'
-        }}>
-          Complete all required information to apply for PWD identification
-        </Typography>
-      </Box>
+          <Typography variant="h3" sx={{ 
+            fontWeight: 700,
+            mb: 2,
+            color: '#2C3E50'
+          }}>
+            PWD Application Form
+          </Typography>
+          <Typography variant="h6" sx={{ 
+            fontWeight: 500,
+            color: '#0b87ac',
+            mb: 1
+          }}>
+            Cabuyao City
+          </Typography>
+          <Typography variant="body1" sx={{ 
+            color: '#7F8C8D',
+            maxWidth: 600,
+            mx: 'auto',
+            lineHeight: 1.6
+          }}>
+            Complete all required information to apply for PWD identification
+          </Typography>
+        </Box>
 
-      {/* Stepper */}
-      <Box sx={{ p: 3, bgcolor: '#F8F9FA' }}>
-        <Stepper activeStep={activeStep} sx={{ 
-          '& .MuiStepLabel-root .Mui-completed': {
-            color: '#27AE60'
-          },
-          '& .MuiStepLabel-root .Mui-active': {
-            color: '#3498DB'
-          },
-          '& .MuiStepLabel-label': {
-            color: '#2C3E50',
-            fontWeight: 600,
-            fontSize: '0.95rem'
+        {/* Main Card */}
+        <Card
+          sx={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 4,
+            boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+            border: '1px solid #E0E0E0',
+            mb: 3
+          }}
+        >
+          <CardContent sx={{ p: 4 }}>
+            {/* Stepper */}
+            <Box sx={{ mb: 4 }}>
+              <Stepper activeStep={activeStep} sx={{ 
+                '& .MuiStepLabel-root .Mui-completed': {
+                  color: '#0b87ac'
+                },
+                '& .MuiStepLabel-root .Mui-active': {
+                  color: '#0b87ac'
+                },
+                '& .MuiStepLabel-label': {
+                  color: '#2C3E50',
+                  fontWeight: 600,
+                  fontSize: '0.9rem'
+                },
+                '& .MuiStepIcon-root.Mui-completed': {
+                  color: '#0b87ac'
+                },
+                '& .MuiStepIcon-root.Mui-active': {
+                  color: '#0b87ac'
+                },
+                '& .MuiStepIcon-root': {
+                  color: '#BDC3C7'
+                }
+              }}>
+                {steps.map((label, index) => (
+                  <Step key={label}>
+                    <StepLabel>{label}</StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
+            </Box>
+
+            {/* Step Content */}
+            <Box sx={{ mb: 4 }}>
+              {renderStepContent(activeStep)}
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Navigation Buttons */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          gap: 2
+        }}>
+          <Button
+            onClick={handleBack}
+            variant="outlined"
+            sx={{
+              color: '#0b87ac',
+              borderColor: '#0b87ac',
+              borderRadius: 3,
+              px: 4,
+              py: 1.5,
+              fontWeight: 600,
+              fontSize: '16px',
+              textTransform: 'none',
+              '&:hover': {
+                borderColor: '#0a6b8a',
+                backgroundColor: 'rgba(11, 135, 172, 0.1)',
+              },
+            }}
+          >
+            Back
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleNext}
+            sx={{
+              backgroundColor: '#0b87ac',
+              color: 'white',
+              py: 1.5,
+              px: 4,
+              borderRadius: 3,
+              fontWeight: 600,
+              fontSize: '16px',
+              textTransform: 'none',
+              boxShadow: '0 4px 12px rgba(11, 135, 172, 0.3)',
+              '&:hover': {
+                backgroundColor: '#0a6b8a',
+                boxShadow: '0 6px 16px rgba(11, 135, 172, 0.4)',
+                transform: 'translateY(-1px)',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            {activeStep === steps.length - 1 ? 'Submit Application' : 'Next'}
+          </Button>
+        </Box>
+      </Container>
+
+      {/* File Preview Modal */}
+      <Dialog
+        open={previewOpen}
+        onClose={handleClosePreview}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            maxHeight: '90vh',
+            borderRadius: 2
           }
+        }}
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          bgcolor: '#2C3E50',
+          color: 'white',
+          fontWeight: 'bold'
         }}>
-          {steps.map((label, index) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-      </Box>
-
-      {/* Step Content */}
-      <Paper elevation={0} sx={{ 
-        m: 3, 
-        borderRadius: 2,
-        border: '1px solid #E0E0E0',
-        bgcolor: 'white'
-      }}>
-        {renderStepContent(activeStep)}
-      </Paper>
-
-      {/* Navigation Buttons */}
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        p: 3,
-        bgcolor: '#F8F9FA',
-        borderTop: '1px solid #E0E0E0'
-      }}>
-        <Button
-          onClick={handleBack}
-          sx={{
-            color: '#34495E',
-            borderColor: '#34495E',
-            borderWidth: 2,
-            px: 4,
-            py: 1.5,
-            fontWeight: 600,
-            '&:hover': {
-              borderColor: '#2C3E50',
-              bgcolor: '#34495E',
-              color: 'white'
-            }
-          }}
-          variant="outlined"
-        >
-          Back
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleNext}
-          sx={{
-            bgcolor: '#3498DB',
-            px: 4,
-            py: 1.5,
-            fontWeight: 600,
-            fontSize: '1rem',
-            '&:hover': {
-              bgcolor: '#2980B9'
-            }
-          }}
-        >
-          {activeStep === steps.length - 1 ? 'Submit Application' : 'Next'}
-        </Button>
-      </Box>
+          <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
+            File Preview: {previewFileName}
+          </Typography>
+          <IconButton
+            onClick={handleClosePreview}
+            sx={{ color: 'white' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, bgcolor: '#F5F5F5' }}>
+          {previewFile && (
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              minHeight: '400px',
+              p: 2
+            }}>
+              {getFileType(previewFile) === 'image' ? (
+                <img
+                  src={createPreviewUrl(previewFile)}
+                  alt={previewFileName}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '70vh',
+                    objectFit: 'contain',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                  }}
+                />
+              ) : getFileType(previewFile) === 'pdf' ? (
+                <Box sx={{ 
+                  width: '100%',
+                  height: '70vh',
+                  bgcolor: 'white',
+                  borderRadius: 2,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  overflow: 'hidden'
+                }}>
+                  <iframe
+                    src={createPreviewUrl(previewFile)}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                      borderRadius: '8px'
+                    }}
+                    title={previewFileName}
+                  />
+                </Box>
+              ) : (
+                <Box sx={{ 
+                  textAlign: 'center',
+                  p: 4,
+                  bgcolor: 'white',
+                  borderRadius: 2,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}>
+                  <DocumentIcon sx={{ fontSize: 80, color: '#2196F3', mb: 2 }} />
+                  <Typography variant="h6" sx={{ mb: 1, color: '#2C3E50' }}>
+                    Document File
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#666', mb: 3 }}>
+                    {previewFileName}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#999' }}>
+                    Preview is not available for this file type.
+                    <br />
+                    Please download the file to view its contents.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, bgcolor: '#F8F9FA' }}>
+          <Button
+            onClick={() => {
+              if (previewFile) {
+                const url = createPreviewUrl(previewFile);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = previewFileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              }
+            }}
+            variant="outlined"
+            sx={{
+              color: '#0b87ac',
+              borderColor: '#0b87ac',
+              borderRadius: 3,
+              px: 3,
+              py: 1,
+              fontWeight: 500,
+              textTransform: 'none',
+              '&:hover': {
+                borderColor: '#0a6b8a',
+                backgroundColor: 'rgba(11, 135, 172, 0.1)',
+              },
+            }}
+          >
+            Download
+          </Button>
+          <Button
+            onClick={handleClosePreview}
+            variant="contained"
+            sx={{
+              backgroundColor: '#0b87ac',
+              color: 'white',
+              py: 1,
+              px: 3,
+              borderRadius: 3,
+              fontWeight: 600,
+              textTransform: 'none',
+              boxShadow: '0 4px 12px rgba(11, 135, 172, 0.3)',
+              '&:hover': {
+                backgroundColor: '#0a6b8a',
+                boxShadow: '0 6px 16px rgba(11, 135, 172, 0.4)',
+                transform: 'translateY(-1px)',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

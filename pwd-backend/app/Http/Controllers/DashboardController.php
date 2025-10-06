@@ -89,12 +89,23 @@ class DashboardController extends Controller
                 $pwdMemberCount = Application::where('status', 'Approved')->count();
             }
 
+            // Get support tickets count
+            $supportTicketsCount = 0;
+            try {
+                $supportTicketsCount = \App\Models\SupportTicket::count();
+                \Illuminate\Support\Facades\Log::info('Support tickets count:', ['count' => $supportTicketsCount]);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Error fetching support tickets count:', ['error' => $e->getMessage()]);
+                // Table doesn't exist or has issues, use default value
+                $supportTicketsCount = 0;
+            }
+
             $stats = [
                 'totalPWDMembers' => $pwdMemberCount,
                 'pendingApplications' => Application::whereIn('status', ['Pending Barangay Approval', 'Pending Admin Approval'])->count(),
                 'approvedApplications' => Application::where('status', 'Approved')->count(),
                 'activeMembers' => $pwdMemberCount, // All PWD members are considered active
-                'complaintsFeedback' => 1 // As mentioned by user
+                'supportTickets' => $supportTicketsCount
             ];
 
             return response()->json([

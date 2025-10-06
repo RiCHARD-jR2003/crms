@@ -79,7 +79,13 @@ const BenefitTracking = () => {
       setLoading(true);
       setError(null);
       const response = await pwdMemberService.getAll();
-      const members = response.data?.members || response.members || [];
+      const candidates = [
+        response?.data?.members,
+        response?.members,
+        response?.data,
+        response
+      ];
+      const members = candidates.find((v) => Array.isArray(v)) || [];
       setPwdMembers(members);
       setFilteredMembers(members);
     } catch (err) {
@@ -167,6 +173,9 @@ const BenefitTracking = () => {
   const getEligibleBeneficiaries = async (benefit) => {
     if (!benefit) return [];
     
+    console.log('Getting eligible beneficiaries for benefit:', benefit);
+    console.log('Available PWD members:', pwdMembers.length);
+    
     let eligibleMembers = [];
     
     // For Birthday Cash Gift benefits, filter by birthday month/quarter
@@ -178,36 +187,61 @@ const BenefitTracking = () => {
         'Q4': [10, 11, 12] // October, November, December
       };
       
-      const eligibleMonths = quarterMonths[benefit.birthdayMonth] || [];
+      // If a specific month string is provided (e.g., 'October'), use it; otherwise use quarter
+      let eligibleMonths = [];
+      if (typeof benefit.birthdayMonth === 'string' && benefit.birthdayMonth.startsWith('Q')) {
+        eligibleMonths = quarterMonths[benefit.birthdayMonth] || [];
+      } else if (typeof benefit.birthdayMonth === 'string') {
+        const monthIndex = [
+          'January','February','March','April','May','June','July','August','September','October','November','December'
+        ].findIndex(m => m.toLowerCase() === benefit.birthdayMonth.toLowerCase());
+        eligibleMonths = monthIndex >= 0 ? [monthIndex + 1] : [];
+      } else if (Array.isArray(benefit.months)) {
+        eligibleMonths = benefit.months.map(m => parseInt(m, 10)).filter(Boolean);
+      }
+      console.log('Birthday Cash Gift - eligible months:', eligibleMonths);
       
       eligibleMembers = pwdMembers.filter(member => {
-        if (!member.birthDate) return false;
+        if (!member.birthDate) {
+          console.log('Member missing birthDate:', member);
+          return false;
+        }
         const birthMonth = new Date(member.birthDate).getMonth() + 1;
-        return eligibleMonths.includes(birthMonth);
+        const isEligible = eligibleMonths.includes(birthMonth);
+        console.log(`Member ${member.firstName} ${member.lastName}: birthMonth=${birthMonth}, eligible=${isEligible}`);
+        return isEligible;
       });
     }
     // For Financial Assistance benefits, filter by selected barangays
     else if (benefit.type === 'Financial Assistance') {
-      if (benefit.selectedBarangays && benefit.selectedBarangays.length > 0) {
+      const selected = benefit.selectedBarangays || benefit.barangays || [];
+      console.log('Financial Assistance - selected barangays:', selected);
+      
+      if (selected.length > 0) {
         eligibleMembers = pwdMembers.filter(member => {
-          return benefit.selectedBarangays.includes(member.barangay);
+          const memberBarangay = (member.barangay || member.Barangay || '').toString().trim().toLowerCase();
+          const isEligible = selected.some(b => (b || '').toString().trim().toLowerCase() === memberBarangay);
+          console.log(`Member ${member.firstName} ${member.lastName}: barangay="${memberBarangay}", eligible=${isEligible}`);
+          return isEligible;
         });
       } else {
         // If no specific barangays selected, return all members
+        console.log('No specific barangays selected, returning all members');
         eligibleMembers = pwdMembers;
       }
     }
     // For other benefit types, return all members
     else {
+      console.log('Other benefit type, returning all members');
       eligibleMembers = pwdMembers;
     }
     
     // Fetch real claim data from database
-    const claims = await fetchBenefitClaims(benefit.id);
+    const claims = await fetchBenefitClaims(benefit.id || benefit.benefitID);
     
     // Map members with their actual claim status
     return eligibleMembers.map(member => {
-      const memberClaim = claims.find(claim => claim.pwdID === member.userID);
+      const memberClaim = claims.find(claim => (claim.pwdID || claim.userID) === (member.userID || member.id));
       return {
         ...member,
         claimStatus: memberClaim ? 'claimed' : 'unclaimed',
@@ -218,8 +252,12 @@ const BenefitTracking = () => {
 
   // Handle benefit selection
   const handleBenefitSelect = async (benefit) => {
+    console.log('Selected benefit:', benefit);
+    console.log('PWD Members count:', pwdMembers.length);
+    console.log('PWD Members sample:', pwdMembers.slice(0, 3));
     setSelectedBenefit(benefit);
     const beneficiaries = await getEligibleBeneficiaries(benefit);
+    console.log('Eligible beneficiaries:', beneficiaries);
     setEligibleBeneficiaries(beneficiaries);
   };
 
@@ -479,7 +517,7 @@ const BenefitTracking = () => {
         member.birthDate ? new Date(member.birthDate).toLocaleDateString() : 'Not provided',
         member.disabilityType || 'Not specified',
         'Active',
-        'Not available'
+        getRegistrationDate(member) || 'Not available'
       ]);
       
       // Add table
@@ -511,9 +549,43 @@ const BenefitTracking = () => {
         }
       });
       
-      // Save the PDF
-      const fileName = `PWD_Members_Master_List_${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(fileName);
+      // Generate PDF blob and show in new tab for preview
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      
+      // Open PDF in new tab for preview
+      const newWindow = window.open(pdfUrl, '_blank');
+      if (newWindow) {
+        newWindow.focus();
+        
+        // Show confirmation dialog with download option
+        const userChoice = window.confirm(
+          `PDF generated successfully with ${filteredMembers.length} PWD members!\n\n` +
+          'The PDF is now open in a new tab for preview.\n\n' +
+          'Click OK to download the PDF, or Cancel to keep it open for preview only.'
+        );
+        
+        if (userChoice) {
+          // User wants to download
+          const fileName = `PWD_Members_Master_List_${new Date().toISOString().split('T')[0]}.pdf`;
+          const downloadLink = document.createElement('a');
+          downloadLink.href = pdfUrl;
+          downloadLink.download = fileName;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+        }
+        
+        // Clean up the object URL after a delay
+        setTimeout(() => {
+          URL.revokeObjectURL(pdfUrl);
+        }, 10000); // Clean up after 10 seconds
+      } else {
+        // Fallback if popup is blocked
+        alert('Popup blocked! Please allow popups for this site and try again, or the PDF will be downloaded automatically.');
+        const fileName = `PWD_Members_Master_List_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+      }
       
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -545,6 +617,23 @@ const BenefitTracking = () => {
   const getBirthYear = (birthDate) => {
     if (!birthDate) return 'N/A';
     return new Date(birthDate).getFullYear();
+  };
+
+  // Determine member registration date from available fields
+  const getRegistrationDate = (member) => {
+    const candidates = [
+      member?.registrationDate,
+      member?.registration_date,
+      member?.dateRegistered,
+      member?.created_at,
+      member?.createdAt,
+      member?.approved_at,
+      member?.approvalDate,
+    ];
+    const value = candidates.find(Boolean);
+    if (!value) return null;
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? null : date.toLocaleDateString();
   };
 
   const getStatusColor = (status) => {
@@ -1145,32 +1234,45 @@ const BenefitTracking = () => {
                 </Grid>
                 
                 <Grid item xs={6} sm={6} md={2}>
-                  <TextField
-                    fullWidth
-                    label="Disability Type"
-                    placeholder="e.g., Visual, Hearing"
-                    value={filters.disability}
-                    onChange={(e) => handleFilterChange('disability', e.target.value)}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2,
-                        color: '#2C3E50',
-                        '&:hover fieldset': {
-                          borderColor: '#2C3E50',
+                  <FormControl fullWidth>
+                    <InputLabel>Disability Type</InputLabel>
+                    <Select
+                      value={filters.disability}
+                      label="Disability Type"
+                      onChange={(e) => handleFilterChange('disability', e.target.value)}
+                      sx={{ borderRadius: 2 }}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: {
+                            bgcolor: 'white',
+                            '& .MuiMenuItem-root': {
+                              color: '#2C3E50',
+                              '&:hover': { bgcolor: '#f5f5f5' },
+                            },
+                          },
                         },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#2C3E50',
-                        },
-                      },
-                      '& .MuiInputLabel-root': {
-                        color: '#2C3E50',
-                      },
-                      '& .MuiOutlinedInput-input::placeholder': {
-                        color: '#666',
-                        opacity: 0.7,
-                      },
-                    }}
-                  />
+                      }}
+                    >
+                      <MenuItem value="">All Types</MenuItem>
+                      {[
+                        'Visual Impairment',
+                        'Hearing Impairment',
+                        'Physical Disability',
+                        'Speech and Language Impairment',
+                        'Intellectual Disability',
+                        'Mental Health Condition',
+                        'Learning Disability',
+                        'Psychosocial Disability',
+                        'Autism Spectrum Disorder',
+                        'ADHD',
+                        'Orthopedic/Physical Disability',
+                        'Chronic Illness',
+                        'Multiple Disabilities'
+                      ].map((type) => (
+                        <MenuItem key={type} value={type}>{type}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </Grid>
                 
                 <Grid item xs={6} sm={6} md={1}>
@@ -1406,9 +1508,15 @@ const BenefitTracking = () => {
                           />
                         </TableCell>
                         <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, color: '#2C3E50' }}>
-                          <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>
-                            Not available
-                          </Typography>
+                          {getRegistrationDate(member) ? (
+                            <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+                              {getRegistrationDate(member)}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>
+                              Not available
+                            </Typography>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

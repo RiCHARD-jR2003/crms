@@ -280,52 +280,59 @@ function DocumentManagement() {
         <Typography variant="h5" sx={titleStyles}>
           Required Documents
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddDialogOpen}
-          sx={buttonStyles}
-        >
-          Add Document
-        </Button>
       </Box>
 
-      <TableContainer component={Paper} sx={tableStyles}>
+      <TableContainer component={Paper} sx={{
+        bgcolor: '#FFFFFF',
+        borderRadius: 2,
+        border: '1px solid #E0E0E0',
+        overflowX: 'auto'
+      }}>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Required</TableCell>
-              <TableCell>File Types</TableCell>
-              <TableCell>Max Size</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Created By</TableCell>
-              <TableCell>Actions</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>Name</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>Description</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>Required</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>File Types</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>Max Size</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>Status</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>Created By</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {documents.map((document) => (
-              <TableRow key={document.id}>
-                <TableCell>{document.name}</TableCell>
-                <TableCell>{document.description || 'N/A'}</TableCell>
+              <TableRow key={document.id} hover>
+                <TableCell sx={{ color: '#2C3E50', fontWeight: 500, fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' } }}>{document.name}</TableCell>
+                <TableCell sx={{ color: '#2C3E50' }}>{document.description || 'N/A'}</TableCell>
                 <TableCell>
-                  <Chip 
-                    label={document.is_required ? 'Yes' : 'No'} 
-                    color={document.is_required ? 'error' : 'default'}
+                  <Chip
+                    label={document.is_required ? 'YES' : 'NO'}
                     size="small"
+                    sx={{
+                      backgroundColor: document.is_required ? '#FDEAEA' : '#F3F4F6',
+                      color: document.is_required ? '#C0392B' : '#5D6D7E',
+                      fontWeight: 600,
+                      '& .MuiChip-label': { color: document.is_required ? '#C0392B' : '#5D6D7E' }
+                    }}
                   />
                 </TableCell>
-                <TableCell>{document.file_types?.join(', ') || 'N/A'}</TableCell>
-                <TableCell>{document.max_file_size} KB</TableCell>
+                <TableCell sx={{ color: '#2C3E50' }}>{document.file_types?.join(', ') || 'N/A'}</TableCell>
+                <TableCell sx={{ color: '#2C3E50' }}>{document.max_file_size} KB</TableCell>
                 <TableCell>
-                  <Chip 
-                    label={document.status} 
-                    color={getStatusColor(document.status)}
+                  <Chip
+                    label={document.status}
                     size="small"
+                    sx={{
+                      backgroundColor: document.status === 'active' ? '#E8F5E8' : '#F3F4F6',
+                      color: document.status === 'active' ? '#27AE60' : '#5D6D7E',
+                      fontWeight: 600,
+                      '& .MuiChip-label': { color: document.status === 'active' ? '#27AE60' : '#5D6D7E' }
+                    }}
                   />
                 </TableCell>
-                <TableCell>{document.creator?.username || 'N/A'}</TableCell>
+                <TableCell sx={{ color: '#2C3E50' }}>{document.creator?.username || 'N/A'}</TableCell>
                 <TableCell>
                   <IconButton 
                     size="small" 
@@ -485,23 +492,53 @@ function DocumentManagement() {
             </Alert>
           )}
 
-          {/* Tabs */}
-          <Paper sx={{ mb: 3 }}>
-            <Tabs value={tabValue} onChange={handleTabChange}>
-              <Tab label="Required Documents" />
-              <Tab 
-                label={
-                  <Badge badgeContent={pendingReviews.length} color="error">
-                    Pending Reviews
-                  </Badge>
-                } 
-              />
-            </Tabs>
+          {/* Tabs + Actions */}
+          <Paper sx={{ mb: 3, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1 }}>
+              <Tabs 
+                value={tabValue} 
+                onChange={handleTabChange}
+                sx={{
+                  bgcolor: '#FFFFFF',
+                  color: '#000000',
+                  '& .MuiTab-root': { color: '#000000', fontWeight: 600 },
+                  '& .MuiTab-root.Mui-selected': { color: '#000000' },
+                  '& .MuiTabs-indicator': { backgroundColor: '#3498DB', height: 3 }
+                }}
+              >
+                <Tab label="Required Documents" />
+                <Tab 
+                  label={
+                    <Badge badgeContent={pendingReviews.length} color="error">
+                      Pending Reviews
+                    </Badge>
+                  } 
+                />
+              </Tabs>
+              {tabValue === 0 && (
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />} 
+                  onClick={handleAddDialogOpen}
+                  sx={{ ...buttonStyles, mr: 1 }}
+                >
+                  Add Document
+                </Button>
+              )}
+            </Box>
           </Paper>
 
           {/* Tab Content */}
-          {tabValue === 0 && renderDocumentsTab()}
-          {tabValue === 1 && renderReviewsTab()}
+          {tabValue === 0 && (
+            <Box sx={{ bgcolor: '#FFFFFF', borderRadius: 2, border: '1px solid #E0E0E0', p: { xs: 2, sm: 3 } }}>
+              {renderDocumentsTab()}
+            </Box>
+          )}
+          {tabValue === 1 && (
+            <Box sx={{ bgcolor: '#FFFFFF', borderRadius: 2, border: '1px solid #E0E0E0', p: { xs: 2, sm: 3 } }}>
+              {renderReviewsTab()}
+            </Box>
+          )}
         </Box>
       </Box>
 
@@ -533,12 +570,15 @@ function DocumentManagement() {
                 />
               </Grid>
               <Grid item xs={6}>
-                <FormControl fullWidth sx={textFieldStyles}>
+                <FormControl fullWidth sx={{...textFieldStyles, '& .MuiPaper-root': { backgroundColor: '#FFFFFF' }}}>
                   <InputLabel>Required</InputLabel>
                   <Select
                     value={formData.is_required}
                     onChange={(e) => setFormData({...formData, is_required: e.target.value})}
                     label="Required"
+                    MenuProps={{
+                      PaperProps: { sx: { bgcolor: '#FFFFFF', color: '#000000' } }
+                    }}
                   >
                     <MenuItem value={true}>Yes</MenuItem>
                     <MenuItem value={false}>No</MenuItem>
@@ -616,12 +656,15 @@ function DocumentManagement() {
                 />
               </Grid>
               <Grid item xs={6}>
-                <FormControl fullWidth sx={textFieldStyles}>
+                <FormControl fullWidth sx={{...textFieldStyles, '& .MuiPaper-root': { backgroundColor: '#FFFFFF' }}}>
                   <InputLabel>Required</InputLabel>
                   <Select
                     value={formData.is_required}
                     onChange={(e) => setFormData({...formData, is_required: e.target.value})}
                     label="Required"
+                    MenuProps={{
+                      PaperProps: { sx: { bgcolor: '#FFFFFF', color: '#000000' } }
+                    }}
                   >
                     <MenuItem value={true}>Yes</MenuItem>
                     <MenuItem value={false}>No</MenuItem>
@@ -629,12 +672,15 @@ function DocumentManagement() {
                 </FormControl>
               </Grid>
               <Grid item xs={6}>
-                <FormControl fullWidth sx={textFieldStyles}>
+                <FormControl fullWidth sx={{...textFieldStyles, '& .MuiPaper-root': { backgroundColor: '#FFFFFF' }}}>
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={selectedDocument?.status || 'active'}
                     onChange={(e) => setFormData({...formData, status: e.target.value})}
                     label="Status"
+                    MenuProps={{
+                      PaperProps: { sx: { bgcolor: '#FFFFFF', color: '#000000' } }
+                    }}
                   >
                     <MenuItem value="active">Active</MenuItem>
                     <MenuItem value="inactive">Inactive</MenuItem>
@@ -704,12 +750,15 @@ function DocumentManagement() {
             )}
             <Grid container spacing={2}>
               <Grid item xs={12}>
-                <FormControl fullWidth sx={textFieldStyles}>
+                <FormControl fullWidth sx={{...textFieldStyles, '& .MuiPaper-root': { backgroundColor: '#FFFFFF' }}}>
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={reviewData.status}
                     onChange={(e) => setReviewData({...reviewData, status: e.target.value})}
                     label="Status"
+                    MenuProps={{
+                      PaperProps: { sx: { bgcolor: '#FFFFFF', color: '#000000' } }
+                    }}
                   >
                     <MenuItem value="approved">Approve</MenuItem>
                     <MenuItem value="rejected">Reject</MenuItem>

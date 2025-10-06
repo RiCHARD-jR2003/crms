@@ -4,12 +4,19 @@ import { api } from './api';
 const pwdMemberService = {
   // Get all PWD members
   async getAll() {
+    // Prefer real endpoint that contains registration timestamps; fallback to mock
     try {
-      const response = await api.get('/mock-pwd');
-      return response;
-    } catch (error) {
-      console.error('Error fetching PWD members:', error);
-      throw error;
+      const realResponse = await api.get('/pwd-members');
+      return realResponse;
+    } catch (primaryError) {
+      console.warn('Primary /pwd-members fetch failed, falling back to /mock-pwd:', primaryError?.message || primaryError);
+      try {
+        const fallbackResponse = await api.get('/mock-pwd');
+        return fallbackResponse;
+      } catch (fallbackError) {
+        console.error('Error fetching PWD members (both endpoints failed):', fallbackError);
+        throw fallbackError;
+      }
     }
   },
 

@@ -54,103 +54,37 @@ function LandingPage() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#FFFFFF' }}>
-      {/* Header */}
-      <Paper
-        elevation={3}
-        sx={{
-          backgroundColor: '#253D90',
-          color: 'white',
-          p: 3,
-          textAlign: 'center',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-          <Box
-            sx={{
-              width: 52,
-              height: 52,
-              backgroundColor: 'white',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              mr: 2,
-              border: '3px solid #E74C3C',
-              overflow: 'hidden'
-            }}
-          >
-            <img 
-              src="/images/cropped_image.png" 
-              alt="PDAO Logo" 
-              style={{ 
-                width: '80%', 
-                height: '80%', 
-                objectFit: 'contain' 
-              }}
-            />
-          </Box>
-          <Typography variant="h5" sx={{ color: 'white', fontWeight: 'bold' }}>
-            PDAO
-          </Typography>
-        </Box>
-        <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
-          CABUYAO PDAO RMS
-        </Typography>
-      </Paper>
-
-      {/* Main Content */}
-      <Container maxWidth="md" sx={{ py: 6 }}>
-        <Box sx={{ textAlign: 'center', mb: 6 }}>
-          <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 'bold', color: '#1B2631' }}>
-            PDAO Management System
-          </Typography>
-          <Typography variant="h6" sx={{ color: '#666', lineHeight: 1.6, mb: 4 }}>
-            Empowering Persons with Disabilities through comprehensive support and services. 
-            Access benefits, track applications, and manage your PWD identification.
-          </Typography>
-          
-          <Button
-            variant="contained"
-            size="large"
-            onClick={handleApplyClick}
-            sx={{
-              backgroundColor: '#4CAF50',
-              '&:hover': { backgroundColor: '#45a049' },
-              px: 4,
-              py: 1.5,
-              borderRadius: 3,
-              fontSize: '1.1rem',
-              fontWeight: 'bold',
-            }}
-          >
-            Apply for PWD ID
-          </Button>
-        </Box>
-
-        {/* PDAO Office Section */}
-        <Card elevation={3} sx={{ borderRadius: 3 }}>
-          <CardContent sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 'bold', color: '#1B2631' }}>
-              PDAO Office
-            </Typography>
-            <Typography variant="h5" sx={{ color: '#666', mb: 3 }}>
-              Cabuyao
-            </Typography>
-            
-            <Box sx={{ mb: 3 }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: '#f8f9fa',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        py: 4,
+        px: 2,
+      }}
+    >
+      <Container maxWidth="md">
+        <Grid container spacing={4} sx={{ alignItems: 'center' }}>
+          {/* Left Side - Branding */}
+          <Grid item xs={12} md={6}>
+            <Box sx={{ textAlign: 'center', color: '#2C3E50' }}>
+              {/* Logo */}
               <Box
                 sx={{
-                  width: 80,
-                  height: 80,
-                  backgroundColor: '#253D90',
+                  width: 120,
+                  height: 120,
+                  backgroundColor: '#FFFFFF',
                   borderRadius: '50%',
                   display: 'flex',
-                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
                   mx: 'auto',
-                  boxShadow: 3,
+                  mb: 3,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                  border: '3px solid #0b87ac',
+                  position: 'relative',
                   overflow: 'hidden'
                 }}
               >
@@ -164,26 +98,153 @@ function LandingPage() {
                   }}
                 />
               </Box>
-            </Box>
 
-            <Button
-              variant="contained"
-              size="large"
-              onClick={handleLoginClick}
+              <Typography 
+                variant="h3" 
+                sx={{ 
+                  fontWeight: 700, 
+                  mb: 2,
+                  color: '#2C3E50'
+                }}
+              >
+                PDAO RMS
+              </Typography>
+              
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 500, 
+                  mb: 3,
+                  color: '#0b87ac'
+                }}
+              >
+                Cabuyao City
+              </Typography>
+              
+              <Typography 
+                variant="body1" 
+                sx={{ 
+                  color: '#7F8C8D',
+                  maxWidth: 400,
+                  mx: 'auto',
+                  lineHeight: 1.6
+                }}
+              >
+                Persons with Disabilities Affairs Office - Cabuyao City
+                <br />
+                Empowering lives through inclusive services and support.
+              </Typography>
+
+              {/* Features */}
+              <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, backgroundColor: '#0b87ac', borderRadius: '50%' }} />
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Secure Member Management
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, backgroundColor: '#0b87ac', borderRadius: '50%' }} />
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Digital ID Card System
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, backgroundColor: '#0b87ac', borderRadius: '50%' }} />
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Comprehensive Reporting
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Grid>
+
+          {/* Right Side - Action Card */}
+          <Grid item xs={12} md={6}>
+            <Card
               sx={{
-                backgroundColor: '#253D90',
-                '&:hover': { backgroundColor: '#1E2A73' },
-                px: 5,
-                py: 1.5,
-                borderRadius: 3,
-                fontSize: '1.1rem',
-                fontWeight: 'bold',
+                backgroundColor: '#FFFFFF',
+                borderRadius: 4,
+                boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+                border: '1px solid #E0E0E0',
               }}
             >
-              Login
-            </Button>
-          </CardContent>
-        </Card>
+              <CardContent sx={{ p: 4 }}>
+                {/* Header */}
+                <Box sx={{ textAlign: 'center', mb: 4 }}>
+                  <Typography 
+                    variant="h4" 
+                    sx={{ 
+                      fontWeight: 700, 
+                      color: '#2C3E50',
+                      mb: 1
+                    }}
+                  >
+                    Welcome
+                  </Typography>
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      color: '#7F8C8D',
+                      mb: 3
+                    }}
+                  >
+                    Access your PWD services and benefits
+                  </Typography>
+                </Box>
+
+                {/* Action Buttons */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={handleApplyClick}
+                    sx={{
+                      backgroundColor: '#0b87ac',
+                      color: 'white',
+                      py: 1.5,
+                      borderRadius: 3,
+                      fontWeight: 600,
+                      fontSize: '16px',
+                      textTransform: 'none',
+                      boxShadow: '0 4px 12px rgba(11, 135, 172, 0.3)',
+                      '&:hover': {
+                        backgroundColor: '#0a6b8a',
+                        boxShadow: '0 6px 16px rgba(11, 135, 172, 0.4)',
+                        transform: 'translateY(-1px)',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                    }}
+                  >
+                    Apply for PWD ID
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    onClick={handleLoginClick}
+                    sx={{
+                      color: '#0b87ac',
+                      borderColor: '#0b87ac',
+                      borderRadius: 3,
+                      py: 1.5,
+                      fontWeight: 500,
+                      fontSize: '16px',
+                      textTransform: 'none',
+                      '&:hover': {
+                        borderColor: '#0a6b8a',
+                        backgroundColor: 'rgba(11, 135, 172, 0.1)',
+                      },
+                    }}
+                  >
+                    Login to Account
+                  </Button>
+                </Box>
+
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       </Container>
     </Box>
   );

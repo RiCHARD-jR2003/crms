@@ -286,6 +286,11 @@ const AdminSupportDesk = () => {
               borderRadius: 3, 
               boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
               border: '1px solid #E9ECEF',
+              bgcolor: '#FFFFFF',
+              height: 180,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transition: 'all 0.3s ease',
               '&:hover': {
                 transform: 'translateY(-2px)',
@@ -295,7 +300,12 @@ const AdminSupportDesk = () => {
               <CardContent sx={{ 
                 textAlign: 'center', 
                 p: { xs: 2, sm: 2.5 },
-                background: 'linear-gradient(135deg, #FFF5F5 0%, #FFF0F0 100%)'
+                bgcolor: '#FFFFFF',
+                minHeight: 160,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}>
                 <Warning sx={{ 
                   fontSize: { xs: 36, sm: 40, md: 44 }, 
@@ -325,6 +335,11 @@ const AdminSupportDesk = () => {
               borderRadius: 3, 
               boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
               border: '1px solid #E9ECEF',
+              bgcolor: '#FFFFFF',
+              height: 180,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transition: 'all 0.3s ease',
               '&:hover': {
                 transform: 'translateY(-2px)',
@@ -334,7 +349,12 @@ const AdminSupportDesk = () => {
               <CardContent sx={{ 
                 textAlign: 'center', 
                 p: { xs: 2, sm: 2.5 },
-                background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF5E7 100%)'
+                bgcolor: '#FFFFFF',
+                minHeight: 160,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}>
                 <Schedule sx={{ 
                   fontSize: { xs: 36, sm: 40, md: 44 }, 
@@ -364,13 +384,27 @@ const AdminSupportDesk = () => {
               borderRadius: 3, 
               boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
               border: '1px solid #E9ECEF',
+              bgcolor: '#FFFFFF',
+              height: 180,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transition: 'all 0.3s ease',
               '&:hover': {
                 transform: 'translateY(-2px)',
                 boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
               }
             }}>
-              <CardContent sx={{ textAlign: 'center', p: { xs: 1.5, sm: 2 } }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                p: { xs: 2, sm: 2.5 }, 
+                bgcolor: '#FFFFFF',
+                minHeight: 160,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center' 
+              }}>
                 <CheckCircle sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#27AE60', mb: 1 }} />
                 <Typography variant="h4" sx={{ 
                   fontWeight: 'bold', 
@@ -393,13 +427,27 @@ const AdminSupportDesk = () => {
               borderRadius: 3, 
               boxShadow: '0 4px 20px rgba(0,0,0,0.08)', 
               border: '1px solid #E9ECEF',
+              bgcolor: '#FFFFFF',
+              height: 180,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transition: 'all 0.3s ease',
               '&:hover': {
                 transform: 'translateY(-2px)',
                 boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
               }
             }}>
-              <CardContent sx={{ textAlign: 'center', p: { xs: 1.5, sm: 2 } }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                p: { xs: 2, sm: 2.5 }, 
+                bgcolor: '#FFFFFF',
+                minHeight: 160,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center' 
+              }}>
                 <SupportAgent sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#3498DB', mb: 1 }} />
                 <Typography variant="h4" sx={{ 
                   fontWeight: 'bold', 
@@ -627,28 +675,31 @@ const AdminSupportDesk = () => {
               borderRadius: 3,
               m: { xs: 1, sm: 2 },
               boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              bgcolor: '#FFFFFF',
+              color: '#2C3E50'
             }
           }}
         >
           <DialogTitle sx={{ 
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: '#FFFFFF',
+            bgcolor: '#FFFFFF',
+            color: '#2C3E50',
             fontWeight: 600,
             fontSize: { xs: '1.1rem', sm: '1.2rem', md: '1.3rem' },
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             py: 2.5,
-            px: 3
+            px: 3,
+            borderBottom: '1px solid #E0E0E0'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <SupportAgent sx={{ 
-                color: '#FFFFFF',
+                color: '#0b87ac',
                 fontSize: { xs: 24, sm: 28 }
               }} />
               <Typography variant="h6" sx={{ 
-                color: '#FFFFFF',
+                color: '#2C3E50',
                 fontWeight: 'bold',
                 fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' }
               }}>
@@ -658,10 +709,10 @@ const AdminSupportDesk = () => {
             <IconButton 
               onClick={handleCloseViewDialog} 
               sx={{ 
-                color: '#FFFFFF',
-                backgroundColor: 'rgba(255,255,255,0.1)',
+                color: '#2C3E50',
+                backgroundColor: '#F2F4F6',
                 '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.2)'
+                  backgroundColor: '#E9EDF1'
                 },
                 borderRadius: 2,
                 p: 1
@@ -672,7 +723,7 @@ const AdminSupportDesk = () => {
           </DialogTitle>
           <DialogContent 
             sx={{ 
-              backgroundColor: '#FAFBFC',
+              backgroundColor: '#FFFFFF',
               p: { xs: 3, sm: 4 }
             }}
           >
@@ -686,9 +737,10 @@ const AdminSupportDesk = () => {
                   boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
                 }}>
                   <Box sx={{ 
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: '#FFFFFF',
                     p: 3,
-                    color: 'white'
+                    color: '#2C3E50',
+                    borderBottom: '1px solid #E0E0E0'
                   }}>
                     <Typography 
                       variant="h4" 
@@ -706,50 +758,9 @@ const AdminSupportDesk = () => {
                       gap: 1.5, 
                       flexWrap: 'wrap'
                     }}>
-                      <Chip
-                        label={selectedTicket.category || 'General'}
-                        sx={{
-                          backgroundColor: 'rgba(255,255,255,0.2)',
-                          color: 'white',
-                          fontWeight: 600,
-                          fontSize: '0.75rem',
-                          backdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.3)',
-                          '&:hover': {
-                            backgroundColor: 'rgba(255,255,255,0.3)'
-                          }
-                        }}
-                      />
-                      <Chip
-                        label={selectedTicket.priority?.toUpperCase() || 'Medium'}
-                        sx={{
-                          backgroundColor: 
-                            selectedTicket.priority === 'urgent' ? 'rgba(231, 76, 60, 0.9)' :
-                            selectedTicket.priority === 'high' ? 'rgba(241, 196, 15, 0.9)' :
-                            selectedTicket.priority === 'low' ? 'rgba(46, 204, 113, 0.9)' :
-                            'rgba(255,255,255,0.2)',
-                          color: 'white',
-                          fontWeight: 600,
-                          fontSize: '0.75rem',
-                          backdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.3)'
-                        }}
-                      />
-                      <Chip
-                        label={selectedTicket.status?.replace('_', ' ').toUpperCase() || 'Open'}
-                        sx={{
-                          backgroundColor: 
-                            selectedTicket.status === 'resolved' ? 'rgba(46, 204, 113, 0.9)' :
-                            selectedTicket.status === 'in_progress' ? 'rgba(52, 152, 219, 0.9)' :
-                            selectedTicket.status === 'closed' ? 'rgba(127, 140, 141, 0.9)' :
-                            'rgba(231, 76, 60, 0.9)',
-                          color: 'white',
-                          fontWeight: 600,
-                          fontSize: '0.75rem',
-                          backdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255,255,255,0.3)'
-                        }}
-                      />
+                      <Chip label={selectedTicket.category || 'General'} sx={{ backgroundColor: '#F2F4F6', color: '#2C3E50', fontWeight: 600, px: 1, py: 0.25 }} />
+                      <Chip label={(selectedTicket.priority || 'medium').toUpperCase()} sx={{ backgroundColor: '#F2F4F6', color: '#2C3E50', fontWeight: 600, px: 1, py: 0.25 }} />
+                      <Chip label={(selectedTicket.status || 'open').toUpperCase()} sx={{ backgroundColor: '#FFECEC', color: '#C0392B', fontWeight: 600, px: 1, py: 0.25 }} />
                     </Box>
                   </Box>
                 </Card>
@@ -760,7 +771,9 @@ const AdminSupportDesk = () => {
                 <Card sx={{ 
                   mb: 3,
                   borderRadius: 2,
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                  bgcolor: '#FFFFFF',
+                  border: '1px solid #E9ECEF'
                 }}>
                   <Box sx={{ p: 3 }}>
                     <Typography 
@@ -895,7 +908,9 @@ const AdminSupportDesk = () => {
                 <Card sx={{ 
                   mb: 3,
                   borderRadius: 2,
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                  bgcolor: '#FFFFFF',
+                  border: '1px solid #E9ECEF'
                 }}>
                   <Box sx={{ p: 3 }}>
                     <Typography 
@@ -931,11 +946,13 @@ const AdminSupportDesk = () => {
 
                  {/* Messages */}
                  {selectedTicket.messages && selectedTicket.messages.length > 0 && (
-                   <Card sx={{ 
-                     mb: 3,
-                     borderRadius: 2,
-                     boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
-                   }}>
+                  <Card sx={{ 
+                    mb: 3,
+                    borderRadius: 2,
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                    bgcolor: '#FFFFFF',
+                    border: '1px solid #E9ECEF'
+                  }}>
                      <Box sx={{ p: 3 }}>
                        <Typography 
                          variant="h6" 
@@ -1073,11 +1090,13 @@ const AdminSupportDesk = () => {
                 <Divider sx={{ mb: 3, borderColor: '#BDC3C7' }} />
 
                 {/* Reply Section */}
-                <Card sx={{ 
-                  mb: 3,
-                  borderRadius: 2,
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)'
-                }}>
+               <Card sx={{ 
+                 mb: 3,
+                 borderRadius: 2,
+                 boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                 bgcolor: '#FFFFFF',
+                 border: '1px solid #E9ECEF'
+               }}>
                   <Box sx={{ p: 3 }}>
                     <Typography 
                       variant="h6" 
@@ -1259,11 +1278,12 @@ const AdminSupportDesk = () => {
                 fontWeight: 600,
                 textTransform: 'none',
                 borderRadius: 2,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
+                backgroundColor: '#0b87ac',
+                color: '#FFFFFF',
+                boxShadow: '0 2px 8px rgba(11, 135, 172, 0.3)',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
-                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                  backgroundColor: '#0a6b8a',
+                  boxShadow: '0 4px 12px rgba(11, 135, 172, 0.4)'
                 },
                 '&:disabled': {
                   background: '#E9ECEF',

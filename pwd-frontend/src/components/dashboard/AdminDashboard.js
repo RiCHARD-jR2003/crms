@@ -85,7 +85,7 @@ function AdminDashboard() {
     pendingApplications: 0,
     approvedApplications: 0,
     activeMembers: 0,
-    complaintsFeedback: 0 // User mentioned there's already 1 complaint
+    supportTickets: 0
   });
   const [recentActivities, setRecentActivities] = useState([]);
   const [barangayContacts, setBarangayContacts] = useState([]);
@@ -95,6 +95,8 @@ function AdminDashboard() {
   const [contactsLoading, setContactsLoading] = useState(false);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState(null);
+  const [migrating, setMigrating] = useState(false);
 
   const handleSidebarToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -102,6 +104,40 @@ function AdminDashboard() {
 
   const handleMobileMenuToggle = (isOpen) => {
     setIsMobileMenuOpen(isOpen);
+  };
+
+  // Document migration functions
+  const fetchMigrationStatus = async () => {
+    try {
+      const response = await api.get('/admin/migration-status');
+      if (response.success) {
+        setMigrationStatus(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching migration status:', error);
+    }
+  };
+
+  const handleMigrateDocuments = async () => {
+    if (!window.confirm('This will migrate all application documents to the member documents system. Are you sure you want to continue?')) {
+      return;
+    }
+
+    setMigrating(true);
+    try {
+      const response = await api.post('/admin/migrate-documents');
+      if (response.success) {
+        alert(`Migration completed successfully!\nMigrated ${response.data.migrated_documents} documents\nSkipped ${response.data.skipped_applications} applications`);
+        await fetchMigrationStatus();
+      } else {
+        alert('Migration failed: ' + response.message);
+      }
+    } catch (error) {
+      console.error('Error migrating documents:', error);
+      alert('Migration failed: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setMigrating(false);
+    }
   };
 
 
@@ -139,16 +175,34 @@ function AdminDashboard() {
         // Fetch dashboard stats from our working endpoint
         const statsResponse = await api.get('/dashboard-stats');
         console.log('Dashboard stats response:', statsResponse);
-        const statsData = statsResponse.data || {
+        // Support both shapes: {success:true, data:{...}} and direct {...}
+        const normalizedStats = (statsResponse && statsResponse.data && statsResponse.data.data)
+          ? statsResponse.data.data
+          : (statsResponse && statsResponse.data)
+            ? statsResponse.data
+            : statsResponse;
+        const statsData = normalizedStats || {
           totalPWDMembers: 0,
           pendingApplications: 0,
           approvedApplications: 0,
           activeMembers: 0,
-          complaintsFeedback: 1
+          supportTickets: 0
         };
         console.log('Dashboard stats data:', statsData);
         
-        setStats(statsData);
+        // Fallback: if supportTickets missing, compute via tickets endpoint
+        let finalStats = { ...statsData };
+        if (finalStats.supportTickets == null) {
+          try {
+            const tickets = await supportService.getTickets();
+            finalStats.supportTickets = Array.isArray(tickets) ? tickets.length : (tickets?.length || 0);
+          } catch (e) {
+            console.warn('Could not fetch tickets for fallback count');
+            finalStats.supportTickets = 0;
+          }
+        }
+        setStats(finalStats);
+        await fetchMigrationStatus();
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
         // Keep default values if API fails
@@ -157,7 +211,7 @@ function AdminDashboard() {
           pendingApplications: 0,
           approvedApplications: 0,
           activeMembers: 0,
-          complaintsFeedback: 1
+          supportTickets: 0
         });
       } finally {
         setLoading(false);
@@ -224,7 +278,7 @@ function AdminDashboard() {
   const renderMapSection = () => {
     console.log('🗺️ AdminDashboard renderMapSection called');
     return (
-      <Card sx={{ ...cardStyles, height: { xs: '300px', sm: '400px' }, mb: 3 }}>
+      <Card sx={{ ...cardStyles, height: { xs: '300px', sm: '340px' }, mb: 3 }}>
         <CardContent sx={{ height: '100%', p: { xs: 1, sm: 2 } }}>
           <Typography 
             variant="h6" 
@@ -249,9 +303,7 @@ function AdminDashboard() {
           </Typography>
           
           {/* Free Google Maps Component (No API Key Required) */}
-          <FreeGoogleMapsComponent 
-            height="calc(100% - 80px)"
-          />
+          <FreeGoogleMapsComponent height="calc(100% - 70px)" />
         </CardContent>
       </Card>
     );
@@ -283,7 +335,7 @@ function AdminDashboard() {
     const chartWidth = 400;
 
     return (
-      <Card sx={{ ...cardStyles, height: { xs: '250px', sm: '300px' }, mb: 3 }}>
+      <Card sx={{ ...cardStyles, height: { xs: '300px', sm: '340px' }, mb: 3 }}>
         <CardContent sx={{ height: '100%', p: { xs: 1, sm: 2 } }}>
           <Typography 
             variant="h6" 
@@ -298,7 +350,7 @@ function AdminDashboard() {
             TOTAL NEWLY REGISTERED PWD MEMBERS (2025) - Line Chart
           </Typography>
           <Box sx={{ 
-            height: { xs: '150px', sm: '180px', md: '200px' }, 
+            height: { xs: '200px', sm: '220px', md: '240px' }, 
             position: 'relative',
             px: { xs: 1, sm: 2 },
             border: '1px solid #E0E0E0',
@@ -630,7 +682,7 @@ function AdminDashboard() {
                     fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
                   }}
                 >
-                  {stats.complaintsFeedback}
+                  {stats.supportTickets}
                 </Typography>
                 <Typography 
                   variant="body2" 
@@ -641,7 +693,7 @@ function AdminDashboard() {
                     lineHeight: 1.2
                   }}
                 >
-                  Complaints/Feedback
+                  Support Tickets
                 </Typography>
               </CardContent>
             </Card>
@@ -650,12 +702,12 @@ function AdminDashboard() {
       </Grid>
 
 
-      {/* Chart and Map Row */}
-      <Grid item xs={12} lg={8}>
+      {/* Chart and Map Row - equal width */}
+      <Grid item xs={12} lg={6}>
         {renderLineChart()}
       </Grid>
       
-      <Grid item xs={12} lg={4}>
+      <Grid item xs={12} lg={6}>
         {renderMapSection()}
       </Grid>
 
@@ -861,6 +913,59 @@ function AdminDashboard() {
                 </Box>
               )}
             </Box>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Document Migration Section */}
+      <Grid item xs={12}>
+        <Card sx={cardStyles}>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <SettingsIcon sx={{ color: '#E74C3C', fontSize: 24 }} />
+              <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
+                Document Migration
+              </Typography>
+            </Box>
+            
+            <Typography variant="body2" sx={{ color: '#000000', mb: 3 }}>
+              Migrate application documents to the member documents system. This will make documents submitted during the application process visible in the "My Documents" section.
+            </Typography>
+
+            {migrationStatus && (
+              <Box sx={{ mb: 3, p: 2, backgroundColor: '#F8F9FA', borderRadius: 2 }}>
+                <Typography variant="body2" sx={{ color: '#000000', mb: 1 }}>
+                  <strong>Migration Status:</strong>
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
+                  • Approved Applications: {migrationStatus.approved_applications}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
+                  • Total Member Documents: {migrationStatus.total_member_documents}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#000000' }}>
+                  • Required Documents: {migrationStatus.required_documents}
+                </Typography>
+              </Box>
+            )}
+
+            <Button
+              variant="contained"
+              onClick={handleMigrateDocuments}
+              disabled={migrating}
+              startIcon={migrating ? <CircularProgress size={20} /> : <SettingsIcon />}
+              sx={{
+                bgcolor: '#E74C3C',
+                color: 'white',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                '&:hover': { bgcolor: '#C0392B' },
+                '&:disabled': { bgcolor: '#BDC3C7' }
+              }}
+            >
+              {migrating ? 'Migrating Documents...' : 'Migrate Application Documents'}
+            </Button>
           </CardContent>
         </Card>
       </Grid>

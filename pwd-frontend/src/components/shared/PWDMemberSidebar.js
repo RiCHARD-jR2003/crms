@@ -14,7 +14,6 @@ import {
   useTheme
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import AnnouncementIcon from '@mui/icons-material/Announcement';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -35,7 +34,6 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'My Documents', icon: <DescriptionIcon />, path: '/pwd-documents' },
-    { text: 'Announcements', icon: <AnnouncementIcon />, path: '/pwd-announcements' },
     { text: 'Support Desk', icon: <SupportAgentIcon />, path: '/pwd-support' },
     { text: 'Profile', icon: <PersonIcon />, path: '/pwd-profile' },
   ];

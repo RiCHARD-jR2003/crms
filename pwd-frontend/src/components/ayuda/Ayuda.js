@@ -446,46 +446,46 @@ const Ayuda = () => {
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 85);
       doc.text(`Total Eligible Members: ${eligibleMembers.length}`, 20, 92);
       
-      // Prepare table data - ensure we're using the current eligibleMembers
-      const tableData = eligibleMembers.map((member, index) => [
-        index + 1,
-        member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned'),
-        `${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || 'Name not provided',
-        getMonthName(new Date(member.birthDate).getMonth() + 1),
-        getAge(member.birthDate),
-        member.barangay || 'Not specified',
-        member.disabilityType || 'Not specified'
-      ]);
-      
-      // Debug: Log the table data being generated
-      console.log('Table data for PDF:', tableData);
-      
-      // Add table
-      autoTable(doc, {
-        startY: 100,
-        head: [['#', 'PWD ID', 'Full Name', 'Birth Month', 'Age', 'Barangay', 'Disability Type']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: {
-          fillColor: [39, 174, 96], // Green color
-          textColor: 255,
-          fontStyle: 'bold',
-          fontSize: 10
-        },
-        bodyStyles: {
-          fontSize: 9,
-          textColor: [44, 62, 80]
-        },
-        alternateRowStyles: {
-          fillColor: [248, 250, 252]
-        },
-        margin: { left: 20, right: 20 },
-        styles: {
-          cellPadding: 3,
-          lineColor: [224, 224, 224],
-          lineWidth: 0.5
-        }
-      });
+       // Prepare table data - ensure we're using the current eligibleMembers
+       const tableData = eligibleMembers.map((member, index) => [
+         index + 1,
+         member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned'),
+         `${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || 'Name not provided',
+         getMonthName(new Date(member.birthDate).getMonth() + 1),
+         getAge(member.birthDate),
+         member.barangay || 'Not specified',
+         member.disabilityType || 'Not specified'
+       ]);
+       
+       // Debug: Log the table data being generated
+       console.log('Table data for PDF:', tableData);
+       
+       // Add table
+       autoTable(doc, {
+         startY: 100,
+         head: [['#', 'PWD ID', 'Full Name', 'Birth Month', 'Age', 'Barangay', 'Disability Type']],
+         body: tableData,
+         theme: 'grid',
+         headStyles: {
+           fillColor: [39, 174, 96], // Green color
+           textColor: 255,
+           fontStyle: 'bold',
+           fontSize: 10
+         },
+         bodyStyles: {
+           fontSize: 9,
+           textColor: [44, 62, 80]
+         },
+         alternateRowStyles: {
+           fillColor: [248, 250, 252]
+         },
+         margin: { left: 20, right: 20 },
+         styles: {
+           cellPadding: 3,
+           lineColor: [224, 224, 224],
+           lineWidth: 0.5
+         }
+       });
       
       // Add signature section
       const finalY = doc.lastAutoTable.finalY + 20;
@@ -529,11 +529,44 @@ const Ayuda = () => {
       doc.setFont('helvetica', 'italic');
       doc.text('This document must be signed by all three officials before the benefit program can be approved.', 20, signatureY + 35);
       
-      // Save the PDF
-      const fileName = `Eligible_Members_${formData.type.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(fileName);
+      // Generate PDF blob and show in new tab for preview
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
       
-      alert(`PDF generated successfully with ${eligibleMembers.length} eligible members! Please print and get the required signatures before submitting for approval.`);
+      // Open PDF in new tab for preview
+      const newWindow = window.open(pdfUrl, '_blank');
+      if (newWindow) {
+        newWindow.focus();
+        
+        // Show confirmation dialog with download option
+        const userChoice = window.confirm(
+          `PDF generated successfully with ${eligibleMembers.length} eligible members!\n\n` +
+          'The PDF is now open in a new tab for preview.\n\n' +
+          'Click OK to download the PDF, or Cancel to keep it open for preview only.\n\n' +
+          'Remember: You must print this PDF and get signatures from the Head of PDAO Office, Barangay President, and Mayor before the program can be approved.'
+        );
+        
+        if (userChoice) {
+          // User wants to download
+          const fileName = `Eligible_Members_${formData.type.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+          const downloadLink = document.createElement('a');
+          downloadLink.href = pdfUrl;
+          downloadLink.download = fileName;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+        }
+        
+        // Clean up the object URL after a delay
+        setTimeout(() => {
+          URL.revokeObjectURL(pdfUrl);
+        }, 10000); // Clean up after 10 seconds
+      } else {
+        // Fallback if popup is blocked
+        alert('Popup blocked! Please allow popups for this site and try again, or the PDF will be downloaded automatically.');
+        const fileName = `Eligible_Members_${formData.type.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+      }
       
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -724,11 +757,20 @@ const Ayuda = () => {
     try {
       setLoadingEligibleMembers(true);
       const response = await pwdMemberService.getAll();
-      const members = response.data?.members || response.members || [];
+      
+      // Handle different response structures from the updated service
+      const candidates = [
+        response?.data?.members,
+        response?.members,
+        response?.data,
+        response
+      ];
+      const members = candidates.find((v) => Array.isArray(v)) || [];
       
       // Debug: Log the raw data fetched
       console.log('Raw members data fetched:', members);
       console.log('Number of raw members:', members.length);
+      console.log('Response structure:', response);
       
       let filteredMembers = [];
 
@@ -737,8 +779,12 @@ const Ayuda = () => {
         if (Array.isArray(barangayOrBarangays) && barangayOrBarangays.length > 0) {
           console.log('Filtering Financial Assistance by barangays:', barangayOrBarangays);
           filteredMembers = members.filter(member => {
-            const isIncluded = barangayOrBarangays.includes(member.barangay);
-            console.log(`Member ${member.firstName} ${member.lastName} from ${member.barangay}: ${isIncluded ? 'INCLUDED' : 'EXCLUDED'}`);
+            // Handle different field names for barangay
+            const memberBarangay = (member.barangay || member.Barangay || '').toString().trim().toLowerCase();
+            const isIncluded = barangayOrBarangays.some(b => 
+              (b || '').toString().trim().toLowerCase() === memberBarangay
+            );
+            console.log(`Member ${member.firstName} ${member.lastName} from "${member.barangay || member.Barangay}": ${isIncluded ? 'INCLUDED' : 'EXCLUDED'}`);
             return isIncluded;
           });
         } else {
@@ -762,7 +808,9 @@ const Ayuda = () => {
           
           // Filter by barangay if specified
           if (barangayOrBarangays && barangayOrBarangays !== 'All Barangays') {
-            return quarterMatch && member.barangay === barangayOrBarangays;
+            const memberBarangay = (member.barangay || member.Barangay || '').toString().trim().toLowerCase();
+            const barangayMatch = (barangayOrBarangays || '').toString().trim().toLowerCase() === memberBarangay;
+            return quarterMatch && barangayMatch;
           }
           
           return quarterMatch;
@@ -2007,28 +2055,28 @@ const Ayuda = () => {
                     overflow: 'auto'
                   }}>
                     <Table size="small">
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: '#F8FAFC' }}>
-                          <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
-                            PWD ID
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
-                            Full Name
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
-                            Birth Month
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
-                            Age
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
-                            Barangay
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
-                            Disability Type
-                          </TableCell>
-                        </TableRow>
-                      </TableHead>
+                       <TableHead>
+                         <TableRow sx={{ bgcolor: '#F8FAFC' }}>
+                           <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
+                             PWD ID
+                           </TableCell>
+                           <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
+                             Full Name
+                           </TableCell>
+                           <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
+                             Birth Month
+                           </TableCell>
+                           <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
+                             Age
+                           </TableCell>
+                           <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
+                             Barangay
+                           </TableCell>
+                           <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.875rem' }}>
+                             Disability Type
+                           </TableCell>
+                         </TableRow>
+                       </TableHead>
                       <TableBody>
                         {eligibleMembers.map((member, index) => {
                           // Debug: Log each member being rendered in the table
@@ -2058,13 +2106,13 @@ const Ayuda = () => {
                             <TableCell sx={{ color: '#2C3E50', fontSize: '0.8rem' }}>
                               {member.barangay || 'Not specified'}
                             </TableCell>
-                            <TableCell sx={{ color: '#2C3E50', fontSize: '0.8rem' }}>
-                              {member.disabilityType || 'Not specified'}
-                            </TableCell>
-                          </TableRow>
-                          );
-                        })}
-                      </TableBody>
+                             <TableCell sx={{ color: '#2C3E50', fontSize: '0.8rem' }}>
+                               {member.disabilityType || 'Not specified'}
+                             </TableCell>
+                           </TableRow>
+                           );
+                         })}
+                       </TableBody>
                     </Table>
                   </TableContainer>
                 ) : (
