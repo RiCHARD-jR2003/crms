@@ -404,7 +404,7 @@ function MemberDocumentUpload() {
                             <Button
                               size="small"
                               startIcon={<VisibilityIcon />}
-                              onClick={() => window.open(`/api/documents/file/${memberDoc.id}`, '_blank')}
+                              onClick={() => window.open(`http://127.0.0.1:8000/api/documents/file/${memberDoc.id}`, '_blank')}
                               variant="outlined"
                             >
                               View

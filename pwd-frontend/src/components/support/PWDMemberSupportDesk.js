@@ -51,11 +51,11 @@ import {
   Send,
   AttachFile,
   Download,
-  Delete
+  Delete,
+  Headset
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import { supportService } from '../../services/supportService';
-import FilePreview from '../shared/FilePreview';
 
 const PWDMemberSupportDesk = () => {
   console.log('PWDMemberSupportDesk component is rendering');
@@ -63,7 +63,6 @@ const PWDMemberSupportDesk = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
-  const [replyDialog, setReplyDialog] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -71,8 +70,6 @@ const PWDMemberSupportDesk = () => {
   const [replyText, setReplyText] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedReplyFile, setSelectedReplyFile] = useState(null);
-  const [previewDialog, setPreviewDialog] = useState(false);
-  const [previewFile, setPreviewFile] = useState(null);
   
   // Form states for creating new ticket
   const [formData, setFormData] = useState({
@@ -124,18 +121,13 @@ const PWDMemberSupportDesk = () => {
   const handleCloseViewDialog = () => {
     setViewDialog(false);
     setSelectedTicket(null);
+    setReplyText('');
+    setSelectedReplyFile(null);
   };
 
   const handleReplyTicket = (ticket) => {
     setSelectedTicket(ticket);
-    setReplyDialog(true);
-  };
-
-  const handleCloseReplyDialog = () => {
-    setReplyDialog(false);
-    setSelectedTicket(null);
-    setReplyText('');
-    setSelectedReplyFile(null);
+    setViewDialog(true);
   };
 
   const handleFileSelect = (event) => {
@@ -210,19 +202,24 @@ const PWDMemberSupportDesk = () => {
     }
   };
 
-  const handlePreviewFile = (message) => {
-    setPreviewFile({
-      messageId: message.id,
-      fileName: message.attachment_name,
-      fileType: message.attachment_type,
-      fileSize: message.attachment_size
-    });
-    setPreviewDialog(true);
-  };
-
-  const handleClosePreview = () => {
-    setPreviewDialog(false);
-    setPreviewFile(null);
+  const handlePreviewFile = async (message) => {
+    try {
+      console.log('Starting file preview for message:', message.id);
+      setError(null); // Clear any previous errors
+      
+      // Use the same approach as document management - direct API endpoint
+      const url = `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/download`;
+      console.log('Opening URL:', url);
+      
+      // Use window.open directly like document management does
+      window.open(url, '_blank', 'noopener');
+      
+      console.log('File preview initiated');
+      
+    } catch (error) {
+      console.error('Error previewing file:', error);
+      setError(`Failed to preview file: ${error.message}`);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -260,7 +257,6 @@ const PWDMemberSupportDesk = () => {
       setLoading(true);
       await supportService.addMessage(selectedTicket.id, replyText, selectedReplyFile);
       setSuccess('Reply sent successfully!');
-      setReplyDialog(false);
       setReplyText('');
       setSelectedReplyFile(null);
       fetchTickets();
@@ -549,32 +545,8 @@ const PWDMemberSupportDesk = () => {
                               }
                             }}
                           >
-                            Preview
+                            View
                           </Button>
-                          {ticket.status !== 'closed' && (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<Reply />}
-                              onClick={() => handleReplyTicket(ticket)}
-                              sx={{ 
-                                color: '#27AE60',
-                                borderColor: '#27AE60',
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                fontSize: '0.75rem',
-                                py: 0.5,
-                                px: 1,
-                                '&:hover': {
-                                  backgroundColor: '#27AE60',
-                                  color: '#FFFFFF',
-                                  borderColor: '#27AE60'
-                                }
-                              }}
-                            >
-                              Reply
-                            </Button>
-                          )}
                           {ticket.status === 'resolved' && (
                             <Button
                               size="small"
@@ -984,20 +956,6 @@ const PWDMemberSupportDesk = () => {
                   </Typography>
                 </Box>
 
-                <Typography 
-                  variant="subtitle2" 
-                  sx={{ color: '#000000 !important', backgroundColor: '#E8F0FE', p: 1, borderRadius: 1, mb: 1, fontWeight: 500 }}
-                  style={{ color: '#000000' }}
-                >
-                  Description
-                </Typography>
-                <Typography 
-                  variant="body1" 
-                  sx={{ mb: 3, p: 2, backgroundColor: '#F5F5F5', borderRadius: 1, color: '#000000 !important' }}
-                  style={{ color: '#000000' }}
-                >
-                  {selectedTicket.description}
-                </Typography>
 
                 <Typography 
                   variant="subtitle2" 
@@ -1096,140 +1054,77 @@ const PWDMemberSupportDesk = () => {
               </Box>
             )}
           </DialogContent>
-          <DialogActions sx={{ p: 2, backgroundColor: '#FFFFFF' }}>
-            <Button onClick={handleCloseViewDialog} sx={{ color: '#000000' }}>Close</Button>
-            {selectedTicket?.status !== 'closed' && (
-              <Button 
-                onClick={() => handleReplyTicket(selectedTicket)}
-                variant="contained"
-                startIcon={<Reply />}
-              >
-                Reply
-              </Button>
-            )}
-          </DialogActions>
-        </Dialog>
-
-        {/* Reply Dialog */}
-        <Dialog open={replyDialog} onClose={handleCloseReplyDialog} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ backgroundColor: '#FFFFFF', color: '#000000', fontWeight: 600 }}>
-            Reply to Ticket
-          </DialogTitle>
-          <DialogContent sx={{ backgroundColor: '#FFFFFF', color: '#000000' }}>
-            <Box sx={{ pt: 1 }}>
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500 }}>
-                  Your Reply
-                </Typography>
-              </Box>
+          {/* Reply Section */}
+          {selectedTicket?.status !== 'closed' && (
+            <Box sx={{ p: 3, backgroundColor: '#F8F9FA', borderTop: '1px solid #E0E0E0' }}>
+              <Typography variant="h6" sx={{ mb: 2, color: '#2C3E50', fontWeight: 600 }}>
+                Reply to Ticket
+              </Typography>
+              
               <TextField
                 fullWidth
                 multiline
-                rows={6}
+                rows={4}
+                placeholder="Type your reply here..."
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Type your reply here..."
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    color: '#000000',
-                    '& fieldset': {
-                      borderColor: '#E0E0E0',
-                    },
-                    '&:hover fieldset': {
-                      borderColor: '#3498DB',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: '#3498DB',
-                    },
-                  },
-                }}
+                sx={{ mb: 2 }}
               />
               
-              {/* File Upload Section */}
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500, mb: 1 }}>
-                  Attach File (Optional)
-                </Typography>
-                
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Input
-                    type="file"
-                    onChange={handleReplyFileSelect}
-                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
-                    sx={{ display: 'none' }}
-                    id="reply-file-upload"
-                  />
-                  <label htmlFor="reply-file-upload">
-                    <Button
-                      component="span"
-                      variant="outlined"
-                      startIcon={<AttachFile />}
-                      sx={{
-                        color: '#3498DB',
-                        borderColor: '#3498DB',
-                        '&:hover': {
-                          backgroundColor: '#3498DB',
-                          color: '#FFFFFF',
-                          borderColor: '#3498DB'
-                        }
-                      }}
-                    >
-                      Choose File
-                    </Button>
-                  </label>
-                  
-                  {selectedReplyFile && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ color: '#000000' }}
-                      >
-                        {selectedReplyFile.name}
-                      </Typography>
-                      <IconButton
-                        onClick={handleRemoveReplyFile}
-                        size="small"
-                        sx={{ color: '#E74C3C' }}
-                      >
-                        <Delete />
-                      </IconButton>
-                    </Box>
-                  )}
-                </Box>
-                
-                <Typography 
-                  variant="caption" 
-                  sx={{ color: '#666666', mt: 1, display: 'block' }}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Input
+                  type="file"
+                  onChange={handleReplyFileSelect}
+                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
+                  sx={{ display: 'none' }}
+                  id="reply-file-upload"
+                />
+                <label htmlFor="reply-file-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<AttachFile />}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    Attach File (Optional)
+                  </Button>
+                </label>
+                {selectedReplyFile && (
+                  <Typography variant="body2" sx={{ color: '#27AE60' }}>
+                    {selectedReplyFile.name}
+                  </Typography>
+                )}
+              </Box>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button 
+                  onClick={handleCloseViewDialog}
+                  sx={{ color: '#000000' }}
                 >
-                  Supported formats: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF (Max 10MB)
-                </Typography>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSubmitReply}
+                  variant="contained"
+                  disabled={!replyText.trim()}
+                  startIcon={<Send />}
+                  sx={{ 
+                    backgroundColor: '#27AE60',
+                    '&:hover': { backgroundColor: '#219A52' }
+                  }}
+                >
+                  Send Reply
+                </Button>
               </Box>
             </Box>
-          </DialogContent>
+          )}
+          
           <DialogActions sx={{ p: 2, backgroundColor: '#FFFFFF' }}>
-            <Button onClick={handleCloseReplyDialog} sx={{ color: '#000000' }}>Cancel</Button>
-            <Button 
-              onClick={handleSubmitReply}
-              variant="contained"
-              disabled={!replyText.trim()}
-              startIcon={<Send />}
-            >
-              Send Reply
-            </Button>
+            <Button onClick={handleCloseViewDialog} sx={{ color: '#000000' }}>Close</Button>
           </DialogActions>
         </Dialog>
+
         
-        {/* File Preview Dialog */}
-        {previewFile && (
-          <FilePreview
-            open={previewDialog}
-            onClose={handleClosePreview}
-            messageId={previewFile.messageId}
-            fileName={previewFile.fileName}
-            fileType={previewFile.fileType}
-            fileSize={previewFile.fileSize}
-          />
-        )}
       </Box>
     </Box>
   );

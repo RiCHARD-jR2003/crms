@@ -71,11 +71,10 @@
             <p><strong>Your PWD ID:</strong> {{ $pwdId }}</p>
         </div>
         
-        <div class="credentials">
-            <h3>🔐 Your Account Credentials</h3>
+        <div class="credentials" style="background-color:#e8f5e8;border-left:4px solid #28a745;">
+            <h3>🔐 Set Your Password</h3>
             <p><strong>Email:</strong> {{ $email }}</p>
-            <p><strong>Password:</strong> {{ $password }}</p>
-            <p><em>Please keep these credentials safe and change your password after your first login.</em></p>
+            <p>For security, please create your own password using the link below.</p>
         </div>
         
         <h3>🚀 What's Next?</h3>
@@ -87,7 +86,7 @@
         </ul>
         
         <div style="text-align: center;">
-            <a href="{{ $loginUrl }}" class="button">Login to Your Account</a>
+            <a href="{{ $loginUrl }}" class="button">Set Your Password</a>
         </div>
         
         <h3>📞 Need Help?</h3>

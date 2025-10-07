@@ -50,7 +50,6 @@ import {
 } from '@mui/icons-material';
 import AdminSidebar from '../shared/AdminSidebar';
 import { supportService } from '../../services/supportService';
-import FilePreview from '../shared/FilePreview';
 
 const AdminSupportDesk = () => {
 
@@ -62,8 +61,7 @@ const AdminSupportDesk = () => {
   const [success, setSuccess] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
-  const [previewDialog, setPreviewDialog] = useState(false);
-  const [previewFile, setPreviewFile] = useState(null);
+  const [selectedReplyFile, setSelectedReplyFile] = useState(null);
 
 
   useEffect(() => {
@@ -101,6 +99,7 @@ const AdminSupportDesk = () => {
     setSelectedTicket(null);
     setReplyText(''); // Clear reply text when closing dialog
     setSelectedFile(null); // Clear selected file when closing dialog
+    setSelectedReplyFile(null); // Clear reply file when closing dialog
   };
 
   const handleSubmitReply = async () => {
@@ -177,19 +176,24 @@ const AdminSupportDesk = () => {
     }
   };
 
-  const handlePreviewFile = (message) => {
-    setPreviewFile({
-      messageId: message.id,
-      fileName: message.attachment_name,
-      fileType: message.attachment_type,
-      fileSize: message.attachment_size
-    });
-    setPreviewDialog(true);
-  };
-
-  const handleClosePreview = () => {
-    setPreviewDialog(false);
-    setPreviewFile(null);
+  const handlePreviewFile = async (message) => {
+    try {
+      console.log('Starting file preview for message:', message.id);
+      setError(null); // Clear any previous errors
+      
+      // Use the same approach as document management - direct API endpoint
+      const url = `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/download`;
+      console.log('Opening URL:', url);
+      
+      // Use window.open directly like document management does
+      window.open(url, '_blank', 'noopener');
+      
+      console.log('File preview initiated');
+      
+    } catch (error) {
+      console.error('Error previewing file:', error);
+      setError(`Failed to preview file: ${error.message}`);
+    }
   };
 
   const handleUpdateStatus = async (ticketId, status) => {
@@ -630,30 +634,28 @@ const AdminSupportDesk = () => {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 } }}>
-                        <IconButton
+                        <Button
                           size="small"
+                          variant="outlined"
+                          startIcon={<Visibility />}
                           onClick={() => handleViewTicket(ticket)}
                           sx={{ 
                             color: '#3498DB',
-                            '& .MuiSvgIcon-root': {
-                              fontSize: { xs: '16px', sm: '18px' }
+                            borderColor: '#3498DB',
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                            py: 0.5,
+                            px: 1,
+                            '&:hover': {
+                              backgroundColor: '#3498DB',
+                              color: '#FFFFFF',
+                              borderColor: '#3498DB'
                             }
                           }}
                         >
-                          <Visibility />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleReplyTicket(ticket)}
-                          sx={{ 
-                            color: '#27AE60',
-                            '& .MuiSvgIcon-root': {
-                              fontSize: { xs: '16px', sm: '18px' }
-                            }
-                          }}
-                        >
-                          <Reply />
-                        </IconButton>
+                          View
+                        </Button>
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -904,45 +906,6 @@ const AdminSupportDesk = () => {
                   </Box>
                 </Card>
 
-                {/* Description */}
-                <Card sx={{ 
-                  mb: 3,
-                  borderRadius: 2,
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                  bgcolor: '#FFFFFF',
-                  border: '1px solid #E9ECEF'
-                }}>
-                  <Box sx={{ p: 3 }}>
-                    <Typography 
-                      variant="h6" 
-                      sx={{ 
-                        fontWeight: 600, 
-                        color: '#2C3E50',
-                        mb: 2,
-                        fontSize: '1.1rem'
-                      }}
-                    >
-                      Description
-                    </Typography>
-                    <Box sx={{
-                      backgroundColor: '#F8F9FA',
-                      border: '1px solid #E9ECEF',
-                      borderRadius: 2,
-                      p: 3
-                    }}>
-                      <Typography 
-                        variant="body1" 
-                        sx={{ 
-                          color: '#495057',
-                          lineHeight: 1.6,
-                          whiteSpace: 'pre-wrap'
-                        }}
-                      >
-                        {selectedTicket.description}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Card>
 
                  {/* Messages */}
                  {selectedTicket.messages && selectedTicket.messages.length > 0 && (
@@ -1297,17 +1260,6 @@ const AdminSupportDesk = () => {
           </DialogActions>
         </Dialog>
         
-        {/* File Preview Dialog */}
-        {previewFile && (
-          <FilePreview
-            open={previewDialog}
-            onClose={handleClosePreview}
-            messageId={previewFile.messageId}
-            fileName={previewFile.fileName}
-            fileType={previewFile.fileType}
-            fileSize={previewFile.fileSize}
-          />
-        )}
       </Box>
     </Box>
   );

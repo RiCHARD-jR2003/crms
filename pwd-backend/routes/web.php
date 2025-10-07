@@ -24,3 +24,8 @@ Route::get('/test-web', function () {
 Route::get('/api/test-web', function () {
     return response()->json(['message' => 'API test via web routes']);
 });
+
+// Add a login route for web authentication redirects
+Route::get('/login', function () {
+    return response()->json(['message' => 'Please login to access this resource'], 401);
+})->name('login');

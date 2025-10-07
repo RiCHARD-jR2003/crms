@@ -982,12 +982,12 @@ function PWDCard() {
               <Card elevation={0} sx={{ height: '50%', backgroundColor: 'transparent', mb: 2 }}>
                 <CardContent sx={{ p: 0, height: '100%' }}>
                   <Box sx={{
-                    background: '#FFFFFF',
+                    background: 'linear-gradient(135deg, #2C3E50 0%, #34495E 100%)',
                     display: 'flex',
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    color: '#000000',
+                    color: '#FFFFFF',
                     position: 'relative',
                     borderRadius: 2,
                     border: '2px solid #E0E0E0',

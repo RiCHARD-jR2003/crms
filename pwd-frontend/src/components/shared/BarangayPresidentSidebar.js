@@ -38,13 +38,13 @@ function BarangayPresidentSidebar() {
           py: 1.5, 
           borderRadius: 2, 
           mb: 1,
-          bgcolor: active ? '#193a52' : 'transparent',
+          bgcolor: active ? '#0b87ac' : 'transparent',
           color: active ? '#FFFFFF' : '#566573',
           fontWeight: active ? 600 : 500,
           '&:hover': {
-            background: active ? '#153a5a' : '#E8F0FE',
+            background: active ? '#0a6b8a' : '#E8F0FE',
             cursor: 'pointer',
-            color: active ? '#FFFFFF' : '#193a52'
+            color: active ? '#FFFFFF' : '#0b87ac'
           },
           transition: 'all 0.2s ease-in-out'
         }}
@@ -89,7 +89,7 @@ function BarangayPresidentSidebar() {
             }}
           />
         </Box>
-        <Typography sx={{ fontWeight: 700, fontSize: '1.2rem', color: '#193a52' }}>CABUYAO PDAO RMS</Typography>
+        <Typography sx={{ fontWeight: 700, fontSize: '1.2rem', color: '#0b87ac' }}>CABUYAO PDAO RMS</Typography>
       </Box>
 
       {/* User Info */}
@@ -160,9 +160,9 @@ function BarangayPresidentSidebar() {
             py: 1.2,
             borderRadius: 2,
             '&:hover': {
-              borderColor: '#193a52',
+              borderColor: '#0b87ac',
               background: '#F4F7FC',
-              color: '#193a52'
+              color: '#0b87ac'
             }
           }}
         >

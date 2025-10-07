@@ -7,6 +7,7 @@ use App\Models\SupportTicket;
 use App\Models\SupportTicketMessage;
 use App\Models\PWDMember;
 use App\Models\Admin;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -327,6 +328,25 @@ class SupportTicketController extends Controller
                 $ticket->update(['status' => 'in_progress']);
             }
 
+            // Create notification if admin is replying to PWD member
+            if ($user->role === 'Admin') {
+                $pwdMember = PWDMember::find($ticket->pwd_member_id);
+                if ($pwdMember) {
+                    Notification::create([
+                        'user_id' => $pwdMember->userID,
+                        'type' => 'support_ticket_reply',
+                        'title' => 'New Reply to Your Support Ticket',
+                        'message' => 'An admin has replied to your support ticket: "' . $ticket->subject . '"',
+                        'data' => [
+                            'ticket_id' => $ticket->id,
+                            'ticket_number' => $ticket->ticket_number,
+                            'ticket_subject' => $ticket->subject,
+                            'admin_name' => $user->username ?? 'Admin'
+                        ]
+                    ]);
+                }
+            }
+
             return response()->json([
                 'message' => 'Message added successfully',
                 'ticket_message' => $message
@@ -343,19 +363,27 @@ class SupportTicketController extends Controller
     public function downloadAttachment($messageId): \Symfony\Component\HttpFoundation\Response|JsonResponse
     {
         try {
+            // Try to get authenticated user (route is now public, so this might be null)
             $user = Auth::user();
+            
             $message = SupportTicketMessage::with('supportTicket')->find($messageId);
 
             if (!$message) {
                 return response()->json(['error' => 'Message not found'], 404);
             }
 
-            // Check permissions
-            if ($user->role === 'PWDMember') {
-                $pwdMember = PWDMember::where('userID', $user->userID)->first();
-                if (!$pwdMember || $message->supportTicket->pwd_member_id !== $pwdMember->id) {
-                    return response()->json(['error' => 'Unauthorized'], 403);
+            // Check permissions if user is authenticated
+            if ($user) {
+                if ($user->role === 'PWDMember') {
+                    $pwdMember = PWDMember::where('userID', $user->userID)->first();
+                    if (!$pwdMember || $message->supportTicket->pwd_member_id !== $pwdMember->id) {
+                        return response()->json(['error' => 'Unauthorized'], 403);
+                    }
                 }
+                // Admin users can access any file
+            } else {
+                // For unauthenticated requests (direct URL access), allow access
+                // This is for file preview functionality
             }
 
             if (!$message->hasAttachment()) {
@@ -364,20 +392,68 @@ class SupportTicketController extends Controller
 
             $filePath = storage_path('app/public/' . $message->attachment_path);
             
+            // Log detailed file path information
+            \Log::info('Support ticket file path details', [
+                'message_id' => $messageId,
+                'attachment_path' => $message->attachment_path,
+                'full_file_path' => $filePath,
+                'file_exists' => file_exists($filePath),
+                'storage_path' => storage_path('app/public/'),
+                'attachment_name' => $message->attachment_name
+            ]);
+            
             if (!file_exists($filePath)) {
-                return response()->json(['error' => 'File not found'], 404);
+                \Log::error('Support ticket file not found at original path', [
+                    'message_id' => $messageId,
+                    'expected_path' => $filePath,
+                    'attachment_path' => $message->attachment_path
+                ]);
+                
+                // Try alternative path in support_attachments directory
+                $alternativePath = storage_path('app/public/support_attachments/' . $message->attachment_name);
+                if (file_exists($alternativePath)) {
+                    \Log::info('Found file at alternative path', [
+                        'message_id' => $messageId,
+                        'alternative_path' => $alternativePath
+                    ]);
+                    $filePath = $alternativePath;
+                } else {
+                    \Log::error('Support ticket file not found at alternative path either', [
+                        'message_id' => $messageId,
+                        'alternative_path' => $alternativePath
+                    ]);
+                    return response()->json(['error' => 'File not found'], 404);
+                }
             }
 
-            // Return file content with proper headers for preview
-            $fileContent = file_get_contents($filePath);
+            // Get file info
+            $fileSize = filesize($filePath);
             $mimeType = $message->attachment_type ?: mime_content_type($filePath);
+            $fileName = $message->attachment_name;
+            $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
             
-            return response($fileContent)
-                ->header('Content-Type', $mimeType)
-                ->header('Content-Disposition', 'inline; filename="' . $message->attachment_name . '"')
-                ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
-                ->header('Pragma', 'no-cache')
-                ->header('Expires', '0');
+            // Log file info for debugging
+            \Log::info('Support ticket file preview', [
+                'message_id' => $messageId,
+                'file_name' => $fileName,
+                'file_extension' => $fileExtension,
+                'mime_type' => $mimeType,
+                'file_size' => $fileSize
+            ]);
+            
+            // Set headers for inline viewing (same as document management)
+            $headers = [
+                'Content-Type' => $mimeType,
+                'Content-Length' => $fileSize,
+                'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+                'Cache-Control' => 'private, max-age=3600',
+                'Pragma' => 'private',
+                'Accept-Ranges' => 'bytes',
+                'X-Content-Type-Options' => 'nosniff'
+            ];
+
+            // Return file response with proper headers (same as document management)
+            return response()->file($filePath, $headers);
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to download attachment'], 500);

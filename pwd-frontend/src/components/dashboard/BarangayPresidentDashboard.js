@@ -100,11 +100,16 @@ function BarangayPresidentDashboard() {
         const announcementsResponse = await api.get('/announcements');
         const allAnnouncements = announcementsResponse.data || [];
         
+        console.log('All announcements:', allAnnouncements);
+        console.log('Target barangay:', targetBarangay);
+        
         // Filter announcements for this barangay:
         // 1. Public announcements (targetAudience = 'All')
         // 2. Barangay-specific announcements (targetAudience matches user's barangay)
         const filteredAnnouncements = allAnnouncements.filter(announcement => {
           const targetAudience = announcement.targetAudience;
+          
+          console.log('Announcement:', announcement.title, 'Target:', targetAudience);
           
           // Show public announcements
           if (targetAudience === 'All') return true;
@@ -114,6 +119,8 @@ function BarangayPresidentDashboard() {
           
           return false;
         });
+        
+        console.log('Filtered announcements:', filteredAnnouncements);
         
         setStats({
           totalPWDMembers: barangayMembers.length,
@@ -191,54 +198,166 @@ function BarangayPresidentDashboard() {
         )}
 
         {/* Statistics Cards */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                <People sx={{ fontSize: 40, color: '#3498DB', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+        <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
+          <Grid item xs={6} sm={4} md={3}>
+            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: { xs: 1.5, sm: 2, md: 3 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <People sx={{ 
+                  fontSize: { xs: 28, sm: 36, md: 44 }, 
+                  color: '#3498DB', 
+                  mb: { xs: 0.75, sm: 1 } 
+                }} />
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: '#000000', 
+                    mb: { xs: 0.75, sm: 1 },
+                    fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.8rem' }
+                  }}
+                >
                   {stats.totalPWDMembers}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#000000', 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
+                    lineHeight: 1.2
+                  }}
+                >
                   Total PWD Members
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                <Schedule sx={{ fontSize: 40, color: '#F39C12', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+          <Grid item xs={6} sm={4} md={3}>
+            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: { xs: 1.5, sm: 2, md: 3 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Schedule sx={{ 
+                  fontSize: { xs: 28, sm: 36, md: 44 }, 
+                  color: '#F39C12', 
+                  mb: { xs: 0.75, sm: 1 } 
+                }} />
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: '#000000', 
+                    mb: { xs: 0.75, sm: 1 },
+                    fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.8rem' }
+                  }}
+                >
                   {stats.pendingApplications}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#000000', 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
+                    lineHeight: 1.2
+                  }}
+                >
                   Pending Applications
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                <CheckCircle sx={{ fontSize: 40, color: '#27AE60', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+          <Grid item xs={6} sm={4} md={3}>
+            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: { xs: 1.5, sm: 2, md: 3 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <CheckCircle sx={{ 
+                  fontSize: { xs: 28, sm: 36, md: 44 }, 
+                  color: '#27AE60', 
+                  mb: { xs: 0.75, sm: 1 } 
+                }} />
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: '#000000', 
+                    mb: { xs: 0.75, sm: 1 },
+                    fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.8rem' }
+                  }}
+                >
                   {stats.approvedApplications}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#000000', 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
+                    lineHeight: 1.2
+                  }}
+                >
                   Approved Applications
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                <TrendingUp sx={{ fontSize: 40, color: '#9B59B6', mb: 1 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+          <Grid item xs={6} sm={4} md={3}>
+            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: { xs: 1.5, sm: 2, md: 3 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <TrendingUp sx={{ 
+                  fontSize: { xs: 28, sm: 36, md: 44 }, 
+                  color: '#E74C3C', 
+                  mb: { xs: 0.75, sm: 1 } 
+                }} />
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: '#000000', 
+                    mb: { xs: 0.75, sm: 1 },
+                    fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.8rem' }
+                  }}
+                >
                   {stats.activeMembers}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#000000', 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem', md: '1rem' },
+                    lineHeight: 1.2
+                  }}
+                >
                   Active Members
                 </Typography>
               </CardContent>
@@ -246,33 +365,34 @@ function BarangayPresidentDashboard() {
           </Grid>
         </Grid>
 
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
           {/* Recent Applications */}
           <Grid item xs={12} md={8}>
-            <Paper elevation={0} sx={{
-              p: 3,
-              border: '1px solid #E0E0E0',
-              borderRadius: 4,
-              bgcolor: '#FFFFFF',
-              height: '100%'
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                  Recent Applications
-                </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  sx={{ 
-                    borderColor: '#3498DB', 
-                    color: '#3498DB',
-                    textTransform: 'none',
-                    '&:hover': { borderColor: '#2980B9', backgroundColor: '#3498DB15' }
-                  }}
-                >
-                  View All
-                </Button>
-              </Box>
+            <Card sx={{ ...cardStyles, height: '100%' }}>
+              <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Assignment sx={{ color: '#3498DB', fontSize: 28 }} />
+                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.3rem' }}>
+                      Recent Applications
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    size="medium"
+                    sx={{ 
+                      borderColor: '#3498DB', 
+                      color: '#3498DB',
+                      textTransform: 'none',
+                      fontSize: '0.9rem',
+                      py: 0.75,
+                      px: 2.5,
+                      '&:hover': { borderColor: '#2980B9', backgroundColor: '#3498DB15' }
+                    }}
+                  >
+                    View All
+                  </Button>
+                </Box>
               
               <TableContainer>
                 <Table>
@@ -286,17 +406,17 @@ function BarangayPresidentDashboard() {
                   </TableHead>
                   <TableBody>
                     {recentApplications.map((application) => (
-                      <TableRow key={application.id} hover>
+                      <TableRow key={application.id} hover sx={{ '& .MuiTableCell-root': { py: 1.5 } }}>
                         <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar sx={{ width: 32, height: 32, bgcolor: '#3498DB', fontSize: '0.9rem' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Avatar sx={{ width: 40, height: 40, bgcolor: '#3498DB', fontSize: '1rem' }}>
                               {application.firstName?.charAt(0) || 'A'}
                             </Avatar>
                             <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50', fontSize: '1rem' }}>
                                 {application.firstName} {application.lastName}
                               </Typography>
-                              <Typography variant="caption" sx={{ color: '#000000' }}>
+                              <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.9rem' }}>
                                 {application.email}
                               </Typography>
                             </Box>
@@ -310,11 +430,12 @@ function BarangayPresidentDashboard() {
                               backgroundColor: `${getStatusColor(application.status)}15`,
                               color: getStatusColor(application.status),
                               fontWeight: 600,
-                              fontSize: '0.7rem'
+                              fontSize: '0.8rem',
+                              height: 28
                             }}
                           />
                         </TableCell>
-                        <TableCell sx={{ color: '#000000', fontSize: '0.9rem' }}>
+                        <TableCell sx={{ color: '#000000', fontSize: '1rem' }}>
                           {new Date(application.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
@@ -325,7 +446,9 @@ function BarangayPresidentDashboard() {
                               borderColor: '#3498DB', 
                               color: '#3498DB',
                               textTransform: 'none',
-                              fontSize: '0.8rem',
+                              fontSize: '0.9rem',
+                              py: 0.75,
+                              px: 1.5,
                               '&:hover': { borderColor: '#2980B9', backgroundColor: '#3498DB15' }
                             }}
                           >
@@ -337,50 +460,68 @@ function BarangayPresidentDashboard() {
                   </TableBody>
                 </Table>
               </TableContainer>
-            </Paper>
+              </CardContent>
+            </Card>
           </Grid>
 
           {/* Recent Announcements */}
           <Grid item xs={12} md={4}>
-            <Paper elevation={0} sx={{
-              p: 3,
-              border: '1px solid #E0E0E0',
-              borderRadius: 4,
-              bgcolor: '#FFFFFF',
-              height: '100%'
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <Campaign sx={{ color: '#3498DB', fontSize: 24 }} />
-                <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                  Recent Announcements
-                </Typography>
-              </Box>
-              
-              <List>
-                {recentAnnouncements.map((announcement, index) => (
-                  <React.Fragment key={announcement.id}>
-                    <ListItem sx={{ px: 0 }}>
-                      <ListItemIcon sx={{ minWidth: 36 }}>
-                        <Notifications sx={{ color: '#3498DB', fontSize: 20 }} />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={
-                          <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50' }}>
-                            {announcement.title}
-                          </Typography>
-                        }
-                        secondary={
-                          <Typography variant="caption" sx={{ color: '#000000' }}>
-                            {new Date(announcement.created_at).toLocaleDateString()}
-                          </Typography>
-                        }
-                      />
-                    </ListItem>
-                    {index < recentAnnouncements.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </List>
-            </Paper>
+            <Card sx={{ ...cardStyles, height: '100%' }}>
+              <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+                  <Campaign sx={{ color: '#3498DB', fontSize: 28 }} />
+                  <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.3rem' }}>
+                    Recent Announcements
+                  </Typography>
+                </Box>
+                
+                {recentAnnouncements.length > 0 ? (
+                  <List sx={{ flex: 1 }}>
+                    {recentAnnouncements.map((announcement, index) => (
+                      <React.Fragment key={announcement.id}>
+                        <ListItem sx={{ px: 0, py: 1.5 }}>
+                          <ListItemIcon sx={{ minWidth: 40 }}>
+                            <Notifications sx={{ color: '#3498DB', fontSize: 24 }} />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50', fontSize: '1rem' }}>
+                                {announcement.title}
+                              </Typography>
+                            }
+                            secondary={
+                              <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.9rem' }}>
+                                {new Date(announcement.created_at).toLocaleDateString()}
+                              </Typography>
+                            }
+                          />
+                        </ListItem>
+                        {index < recentAnnouncements.length - 1 && <Divider />}
+                      </React.Fragment>
+                    ))}
+                  </List>
+                ) : (
+                  <Box sx={{ 
+                    flex: 1, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    py: 4
+                  }}>
+                    <Box>
+                      <Campaign sx={{ fontSize: 48, color: '#BDC3C7', mb: 2 }} />
+                      <Typography variant="body2" sx={{ color: '#7F8C8D', fontSize: '1rem' }}>
+                        No announcements available
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#95A5A6', fontSize: '0.9rem' }}>
+                        Check back later for updates
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
           </Grid>
         </Grid>
       </Box>

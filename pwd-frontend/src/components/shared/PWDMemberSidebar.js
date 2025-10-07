@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -11,7 +11,8 @@ import {
   IconButton,
   Drawer,
   useMediaQuery,
-  useTheme
+  useTheme,
+  Badge
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
@@ -22,6 +23,7 @@ import Menu from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { api } from '../../services/api';
 
 function PWDMemberSidebar({ isOpen, onToggle }) {
   const navigate = useNavigate();
@@ -30,12 +32,13 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'My Documents', icon: <DescriptionIcon />, path: '/pwd-documents' },
-    { text: 'Support Desk', icon: <SupportAgentIcon />, path: '/pwd-support' },
-    { text: 'Profile', icon: <PersonIcon />, path: '/pwd-profile' },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', badgeCount: 0 },
+    { text: 'My Documents', icon: <DescriptionIcon />, path: '/pwd-documents', badgeCount: 0 },
+    { text: 'Support Desk', icon: <SupportAgentIcon />, path: '/pwd-support', badgeCount: unreadNotifications },
+    { text: 'Profile', icon: <PersonIcon />, path: '/pwd-profile', badgeCount: 0 },
   ];
 
   const handleLogout = () => {
@@ -46,6 +49,26 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
+
+  // Fetch unread notifications count
+  useEffect(() => {
+    const fetchUnreadNotifications = async () => {
+      try {
+        const response = await api.get('/notifications/unread');
+        if (response.success) {
+          setUnreadNotifications(response.unread_count);
+        }
+      } catch (error) {
+        console.error('Error fetching unread notifications:', error);
+        setUnreadNotifications(0);
+      }
+    };
+
+    fetchUnreadNotifications();
+    // Refresh notifications every 30 seconds
+    const interval = setInterval(fetchUnreadNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const sidebarContent = (
     <Box sx={{
@@ -161,7 +184,13 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
                 transition: 'all 0.2s ease-in-out'
               }}
             >
-              {React.cloneElement(item.icon, { sx: { fontSize: 22, color: isActive ? '#FFFFFF' : '#566573' } })}
+              {item.badgeCount > 0 ? (
+                <Badge badgeContent={item.badgeCount} color="error">
+                  {React.cloneElement(item.icon, { sx: { fontSize: 22, color: isActive ? '#FFFFFF' : '#566573' } })}
+                </Badge>
+              ) : (
+                React.cloneElement(item.icon, { sx: { fontSize: 22, color: isActive ? '#FFFFFF' : '#566573' } })
+              )}
               <Typography sx={{ fontWeight: 'inherit', fontSize: '0.95rem', color: isActive ? '#FFFFFF' : '#566573' }}>
                 {item.text}
               </Typography>

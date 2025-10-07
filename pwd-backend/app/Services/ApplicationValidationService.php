@@ -21,20 +21,22 @@ class ApplicationValidationService
             $duplicates['email'] = $emailDuplicate;
         }
         
-        // Check phone number duplicates
-        if (isset($data['phoneNumber'])) {
-            $phoneDuplicate = $this->checkPhoneDuplicate($data['phoneNumber'], $excludeApplicationId);
+        // Check phone number duplicates (accept either key from request)
+        $incomingPhone = $data['phoneNumber'] ?? ($data['contactNumber'] ?? null);
+        if (!empty($incomingPhone)) {
+            $phoneDuplicate = $this->checkPhoneDuplicate($incomingPhone, $excludeApplicationId);
             if ($phoneDuplicate) {
                 $duplicates['phoneNumber'] = $phoneDuplicate;
             }
         }
         
-        // Check name + birth date combination
-        if (isset($data['firstName']) && isset($data['lastName']) && isset($data['dateOfBirth'])) {
+        // Check name + birth date combination (accept either key from request)
+        $incomingDob = $data['dateOfBirth'] ?? ($data['birthDate'] ?? null);
+        if (isset($data['firstName']) && isset($data['lastName']) && !empty($incomingDob)) {
             $nameBirthDuplicate = $this->checkNameBirthDuplicate(
                 $data['firstName'], 
                 $data['lastName'], 
-                $data['dateOfBirth'], 
+                $incomingDob, 
                 $excludeApplicationId
             );
             if ($nameBirthDuplicate) {
@@ -105,7 +107,8 @@ class ApplicationValidationService
      */
     private function checkPhoneDuplicate($phoneNumber, $excludeApplicationId = null)
     {
-        $query = Application::where('phoneNumber', $phoneNumber);
+        // Database column is contactNumber
+        $query = Application::where('contactNumber', $phoneNumber);
         
         if ($excludeApplicationId) {
             $query->where('applicationID', '!=', $excludeApplicationId);
@@ -136,9 +139,10 @@ class ApplicationValidationService
      */
     private function checkNameBirthDuplicate($firstName, $lastName, $dateOfBirth, $excludeApplicationId = null)
     {
+        // Database column is birthDate
         $query = Application::where('firstName', $firstName)
             ->where('lastName', $lastName)
-            ->where('dateOfBirth', $dateOfBirth);
+            ->where('birthDate', $dateOfBirth);
         
         if ($excludeApplicationId) {
             $query->where('applicationID', '!=', $excludeApplicationId);

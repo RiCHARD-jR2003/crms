@@ -435,7 +435,9 @@ function ApplicationForm() {
         firstName: formData.firstName,
         lastName: formData.lastName,
         middleName: formData.middleName,
-        birthDate: formData.dateOfBirth,
+        // Send both keys to satisfy different backend validators
+        birthDate: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString().slice(0,10) : '',
+        dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString().slice(0,10) : '',
         gender: formData.gender,
         civilStatus: formData.civilStatus,
         nationality: formData.nationality,
@@ -448,7 +450,9 @@ function ApplicationForm() {
         province: formData.province,
         postalCode: formData.postalCode,
         email: formData.email,
-        contactNumber: formData.phoneNumber,
+        // Ensure contact number is a trimmed string; send both keys used by backend
+        contactNumber: (formData.phoneNumber ?? '').toString().trim(),
+        phoneNumber: (formData.phoneNumber ?? '').toString().trim(),
         emergencyContact: formData.emergencyContact,
         emergencyPhone: formData.emergencyPhone,
         emergencyRelationship: formData.emergencyRelationship,
@@ -483,6 +487,32 @@ function ApplicationForm() {
           // Extract document ID from key (doc_123 -> 123)
           const docId = key.replace('doc_', '');
           formDataToSend.append(`document_${docId}`, file);
+        }
+      });
+
+      // Also map known document names to backend's expected fixed keys
+      // so the API can process them even if it doesn't use dynamic document_{id} keys
+      requiredDocuments.forEach((doc) => {
+        const file = formData.documents[`doc_${doc.id}`];
+        if (!file) return;
+        const name = (doc.name || '').toString().toLowerCase();
+        if (name.includes('medical')) {
+          formDataToSend.append('medicalCertificate', file);
+        } else if (name.includes('clinical') || name.includes('abstract') || name.includes('assessment')) {
+          formDataToSend.append('clinicalAbstract', file);
+        } else if (name.includes('voter')) {
+          formDataToSend.append('voterCertificate', file);
+        } else if ((name.includes('id') && name.includes('picture')) || name.includes('1"x1"') || name.includes('1\"x1\"')) {
+          // Backend accepts idPicture_0 / idPicture_1; map at least one
+          if (!formDataToSend.has('idPicture_0')) formDataToSend.append('idPicture_0', file);
+        } else if (name.includes('birth')) {
+          formDataToSend.append('birthCertificate', file);
+        } else if (name.includes('whole') && name.includes('body')) {
+          formDataToSend.append('wholeBodyPicture', file);
+        } else if (name.includes('affidavit')) {
+          formDataToSend.append('affidavit', file);
+        } else if (name.includes('barangay') && (name.includes('certificate') || name.includes('residency'))) {
+          formDataToSend.append('barangayCertificate', file);
         }
       });
 
@@ -532,7 +562,23 @@ function ApplicationForm() {
       const data = error.data || {};
       console.log('Error data:', data);
       
-      if (data.messages) {
+      if (data.duplicates) {
+        const d = data.duplicates;
+        const lines = [];
+        if (d.email) {
+          lines.push(`Email already used by ${d.email.existing_application?.name || d.email.existing_user?.email || ''}`);
+        }
+        if (d.phoneNumber) {
+          lines.push(`Phone number already used by ${d.phoneNumber.existing_application?.name || ''}`);
+        }
+        if (d.name_birth) {
+          lines.push(`Same name and date of birth as ${d.name_birth.existing_application?.name || ''}`);
+        }
+        if (d.idNumber) {
+          lines.push(`ID number already used by ${d.idNumber.existing_application?.name || ''}`);
+        }
+        alert(`Duplicate application detected:\n${lines.join('\n') || 'See network response for details.'}`);
+      } else if (data.messages) {
         const errorMessages = Object.values(data.messages).flat().join('\n');
         alert(`Validation errors:\n${errorMessages}`);
       } else if (data.errors) {

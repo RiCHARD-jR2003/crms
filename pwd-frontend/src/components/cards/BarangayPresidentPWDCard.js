@@ -190,15 +190,21 @@ function BarangayPresidentPWDCard() {
           zIndex: 10
         }}>
           <Button
-            variant="contained"
+            variant="outlined"
             sx={{
-              bgcolor: '#193a52',
+              bgcolor: '#FFFFFF',
+              color: '#193a52',
+              borderColor: '#193a52',
               textTransform: 'none',
               fontWeight: 600,
               px: 4, py: 1,
               borderRadius: 2,
               boxShadow: 'none',
-              '&:hover': { bgcolor: '#153a5a' }
+              '&:hover': { 
+                bgcolor: '#F8F9FA',
+                borderColor: '#193a52',
+                color: '#193a52'
+              }
             }}
           >
             Masterlist - {barangay}
@@ -317,215 +323,219 @@ function BarangayPresidentPWDCard() {
                   flex: 2, // Use flex instead of fixed height
                   minHeight: '400px' // Minimum height for content
                 }}>
-                   <Box sx={{
-                    border: '1px solid #E0E0E0', borderRadius: 2, p: 2, bgcolor: '#FFFFFF',
-                    height: '100%', // Take full height of parent
+                  <Box sx={{
+                    background: '#FFFFFF',
                     display: 'flex',
-                    flexDirection: 'column',
-                    position: 'relative'
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    color: '#000000',
+                    position: 'relative',
+                    borderRadius: 2,
+                    border: '2px solid #E0E0E0',
+                    p: 2,
+                    height: '100%',
+                    width: '100%',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
                   }}>
-                      {/* Top Section with Headers and Logos */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                        {/* Left side - Headers */}
-                        <Box sx={{ flex: 1 }}>
-                          <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#000000', textAlign:'center', mb: 0.3 }}>REPUBLIC OF THE PHILIPPINES</Typography>
-                          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#000000', textAlign:'center', mb: 0.3 }}>PROVINCE OF LAGUNA</Typography>
-                          <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, color: '#000000', textAlign:'center', mb: 0.3 }}>CITY OF CABUYAO</Typography>
-                          <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#000000', textAlign:'center' }}>(P.D.A.O)</Typography>
-                        </Box>
-                        
-                        {/* Right side - Logos */}
-                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'flex-start' }}>
-                          {/* City Seal */}
-                          <Box sx={{
-                            width: 30, height: 30, borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #27AE60 0%, #2ECC71 100%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '1px solid #FFFFFF',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                            position: 'relative'
-                          }}>
-                            <Box sx={{
-                              position: 'absolute',
-                              top: '50%',
-                              left: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              width: '70%',
-                              height: '70%',
-                              background: 'radial-gradient(circle, #FFFFFF 0%, #FFFFFF 25%, transparent 25%)',
-                              borderRadius: '50%'
-                            }} />
-                            <Typography sx={{ fontSize: '0.35rem', color: '#FFFFFF', fontWeight: 700, textAlign: 'center', lineHeight: 0.7, zIndex: 1 }}>
-                              LUNGSOD<br/>NG<br/>CABUYAO<br/>LAGUNA<br/>2012
-                            </Typography>
-                          </Box>
-                          
-                          {/* PDAO Logo */}
-                          <Box sx={{
-                            width: 30, height: 30, borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #E74C3C 0%, #C0392B 100%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '1px solid #FFFFFF',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                          }}>
-                            <Box sx={{ textAlign: 'center' }}>
-                              <Box sx={{
-                                width: 12, height: 12,
-                                background: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\'%3E%3Cpath fill=\'%23FFFFFF\' d=\'M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.9 1 3 1.9 3 3V21C3 22.1 3.9 23 5 23H19C20.1 23 21 22.1 21 21V9ZM19 9H14V4H5V21H19V9Z\'/%3E%3C/svg%3E")',
-                                backgroundSize: 'contain',
-                                backgroundRepeat: 'no-repeat',
-                                margin: '0 auto 1px'
-                              }} />
-                              <Typography sx={{ fontSize: '0.45rem', color: '#FFFFFF', fontWeight: 700 }}>PDAO</Typography>
-                            </Box>
-                          </Box>
-                        </Box>
-                      </Box>
-                      
-                      {/* Main Content Area */}
-                      <Box sx={{ display: 'flex', gap: 1.5, flex: 1 }}>
-                        {/* Left side - Information Fields */}
-                        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          {/* Name Field */}
-                          <Box>
-                            <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#000000', mb: 0.2 }}>NAME</Typography>
-                            <Box sx={{ 
-                              borderBottom: '1px solid #000000', 
-                              height: 18, 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              px: 0.5,
-                              bgcolor: '#F8F9FA'
-                            }}>
-                              <Typography sx={{ fontSize: '0.65rem', color: '#000000', fontWeight: 500 }}>
-                                {selectedPWD.firstName} {selectedPWD.lastName}
-                              </Typography>
-                            </Box>
-                          </Box>
-                          
-                          {/* Disability Type Field */}
-                          <Box>
-                            <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#000000', mb: 0.2 }}>TYPE OF DISABILITY</Typography>
-                            <Box sx={{ 
-                              borderBottom: '1px solid #000000', 
-                              height: 18, 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              px: 0.5,
-                              bgcolor: '#F8F9FA'
-                            }}>
-                              <Typography sx={{ fontSize: '0.65rem', color: '#000000', fontWeight: 500 }}>
-                                {selectedPWD.disabilityType || 'Not specified'}
-                              </Typography>
-                            </Box>
-                          </Box>
-                          
-                          {/* Signature Field */}
-                          <Box>
-                            <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#000000', mb: 0.2 }}>SIGNATURE</Typography>
-                            <Box sx={{ 
-                              borderBottom: '1px solid #000000', 
-                              height: 18, 
-                              bgcolor: '#F8F9FA'
-                            }} />
-                          </Box>
-                          
-                          {/* Philippine Flag */}
-                          <Box sx={{ mt: 0.3 }}>
-                            <Box sx={{
-                              width: 20, height: 12,
-                              background: 'linear-gradient(to bottom, #0038A8 0%, #0038A8 33%, #FFFFFF 33%, #FFFFFF 66%, #CE1126 66%, #CE1126 100%)',
-                              border: '0.5px solid #000000',
-                              position: 'relative'
-                            }}>
-                              <Box sx={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                background: 'linear-gradient(45deg, transparent 40%, #FCD116 40%, #FCD116 60%, transparent 60%)',
-                                backgroundSize: '4px 4px'
-                              }} />
-                            </Box>
-                          </Box>
-                        </Box>
-                        
-                        {/* Right side - ID Number and Photo */}
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                          {/* ID Number */}
-                          <Box>
-                            <Typography sx={{ fontSize: '0.5rem', fontWeight: 700, color: '#000000', mb: 0.2 }}>ID No.</Typography>
-                            <Box sx={{ 
-                              borderBottom: '1px solid #000000', 
-                              height: 16, 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              px: 0.5,
-                              bgcolor: '#F8F9FA'
-                            }}>
-                              <Typography sx={{ fontSize: '0.6rem', color: '#000000', fontWeight: 600 }}>
-                                {selectedPWD.pwd_id || `PWD-${selectedPWD.userID}` || 'Not assigned'}
-                              </Typography>
-                            </Box>
-                          </Box>
-                          
-                          {/* Photo Placeholder */}
-                          <Box sx={{
-                            width: 60, height: 70,
-                            border: '1px solid #000000',
-                            bgcolor: '#E0E0E0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            position: 'relative'
-                          }}>
-                            {/* X pattern for photo placeholder */}
-                            <Box sx={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              width: '100%',
-                              height: '100%',
-                              '&::before': {
-                                content: '""',
-                                position: 'absolute',
-                                top: '50%',
-                                left: '50%',
-                                width: '1px',
-                                height: '70%',
-                                background: '#999999',
-                                transform: 'translate(-50%, -50%) rotate(45deg)'
-                              },
-                              '&::after': {
-                                content: '""',
-                                position: 'absolute',
-                                top: '50%',
-                                left: '50%',
-                                width: '1px',
-                                height: '70%',
-                                background: '#999999',
-                                transform: 'translate(-50%, -50%) rotate(-45deg)'
-                              }
-                            }} />
-                            <Typography sx={{ fontSize: '0.4rem', color: '#999999', fontWeight: 500, textAlign: 'center' }}>
-                              PHOTO
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </Box>
-                      
-                      {/* Bottom Section - Validity */}
-                      <Box sx={{ mt: 1, textAlign: 'center' }}>
-                        <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: '#000000' }}>
-                          VALID ANYWHERE IN THE PHILIPPINES
+                    {/* Left Side - Header and Member Details */}
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      flex: 1,
+                      pr: 2
+                    }}>
+                      {/* Card Header */}
+                      <Box sx={{ textAlign: 'center', mb: 1.5 }}>
+                        <Typography variant="body2" sx={{ 
+                          fontWeight: 'bold', 
+                          mb: 0.3, 
+                          fontSize: '10px', 
+                          color: '#000000',
+                          letterSpacing: '0.3px'
+                        }}>
+                          REPUBLIC OF THE PHILIPPINES
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          fontWeight: 'bold', 
+                          mb: 0.3, 
+                          fontSize: '10px', 
+                          color: '#000000',
+                          letterSpacing: '0.3px'
+                        }}>
+                          PROVINCE OF LAGUNA
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          fontWeight: 'bold', 
+                          mb: 0.3, 
+                          fontSize: '10px', 
+                          color: '#000000',
+                          letterSpacing: '0.3px'
+                        }}>
+                          CITY OF CABUYAO
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          fontWeight: 'bold', 
+                          fontSize: '10px', 
+                          color: '#000000',
+                          letterSpacing: '0.3px'
+                        }}>
+                          (P.D.A.O)
                         </Typography>
                       </Box>
-                   </Box>
+
+                      {/* Logo Section */}
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mb: 1.5
+                      }}>
+                        <Box sx={{
+                          backgroundColor: '#F8F9FA',
+                          borderRadius: 0.5,
+                          px: 1.5,
+                          py: 0.5,
+                          border: '1px solid #E0E0E0'
+                        }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#000000', 
+                            fontSize: '9px', 
+                            fontWeight: 'bold',
+                            letterSpacing: '0.3px'
+                          }}>
+                            CABUYAO PDAO
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {/* Member Details */}
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ 
+                          mb: 0.5, 
+                          fontSize: '9px', 
+                          color: '#000000', 
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px'
+                        }}>
+                          NAME: {selectedPWD.firstName} {selectedPWD.lastName}
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          mb: 0.5, 
+                          fontSize: '9px', 
+                          color: '#000000', 
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px'
+                        }}>
+                          ID No.: {selectedPWD.pwd_id || `PWD-${selectedPWD.userID}` || 'N/A'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          mb: 0.5, 
+                          fontSize: '9px', 
+                          color: '#000000', 
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px'
+                        }}>
+                          TYPE OF DISABILITY: {selectedPWD.disabilityType || 'Not specified'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          fontSize: '9px', 
+                          color: '#000000', 
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px'
+                        }}>
+                          SIGNATURE: _________
+                        </Typography>
+                      </Box>
+
+                      {/* Card Footer */}
+                      <Typography variant="body2" sx={{ 
+                        fontWeight: 'bold', 
+                        fontSize: '8px', 
+                        color: '#000000',
+                        textAlign: 'center',
+                        letterSpacing: '0.3px',
+                        textTransform: 'uppercase',
+                        mt: 1
+                      }}>
+                        VALID ANYWHERE IN THE PHILIPPINES
+                      </Typography>
+                    </Box>
+
+                    {/* Right Side - Photo and QR Code */}
+                    <Box sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 1.5,
+                      flexShrink: 0
+                    }}>
+                      {/* ID Picture */}
+                      <Box sx={{
+                        width: 70,
+                        height: 70,
+                        backgroundColor: '#F8F9FA',
+                        borderRadius: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px solid #BDC3C7',
+                        overflow: 'hidden',
+                        position: 'relative'
+                      }}>
+                        <Typography variant="caption" sx={{ 
+                          color: '#BDC3C7', 
+                          fontSize: '8px',
+                          fontWeight: 'bold'
+                        }}>
+                          PHOTO
+                        </Typography>
+                      </Box>
+
+                      {/* QR Code Placeholder */}
+                      <Box sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: 1,
+                        p: 1,
+                        border: '1px solid #E0E0E0'
+                      }}>
+                        <Box sx={{
+                          width: '50px',
+                          height: '50px',
+                          backgroundColor: '#F8F9FA',
+                          borderRadius: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '1px solid #E0E0E0'
+                        }}>
+                          <Typography variant="caption" sx={{ 
+                            color: '#BDC3C7', 
+                            fontSize: '6px',
+                            fontWeight: 'bold'
+                          }}>
+                            QR
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" sx={{ 
+                          color: '#000000', 
+                          fontSize: '7px',
+                          fontWeight: 'bold',
+                          mt: 0.5
+                        }}>
+                          PH
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
                 </Paper>
 
                 {/* PWD Information */}

@@ -502,7 +502,8 @@ function AdminDashboard() {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                alignItems: 'center'
               }}>
                 <CheckCircleIcon sx={{ 
                   fontSize: { xs: 24, sm: 32, md: 40 }, 
@@ -543,7 +544,8 @@ function AdminDashboard() {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                alignItems: 'center'
               }}>
                 <ScheduleIcon sx={{ 
                   fontSize: { xs: 24, sm: 32, md: 40 }, 
@@ -584,7 +586,8 @@ function AdminDashboard() {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                alignItems: 'center'
               }}>
                 <PersonAddIcon sx={{ 
                   fontSize: { xs: 24, sm: 32, md: 40 }, 
@@ -625,7 +628,8 @@ function AdminDashboard() {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                alignItems: 'center'
               }}>
                 <CreditCardIcon sx={{ 
                   fontSize: { xs: 24, sm: 32, md: 40 }, 
@@ -666,7 +670,8 @@ function AdminDashboard() {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                alignItems: 'center'
               }}>
                 <ReportIcon sx={{ 
                   fontSize: { xs: 24, sm: 32, md: 40 }, 

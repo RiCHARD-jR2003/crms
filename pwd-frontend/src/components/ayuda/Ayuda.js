@@ -193,7 +193,8 @@ const Ayuda = () => {
     if (formData.type === 'Financial Assistance' && formData.selectedBarangays.length > 0) {
       fetchEligibleMembers('Financial Assistance', null, formData.selectedBarangays);
     } else if (formData.type === 'Birthday Cash Gift' && formData.birthdayMonth) {
-      fetchEligibleMembers('Birthday Cash Gift', formData.birthdayMonth, formData.barangay);
+      // For Birthday Cash Gift, allow selecting multiple barangays via checkboxes
+      fetchEligibleMembers('Birthday Cash Gift', formData.birthdayMonth, formData.selectedBarangays);
     } else {
       setEligibleMembers([]);
     }
@@ -205,7 +206,7 @@ const Ayuda = () => {
   };
 
   const handleBarangaySelection = (barangay) => {
-    if (formData.type === 'Financial Assistance') {
+    if (formData.type === 'Financial Assistance' || formData.type === 'Birthday Cash Gift') {
       const updatedBarangays = formData.selectedBarangays.includes(barangay)
         ? formData.selectedBarangays.filter(b => b !== barangay)
         : [...formData.selectedBarangays, barangay];
@@ -431,7 +432,7 @@ const Ayuda = () => {
       doc.text(`Program: ${formData.type}`, 20, 45);
       doc.text(`Type: ${formData.type}`, 20, 52);
       doc.text(`Amount: ${formData.amount}`, 20, 59);
-      if (formData.type === 'Financial Assistance' && formData.selectedBarangays.length > 0) {
+      if ((formData.type === 'Financial Assistance' || formData.type === 'Birthday Cash Gift') && formData.selectedBarangays.length > 0) {
         doc.text(`Barangays: ${formData.selectedBarangays.join(', ')}`, 20, 66);
       } else {
         doc.text(`Barangay: ${formData.barangay || 'All Barangays'}`, 20, 66);
@@ -805,14 +806,14 @@ const Ayuda = () => {
           if (!member.birthDate) return false;
           const birthMonth = new Date(member.birthDate).getMonth() + 1;
           const quarterMatch = eligibleMonths.includes(birthMonth);
-          
-          // Filter by barangay if specified
-          if (barangayOrBarangays && barangayOrBarangays !== 'All Barangays') {
+
+          // Support multiple barangays for Birthday Cash Gift as well
+          if (Array.isArray(barangayOrBarangays) && barangayOrBarangays.length > 0) {
             const memberBarangay = (member.barangay || member.Barangay || '').toString().trim().toLowerCase();
-            const barangayMatch = (barangayOrBarangays || '').toString().trim().toLowerCase() === memberBarangay;
-            return quarterMatch && barangayMatch;
+            const inSelected = barangayOrBarangays.some(b => (b || '').toString().trim().toLowerCase() === memberBarangay);
+            return quarterMatch && inSelected;
           }
-          
+
           return quarterMatch;
         });
       }
@@ -1851,8 +1852,8 @@ const Ayuda = () => {
                   </FormControl>
                 </Grid>
               )}
-              {formData.type === 'Financial Assistance' ? (
-                // Show checkboxes for Financial Assistance
+              {(formData.type === 'Financial Assistance' || formData.type === 'Birthday Cash Gift') ? (
+                // Show checkboxes for Financial Assistance and Birthday Cash Gift
                 <Grid item xs={12} md={6}>
                   <FormControl component="fieldset" fullWidth>
                     <Typography variant="h6" sx={{ 
@@ -1861,7 +1862,7 @@ const Ayuda = () => {
                       color: '#2C3E50',
                       mb: 2
                     }}>
-                      Select Barangays (Choose 1-2 barangays per month)
+                      Select Barangays (Choose one or more barangays)
                     </Typography>
                     <Box sx={{
                       display: 'grid',

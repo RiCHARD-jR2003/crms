@@ -1,13 +1,17 @@
 // src/services/supportService.js
 import { api } from './api';
 
-const API_BASE_URL = 'http://192.168.18.18:8000/api';
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 async function getStoredToken() {
   try {
     const raw = localStorage.getItem('auth.token');
-    return raw ? JSON.parse(raw) : null;
-  } catch (_) {
+    console.log('Raw token from localStorage:', raw);
+    const token = raw ? JSON.parse(raw) : null;
+    console.log('Parsed token:', token ? 'Token exists' : 'No token');
+    return token;
+  } catch (error) {
+    console.error('Error parsing token:', error);
     localStorage.removeItem('auth.token');
     return null;
   }
@@ -50,20 +54,51 @@ export const supportService = {
   
   // Download attachment from a message
   downloadAttachment: async (messageId) => {
-    const token = await getStoredToken();
-    const response = await fetch(`${API_BASE_URL}/support-tickets/messages/${messageId}/download`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': '*/*',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      console.log('Starting downloadAttachment for messageId:', messageId);
+      
+      // Use the main API service for consistent token handling
+      const token = await getStoredToken();
+      console.log('Token retrieved:', token ? 'Token exists' : 'No token');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      console.log('Making request to:', `${API_BASE_URL}/support-tickets/messages/${messageId}/download`);
+      
+      const response = await fetch(`${API_BASE_URL}/support-tickets/messages/${messageId}/download`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': '*/*',
+        },
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response body:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      
+      // Return the blob for file preview with MIME type
+      const blob = await response.blob();
+      console.log('Blob created:', blob.type, blob.size);
+      
+      // Create a new blob with the correct MIME type from response headers
+      const contentType = response.headers.get('Content-Type') || blob.type;
+      const newBlob = new Blob([blob], { type: contentType });
+      console.log('New blob with MIME type:', newBlob.type);
+      
+      return newBlob;
+    } catch (error) {
+      console.error('Error in downloadAttachment:', error);
+      throw error;
     }
-    
-    return response;
   },
 
   // Force download attachment from a message

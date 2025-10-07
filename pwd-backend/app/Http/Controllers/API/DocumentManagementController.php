@@ -283,18 +283,40 @@ class DocumentManagementController extends Controller
 
     public function getDocumentFile($id)
     {
-        $memberDocument = MemberDocument::findOrFail($id);
-        
-        $filePath = storage_path('app/public/' . $memberDocument->file_path);
-        
-        if (!file_exists($filePath)) {
+        try {
+            $memberDocument = MemberDocument::findOrFail($id);
+            
+            $filePath = storage_path('app/public/' . $memberDocument->file_path);
+            
+            if (!file_exists($filePath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File not found at path: ' . $filePath
+                ], 404);
+            }
+
+            // Get file info
+            $fileSize = filesize($filePath);
+            $mimeType = mime_content_type($filePath);
+            
+            // Set appropriate headers
+            $headers = [
+                'Content-Type' => $mimeType,
+                'Content-Length' => $fileSize,
+                'Content-Disposition' => 'inline; filename="' . $memberDocument->file_name . '"',
+                'Cache-Control' => 'private, max-age=3600',
+                'Pragma' => 'private'
+            ];
+
+            // Return file response with proper headers
+            return response()->file($filePath, $headers);
+            
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'File not found'
-            ], 404);
+                'message' => 'Error serving file: ' . $e->getMessage()
+            ], 500);
         }
-
-        return response()->file($filePath);
     }
 
     // Admin review functions

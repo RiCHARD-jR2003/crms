@@ -37,7 +37,8 @@ const passwordService = {
         email,
         newPassword
       });
-      return response.data;
+      // api already returns parsed JSON; return as-is
+      return response;
     } catch (error) {
       throw error.response?.data || { error: 'Failed to reset user password' };
     }

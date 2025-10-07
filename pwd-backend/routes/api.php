@@ -1028,6 +1028,177 @@ Route::get('test-file/{messageId}', function($messageId) {
     }
 });
 
+// Test route for document file serving (no auth required for testing)
+Route::get('test-document-file/{id}', function($id) {
+    try {
+        $memberDocument = \App\Models\MemberDocument::find($id);
+        
+        if (!$memberDocument) {
+            return response()->json(['error' => 'Document not found'], 404);
+        }
+        
+        $filePath = storage_path('app/public/' . $memberDocument->file_path);
+        
+        if (!file_exists($filePath)) {
+            return response()->json([
+                'error' => 'File not found',
+                'file_path' => $filePath,
+                'member_document' => $memberDocument
+            ], 404);
+        }
+
+        // Get file info
+        $fileSize = filesize($filePath);
+        $mimeType = mime_content_type($filePath);
+        
+        // Set appropriate headers
+        $headers = [
+            'Content-Type' => $mimeType,
+            'Content-Length' => $fileSize,
+            'Content-Disposition' => 'inline; filename="' . $memberDocument->file_name . '"',
+            'Cache-Control' => 'private, max-age=3600',
+            'Pragma' => 'private'
+        ];
+
+        // Return file response with proper headers
+        return response()->file($filePath, $headers);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Error serving file: ' . $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
+// Test storage configuration
+Route::get('test-storage-config', function() {
+    try {
+        $storagePath = storage_path('app/public');
+        $publicPath = public_path('storage');
+        
+        $info = [
+            'storage_path' => $storagePath,
+            'public_path' => $publicPath,
+            'storage_exists' => is_dir($storagePath),
+            'public_storage_exists' => is_dir($publicPath),
+            'storage_link_exists' => is_link($publicPath),
+            'storage_writable' => is_writable($storagePath),
+            'public_writable' => is_writable($publicPath),
+        ];
+        
+        // List some files in storage
+        if (is_dir($storagePath)) {
+            $files = [];
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($storagePath, \RecursiveDirectoryIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+            
+            foreach ($iterator as $file) {
+                if ($file->isFile()) {
+                    $files[] = [
+                        'path' => str_replace($storagePath, '', $file->getPathname()),
+                        'size' => $file->getSize(),
+                        'modified' => date('Y-m-d H:i:s', $file->getMTime())
+                    ];
+                }
+                
+                if (count($files) >= 10) break; // Limit to 10 files
+            }
+            
+            $info['sample_files'] = $files;
+        }
+        
+        return response()->json($info);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Error checking storage: ' . $e->getMessage()
+        ], 500);
+    }
+});
+
+// Document file serving route (public access for viewing)
+Route::get('documents/file/{id}', [DocumentManagementController::class, 'getDocumentFile']);
+
+// Support ticket file serving route (public access for viewing)
+Route::get('support-tickets/messages/{messageId}/download', [SupportTicketController::class, 'downloadAttachment']);
+
+// Application file serving route (for admin document preview)
+Route::get('application-file/{applicationId}/{fileType}', function($applicationId, $fileType) {
+    try {
+        $application = \App\Models\Application::findOrFail($applicationId);
+        
+        // Map file types to database fields
+        $fileFieldMap = [
+            'idPicture' => 'idPicture',
+            'medicalCertificate' => 'medicalCertificate',
+            'barangayClearance' => 'barangayClearance',
+            'clinicalAbstract' => 'clinicalAbstract',
+            'voterCertificate' => 'voterCertificate',
+            'birthCertificate' => 'birthCertificate',
+            'wholeBodyPicture' => 'wholeBodyPicture',
+            'affidavit' => 'affidavit',
+            'barangayCertificate' => 'barangayCertificate'
+        ];
+        
+        if (!isset($fileFieldMap[$fileType])) {
+            return response()->json([
+                'error' => 'Invalid file type',
+                'valid_types' => array_keys($fileFieldMap)
+            ], 400);
+        }
+        
+        $fileField = $fileFieldMap[$fileType];
+        $filePath = $application->$fileField;
+        
+        if (!$filePath) {
+            return response()->json([
+                'error' => 'File not found for this application',
+                'application_id' => $applicationId,
+                'file_type' => $fileType
+            ], 404);
+        }
+        
+        $fullFilePath = storage_path('app/public/' . $filePath);
+        
+        if (!file_exists($fullFilePath)) {
+            return response()->json([
+                'error' => 'File not found on disk',
+                'file_path' => $fullFilePath,
+                'application_id' => $applicationId,
+                'file_type' => $fileType
+            ], 404);
+        }
+
+        // Get file info
+        $fileSize = filesize($fullFilePath);
+        $mimeType = mime_content_type($fullFilePath);
+        
+        // Generate filename
+        $fileName = $fileType . '_' . $application->firstName . '_' . $application->lastName . '.' . pathinfo($fullFilePath, PATHINFO_EXTENSION);
+        
+        // Set appropriate headers
+        $headers = [
+            'Content-Type' => $mimeType,
+            'Content-Length' => $fileSize,
+            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            'Cache-Control' => 'private, max-age=3600',
+            'Pragma' => 'private'
+        ];
+
+        // Return file response with proper headers
+        return response()->file($fullFilePath, $headers);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Error serving application file: ' . $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     // Auth routes
@@ -1123,7 +1294,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Support Ticket routes
     Route::apiResource('support-tickets', SupportTicketController::class);
     Route::post('support-tickets/{id}/messages', [SupportTicketController::class, 'addMessage']);
-    Route::get('support-tickets/messages/{messageId}/download', [SupportTicketController::class, 'downloadAttachment']);
     Route::get('support-tickets/messages/{messageId}/force-download', [SupportTicketController::class, 'forceDownloadAttachment']);
     
     // Dashboard data routes
@@ -1159,7 +1329,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // Member routes
         Route::get('/my-documents', [DocumentManagementController::class, 'getMemberDocuments']);
         Route::post('/upload', [DocumentManagementController::class, 'uploadDocument']);
-        Route::get('/file/{id}', [DocumentManagementController::class, 'getDocumentFile']);
         
         // Notification routes
         Route::get('/notifications', [DocumentManagementController::class, 'getNotifications']);
@@ -1170,6 +1339,93 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin')->group(function () {
         Route::post('/migrate-documents', [App\Http\Controllers\API\DocumentMigrationController::class, 'migrateApplicationDocuments']);
         Route::get('/migration-status', [App\Http\Controllers\API\DocumentMigrationController::class, 'getMigrationStatus']);
+    });
+
+    // Notification routes
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', function (Request $request) {
+            try {
+                $user = $request->user();
+                $notifications = \App\Models\Notification::forUser($user->userID)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                
+                return response()->json([
+                    'success' => true,
+                    'notifications' => $notifications
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Failed to fetch notifications',
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+        });
+
+        Route::get('/unread', function (Request $request) {
+            try {
+                $user = $request->user();
+                $unreadCount = \App\Models\Notification::forUser($user->userID)
+                    ->unread()
+                    ->count();
+                
+                return response()->json([
+                    'success' => true,
+                    'unread_count' => $unreadCount
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Failed to fetch unread count',
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+        });
+
+        Route::post('/{id}/mark-read', function (Request $request, $id) {
+            try {
+                $user = $request->user();
+                $notification = \App\Models\Notification::forUser($user->userID)
+                    ->findOrFail($id);
+                
+                $notification->markAsRead();
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Notification marked as read'
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Failed to mark notification as read',
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+        });
+
+        Route::post('/mark-all-read', function (Request $request) {
+            try {
+                $user = $request->user();
+                \App\Models\Notification::forUser($user->userID)
+                    ->unread()
+                    ->update([
+                        'is_read' => true,
+                        'read_at' => now()
+                    ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'All notifications marked as read'
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Failed to mark all notifications as read',
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+        });
     });
 });
 

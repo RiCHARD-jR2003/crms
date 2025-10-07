@@ -748,18 +748,20 @@ class RouteServiceProvider extends ServiceProvider
                 try {
                     $application = \App\Models\Application::findOrFail($id);
                     
-                    // Generate fixed password for testing
-                    $randomPassword = \Illuminate\Support\Str::random(12);
+                    // Create a password setup token instead of generating a password
+                    $passwordSetupToken = base64_encode(json_encode([
+                        'email' => $application->email,
+                        'ts' => time()
+                    ]));
                     
                     // Check if user already exists
                     $existingUser = \App\Models\User::where('email', $application->email)->first();
                     
                     if ($existingUser) {
-                        // User already exists, update their role to PWDMember and password
+                        // User already exists, update their role to PWDMember (keep password unchanged until user sets it)
                         $existingUser->update([
                             'role' => 'PWDMember',
-                            'status' => 'active',
-                            'password' => \Illuminate\Support\Facades\Hash::make($randomPassword)
+                            'status' => 'active'
                         ]);
                         $pwdUser = $existingUser;
                     } else {
@@ -767,7 +769,8 @@ class RouteServiceProvider extends ServiceProvider
                         $pwdUser = \App\Models\User::create([
                             'username' => $application->email, // Use email as username
                             'email' => $application->email,
-                            'password' => \Illuminate\Support\Facades\Hash::make($randomPassword),
+                            // Set a temporary random password; user will replace via reset link
+                            'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(20)),
                             'role' => 'PWDMember',
                             'status' => 'active'
                         ]);
@@ -999,16 +1002,16 @@ class RouteServiceProvider extends ServiceProvider
                         'pwdID' => $pwdUser->userID
                     ]);
 
-                    // Send email notification using EmailService with Gmail API
+                    // Send email notification with password setup link
                     try {
                         $emailService = new \App\Services\EmailService();
                         $emailSent = $emailService->sendApplicationApprovalEmail([
                             'firstName' => $application->firstName,
                             'lastName' => $application->lastName,
                             'email' => $application->email,
-                            'password' => $randomPassword,
                             'pwdId' => $pwdId,
-                            'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login')
+                            // Frontend route where member can set their password
+                            'loginUrl' => (config('app.frontend_url', 'http://localhost:3000') . '/reset-password?email=' . urlencode($application->email))
                         ]);
 
                         if ($emailSent) {

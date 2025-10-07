@@ -13,7 +13,7 @@ export const contentAreaStyles = {
   flexDirection: 'column',
   ml: '280px',
   width: 'calc(100% - 280px)',
-  p: 3
+  p: 1
 };
 
 export const headerStyles = {

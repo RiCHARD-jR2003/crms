@@ -358,7 +358,13 @@ function BarangayPresidentPWDRecords() {
           </Box>
 
           {/* Tabs and Controls */}
-          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #E0E0E0', mb: 3 }}>
+          <Paper elevation={0} sx={{ 
+            p: 2, 
+            borderRadius: 2, 
+            border: '1px solid #E0E0E0', 
+            mb: 3,
+            backgroundColor: '#FFFFFF'
+          }}>
             <Grid container spacing={2} alignItems="center">
               <Grid item>
                 <Tabs 
@@ -367,17 +373,17 @@ function BarangayPresidentPWDRecords() {
                   sx={{ 
                     minHeight: 40,
                     '& .MuiTab-root': {
-                      color: '#FFFFFF',
+                      color: '#2C3E50',
                       fontWeight: 600,
                       textTransform: 'none',
-                      bgcolor: '#3498DB',
+                      bgcolor: '#F8F9FA',
                       borderRadius: '8px 8px 0 0',
                       mx: 0.5,
                       px: 3,
                       '&.Mui-selected': {
                         color: '#FFFFFF !important',
                         fontWeight: 700,
-                        bgcolor: '#2C3E50 !important'
+                        bgcolor: '#3498DB !important'
                       }
                     },
                     '& .MuiTabs-indicator': {
@@ -681,24 +687,31 @@ function BarangayPresidentPWDRecords() {
           </Paper>
 
           {/* Table */}
-          <Paper elevation={0} sx={{ border: '1px solid #E0E0E0', borderRadius: 2 }}>
-            <TableContainer sx={{ maxHeight: 'calc(100vh - 400px)' }}>
+          <Paper elevation={0} sx={{ 
+            border: '1px solid #E0E0E0', 
+            borderRadius: 2,
+            backgroundColor: '#FFFFFF'
+          }}>
+            <TableContainer sx={{ 
+              maxHeight: 'calc(100vh - 400px)',
+              backgroundColor: '#FFFFFF'
+            }}>
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
                     {columns.map((column) => (
-                                             <TableCell
-                         key={column.id}
-                         sx={{
-                           backgroundColor: '#2C3E50',
-                           color: '#FFFFFF',
-                           fontWeight: 700,
-                           fontSize: '0.95rem',
-                           borderBottom: '2px solid #34495E',
-                           textTransform: 'uppercase',
-                           letterSpacing: '0.5px'
-                         }}
-                       >
+                      <TableCell
+                        key={column.id}
+                        sx={{
+                          backgroundColor: '#FFFFFF',
+                          color: '#2C3E50',
+                          fontWeight: 700,
+                          fontSize: '0.95rem',
+                          borderBottom: '2px solid #E0E0E0',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}
+                      >
                         {column.label}
                       </TableCell>
                     ))}
@@ -711,9 +724,10 @@ function BarangayPresidentPWDRecords() {
                         <TableCell 
                           key={column.id}
                           sx={{ 
-                            color: '#2C3E50',
+                            color: '#000000',
                             borderBottom: '1px solid #E0E0E0',
-                            fontWeight: 500
+                            fontWeight: 500,
+                            backgroundColor: '#FFFFFF'
                           }}
                         >
                           {column.id === 'status' ? (
@@ -771,7 +785,7 @@ function BarangayPresidentPWDRecords() {
                                   }
                                 }}
                               >
-                                Approve
+                                Endorse to PWD Office
                               </Button>
                               <Button
                                 variant="outlined"
@@ -828,9 +842,16 @@ function BarangayPresidentPWDRecords() {
               onRowsPerPageChange={handleChangeRowsPerPage}
               sx={{
                 color: '#2C3E50',
+                backgroundColor: '#FFFFFF',
                 '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
                   color: '#2C3E50',
                   fontWeight: 500
+                },
+                '& .MuiTablePagination-toolbar': {
+                  backgroundColor: '#FFFFFF'
+                },
+                '& .MuiTablePagination-select': {
+                  backgroundColor: '#FFFFFF'
                 }
               }}
             />
@@ -1353,11 +1374,11 @@ function BarangayPresidentPWDRecords() {
             variant="contained"
             startIcon={<PrintIcon />}
             sx={{
-              bgcolor: '#2C3E50',
+              bgcolor: '#3498DB',
               textTransform: 'none',
               fontWeight: 600,
               '&:hover': {
-                bgcolor: '#1B2631'
+                bgcolor: '#2980B9'
               }
             }}
           >

@@ -29,8 +29,16 @@ class NoDuplicateApplication implements Rule
     {
         $this->value = $value;
         
-        // Check for duplicate applications
-        $query = Application::where($this->field, $value);
+        // Map request field names to actual DB columns where necessary
+        $dbField = $this->field;
+        if ($dbField === 'phoneNumber') {
+            $dbField = 'contactNumber';
+        } elseif ($dbField === 'dateOfBirth') {
+            $dbField = 'birthDate';
+        }
+
+        // Check for duplicate applications using the correct DB column
+        $query = Application::where($dbField, $value);
         
         // Exclude current application if updating
         if ($this->excludeApplicationId) {
