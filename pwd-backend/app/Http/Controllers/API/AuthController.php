@@ -18,7 +18,7 @@ class AuthController extends Controller
             'username' => 'required|unique:users',
             'email' => 'required|email|unique:users',
             'password' => 'required|min:6',
-            'role' => 'required|in:Admin,BarangayPresident,PWDMember',
+            'role' => 'required|in:Admin,BarangayPresident,PWDMember,SuperAdmin',
             'firstName' => 'required_if:role,PWDMember',
             'lastName' => 'required_if:role,PWDMember',
         ]);
@@ -32,7 +32,8 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
-            'status' => 'active'
+            'status' => 'active',
+            'password_change_required' => false // User sets their own password during registration
         ]);
 
         // Create role-specific record
@@ -51,13 +52,16 @@ class AuthController extends Controller
             ]);
         } else if ($request->role === 'Admin') {
             $user->admin()->create();
+        } else if ($request->role === 'SuperAdmin') {
+            $user->superAdmin()->create();
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'user' => $user->load([$request->role === 'PWDMember' ? 'pwdMember' : 
-                     ($request->role === 'BarangayPresident' ? 'barangayPresident' : 'admin')]),
+                     ($request->role === 'BarangayPresident' ? 'barangayPresident' : 
+                     ($request->role === 'SuperAdmin' ? 'superAdmin' : 'admin'))]),
             'access_token' => $token,
             'token_type' => 'Bearer',
         ], 201);
@@ -143,6 +147,13 @@ class AuthController extends Controller
                 // Handle missing admin table gracefully
                 \Log::warning('Admin table not available: ' . $e->getMessage());
             }
+        } else if ($user->role === 'SuperAdmin') {
+            try {
+                $user->load('superAdmin');
+            } catch (\Exception $e) {
+                // Handle missing superadmin table gracefully
+                \Log::warning('SuperAdmin table not available: ' . $e->getMessage());
+            }
         }
 
         // Sanitize user data to prevent UTF-8 encoding issues
@@ -152,6 +163,7 @@ class AuthController extends Controller
             'email' => $user->email,
             'role' => $user->role,
             'status' => $user->status,
+            'password_change_required' => $user->password_change_required,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ];
@@ -197,5 +209,44 @@ class AuthController extends Controller
     {
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out successfully']);
+    }
+
+    public function changePassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'current_password' => 'required',
+            'new_password' => 'required|min:6|confirmed',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 400);
+        }
+
+        $user = $request->user();
+
+        // Verify current password
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'Current password is incorrect'
+            ], 400);
+        }
+
+        // Update password and mark as changed
+        $user->update([
+            'password' => Hash::make($request->new_password),
+            'password_change_required' => false
+        ]);
+
+        return response()->json([
+            'message' => 'Password changed successfully',
+            'user' => [
+                'userID' => $user->userID,
+                'username' => $user->username,
+                'email' => $user->email,
+                'role' => $user->role,
+                'status' => $user->status,
+                'password_change_required' => false,
+            ]
+        ]);
     }
 }

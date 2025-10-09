@@ -5,10 +5,12 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { TranslationProvider } from './contexts/TranslationContext';
 import LandingPage from './components/Landing/LandingPage';
 import Login from './components/auth/login';
 import Register from './components/auth/Register';
 import PasswordReset from './components/auth/PasswordReset';
+import PasswordChangeWrapper from './components/auth/PasswordChangeWrapper';
 import AdminDashboard from './components/dashboard/AdminDashboard';
 import BarangayPresidentDashboard from './components/dashboard/BarangayPresidentDashboard';
 import PWDMemberDashboard from './components/dashboard/PWDMemberDashboard';
@@ -41,9 +43,9 @@ import DocumentManagement from './components/documents/DocumentManagement';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#2C3E50',
-      dark: '#1B2631',
-      light: '#34495E',
+      main: '#1976D2',
+      dark: '#1565C0',
+      light: '#42A5F5',
     },
     secondary: {
       main: '#4CAF50',
@@ -52,11 +54,11 @@ const theme = createTheme({
     },
     background: {
       default: '#FFFFFF',
-      paper: '#2C3E50',
+      paper: '#1976D2',
     },
     text: {
       primary: '#000000',
-      secondary: '#2C3E50',
+      secondary: '#1976D2',
     },
   },
   typography: {
@@ -129,9 +131,11 @@ function AppContent() {
         path="/dashboard" 
         element={
           <ProtectedRoute>
-            {currentUser?.role === 'Admin' && <AdminDashboard />}
-            {currentUser?.role === 'BarangayPresident' && <BarangayPresidentDashboard />}
-            {currentUser?.role === 'PWDMember' && <PWDMemberDashboard />}
+            <PasswordChangeWrapper>
+              {(currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && <AdminDashboard />}
+              {currentUser?.role === 'BarangayPresident' && <BarangayPresidentDashboard />}
+              {currentUser?.role === 'PWDMember' && <PWDMemberDashboard />}
+            </PasswordChangeWrapper>
           </ProtectedRoute>
         } 
       />
@@ -140,7 +144,7 @@ function AppContent() {
       <Route 
         path="/admin-dashboard" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <AdminDashboard />
           </ProtectedRoute>
         } 
@@ -148,7 +152,7 @@ function AppContent() {
       <Route 
         path="/pwd-records" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <PWDRecords />
           </ProtectedRoute>
         } 
@@ -156,7 +160,7 @@ function AppContent() {
       <Route 
         path="/pwd-card" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <PWDCard />
           </ProtectedRoute>
         } 
@@ -164,7 +168,7 @@ function AppContent() {
       <Route 
         path="/reports" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <Reports />
           </ProtectedRoute>
         } 
@@ -172,7 +176,7 @@ function AppContent() {
       <Route 
         path="/ayuda" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <Ayuda />
           </ProtectedRoute>
         } 
@@ -180,7 +184,7 @@ function AppContent() {
       <Route 
         path="/benefit-tracking" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <BenefitTracking />
           </ProtectedRoute>
         } 
@@ -188,7 +192,7 @@ function AppContent() {
       <Route 
         path="/announcement" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <Announcement />
           </ProtectedRoute>
         } 
@@ -196,7 +200,7 @@ function AppContent() {
       <Route 
         path="/admin-support" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <AdminSupportDesk />
           </ProtectedRoute>
         } 
@@ -204,7 +208,7 @@ function AppContent() {
       <Route 
         path="/document-management" 
         element={
-          <ProtectedRoute allowedRoles={['Admin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <DocumentManagement />
           </ProtectedRoute>
         } 
@@ -313,16 +317,18 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <Router
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true
-          }}
-        >
-          <div className="App">
-            <AppContent />
-          </div>
-        </Router>
+        <TranslationProvider>
+          <Router
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
+            }}
+          >
+            <div className="App">
+              <AppContent />
+            </div>
+          </Router>
+        </TranslationProvider>
       </AuthProvider>
     </ThemeProvider>
   );

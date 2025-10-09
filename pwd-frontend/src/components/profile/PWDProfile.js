@@ -36,11 +36,16 @@ import {
   Security as SecurityIcon
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
+import AccessibilitySettings from '../shared/AccessibilitySettings';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from '../../contexts/TranslationContext';
+import { useScreenReader } from '../../hooks/useScreenReader';
 
 function PWDProfile() {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
+  const { announcePageChange } = useScreenReader();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -74,9 +79,12 @@ function PWDProfile() {
   });
 
   useEffect(() => {
+    // Announce page load
+    announcePageChange(t('profile.title'));
+    
     fetchProfile();
     refreshUserData(); // Refresh user data to get latest idPictures
-  }, []);
+  }, [announcePageChange, t]);
 
   // Refresh user data from login endpoint to get updated idPictures
   const refreshUserData = async () => {
@@ -420,7 +428,7 @@ function PWDProfile() {
       }}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom sx={{ color: '#000000', fontWeight: 'bold' }}>
-            My Profile
+            {t('profile.title')}
           </Typography>
           <Typography variant="body1" sx={{ color: '#000000' }}>
             Manage your personal information and account settings
@@ -480,7 +488,7 @@ function PWDProfile() {
                     <Grid item xs={12} md={6}>
                       <TextField
                         fullWidth
-                        label="First Name"
+label={t('profile.firstName')}
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleInputChange}
@@ -500,7 +508,7 @@ function PWDProfile() {
                     <Grid item xs={12} md={6}>
                       <TextField
                         fullWidth
-                        label="Last Name"
+label={t('profile.lastName')}
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleInputChange}
@@ -541,7 +549,7 @@ function PWDProfile() {
                     <Grid item xs={12} md={6}>
                       <TextField
                         fullWidth
-                        label="Contact Number"
+label={t('profile.contactNumber')}
                         name="contactNumber"
                         value={formData.contactNumber}
                         onChange={handleInputChange}
@@ -583,7 +591,7 @@ function PWDProfile() {
                     <Grid item xs={12} md={4}>
                       <TextField
                         fullWidth
-                        label="Birth Date"
+label={t('profile.birthDate')}
                         name="birthDate"
                         type="date"
                         value={formData.birthDate}
@@ -604,7 +612,7 @@ function PWDProfile() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                       <FormControl fullWidth>
-                        <InputLabel sx={{ color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } }}>Gender</InputLabel>
+                        <InputLabel sx={{ color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } }}>{t('profile.gender')}</InputLabel>
                         <Select
                           name="gender"
                           value={formData.gender}
@@ -624,7 +632,7 @@ function PWDProfile() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                       <FormControl fullWidth>
-                        <InputLabel sx={{ color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } }}>Disability Type</InputLabel>
+                        <InputLabel sx={{ color: '#2C3E50', '&.Mui-focused': { color: '#3498DB' } }}>{t('profile.disabilityType')}</InputLabel>
                         <Select
                           name="disabilityType"
                           value={formData.disabilityType}
@@ -660,7 +668,7 @@ function PWDProfile() {
                             '&:disabled': { bgcolor: '#7F8C8D' }
                           }}
                         >
-                          {saving ? 'Saving...' : 'Save Changes'}
+{saving ? t('common.loading') : t('profile.saveChanges')}
                         </Button>
                         <Button
                           variant="outlined"
@@ -668,7 +676,7 @@ function PWDProfile() {
                           onClick={handleCancel}
                           sx={{ color: '#2C3E50', borderColor: '#2C3E50' }}
                         >
-                          Cancel
+{t('common.cancel')}
                         </Button>
                       </Box>
                     </Grid>
@@ -1005,7 +1013,7 @@ function PWDProfile() {
                           Birth: {formData.birthDate ? formatDate(formData.birthDate) : 'N/A'}
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, color: '#333' }}>
-                          Gender: {formData.gender || 'N/A'}
+                          {t('profile.gender')}: {formData.gender || 'N/A'}
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, color: '#333' }}>
                           Address: {(() => {
@@ -1171,7 +1179,7 @@ function PWDProfile() {
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
-                      Barangay
+                      {t('profile.barangay')}
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
                       {profile?.barangay || 'Not specified'}
@@ -1179,7 +1187,7 @@ function PWDProfile() {
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
-                      Contact Number
+                      {t('profile.contactNumber')}
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
                       {formData.contactNumber || 'Not provided'}
@@ -1517,6 +1525,9 @@ function PWDProfile() {
           </DialogActions>
         </Dialog>
       </Box>
+      
+      {/* Accessibility Settings Floating Button */}
+      <AccessibilitySettings />
     </Box>
   );
 }

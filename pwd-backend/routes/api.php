@@ -240,6 +240,7 @@ Route::get('/test-approval-email/{applicationId}', function ($applicationId) {
             'firstName' => $application->firstName,
             'lastName' => $application->lastName,
             'email' => $application->email,
+            'username' => $application->email,
             'password' => $testPassword,
             'pwdId' => $testPwdId,
             'loginUrl' => 'http://localhost:3000/login'
@@ -322,6 +323,7 @@ Route::get('/test-send-approval-email/{email}', function ($email) {
             'firstName' => 'Test',
             'lastName' => 'User',
             'email' => $email, // This will be the recipient
+            'username' => $email,
             'password' => 'testpass123',
             'pwdId' => 'PWD-TEST-001',
             'loginUrl' => 'http://localhost:3000/login'
@@ -646,6 +648,12 @@ Route::apiResource('reports', 'App\Http\Controllers\API\ReportController');
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// Protected routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
+});
+
 // Public benefit routes (for frontend access)
 Route::get('/benefits', [BenefitController::class, 'index']);
 Route::get('/benefits/{id}', [BenefitController::class, 'show']);
@@ -841,6 +849,107 @@ Route::post('/applications/check-duplicates', function (Request $request) {
     }
 });
 
+// Email verification routes
+Route::post('/send-verification-code', function (Request $request) {
+    try {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'email' => 'required|email',
+            'purpose' => 'sometimes|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'Validation failed',
+                'messages' => $validator->errors()
+            ], 422);
+        }
+
+        $email = $request->email;
+        $purpose = $request->purpose ?? 'application_submission';
+
+        // Create verification record
+        $verification = \App\Models\EmailVerification::createVerification($email, $purpose);
+
+        // Send email
+        \Illuminate\Support\Facades\Mail::send('emails.verification-code', [
+            'verificationCode' => $verification->verification_code
+        ], function ($message) use ($email) {
+            $message->to($email)
+                   ->subject('PWD Application - Email Verification Code')
+                   ->from('sarinonhoelivan29@gmail.com', 'Cabuyao PDAO RMS');
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Verification code sent successfully',
+            'expires_in_minutes' => 10
+        ]);
+
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Failed to send verification code', [
+            'error' => $e->getMessage(),
+            'email' => $request->email ?? 'unknown'
+        ]);
+
+        return response()->json([
+            'error' => 'Failed to send verification code',
+            'message' => 'Please try again later'
+        ], 500);
+    }
+});
+
+Route::post('/verify-code', function (Request $request) {
+    try {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'email' => 'required|email',
+            'code' => 'required|string|size:6',
+            'purpose' => 'sometimes|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'Validation failed',
+                'messages' => $validator->errors()
+            ], 422);
+        }
+
+        $email = $request->email;
+        $code = $request->code;
+        $purpose = $request->purpose ?? 'application_submission';
+
+        // Check if code exists and is valid (but don't mark as used yet)
+        $verification = \App\Models\EmailVerification::where('email', $email)
+            ->where('verification_code', $code)
+            ->where('purpose', $purpose)
+            ->where('is_used', false)
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if ($verification) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Email verified successfully'
+            ]);
+        } else {
+            return response()->json([
+                'error' => 'Invalid verification code',
+                'message' => 'The verification code is invalid, expired, or already used'
+            ], 400);
+        }
+
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Failed to verify code', [
+            'error' => $e->getMessage(),
+            'email' => $request->email ?? 'unknown'
+        ]);
+
+        return response()->json([
+            'error' => 'Failed to verify code',
+            'message' => 'Please try again later'
+        ], 500);
+    }
+});
+
 // Public application submission route
 Route::post('/applications', function (Request $request) {
     try {
@@ -849,6 +958,27 @@ Route::post('/applications', function (Request $request) {
             'request_data' => $request->all(),
             'has_files' => $request->hasFile('idPicture') || $request->hasFile('medicalCertificate') || $request->hasFile('barangayClearance')
         ]);
+
+        // Check email verification first
+        $email = $request->email;
+        $verificationCode = $request->verification_code;
+        
+        if (!$email || !$verificationCode) {
+            return response()->json([
+                'error' => 'Email verification required',
+                'message' => 'Please verify your email address before submitting the application'
+            ], 400);
+        }
+
+        // Verify the email code
+        $isVerified = \App\Models\EmailVerification::verifyCode($email, $verificationCode, 'application_submission');
+        
+        if (!$isVerified) {
+            return response()->json([
+                'error' => 'Email verification failed',
+                'message' => 'Invalid or expired verification code. Please request a new code.'
+            ], 400);
+        }
 
         // Use the validation service for comprehensive duplicate checking
         $validationService = new \App\Services\ApplicationValidationService();
@@ -1447,6 +1577,7 @@ Route::get('/api/test-email/{email}', function ($email) {
             'firstName' => 'Test',
             'lastName' => 'User',
             'email' => $email,
+            'username' => $email,
             'password' => 'test123',
             'pwdId' => 'PWD-000001',
             'loginUrl' => 'http://localhost:3000/login'
@@ -1514,6 +1645,7 @@ Route::get('/api/test-admin-approve/{applicationId}', function ($applicationId) 
                 'firstName' => $application->firstName,
                 'lastName' => $application->lastName,
                 'email' => $application->email,
+                'username' => $pwdUser->username,
                 'password' => $randomPassword,
                 'pwdId' => $pwdId,
                 'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login')
@@ -1619,6 +1751,7 @@ Route::get('/api/test-approve-application/{applicationId}', function ($applicati
                 'firstName' => $application->firstName,
                 'lastName' => $application->lastName,
                 'email' => $application->email,
+                'username' => $pwdUser->username,
                 'password' => $randomPassword,
                 'pwdId' => $pwdId,
                 'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login')

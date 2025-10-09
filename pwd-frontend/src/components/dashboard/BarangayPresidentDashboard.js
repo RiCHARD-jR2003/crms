@@ -405,8 +405,8 @@ function BarangayPresidentDashboard() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {recentApplications.map((application) => (
-                      <TableRow key={application.id} hover sx={{ '& .MuiTableCell-root': { py: 1.5 } }}>
+                    {recentApplications.map((application, index) => (
+                      <TableRow key={`application-${index}`} hover sx={{ '& .MuiTableCell-root': { py: 1.5 } }}>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                             <Avatar sx={{ width: 40, height: 40, bgcolor: '#3498DB', fontSize: '1rem' }}>
@@ -478,7 +478,7 @@ function BarangayPresidentDashboard() {
                 {recentAnnouncements.length > 0 ? (
                   <List sx={{ flex: 1 }}>
                     {recentAnnouncements.map((announcement, index) => (
-                      <React.Fragment key={announcement.id}>
+                      <React.Fragment key={`announcement-${index}`}>
                         <ListItem sx={{ px: 0, py: 1.5 }}>
                           <ListItemIcon sx={{ minWidth: 40 }}>
                             <Notifications sx={{ color: '#3498DB', fontSize: 24 }} />

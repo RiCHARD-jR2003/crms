@@ -90,11 +90,17 @@ export function AuthProvider({ children }) {
     await api.clearToken();
   };
 
+  const updateUser = (updatedUser) => {
+    setCurrentUser(updatedUser);
+    localStorage.setItem('auth.currentUser', JSON.stringify(updatedUser));
+  };
+
   const value = useMemo(() => ({ 
     currentUser, 
     login, 
     register, 
     logout,
+    updateUser,
     isAuthenticated: !!currentUser 
   }), [currentUser]);
 

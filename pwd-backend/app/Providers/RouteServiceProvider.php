@@ -46,9 +46,21 @@ class RouteServiceProvider extends ServiceProvider
                     
                     if ($user && $user->role === 'BarangayPresident') {
                         // Load the barangay president relationship
-                        $user->load('barangayPresident');
-                        if ($user->barangayPresident && $user->barangayPresident->barangay) {
-                            $barangay = $user->barangayPresident->barangay;
+                        try {
+                            $user->load('barangayPresident');
+                            if ($user->barangayPresident && $user->barangayPresident->barangay) {
+                                $barangay = $user->barangayPresident->barangay;
+                            }
+                        } catch (\Exception $e) {
+                            // Handle missing barangay_president table gracefully
+                            \Log::warning('Barangay president table not available: ' . $e->getMessage());
+                            // Extract barangay from username (e.g., bp_mamatid -> Mamatid)
+                            if (strpos($user->username, 'bp_') === 0) {
+                                $barangayName = str_replace('bp_', '', $user->username);
+                                $barangayName = str_replace('_', ' ', $barangayName);
+                                $barangayName = ucwords(strtolower($barangayName));
+                                $barangay = $barangayName; // Use just the barangay name, not "Barangay " prefix
+                            }
                         }
                     }
                     
@@ -772,7 +784,8 @@ class RouteServiceProvider extends ServiceProvider
                             // Set a temporary random password; user will replace via reset link
                             'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(20)),
                             'role' => 'PWDMember',
-                            'status' => 'active'
+                            'status' => 'active',
+                            'password_change_required' => true
                         ]);
                     }
 
@@ -934,7 +947,8 @@ class RouteServiceProvider extends ServiceProvider
                             'email' => $application->email,
                             'password' => \Illuminate\Support\Facades\Hash::make($randomPassword),
                             'role' => 'PWDMember',
-                            'status' => 'active'
+                            'status' => 'active',
+                            'password_change_required' => true
                         ]);
                     }
 
@@ -1009,6 +1023,8 @@ class RouteServiceProvider extends ServiceProvider
                             'firstName' => $application->firstName,
                             'lastName' => $application->lastName,
                             'email' => $application->email,
+                            'username' => $pwdUser->username,
+                            'password' => $randomPassword,
                             'pwdId' => $pwdId,
                             // Frontend route where member can set their password
                             'loginUrl' => (config('app.frontend_url', 'http://localhost:3000') . '/reset-password?email=' . urlencode($application->email))
@@ -1227,31 +1243,6 @@ class RouteServiceProvider extends ServiceProvider
                 }
             });
 
-            // Test route to fix Richard Carandang's birth date
-            Route::get('/api/fix-richard-birthdate', function () {
-                try {
-                    $richard = \App\Models\PWDMember::where('firstName', 'Richard')->where('lastName', 'Carandang')->first();
-                    
-                    if (!$richard) {
-                        return response()->json(['error' => 'Richard Carandang not found'], 404);
-                    }
-                    
-                    // Fix the birth date to a realistic past date (February 8, 1990)
-                    $richard->update([
-                        'birthDate' => '1990-02-08'
-                    ]);
-                    
-                    return response()->json([
-                        'message' => 'Richard Carandang birth date fixed successfully',
-                        'old_birth_date' => '2025-02-08',
-                        'new_birth_date' => '1990-02-08',
-                        'new_age' => 35,
-                        'quarter' => 1
-                    ]);
-                } catch (\Exception $e) {
-                    return response()->json(['error' => $e->getMessage()], 500);
-                }
-            });
 
             // Test route to call BenefitController directly
             Route::get('/api/test-benefit-controller', function () {
@@ -1401,7 +1392,8 @@ class RouteServiceProvider extends ServiceProvider
                             'email' => $application->email,
                             'password' => \Illuminate\Support\Facades\Hash::make($randomPassword),
                             'role' => 'PWDMember',
-                            'status' => 'active'
+                            'status' => 'active',
+                            'password_change_required' => true
                         ]);
                     }
 
@@ -1441,6 +1433,7 @@ class RouteServiceProvider extends ServiceProvider
                             'firstName' => $application->firstName,
                             'lastName' => $application->lastName,
                             'email' => $application->email,
+                            'username' => $pwdUser->username,
                             'password' => $randomPassword,
                             'pwdId' => $pwdId,
                             'loginUrl' => 'http://localhost:3000/login'
@@ -1498,6 +1491,7 @@ class RouteServiceProvider extends ServiceProvider
                         'firstName' => 'Test',
                         'lastName' => 'User',
                         'email' => $email,
+                        'username' => $email,
                         'password' => 'test123',
                         'pwdId' => 'PWD-000001',
                         'loginUrl' => 'http://localhost:3000/login'

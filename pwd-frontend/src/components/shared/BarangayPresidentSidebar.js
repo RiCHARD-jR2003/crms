@@ -1,5 +1,5 @@
-import React from 'react';
-import { Box, Typography, Button, Avatar } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Button, Avatar, Badge } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
@@ -10,23 +10,63 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { api } from '../../services/api';
 
 function BarangayPresidentSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, currentUser } = useAuth();
+  const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
+  // Fetch pending applications count
+  useEffect(() => {
+    const fetchPendingApplicationsCount = async () => {
+      try {
+        console.log('Fetching pending applications count...');
+        console.log('Current user:', currentUser);
+        console.log('User role:', currentUser?.role);
+        console.log('User username:', currentUser?.username);
+        
+        const response = await api.get('/applications/dashboard/stats');
+        console.log('Dashboard stats response:', response);
+        
+        // Handle different response structures
+        let pendingCount = 0;
+        if (response && response.pendingApplications) {
+          pendingCount = response.pendingApplications;
+        } else if (response && response.data && response.data.pendingApplications) {
+          pendingCount = response.data.pendingApplications;
+        } else if (response && typeof response === 'object' && 'pendingApplications' in response) {
+          pendingCount = response.pendingApplications;
+        }
+        
+        console.log('Setting pending applications count to:', pendingCount);
+        setPendingApplicationsCount(pendingCount);
+        console.log('Current pendingApplicationsCount state:', pendingApplicationsCount);
+      } catch (error) {
+        console.error('Error fetching pending applications count:', error);
+        console.error('Error details:', error.message, error.status);
+        setPendingApplicationsCount(0);
+      }
+    };
+
+    fetchPendingApplicationsCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingApplicationsCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
   
   const isActive = (path) => {
     return location.pathname === path;
   };
 
-  const SidebarItem = ({ icon, label, path, active = false }) => {
+  const SidebarItem = ({ icon, label, path, active = false, badgeCount = 0 }) => {
+    console.log(`SidebarItem ${label}: badgeCount = ${badgeCount}, active = ${active}`);
     return (
       <Box 
         onClick={() => navigate(path)}
@@ -49,8 +89,14 @@ function BarangayPresidentSidebar() {
           transition: 'all 0.2s ease-in-out'
         }}
       >
-        {React.cloneElement(icon, { sx: { fontSize: 22 } })}
-        <Typography sx={{ fontWeight: 'inherit', fontSize: '0.95rem' }}>{label}</Typography>
+        {badgeCount > 0 ? (
+          <Badge badgeContent={badgeCount} color="error">
+            {React.cloneElement(icon, { sx: { fontSize: 22, color: active ? '#FFFFFF' : '#566573' } })}
+          </Badge>
+        ) : (
+          React.cloneElement(icon, { sx: { fontSize: 22, color: active ? '#FFFFFF' : '#566573' } })
+        )}
+        <Typography sx={{ fontWeight: 'inherit', fontSize: '0.95rem', color: active ? '#FFFFFF' : '#566573' }}>{label}</Typography>
       </Box>
     );
   };
@@ -118,6 +164,7 @@ function BarangayPresidentSidebar() {
           label="PWD Records" 
           path="/barangay-president-pwd-records"
           active={isActive('/barangay-president-pwd-records')}
+          badgeCount={pendingApplicationsCount}
         />
         <SidebarItem 
           icon={<CreditCardIcon />} 

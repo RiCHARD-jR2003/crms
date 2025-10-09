@@ -35,6 +35,7 @@ class EmailService
             'firstName' => $data['firstName'],
             'lastName' => $data['lastName'],
             'email' => $data['email'],
+            'username' => $data['username'],
             'password' => $data['password'],
             'pwdId' => $data['pwdId'],
             'loginUrl' => $data['loginUrl'] ?? config('app.frontend_url', 'http://localhost:3000/login')

@@ -28,16 +28,24 @@ import {
   Info
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
+import AccessibilitySettings from '../shared/AccessibilitySettings';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from '../../contexts/TranslationContext';
+import { useScreenReader } from '../../hooks/useScreenReader';
 import announcementService from '../../services/announcementService';
 
 function PWDMemberAnnouncement() {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
+  const { announcePageChange } = useScreenReader();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // Announce page load
+    announcePageChange(t('announcements.title'));
+    
     const fetchAnnouncements = async () => {
       try {
         setLoading(true);
@@ -130,7 +138,7 @@ function PWDMemberAnnouncement() {
         {/* Header */}
         <Box sx={{ mb: 4 }}>
           <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#000000', mb: 1 }}>
-            Announcements
+            {t('announcements.title')}
           </Typography>
           <Typography variant="h6" sx={{ color: '#000000' }}>
             Stay updated with the latest news and important information from PDAO.
@@ -154,7 +162,7 @@ function PWDMemberAnnouncement() {
                   {announcements.length}
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
-                  Total Announcements
+                  {t('common.announcements')}
                 </Typography>
               </CardContent>
             </Card>
@@ -167,7 +175,7 @@ function PWDMemberAnnouncement() {
                   {announcements.filter(a => a.priority === 'urgent').length}
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
-                  Urgent Announcements
+                  {t('announcements.urgent')} {t('common.announcements')}
                 </Typography>
               </CardContent>
             </Card>
@@ -216,7 +224,7 @@ function PWDMemberAnnouncement() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
             <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
             <Typography sx={{ fontWeight: 700, color: '#000000', fontSize: '1.2rem' }}>
-              Latest Announcements
+              {t('dashboard.latestAnnouncements')}
             </Typography>
           </Box>
           
@@ -300,15 +308,18 @@ function PWDMemberAnnouncement() {
             <Box sx={{ textAlign: 'center', py: 6 }}>
               <Campaign sx={{ fontSize: 64, color: '#BDC3C7', mb: 2 }} />
               <Typography variant="h6" sx={{ color: '#000000', mb: 1 }}>
-                No announcements available
+                {t('announcements.noAnnouncements')}
               </Typography>
               <Typography variant="body2" sx={{ color: '#666666' }}>
-                Check back later for important updates and news from PDAO.
+                {t('announcements.noAnnouncementsDescription')}
               </Typography>
             </Box>
           )}
         </Paper>
       </Box>
+      
+      {/* Accessibility Settings Floating Button */}
+      <AccessibilitySettings />
     </Box>
   );
 }

@@ -35,7 +35,10 @@ import {
   Menu
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
+import AccessibilitySettings from '../shared/AccessibilitySettings';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from '../../contexts/TranslationContext';
+import { useScreenReader } from '../../hooks/useScreenReader';
 import announcementService from '../../services/announcementService';
 import { api } from '../../services/api';
 import { 
@@ -50,6 +53,8 @@ import { useNavigate } from 'react-router-dom';
 
 function PWDMemberDashboard() {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
+  const { announcePageChange } = useScreenReader();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -81,15 +86,21 @@ function PWDMemberDashboard() {
 
   // Navigation handlers
   const handleCreateSupportTicket = () => {
+    announcePageChange(t('support.title'));
     navigate('/pwd-support');
   };
 
   const handleViewMyTickets = () => {
+    announcePageChange(t('support.title'));
     navigate('/pwd-support');
   };
 
 
+
   useEffect(() => {
+    // Announce page load
+    announcePageChange(t('dashboard.title'));
+    
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
@@ -220,7 +231,7 @@ function PWDMemberDashboard() {
               <Menu />
             </IconButton>
             <Typography variant="h6" sx={{ ml: 2, color: '#000000', fontWeight: 600 }}>
-              PWD Dashboard
+              {t('common.dashboard')}
             </Typography>
           </Box>
 
@@ -235,7 +246,7 @@ function PWDMemberDashboard() {
                 fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
               }}
             >
-              Dashboard
+              {t('dashboard.title')}
             </Typography>
             <Typography 
               variant="body1" 
@@ -244,9 +255,11 @@ function PWDMemberDashboard() {
                 fontSize: { xs: '0.875rem', sm: '1rem' }
               }}
             >
-              Welcome back, {currentUser?.pwd_member?.firstName && currentUser?.pwd_member?.lastName 
-                ? `${currentUser.pwd_member.firstName} ${currentUser.pwd_member.lastName}` 
-                : currentUser?.username || 'PWD Member'}. Here's your personal dashboard.
+              {t('dashboard.welcome', { 
+                name: currentUser?.pwd_member?.firstName && currentUser?.pwd_member?.lastName 
+                  ? `${currentUser.pwd_member.firstName} ${currentUser.pwd_member.lastName}` 
+                  : currentUser?.username || 'PWD Member'
+              })}
             </Typography>
           </Box>
 
@@ -266,10 +279,10 @@ function PWDMemberDashboard() {
                     <CheckCircle sx={{ fontSize: 48, color: '#27AE60', mr: 2 }} />
                     <Box>
                       <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#27AE60', mb: 0.5 }}>
-                        Approved
+                        {t('common.approved')}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#000000' }}>
-                        Application Status
+                        {t('dashboard.applicationStatus')}
                       </Typography>
                     </Box>
                   </Box>
@@ -286,7 +299,7 @@ function PWDMemberDashboard() {
                         PWD
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#000000', mb: 0.5 }}>
-                        Member Since
+                        {t('dashboard.memberSince')}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#3498DB', fontWeight: 'bold' }}>
                         {formatDate(memberSinceDate)}
@@ -306,7 +319,7 @@ function PWDMemberDashboard() {
                         {announcements.length}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#000000' }}>
-                        Announcements
+                        {t('common.announcements')}
                       </Typography>
                     </Box>
                   </Box>
@@ -323,7 +336,7 @@ function PWDMemberDashboard() {
                         {supportTickets.length}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#000000' }}>
-                        Support Tickets
+                        {t('support.myTickets')}
                       </Typography>
                     </Box>
                   </Box>
@@ -342,7 +355,7 @@ function PWDMemberDashboard() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
                     <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
                     <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                      Latest Announcements
+                      {t('dashboard.latestAnnouncements')}
                     </Typography>
                   </Box>
               
@@ -396,10 +409,10 @@ function PWDMemberDashboard() {
                       <Box sx={{ textAlign: 'center', py: 4, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                         <ErrorOutline sx={{ fontSize: 48, color: '#000000', mb: 2 }} />
                         <Typography variant="body1" sx={{ color: '#000000', mb: 1 }}>
-                          No announcements at the moment
+                          {t('dashboard.noAnnouncements')}
                         </Typography>
                         <Typography variant="body2" sx={{ color: '#000000' }}>
-                          Check back later for important updates
+                          {t('dashboard.checkBackLater')}
                         </Typography>
                       </Box>
                     )}
@@ -415,13 +428,13 @@ function PWDMemberDashboard() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
                     <Support sx={{ color: '#E74C3C', fontSize: 24 }} />
                     <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                      Support Desk
+                      {t('dashboard.supportDesk')}
                     </Typography>
                   </Box>
               
                   <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <Typography variant="body2" sx={{ color: '#000000', mb: 3 }}>
-                      Need help? Our support team is here to assist you with any questions or concerns.
+                      {t('dashboard.supportDescription')}
                     </Typography>
                     
                     <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
@@ -437,7 +450,7 @@ function PWDMemberDashboard() {
                           '&:hover': { bgcolor: '#C0392B' }
                         }}
                       >
-                        Create Support Ticket
+{t('dashboard.createSupportTicket')}
                       </Button>
                       <Button
                         variant="outlined"
@@ -451,7 +464,7 @@ function PWDMemberDashboard() {
                           '&:hover': { borderColor: '#C0392B', backgroundColor: '#E74C3C15' }
                         }}
                       >
-                        View My Tickets
+{t('dashboard.viewMyTickets')}
                       </Button>
                     </Box>
                     
@@ -459,19 +472,19 @@ function PWDMemberDashboard() {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                         <Phone sx={{ color: '#E74C3C', fontSize: 16 }} />
                         <Typography variant="body2" sx={{ color: '#000000' }}>
-                          Phone: (049) 123-4567
+                          {t('common.phone')}: (049) 123-4567
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                         <Email sx={{ color: '#E74C3C', fontSize: 16 }} />
                         <Typography variant="body2" sx={{ color: '#000000' }}>
-                          Email: support@pdao.cabuyao.gov.ph
+                          {t('common.email')}: support@pdao.cabuyao.gov.ph
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <AccessTime sx={{ color: '#E74C3C', fontSize: 16 }} />
                         <Typography variant="body2" sx={{ color: '#000000' }}>
-                          Hours: Mon-Fri, 8AM-5PM
+                          {t('dashboard.supportHours')}
                         </Typography>
                       </Box>
                     </Box>
@@ -482,6 +495,9 @@ function PWDMemberDashboard() {
           </Grid>
         </Box>
       </Box>
+      
+      {/* Accessibility Settings Floating Button */}
+      <AccessibilitySettings />
     </Box>
   );
 }

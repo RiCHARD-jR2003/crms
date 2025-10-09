@@ -37,9 +37,12 @@ import {
   Warning as WarningIcon
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
+import AccessibilitySettings from '../shared/AccessibilitySettings';
 import MobileHeader from '../shared/MobileHeader';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from '../../contexts/TranslationContext';
+import { useScreenReader } from '../../hooks/useScreenReader';
 import { 
   mainContainerStyles, 
   contentAreaStyles, 
@@ -51,6 +54,8 @@ import {
 
 function MemberDocumentUpload() {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
+  const { announcePageChange } = useScreenReader();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [documents, setDocuments] = useState([]);
@@ -98,6 +103,9 @@ function MemberDocumentUpload() {
   };
 
   useEffect(() => {
+    // Announce page load
+    announcePageChange(t('documents.title'));
+    
     const loadData = async () => {
       setLoading(true);
       await Promise.all([
@@ -255,7 +263,7 @@ function MemberDocumentUpload() {
                 fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
               }}
             >
-              My Documents
+              {t('documents.title')}
             </Typography>
             <Typography 
               variant="body1" 
@@ -264,7 +272,7 @@ function MemberDocumentUpload() {
                 fontSize: { xs: '0.875rem', sm: '1rem' }
               }}
             >
-              Upload and manage your required documents
+              {t('documents.uploadDocument')}
             </Typography>
           </Box>
 
@@ -372,7 +380,7 @@ function MemberDocumentUpload() {
                         {memberDoc ? (
                           <>
                             <Typography variant="caption" color="text.secondary">
-                              Uploaded: {new Date(memberDoc.uploaded_at).toLocaleDateString()}
+                              {t('documents.uploadDate')}: {new Date(memberDoc.uploaded_at).toLocaleDateString()}
                             </Typography>
                             {memberDoc.notes && (
                               <>
@@ -385,7 +393,7 @@ function MemberDocumentUpload() {
                           </>
                         ) : (
                           <Typography variant="caption" color="text.secondary">
-                            Status: Not uploaded
+                            {t('common.status')}: {t('common.pending')}
                           </Typography>
                         )}
                       </Box>
@@ -407,7 +415,7 @@ function MemberDocumentUpload() {
                               onClick={() => window.open(`http://127.0.0.1:8000/api/documents/file/${memberDoc.id}`, '_blank')}
                               variant="outlined"
                             >
-                              View
+                              {t('common.view')}
                             </Button>
                             <Button
                               size="small"
@@ -427,7 +435,7 @@ function MemberDocumentUpload() {
                             color={document.is_required ? 'error' : 'primary'}
                             fullWidth
                           >
-                            Upload Document
+{t('documents.uploadDocument')}
                           </Button>
                         )}
                       </Box>
@@ -469,7 +477,7 @@ function MemberDocumentUpload() {
           fontWeight: 'bold',
           borderBottom: '1px solid #E0E0E0'
         }}>
-          Upload Document
+          {t('documents.uploadDocument')}
         </DialogTitle>
         <DialogContent sx={{ bgcolor: '#FFFFFF', color: '#2C3E50' }}>
           {selectedDocument && (
@@ -538,7 +546,7 @@ function MemberDocumentUpload() {
                 } 
               }} />
               <Typography variant="caption" sx={{ mt: 1, color: '#7F8C8D' }}>
-                Uploading...
+                {t('common.loading')}
               </Typography>
             </Box>
           )}
@@ -558,7 +566,7 @@ function MemberDocumentUpload() {
               }
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button 
             onClick={handleUpload} 
@@ -575,10 +583,13 @@ function MemberDocumentUpload() {
               }
             }}
           >
-            Upload
+{t('common.upload')}
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Accessibility Settings Floating Button */}
+      <AccessibilitySettings />
     </Box>
   );
 }

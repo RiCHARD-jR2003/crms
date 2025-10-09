@@ -72,9 +72,11 @@
         </div>
         
         <div class="credentials" style="background-color:#e8f5e8;border-left:4px solid #28a745;">
-            <h3>🔐 Set Your Password</h3>
+            <h3>🔐 Your Login Credentials</h3>
+            <p><strong>Username:</strong> {{ $username }}</p>
+            <p><strong>Password:</strong> {{ $password }}</p>
             <p><strong>Email:</strong> {{ $email }}</p>
-            <p>For security, please create your own password using the link below.</p>
+            <p><strong>Important:</strong> You will be required to change this password on your first login for security purposes.</p>
         </div>
         
         <h3>🚀 What's Next?</h3>
@@ -86,7 +88,7 @@
         </ul>
         
         <div style="text-align: center;">
-            <a href="{{ $loginUrl }}" class="button">Set Your Password</a>
+            <a href="{{ $loginUrl }}" class="button">Login to Your Account</a>
         </div>
         
         <h3>📞 Need Help?</h3>

@@ -15,6 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "@babel/helper-define-polyfill-provider": "^0.6.5",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/screen-reader": "^7.0.2",
     "@emotion/react": "^11.10.5",
     "@emotion/styled": "^11.10.5",
     "@google-cloud/translate": "^9.2.0",

@@ -39,6 +39,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import applicationService from '../../services/applicationService';
+import EmailVerificationModal from './EmailVerificationModal';
 
 const steps = [
   'Personal Information',
@@ -57,6 +58,8 @@ function ApplicationForm() {
   const [previewFileName, setPreviewFileName] = useState('');
   const [duplicateCheckLoading, setDuplicateCheckLoading] = useState(false);
   const [duplicateErrors, setDuplicateErrors] = useState({});
+  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
 
   // Reusable styling for form fields
   const getTextFieldStyles = (hasError = false) => ({
@@ -400,11 +403,13 @@ function ApplicationForm() {
         
       case 3: // Documents
         // Validate required documents dynamically
-        requiredDocuments.forEach(doc => {
-          if (doc.is_required && !formData.documents[`doc_${doc.id}`]) {
-            currentErrors[`doc_${doc.id}`] = `${doc.name} is required`;
-          }
-        });
+        if (requiredDocuments) {
+          requiredDocuments.forEach(doc => {
+            if (doc.is_required && (!formData.documents || !formData.documents[`doc_${doc.id}`])) {
+              currentErrors[`doc_${doc.id}`] = `${doc.name} is required`;
+            }
+          });
+        }
         break;
     }
     
@@ -427,6 +432,22 @@ function ApplicationForm() {
   };
 
   const handleSubmit = async () => {
+    // Open email verification modal first
+    setVerificationModalOpen(true);
+  };
+
+  const handleVerified = (code) => {
+    setVerificationCode(code);
+    setVerificationModalOpen(false);
+    // Proceed with actual submission
+    submitApplication(code);
+  };
+
+  const handleVerificationCancel = () => {
+    setVerificationModalOpen(false);
+  };
+
+  const submitApplication = async (code) => {
     try {
       const formDataToSend = new FormData();
       
@@ -459,6 +480,7 @@ function ApplicationForm() {
         idType: 'PWD ID', // Default value
         idNumber: 'TEMP-' + Date.now(), // Temporary ID
         submissionDate: new Date().toISOString().split('T')[0], // Current date
+        verification_code: code, // Add verification code
       };
 
       // Check for required fields - only the fields that backend expects
@@ -481,19 +503,22 @@ function ApplicationForm() {
       });
 
       // Add file uploads to FormData dynamically
-      Object.keys(formData.documents).forEach(key => {
-        const file = formData.documents[key];
-        if (file) {
-          // Extract document ID from key (doc_123 -> 123)
-          const docId = key.replace('doc_', '');
-          formDataToSend.append(`document_${docId}`, file);
-        }
-      });
+      if (formData.documents) {
+        Object.keys(formData.documents).forEach(key => {
+          const file = formData.documents[key];
+          if (file) {
+            // Extract document ID from key (doc_123 -> 123)
+            const docId = key.replace('doc_', '');
+            formDataToSend.append(`document_${docId}`, file);
+          }
+        });
+      }
 
       // Also map known document names to backend's expected fixed keys
       // so the API can process them even if it doesn't use dynamic document_{id} keys
-      requiredDocuments.forEach((doc) => {
-        const file = formData.documents[`doc_${doc.id}`];
+      if (requiredDocuments) {
+        requiredDocuments.forEach((doc) => {
+        const file = formData.documents && formData.documents[`doc_${doc.id}`];
         if (!file) return;
         const name = (doc.name || '').toString().toLowerCase();
         if (name.includes('medical')) {
@@ -514,7 +539,8 @@ function ApplicationForm() {
         } else if (name.includes('barangay') && (name.includes('certificate') || name.includes('residency'))) {
           formDataToSend.append('barangayCertificate', file);
         }
-      });
+        });
+      }
 
       // Debug: Log what we're sending
       console.log('Sending FormData with fields:', Object.fromEntries(formDataToSend.entries()));
@@ -522,7 +548,11 @@ function ApplicationForm() {
       const response = await applicationService.create(formDataToSend);
 
       if (response) {
-        alert('Application submitted successfully!');
+        alert('Application submitted successfully! You will be redirected to the login page.');
+        // Redirect to login page after successful submission
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000); // 2 second delay to allow user to read the success message
         // Reset form
         setFormData({
           firstName: '',
@@ -1185,7 +1215,7 @@ function ApplicationForm() {
               </Box>
             ) : (
               <Grid container spacing={2}>
-                {requiredDocuments.map((document) => (
+                {requiredDocuments && requiredDocuments.map((document) => (
                   <Grid item xs={12} key={document.id}>
                     <Box sx={{ 
                       p: 2, 
@@ -1249,7 +1279,7 @@ function ApplicationForm() {
                         }}
                       />
                       
-                      {formData.documents[`doc_${document.id}`] && (
+                      {formData.documents && formData.documents[`doc_${document.id}`] && (
                         <Box sx={{ mt: 2 }}>
                           <Card sx={{ 
                             border: '1px solid #E0E0E0', 
@@ -1621,6 +1651,15 @@ function ApplicationForm() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Email Verification Modal */}
+      <EmailVerificationModal
+        open={verificationModalOpen}
+        onClose={handleVerificationCancel}
+        email={formData.email}
+        onVerified={handleVerified}
+        onCancel={handleVerificationCancel}
+      />
     </Box>
   );
 }

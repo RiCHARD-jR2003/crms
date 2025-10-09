@@ -55,11 +55,16 @@ import {
   Headset
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
+import AccessibilitySettings from '../shared/AccessibilitySettings';
 import { supportService } from '../../services/supportService';
+import { useTranslation } from '../../contexts/TranslationContext';
+import { useScreenReader } from '../../hooks/useScreenReader';
 
 const PWDMemberSupportDesk = () => {
   console.log('PWDMemberSupportDesk component is rendering');
   
+  const { t } = useTranslation();
+  const { announcePageChange } = useScreenReader();
   const [openDialog, setOpenDialog] = useState(false);
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -81,8 +86,11 @@ const PWDMemberSupportDesk = () => {
 
   useEffect(() => {
     console.log('PWDMemberSupportDesk useEffect running');
+    // Announce page load
+    announcePageChange(t('support.title'));
+    
     fetchTickets();
-  }, []);
+  }, [announcePageChange, t]);
 
   const fetchTickets = async () => {
     try {
@@ -325,7 +333,7 @@ const PWDMemberSupportDesk = () => {
         {/* Header */}
         <Box sx={{ mb: 4 }}>
           <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600, mb: 1 }}>
-            Support Desk
+            {t('support.title')}
           </Typography>
           <Typography variant="body1" sx={{ color: '#000000' }}>
             Create and manage your support tickets
@@ -344,7 +352,7 @@ const PWDMemberSupportDesk = () => {
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
-                  Open Tickets
+                  {t('support.open')} {t('support.myTickets')}
                 </Typography>
               </CardContent>
             </Card>
@@ -359,7 +367,7 @@ const PWDMemberSupportDesk = () => {
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
-                  In Progress
+                  {t('support.inProgress')}
                 </Typography>
               </CardContent>
             </Card>
@@ -374,7 +382,7 @@ const PWDMemberSupportDesk = () => {
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
-                  Resolved
+                  {t('support.resolved')}
                 </Typography>
               </CardContent>
             </Card>
@@ -412,7 +420,7 @@ const PWDMemberSupportDesk = () => {
               py: 1.5
             }}
           >
-            Create New Ticket
+{t('support.createTicket')}
           </Button>
         </Box>
 
@@ -434,13 +442,13 @@ const PWDMemberSupportDesk = () => {
             <Table>
               <TableHead sx={{ backgroundColor: '#FFFFFF' }}>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Ticket #</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Subject</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Priority</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Category</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Created</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>Actions</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.ticketNumber')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.subject')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.status')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.priority')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.category')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.createdAt')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('documents.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -545,7 +553,7 @@ const PWDMemberSupportDesk = () => {
                               }
                             }}
                           >
-                            View
+{t('common.view')}
                           </Button>
                           {ticket.status === 'resolved' && (
                             <Button
@@ -568,7 +576,7 @@ const PWDMemberSupportDesk = () => {
                                 }
                               }}
                             >
-                              Close
+{t('support.closed')}
                             </Button>
                           )}
                           {ticket.status === 'in_progress' && (
@@ -608,7 +616,7 @@ const PWDMemberSupportDesk = () => {
         {/* Create Ticket Dialog */}
         <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
           <DialogTitle sx={{ color: '#000000', fontWeight: 600, backgroundColor: '#FFFFFF' }}>
-            Create New Support Ticket
+{t('support.createTicket')}
           </DialogTitle>
           <DialogContent sx={{ backgroundColor: '#FFFFFF', color: '#000000' }}>
             <Box sx={{ pt: 1 }}>
@@ -616,7 +624,7 @@ const PWDMemberSupportDesk = () => {
                 <Grid item xs={12}>
                   <Box sx={{ mb: 1 }}>
                     <Typography variant="body2" sx={{ color: '#000000', fontWeight: 500 }}>
-                      Subject *
+{t('support.subject')} *
                     </Typography>
                   </Box>
                   <TextField
@@ -822,7 +830,7 @@ const PWDMemberSupportDesk = () => {
                 '&:disabled': { backgroundColor: '#7F8C8D' }
               }}
             >
-              Create Ticket
+{t('support.createTicket')}
             </Button>
           </DialogActions>
         </Dialog>
@@ -1126,6 +1134,9 @@ const PWDMemberSupportDesk = () => {
 
         
       </Box>
+      
+      {/* Accessibility Settings Floating Button */}
+      <AccessibilitySettings />
     </Box>
   );
 };

@@ -492,7 +492,7 @@ function PWDRecords() {
       );
     }
 
-    if (currentUser.role !== 'Admin') {
+    if (currentUser.role !== 'Admin' && currentUser.role !== 'SuperAdmin') {
       return (
         <Box sx={{ ...mainContainerStyles, bgcolor: 'white', p: 4, textAlign: 'center' }}>
           <Typography variant="h6" sx={{ color: '#E74C3C' }}>
@@ -1125,7 +1125,7 @@ function PWDRecords() {
                           <TableRow key={row.applicationID || row.id} sx={{ bgcolor: idx % 2 ? '#F7FBFF' : 'white' }}>
                             {tab === 0 ? (
                               <>
-                                <TableCell sx={{ color: '#34495E', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#1976D2', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>
                                   {row.pwdId}
                                 </TableCell>
                                 <TableCell sx={{ color: '#0b87ac', fontWeight: 500, py: 2, px: 2 }}>
@@ -1163,7 +1163,7 @@ function PWDRecords() {
                               </>
                             ) : (
                               <>
-                                <TableCell sx={{ color: '#34495E', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#1976D2', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>
                                   {row.applicationID}
                                 </TableCell>
                                 <TableCell sx={{ color: '#0b87ac', fontWeight: 600, py: 2, px: 2 }}>
@@ -1335,7 +1335,7 @@ function PWDRecords() {
                   
                   <Grid container spacing={2} sx={{ mb: 2 }}>
                     <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2' }}>
                         Application ID:
                       </Typography>
                       <Typography variant="body1" sx={{ color: '#0b87ac' }}>
@@ -1343,7 +1343,7 @@ function PWDRecords() {
                       </Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2' }}>
                         Submission Date:
                       </Typography>
                       <Typography variant="body1" sx={{ color: '#0b87ac' }}>

@@ -1,4 +1,4 @@
-// src/components/dashboard/AdminDashboard.js
+﻿// src/components/dashboard/AdminDashboard.js
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -58,6 +58,7 @@ import AdminSidebar from '../shared/AdminSidebar';
 import MobileHeader from '../shared/MobileHeader';
 import FreeGoogleMapsComponent from '../shared/FreeGoogleMapsComponent';
 import dashboardService from '../../services/dashboardService';
+import supportService from '../../services/supportService';
 import { api } from '../../services/api';
 import { 
   mainContainerStyles, 
@@ -276,7 +277,7 @@ function AdminDashboard() {
   }, []);
 
   const renderMapSection = () => {
-    console.log('🗺️ AdminDashboard renderMapSection called');
+    console.log('≡ƒù║∩╕Å AdminDashboard renderMapSection called');
     return (
       <Card sx={{ ...cardStyles, height: { xs: '300px', sm: '340px' }, mb: 3 }}>
         <CardContent sx={{ height: '100%', p: { xs: 1, sm: 2 } }}>

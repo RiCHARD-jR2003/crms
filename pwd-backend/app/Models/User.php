@@ -19,7 +19,8 @@ class User extends Authenticatable
         'password',
         'email',
         'role',
-        'status'
+        'status',
+        'password_change_required'
     ];
 
     protected $hidden = [
@@ -29,6 +30,7 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'password_change_required' => 'boolean',
     ];
 
     // Relationships
@@ -45,6 +47,11 @@ class User extends Authenticatable
     public function pwdMember()
     {
         return $this->hasOne(PWDMember::class, 'userID', 'userID');
+    }
+
+    public function superAdmin()
+    {
+        return $this->hasOne(SuperAdmin::class, 'userID', 'userID');
     }
 
     public function auditLogs()
@@ -82,5 +89,17 @@ class User extends Authenticatable
     public function getAuthPassword()
     {
         return $this->password;
+    }
+
+    // Helper method to check if password change is required
+    public function requiresPasswordChange()
+    {
+        return $this->password_change_required;
+    }
+
+    // Helper method to mark password as changed
+    public function markPasswordChanged()
+    {
+        $this->update(['password_change_required' => false]);
     }
 }
