@@ -13,6 +13,10 @@ return new class extends Migration
      */
     public function up()
     {
+        // Drop the existing superadmin table
+        Schema::dropIfExists('superadmin');
+        
+        // Create the superadmin table with correct structure
         Schema::create('superadmin', function (Blueprint $table) {
             $table->unsignedBigInteger('userID')->primary();
             $table->timestamps();

@@ -78,59 +78,41 @@ class DashboardController extends Controller
     public function getBarangayContacts()
     {
         try {
-            // Return mock data for now
-            $contacts = [
-                [
-                    'barangay' => 'Banaybanay',
-                    'president_name' => 'John Smith',
-                    'email' => 'john.smith@banaybanay.com',
-                    'phone' => '+63 999 123 4567',
-                    'address' => 'Barangay Banaybanay, Cabuyao City, Laguna',
-                    'pwd_count' => 25,
-                    'pending_applications' => 3,
-                    'status' => 'active'
-                ],
-                [
-                    'barangay' => 'Banlic',
-                    'president_name' => 'Maria Garcia',
-                    'email' => 'maria.garcia@banlic.com',
-                    'phone' => '+63 999 234 5678',
-                    'address' => 'Barangay Banlic, Cabuyao City, Laguna',
-                    'pwd_count' => 18,
-                    'pending_applications' => 2,
-                    'status' => 'active'
-                ],
-                [
-                    'barangay' => 'Bigaa',
-                    'president_name' => 'Pedro Santos',
-                    'email' => 'pedro.santos@bigaa.com',
-                    'phone' => '+63 999 345 6789',
-                    'address' => 'Barangay Bigaa, Cabuyao City, Laguna',
-                    'pwd_count' => 32,
-                    'pending_applications' => 5,
-                    'status' => 'active'
-                ],
-                [
-                    'barangay' => 'Butong',
-                    'president_name' => 'Ana Rodriguez',
-                    'email' => 'ana.rodriguez@butong.com',
-                    'phone' => '+63 999 456 7890',
-                    'address' => 'Barangay Butong, Cabuyao City, Laguna',
-                    'pwd_count' => 15,
-                    'pending_applications' => 1,
-                    'status' => 'active'
-                ],
-                [
-                    'barangay' => 'Casile',
-                    'president_name' => 'Carlos Lopez',
-                    'email' => 'carlos.lopez@casile.com',
-                    'phone' => '+63 999 567 8901',
-                    'address' => 'Barangay Casile, Cabuyao City, Laguna',
-                    'pwd_count' => 28,
-                    'pending_applications' => 4,
-                    'status' => 'active'
-                ]
-            ];
+            // Get barangay presidents with their user information and contact details
+            $barangayPresidents = \App\Models\BarangayPresident::with('user')
+                ->whereNotNull('barangay')
+                ->get();
+
+            $contacts = [];
+
+            foreach ($barangayPresidents as $president) {
+                // Get PWD count for this barangay
+                $pwdCount = \App\Models\PWDMember::where('barangay', $president->barangay)->count();
+                
+                // Get pending applications for this barangay
+                $pendingApplications = \App\Models\Application::where('barangay', $president->barangay)
+                    ->whereIn('status', ['Pending Barangay Approval', 'Pending Admin Approval'])
+                    ->count();
+
+                $contacts[] = [
+                    'barangay' => $president->barangay,
+                    'president_name' => $president->user->username ?? 'Unknown',
+                    'email' => $president->email ?? $president->user->email ?? 'No email',
+                    'phone' => $president->contact_number ?? 'No contact number',
+                    'address' => "Barangay {$president->barangay}, Cabuyao City, Laguna",
+                    'pwd_count' => $pwdCount,
+                    'pending_applications' => $pendingApplications,
+                    'status' => $president->user->status ?? 'active'
+                ];
+            }
+
+            // If no barangay presidents found, return empty array
+            if (empty($contacts)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
 
             return response()->json([
                 'success' => true,

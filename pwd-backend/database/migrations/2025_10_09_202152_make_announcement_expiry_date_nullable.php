@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -13,12 +14,7 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('superadmin', function (Blueprint $table) {
-            $table->unsignedBigInteger('userID')->primary();
-            $table->timestamps();
-            
-            $table->foreign('userID')->references('userID')->on('users')->onDelete('cascade');
-        });
+        DB::statement('ALTER TABLE announcement MODIFY COLUMN expiryDate DATE NULL');
     }
 
     /**
@@ -28,6 +24,6 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('superadmin');
+        DB::statement('ALTER TABLE announcement MODIFY COLUMN expiryDate DATE NOT NULL');
     }
 };

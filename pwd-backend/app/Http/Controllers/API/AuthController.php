@@ -33,7 +33,7 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
             'role' => $request->role,
             'status' => 'active',
-            'password_change_required' => false // User sets their own password during registration
+            'password_change_required' => $request->role === 'PWDMember' // Only PWDMember users need to change password
         ]);
 
         // Create role-specific record

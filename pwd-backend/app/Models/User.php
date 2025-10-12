@@ -85,6 +85,11 @@ class User extends Authenticatable
         return $this->role === 'PWDMember';
     }
 
+    public function isSuperAdmin()
+    {
+        return $this->role === 'SuperAdmin';
+    }
+
     // Override default password field
     public function getAuthPassword()
     {
@@ -94,7 +99,8 @@ class User extends Authenticatable
     // Helper method to check if password change is required
     public function requiresPasswordChange()
     {
-        return $this->password_change_required;
+        // Only PWDMember users are required to change their password
+        return $this->password_change_required && $this->role === 'PWDMember';
     }
 
     // Helper method to mark password as changed

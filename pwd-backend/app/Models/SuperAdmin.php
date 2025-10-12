@@ -8,4 +8,18 @@ use Illuminate\Database\Eloquent\Model;
 class SuperAdmin extends Model
 {
     use HasFactory;
+
+    protected $table = 'superadmin';
+    protected $primaryKey = 'userID';
+    public $incrementing = false;
+
+    protected $fillable = [
+        'userID'
+    ];
+
+    // Relationships
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'userID', 'userID');
+    }
 }

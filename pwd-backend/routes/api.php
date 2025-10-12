@@ -1469,6 +1469,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin')->group(function () {
         Route::post('/migrate-documents', [App\Http\Controllers\API\DocumentMigrationController::class, 'migrateApplicationDocuments']);
         Route::get('/migration-status', [App\Http\Controllers\API\DocumentMigrationController::class, 'getMigrationStatus']);
+        Route::post('/migrate-all-documents', function (Request $request) {
+            if ($request->user()->role !== 'Admin' && $request->user()->role !== 'SuperAdmin') {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+            
+            $documentMigrationService = new \App\Services\DocumentMigrationService();
+            $result = $documentMigrationService->migrateAllApprovedApplications();
+            
+            return response()->json($result);
+        });
     });
 
     // Notification routes
@@ -1638,6 +1648,10 @@ Route::get('/api/test-admin-approve/{applicationId}', function ($applicationId) 
             'pwdID' => $pwdUser->userID
         ]);
 
+        // Migrate documents from application to member_documents table
+        $documentMigrationService = new \App\Services\DocumentMigrationService();
+        $migrationResult = $documentMigrationService->migrateApplicationDocuments($application, $pwdUser);
+
         // Send email notification
         try {
             $emailService = new \App\Services\EmailService();
@@ -1656,6 +1670,8 @@ Route::get('/api/test-admin-approve/{applicationId}', function ($applicationId) 
                 'details' => [
                     'application_approved' => true,
                     'user_account_created' => true,
+                    'documents_migrated' => $migrationResult['success'] ?? false,
+                    'documents_migrated_count' => $migrationResult['migrated_count'] ?? 0,
                     'email_sent' => $emailSent
                 ],
                 'application' => [
@@ -1705,6 +1721,63 @@ Route::get('/api/test-admin-approve/{applicationId}', function ($applicationId) 
     }
 });
 
+// Test route to check Richard Carandang PWD-1
+Route::get('/api/test-richard-pwd1', function () {
+    try {
+        // Check if Richard Carandang exists in PWD members
+        $richard = \App\Models\PWDMember::where('firstName', 'Richard')
+            ->where('lastName', 'Carandang')
+            ->first();
+        
+        if ($richard) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Richard Carandang found',
+                'member' => [
+                    'id' => $richard->id,
+                    'userID' => $richard->userID,
+                    'pwd_id' => $richard->pwd_id,
+                    'firstName' => $richard->firstName,
+                    'lastName' => $richard->lastName,
+                    'birthDate' => $richard->birthDate,
+                    'disabilityType' => $richard->disabilityType,
+                    'barangay' => $richard->barangay
+                ]
+            ]);
+        } else {
+            // Check if he exists in applications
+            $application = \App\Models\Application::where('firstName', 'Richard')
+                ->where('lastName', 'Carandang')
+                ->first();
+                
+            if ($application) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Richard Carandang found in applications but not in PWD members',
+                    'application' => [
+                        'applicationID' => $application->applicationID,
+                        'firstName' => $application->firstName,
+                        'lastName' => $application->lastName,
+                        'status' => $application->status,
+                        'email' => $application->email
+                    ]
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Richard Carandang not found in database'
+                ]);
+            }
+        }
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Error checking Richard Carandang',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
 Route::get('/api/test-approve-application/{applicationId}', function ($applicationId) {
     try {
         $application = \App\Models\Application::findOrFail($applicationId);
@@ -1743,6 +1816,10 @@ Route::get('/api/test-approve-application/{applicationId}', function ($applicati
             'remarks' => 'Test approval - Account created',
             'pwdID' => $pwdUser->userID
         ]);
+
+        // Migrate documents from application to member_documents table
+        $documentMigrationService = new \App\Services\DocumentMigrationService();
+        $migrationResult = $documentMigrationService->migrateApplicationDocuments($application, $pwdUser);
 
         // Send email notification
         try {

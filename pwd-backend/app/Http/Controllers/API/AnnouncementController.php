@@ -38,7 +38,7 @@ class AnnouncementController extends Controller
             'priority' => 'required|string|in:Low,Medium,High',
             'targetAudience' => 'required|string|max:100',
             'status' => 'required|string|in:Draft,Active,Archived',
-            'expiryDate' => 'required|date|after:today',
+            'expiryDate' => 'nullable|date|after_or_equal:today',
         ]);
 
         if ($validator->fails()) {
@@ -84,7 +84,7 @@ class AnnouncementController extends Controller
             'priority' => 'sometimes|required|string|in:Low,Medium,High',
             'targetAudience' => 'sometimes|required|string|max:100',
             'status' => 'sometimes|required|string|in:Draft,Active,Archived',
-            'expiryDate' => 'sometimes|required|date|after:publishDate',
+            'expiryDate' => 'sometimes|nullable|date|after_or_equal:today',
         ]);
 
         if ($validator->fails()) {

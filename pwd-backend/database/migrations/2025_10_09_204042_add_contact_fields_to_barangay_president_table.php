@@ -13,11 +13,9 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('superadmin', function (Blueprint $table) {
-            $table->unsignedBigInteger('userID')->primary();
-            $table->timestamps();
-            
-            $table->foreign('userID')->references('userID')->on('users')->onDelete('cascade');
+        Schema::table('barangay_president', function (Blueprint $table) {
+            $table->string('contact_number', 20)->nullable()->after('preferred_language');
+            $table->string('email', 100)->nullable()->after('contact_number');
         });
     }
 
@@ -28,6 +26,8 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('superadmin');
+        Schema::table('barangay_president', function (Blueprint $table) {
+            $table->dropColumn(['contact_number', 'email']);
+        });
     }
 };

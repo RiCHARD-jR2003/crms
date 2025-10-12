@@ -17,11 +17,11 @@ class DocumentManagementController extends Controller
     // Admin functions
     public function index(Request $request)
     {
-        // Check if this is an admin request (for document management page)
-        $isAdmin = $request->user() && $request->user()->role === 'Admin';
+        // Check if this is a superadmin request (for document management page)
+        $isSuperAdmin = $request->user() && $request->user()->role === 'SuperAdmin';
         
-        if ($isAdmin) {
-            // Admin sees all documents for management
+        if ($isSuperAdmin) {
+            // SuperAdmin sees all documents for management
             $documents = RequiredDocument::with('creator')
                 ->orderBy('created_at', 'desc')
                 ->get();
@@ -76,8 +76,8 @@ class DocumentManagementController extends Controller
             'is_required' => 'boolean',
             'file_types' => 'nullable|array',
             'file_types.*' => 'string|in:pdf,jpg,jpeg,png,doc,docx',
-            'max_file_size' => 'integer|min:100|max:10240', // 100KB to 10MB
-            'effective_date' => 'nullable|date',
+            'max_file_size' => 'integer|min:2048|max:51200', // 2MB to 50MB
+            'effective_date' => 'nullable|date|after_or_equal:today',
             'expiry_date' => 'nullable|date|after:effective_date'
         ]);
 
@@ -132,9 +132,9 @@ class DocumentManagementController extends Controller
             'is_required' => 'boolean',
             'file_types' => 'nullable|array',
             'file_types.*' => 'string|in:pdf,jpg,jpeg,png,doc,docx',
-            'max_file_size' => 'integer|min:100|max:10240',
+            'max_file_size' => 'integer|min:2048|max:51200', // 2MB to 50MB
             'status' => 'in:active,inactive',
-            'effective_date' => 'nullable|date',
+            'effective_date' => 'nullable|date|after_or_equal:today',
             'expiry_date' => 'nullable|date|after:effective_date'
         ]);
 

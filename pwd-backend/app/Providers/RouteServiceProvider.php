@@ -283,7 +283,7 @@ class RouteServiceProvider extends ServiceProvider
                         'priority' => 'required|string|in:Low,Medium,High',
                         'targetAudience' => 'required|string|max:100',
                         'status' => 'required|string|in:Draft,Active,Archived',
-                        'expiryDate' => 'required|date|after:today',
+                        'expiryDate' => 'nullable|date|after_or_equal:today',
                     ]);
 
                     if ($validator->fails()) {
@@ -317,7 +317,7 @@ class RouteServiceProvider extends ServiceProvider
                         'priority' => 'sometimes|required|string|in:Low,Medium,High',
                         'targetAudience' => 'sometimes|required|string|max:100',
                         'status' => 'sometimes|required|string|in:Draft,Active,Archived',
-                        'expiryDate' => 'sometimes|required|date|after:publishDate',
+                        'expiryDate' => 'sometimes|nullable|date|after_or_equal:today',
                     ]);
 
                     if ($validator->fails()) {
@@ -697,8 +697,8 @@ class RouteServiceProvider extends ServiceProvider
                     ]);
                     
                     $admin = auth()->user();
-                    if (!$admin || $admin->role !== 'Admin') {
-                        return response()->json(['error' => 'Admin access required'], 403);
+                    if (!$admin || $admin->role !== 'SuperAdmin') {
+                        return response()->json(['error' => 'SuperAdmin access required'], 403);
                     }
                     
                     $user = \App\Models\User::where('email', $request->email)->first();

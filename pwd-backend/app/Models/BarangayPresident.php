@@ -16,7 +16,10 @@ class BarangayPresident extends Model
     protected $fillable = [
         'userID',
         'barangayID',
-        'barangay'
+        'barangay',
+        'preferred_language',
+        'contact_number',
+        'email'
     ];
 
     // Relationships

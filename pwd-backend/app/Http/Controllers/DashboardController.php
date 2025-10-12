@@ -164,63 +164,32 @@ class DashboardController extends Controller
     public function getBarangayCoordination()
     {
         try {
-            // Get PWD members grouped by barangay (if table exists)
-            $barangayStats = collect();
-            try {
-                $barangayStats = PWDMember::select(
-                    'barangay',
-                    DB::raw('COUNT(*) as pwd_count')
-                )
-                ->groupBy('barangay')
-                ->get()
-                ->keyBy('barangay');
-            } catch (\Exception $e) {
-                // Table doesn't exist or has issues, use empty collection
-                $barangayStats = collect();
-            }
+            // Get barangay presidents with their contact information
+            $barangayPresidents = \App\Models\BarangayPresident::with('user')
+                ->whereNotNull('barangay')
+                ->get();
 
-            // Get pending applications per barangay
-            $barangayPending = Application::select(
-                'barangay',
-                DB::raw('COUNT(*) as pending_count')
-            )
-            ->whereIn('status', ['Pending Barangay Approval', 'Pending Admin Approval'])
-            ->groupBy('barangay')
-            ->get()
-            ->keyBy('barangay');
-
-            // Combine the data
             $contacts = [];
-            foreach ($barangayStats as $barangay => $stats) {
+
+            foreach ($barangayPresidents as $president) {
                 $contacts[] = [
-                    'barangay' => $barangay,
-                    'pwd_count' => $stats->pwd_count,
-                    'pending_applications' => $barangayPending->get($barangay)->pending_count ?? 0,
-                    'president_name' => "President of {$barangay}",
-                    'phone' => '+63 999 000 0000',
-                    'email' => "president@" . strtolower(str_replace(' ', '', $barangay)) . ".com",
-                    'status' => 'active'
+                    'barangay' => $president->barangay,
+                    'president_name' => $president->user->username ?? 'Unknown',
+                    'email' => $president->email ?? $president->user->email ?? 'No email',
+                    'phone' => $president->contact_number ?? 'No contact number',
+                    'address' => "Barangay {$president->barangay}, Cabuyao City, Laguna",
+                    'pwd_count' => 0, // Not needed as per user request
+                    'pending_applications' => 0, // Not needed as per user request
+                    'status' => $president->user->status ?? 'active'
                 ];
             }
 
-            // If no PWD members, get barangays from applications
+            // If no barangay presidents found, return empty array
             if (empty($contacts)) {
-                $applicationBarangays = Application::select('barangay')
-                    ->distinct()
-                    ->whereNotNull('barangay')
-                    ->get();
-                
-                foreach ($applicationBarangays as $app) {
-                    $contacts[] = [
-                        'barangay' => $app->barangay,
-                        'pwd_count' => 0,
-                        'pending_applications' => $barangayPending->get($app->barangay)->pending_count ?? 0,
-                        'president_name' => "President of {$app->barangay}",
-                        'phone' => '+63 999 000 0000',
-                        'email' => "president@" . strtolower(str_replace(' ', '', $app->barangay)) . ".com",
-                        'status' => 'active'
-                    ];
-                }
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
             }
 
             // Sort by barangay name
