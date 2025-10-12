@@ -43,15 +43,16 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import AdminSidebar from '../shared/AdminSidebar';
 import pwdMemberService from '../../services/pwdMemberService';
+import QRCodeService from '../../services/qrCodeService';
 
 function PWDCard() {
   const { currentUser } = useAuth();
   const [pwdMembers, setPwdMembers] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
-  const [qrCodeDataURL, setQrCodeDataURL] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [qrCodeDataURL, setQrCodeDataURL] = useState('');
   const [filters, setFilters] = useState({
     search: '',
     barangay: '',
@@ -263,50 +264,159 @@ function PWDCard() {
     
     const generateQRCode = async () => {
       try {
-        // Dynamic import for QR code library
-        const QRCode = await import('qrcode');
-        
         const member = pwdMembers.find(m => m.id === selectedMember);
         if (!member) return;
         
-        const memberData = {
-          pwd_id: member.id,
-          userID: member.id.replace('PWD-2025-', ''),
-          firstName: member.firstName || member.name.split(' ')[0],
-          lastName: member.lastName || member.name.split(' ').slice(1).join(' '),
-          barangay: member.barangay,
-          disabilityType: member.disabilityType,
-          birthDate: member.birthDate,
-          generatedAt: new Date().toISOString()
-        };
-
-        const qrDataURL = await QRCode.toDataURL(JSON.stringify(memberData), {
-          width: 100,
-          height: 100,
-          margin: 1,
-          color: {
-            dark: '#000000',
-            light: '#FFFFFF'
-          },
-          errorCorrectionLevel: 'M',
-          type: 'image/png',
-          quality: 0.92,
-          rendererOpts: {
-            quality: 0.92
-          }
-        });
-        
+        const qrDataURL = await QRCodeService.generateMemberQRCode(member);
         setQrCodeDataURL(qrDataURL);
       } catch (error) {
         console.error('Error generating QR code:', error);
       }
     };
-
+    
     generateQRCode();
   }, [selectedMember, pwdMembers]);
 
+
   const handleDownloadPDF = () => {
     console.log('Download PDF clicked');
+  };
+
+  const handlePrintCard = () => {
+    if (!selectedMemberData) {
+      alert('Please select a PWD member to print their card.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>PWD ID Card - ${selectedMemberData.name}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: white;
+            }
+            .id-card {
+              width: 2in;
+              height: 3in;
+              border: 2px solid #000;
+              background: white;
+              position: relative;
+              margin: 0 auto;
+              box-sizing: border-box;
+            }
+            .header {
+              text-align: center;
+              padding: 3px 0;
+              border-bottom: 1px solid #000;
+              font-size: 6px;
+              font-weight: bold;
+              line-height: 1.1;
+            }
+            .content {
+              display: flex;
+              height: calc(100% - 20px);
+            }
+            .left-section {
+              flex: 1;
+              padding: 4px;
+              font-size: 5px;
+              line-height: 1.1;
+            }
+            .right-section {
+              width: 40px;
+              padding: 3px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: space-between;
+              border-left: 1px solid #000;
+            }
+            .photo-placeholder {
+              width: 30px;
+              height: 30px;
+              border: 1px dashed #000;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 4px;
+              margin-bottom: 3px;
+            }
+            .qr-code {
+              width: 30px;
+              height: 30px;
+              border: 1px solid #000;
+              margin-top: 3px;
+            }
+            }
+            .footer {
+              position: absolute;
+              bottom: 3px;
+              left: 0;
+              right: 0;
+              text-align: center;
+              font-size: 4px;
+              font-weight: bold;
+            }
+            .pdao-button {
+              background: #000;
+              color: white;
+              padding: 1px 4px;
+              font-size: 5px;
+              font-weight: bold;
+              margin: 1px 0;
+              border: none;
+            }
+            @media print {
+              body { margin: 0; }
+              .id-card { margin: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="id-card">
+            <div class="header">
+              REPUBLIC OF THE PHILIPPINES<br>
+              PROVINCE OF LAGUNA<br>
+              CITY OF CABUYAO<br>
+              (P.D.A.O)
+            </div>
+            
+            <div class="content">
+              <div class="left-section">
+                <div class="pdao-button">CABUYAO PDAO</div>
+                <br>
+                <strong>NAME:</strong> ${selectedMemberData.name}<br>
+                <strong>ID NO.:</strong> ${selectedMemberData.id}<br>
+                <strong>TYPE OF DISABILITY:</strong> ${selectedMemberData.disabilityType}<br>
+                <br>
+                <strong>SIGNATURE:</strong> ________________
+              </div>
+              
+              <div class="right-section">
+                <div class="photo-placeholder">PHOTO</div>
+                <div class="qr-code">
+                  ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" style="width: 100%; height: 100%;" />` : 'QR CODE'}
+                </div>
+              </div>
+            </div>
+            
+            <div class="footer">
+              VALID ANYWHERE IN THE PHILIPPINES
+            </div>
+          </div>
+          <script>window.onload = function(){ window.print(); window.close(); }</script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(printContent);
+    printWindow.document.close();
   };
 
   const handlePrint = () => {
@@ -979,6 +1089,27 @@ function PWDCard() {
 
             {/* Right Panel - PWD Card Preview */}
             <Grid item xs={12} md={4}>
+              {/* Print Card Button */}
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+                <Button
+                  variant="contained"
+                  startIcon={<PrintIcon />}
+                  onClick={handlePrintCard}
+                  disabled={!selectedMemberData}
+                  sx={{
+                    bgcolor: '#0b87ac',
+                    '&:hover': { bgcolor: '#0a6b8a' },
+                    '&:disabled': { bgcolor: '#BDC3C7' },
+                    textTransform: 'none',
+                    fontWeight: 'bold',
+                    px: 3,
+                    py: 1
+                  }}
+                >
+                  Print PWD Card (2x3)
+                </Button>
+              </Box>
+              
               <Card elevation={0} sx={{ height: '50%', backgroundColor: 'transparent', mb: 2 }}>
                 <CardContent sx={{ p: 0, height: '100%' }}>
                   <Box sx={{
@@ -1124,7 +1255,7 @@ function PWDCard() {
                       </Typography>
                     </Box>
 
-                    {/* Right Side - Photo and QR Code */}
+                    {/* Right Side - Photo */}
                     <Box sx={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -1177,7 +1308,7 @@ function PWDCard() {
                             }
                             
                             if (imagePath) {
-                              const fullUrl = `http://192.168.18.18:8000/storage/${imagePath}`;
+                              const fullUrl = `http://127.0.0.1:8000/storage/${imagePath}`;
                               console.log('Final image URL:', fullUrl);
                               
                               return (
@@ -1211,36 +1342,36 @@ function PWDCard() {
                           {/* Empty placeholder - no text */}
                         </Box>
 
-                    {/* QR Code */}
-                    {qrCodeDataURL && (
-                      <Box sx={{
-                        display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          backgroundColor: '#FFFFFF',
-                        borderRadius: 1,
-                          p: 1,
-                          border: '1px solid #E0E0E0'
-                      }}>
-                        <img 
-                          src={qrCodeDataURL} 
-                          alt="QR Code" 
-                          style={{
-                            width: '50px',
-                            height: '50px',
-                              borderRadius: '2px'
-                            }}
-                          />
-                          <Typography variant="caption" sx={{ 
-                            color: '#FFFFFF', 
-                            fontSize: '7px',
-                            fontWeight: 'bold',
-                            mt: 0.5
+                        {/* QR Code */}
+                        {qrCodeDataURL && (
+                          <Box sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            backgroundColor: '#FFFFFF',
+                            borderRadius: 1,
+                            p: 1,
+                            border: '1px solid #E0E0E0'
                           }}>
-                            PH
-                          </Typography>
-                      </Box>
-                    )}
+                            <img 
+                              src={qrCodeDataURL} 
+                              alt="QR Code" 
+                              style={{
+                                width: '50px',
+                                height: '50px',
+                                borderRadius: '2px'
+                              }}
+                            />
+                            <Typography variant="caption" sx={{ 
+                              color: '#FFFFFF', 
+                              fontSize: '7px',
+                              fontWeight: 'bold',
+                              mt: 0.5
+                            }}>
+                              BENEFIT CLAIM
+                            </Typography>
+                          </Box>
+                        )}
                     </Box>
                   </Box>
                 </CardContent>

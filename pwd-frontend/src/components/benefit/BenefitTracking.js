@@ -37,16 +37,14 @@ import {
   Cake as CakeIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
-  QrCodeScanner as QrCodeScannerIcon,
   Menu as MenuIcon,
   PictureAsPdf as PdfIcon
 } from '@mui/icons-material';
 import pwdMemberService from '../../services/pwdMemberService';
 import benefitService from '../../services/benefitService';
 import AdminSidebar from '../shared/AdminSidebar';
-import SimpleQRScanner from '../qr/SimpleQRScanner';
-import QRCodeDisplay from '../qr/QRCodeDisplay';
 import PWDIDCard from '../cards/PWDIDCard';
+import FloatingQRScannerButton from '../qr/FloatingQRScannerButton';
 
 const BenefitTracking = () => {
   const [pwdMembers, setPwdMembers] = useState([]);
@@ -58,8 +56,6 @@ const BenefitTracking = () => {
   const [financialBenefits, setFinancialBenefits] = useState([]);
   const [selectedBenefit, setSelectedBenefit] = useState(null);
   const [eligibleBeneficiaries, setEligibleBeneficiaries] = useState([]);
-  const [qrScannerOpen, setQrScannerOpen] = useState(false);
-  const [qrCodeDisplayOpen, setQrCodeDisplayOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [pwdIdCardOpen, setPwdIdCardOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -157,7 +153,7 @@ const BenefitTracking = () => {
   // Fetch benefit claims from database
   const fetchBenefitClaims = async (benefitId) => {
     try {
-      const response = await fetch(`http://192.168.18.18:8000/api/benefit-claims/${benefitId}`);
+      const response = await fetch(`http://127.0.0.1:8000/api/benefit-claims/${benefitId}`);
       if (response.ok) {
         const claims = await response.json();
         return claims;
@@ -220,7 +216,10 @@ const BenefitTracking = () => {
       if (selected.length > 0) {
         eligibleMembers = pwdMembers.filter(member => {
           const memberBarangay = (member.barangay || member.Barangay || '').toString().trim().toLowerCase();
-          const isEligible = selected.some(b => (b || '').toString().trim().toLowerCase() === memberBarangay);
+          const isEligible = selected.some(b => {
+            const selectedBarangay = (b || '').toString().trim().toLowerCase();
+            return selectedBarangay === memberBarangay;
+          });
           console.log(`Member ${member.firstName} ${member.lastName}: barangay="${memberBarangay}", eligible=${isEligible}`);
           return isEligible;
         });
@@ -287,30 +286,40 @@ const BenefitTracking = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
-  // Handle QR scanner open/close
-  const handleOpenQRScanner = () => {
-    setQrScannerOpen(true);
+  // Handle QR scan success
+  const handleQRScanSuccess = (qrData) => {
+    console.log('QR Code scanned successfully:', qrData);
+    
+    // Find the member by the scanned data
+    const scannedMember = pwdMembers.find(member => 
+      member.userID === qrData.memberId || 
+      member.pwd_id === qrData.pwdId ||
+      member.id === qrData.memberId
+    );
+
+    if (scannedMember) {
+      // Set the scanned member as selected and open benefit claiming
+      setSelectedMember(scannedMember);
+      setActiveTab(1); // Switch to benefit claiming tab
+      
+      // Show success message
+      setSuccess(`✅ Successfully scanned QR code for ${scannedMember.firstName} ${scannedMember.lastName}`);
+      setTimeout(() => setSuccess(null), 3000);
+    } else {
+      setError('❌ Member not found. Please ensure the QR code is valid.');
+      setTimeout(() => setError(null), 3000);
+    }
   };
 
-  const handleCloseQRScanner = () => {
-    setQrScannerOpen(false);
+  // Handle QR scan error
+  const handleQRScanError = (error) => {
+    console.error('QR scan error:', error);
+    setError('❌ Failed to scan QR code. Please try again.');
+    setTimeout(() => setError(null), 3000);
   };
 
-  // Handle QR code display
-  const handleShowQRCode = (member) => {
-    setSelectedMember(member);
-    setQrCodeDisplayOpen(true);
-  };
 
-  const handleCloseQRCodeDisplay = () => {
-    setQrCodeDisplayOpen(false);
-    setSelectedMember(null);
-  };
 
-  const handleOpenScannerFromQR = (member) => {
-    setQrCodeDisplayOpen(false);
-    setQrScannerOpen(true);
-  };
 
   // Handle PWD ID Card
   const handleShowPWDIDCard = (member) => {
@@ -323,30 +332,6 @@ const BenefitTracking = () => {
     setSelectedMember(null);
   };
 
-  const handleQRScan = (result) => {
-    if (result && result.member && result.benefit) {
-      // Update eligible beneficiaries list if we have a selected benefit
-      if (selectedBenefit && selectedBenefit.id === result.benefit.id) {
-        const updatedBeneficiaries = eligibleBeneficiaries.map(beneficiary => {
-          if (beneficiary.id === result.member.id) {
-            return {
-              ...beneficiary,
-              claimStatus: result.status === 'claimed' ? 'claimed' : 'unclaimed',
-              claimDate: result.status === 'claimed' ? new Date().toISOString() : null
-            };
-          }
-          return beneficiary;
-        });
-        setEligibleBeneficiaries(updatedBeneficiaries);
-      }
-      
-      // Reload birthday benefits to update counts
-      loadBirthdayBenefits();
-      
-      // Show success message
-      alert(`Benefit "${result.benefit.title || result.benefit.benefitType || result.benefit.type || 'Unknown Benefit'}" ${result.status} for ${result.member.firstName} ${result.member.lastName}!`);
-    }
-  };
 
   useEffect(() => {
     const initializeData = async () => {
@@ -1696,45 +1681,6 @@ const BenefitTracking = () => {
               </Paper>
             ) : (
               <>
-                {/* QR Scanner Button */}
-                <Paper sx={{ 
-                  p: 3, 
-                  mb: 3, 
-                  borderRadius: 3,
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                  border: '1px solid #e0e0e0',
-                  bgcolor: 'white'
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#2C3E50', mb: 1 }}>
-                        QR Code Claim Scanner
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                        Scan PWD member QR codes to update claim status for birthday benefits
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mt: 0.5 }}>
-                        📱 Works on mobile devices with camera access
-                      </Typography>
-                    </Box>
-                    <Button
-                      variant="contained"
-                      startIcon={<QrCodeScannerIcon />}
-                      onClick={handleOpenQRScanner}
-                      sx={{
-                        bgcolor: '#E67E22',
-                        '&:hover': { bgcolor: '#D35400' },
-                        px: 3,
-                        py: 1.5,
-                        borderRadius: 2,
-                        fontWeight: 600,
-                        textTransform: 'none'
-                      }}
-                    >
-                      Open QR Scanner
-                    </Button>
-                  </Box>
-                </Paper>
                 <Paper sx={{ 
                   p: 3, 
                   mb: 3, 
@@ -2109,45 +2055,6 @@ const BenefitTracking = () => {
               </Paper>
             ) : (
               <>
-                {/* QR Scanner Button */}
-                <Paper sx={{ 
-                  p: 3, 
-                  mb: 3, 
-                  borderRadius: 3,
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                  border: '1px solid #e0e0e0',
-                  bgcolor: 'white'
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#2C3E50', mb: 1 }}>
-                        QR Code Claim Scanner
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                        Scan PWD member QR codes to update claim status for financial assistance benefits
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mt: 0.5 }}>
-                        📱 Works on mobile devices with camera access
-                      </Typography>
-                    </Box>
-                    <Button
-                      variant="contained"
-                      startIcon={<QrCodeScannerIcon />}
-                      onClick={handleOpenQRScanner}
-                      sx={{
-                        bgcolor: '#E67E22',
-                        '&:hover': { bgcolor: '#D35400' },
-                        px: 3,
-                        py: 1.5,
-                        borderRadius: 2,
-                        fontWeight: 600,
-                        textTransform: 'none'
-                      }}
-                    >
-                      Open QR Scanner
-                    </Button>
-                  </Box>
-                </Paper>
                 <Paper sx={{ 
                   p: 3, 
                   mb: 3, 
@@ -2355,26 +2262,19 @@ const BenefitTracking = () => {
         </Container>
       </Box>
       
-      {/* QR Scanner Dialog */}
-      <SimpleQRScanner
-        open={qrScannerOpen}
-        onClose={handleCloseQRScanner}
-        onScan={handleQRScan}
-      />
 
-      {/* QR Code Display Dialog */}
-      <QRCodeDisplay
-        open={qrCodeDisplayOpen}
-        onClose={handleCloseQRCodeDisplay}
-        member={selectedMember}
-        onScan={handleOpenScannerFromQR}
-      />
 
       {/* PWD ID Card Dialog */}
       <PWDIDCard
         open={pwdIdCardOpen}
         onClose={handleClosePWDIDCard}
         member={selectedMember}
+      />
+
+      {/* Floating QR Scanner Button */}
+      <FloatingQRScannerButton
+        onScanSuccess={handleQRScanSuccess}
+        onScanError={handleQRScanError}
       />
     </Box>
   );

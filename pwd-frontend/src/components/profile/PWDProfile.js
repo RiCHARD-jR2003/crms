@@ -41,6 +41,7 @@ import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
+import QRCodeService from '../../services/qrCodeService';
 
 function PWDProfile() {
   const { currentUser } = useAuth();
@@ -53,12 +54,12 @@ function PWDProfile() {
   const [success, setSuccess] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [passwordDialog, setPasswordDialog] = useState(false);
-  const [qrCodeDataURL, setQrCodeDataURL] = useState('');
   
   // Password change popup states
   const [passwordSuccessDialog, setPasswordSuccessDialog] = useState(false);
   const [passwordErrorDialog, setPasswordErrorDialog] = useState(false);
   const [passwordErrorMessage, setPasswordErrorMessage] = useState('');
+  const [qrCodeDataURL, setQrCodeDataURL] = useState('');
   
   // Form states
   const [formData, setFormData] = useState({
@@ -85,6 +86,13 @@ function PWDProfile() {
     fetchProfile();
     refreshUserData(); // Refresh user data to get latest idPictures
   }, [announcePageChange, t]);
+
+  // Generate QR code when profile loads
+  useEffect(() => {
+    if (profile) {
+      generateQRCode();
+    }
+  }, [profile]);
 
   // Refresh user data from login endpoint to get updated idPictures
   const refreshUserData = async () => {
@@ -126,12 +134,6 @@ function PWDProfile() {
     }
   };
 
-  // Generate QR code when profile loads
-  useEffect(() => {
-    if (profile) {
-      generateQRCode();
-    }
-  }, [profile]);
 
   const fetchProfile = async () => {
     try {
@@ -236,46 +238,6 @@ function PWDProfile() {
     }
   };
 
-  // Generate QR code for the profile
-  const generateQRCode = async () => {
-    if (!profile) return;
-    
-    try {
-      const QRCode = await import('qrcode');
-      
-      const memberData = {
-        pwd_id: profile.pwd_id || `PWD-${profile.userID?.toString().padStart(6, '0')}`,
-        userID: profile.userID,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        email: profile.email,
-        barangay: profile.barangay,
-        disabilityType: profile.disabilityType,
-        birthDate: profile.birthDate,
-        generatedAt: new Date().toISOString()
-      };
-
-      const qrDataURL = await QRCode.toDataURL(JSON.stringify(memberData), {
-        width: 120,
-        height: 120,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        },
-        errorCorrectionLevel: 'M',
-        type: 'image/png',
-        quality: 0.92,
-        rendererOpts: {
-          quality: 0.92
-        }
-      });
-      
-      setQrCodeDataURL(qrDataURL);
-    } catch (error) {
-      console.error('Error generating QR code:', error);
-    }
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -283,6 +245,18 @@ function PWDProfile() {
       ...prev,
       [name]: value
     }));
+  };
+
+  // Generate QR code for the profile
+  const generateQRCode = async () => {
+    try {
+      if (!profile) return;
+      
+      const qrCodeURL = await QRCodeService.generateMemberQRCode(profile);
+      setQrCodeDataURL(qrCodeURL);
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+    }
   };
 
   const handleSave = async () => {
@@ -958,7 +932,7 @@ label={t('profile.birthDate')}
                           }
                           
                           if (imagePath) {
-                            const fullUrl = `http://192.168.18.18:8000/storage/${imagePath}`;
+                            const fullUrl = `http://127.0.0.1:8000/storage/${imagePath}`;
                             console.log('Final image URL:', fullUrl);
                             
                             return (
@@ -1068,7 +1042,7 @@ label={t('profile.birthDate')}
                             mb: 1,
                             fontSize: '0.7rem'
                           }}>
-                            QR CODE
+                            BENEFIT CLAIM QR CODE
                           </Typography>
                           <img 
                             src={qrCodeDataURL} 
@@ -1086,7 +1060,7 @@ label={t('profile.birthDate')}
                             fontSize: '0.6rem',
                             textAlign: 'center'
                           }}>
-                            Scan for benefits
+                            Scan for benefit claims
                           </Typography>
                         </Box>
                       )}

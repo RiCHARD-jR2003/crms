@@ -13,14 +13,13 @@ import {
 import {
   Close as CloseIcon,
   Print as PrintIcon,
-  QrCode as QrCodeIcon,
   Download as DownloadIcon
 } from '@mui/icons-material';
-import QRCode from 'qrcode';
+import QRCodeService from '../../services/qrCodeService';
 
 const PWDIDCard = ({ member, open, onClose }) => {
-  const [qrCodeDataURL, setQrCodeDataURL] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [qrCodeDataURL, setQrCodeDataURL] = useState(null);
 
   useEffect(() => {
     if (member && open) {
@@ -34,30 +33,7 @@ const PWDIDCard = ({ member, open, onClose }) => {
       
       if (!member) return;
 
-      // Create QR code data with member information
-      const qrData = {
-        pwd_id: member.pwd_id || `PWD-${member.userID}`,
-        userID: member.userID,
-        firstName: member.firstName,
-        lastName: member.lastName,
-        middleName: member.middleName,
-        birthDate: member.birthDate,
-        disabilityType: member.disabilityType,
-        barangay: member.barangay,
-        issuedDate: new Date().toISOString(),
-        issuer: 'CABUYAO PDAO'
-      };
-
-      // Generate QR code
-      const qrCodeURL = await QRCode.toDataURL(JSON.stringify(qrData), {
-        width: 120,
-        margin: 1,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
-
+      const qrCodeURL = await QRCodeService.generateMemberQRCode(member);
       setQrCodeDataURL(qrCodeURL);
     } catch (error) {
       console.error('Error generating QR code:', error);
@@ -81,8 +57,8 @@ const PWDIDCard = ({ member, open, onClose }) => {
               background: white;
             }
             .id-card {
-              width: 3.375in;
-              height: 2.125in;
+              width: 2in;
+              height: 3in;
               border: 2px solid #000;
               background: white;
               position: relative;
@@ -91,24 +67,25 @@ const PWDIDCard = ({ member, open, onClose }) => {
             }
             .header {
               text-align: center;
-              padding: 5px 0;
+              padding: 3px 0;
               border-bottom: 1px solid #000;
-              font-size: 8px;
+              font-size: 6px;
               font-weight: bold;
+              line-height: 1.1;
             }
             .content {
               display: flex;
-              height: calc(100% - 25px);
+              height: calc(100% - 20px);
             }
             .left-section {
               flex: 1;
-              padding: 8px;
-              font-size: 7px;
-              line-height: 1.2;
+              padding: 4px;
+              font-size: 5px;
+              line-height: 1.1;
             }
             .right-section {
-              width: 60px;
-              padding: 5px;
+              width: 40px;
+              padding: 3px;
               display: flex;
               flex-direction: column;
               align-items: center;
@@ -116,35 +93,37 @@ const PWDIDCard = ({ member, open, onClose }) => {
               border-left: 1px solid #000;
             }
             .photo-placeholder {
-              width: 45px;
-              height: 45px;
+              width: 30px;
+              height: 30px;
               border: 1px dashed #000;
               display: flex;
               align-items: center;
               justify-content: center;
-              font-size: 6px;
-              margin-bottom: 5px;
+              font-size: 4px;
+              margin-bottom: 3px;
             }
             .qr-code {
-              width: 45px;
-              height: 45px;
+              width: 30px;
+              height: 30px;
+              border: 1px solid #000;
+              margin-top: 3px;
             }
             .footer {
               position: absolute;
-              bottom: 5px;
+              bottom: 3px;
               left: 0;
               right: 0;
               text-align: center;
-              font-size: 6px;
+              font-size: 4px;
               font-weight: bold;
             }
             .pdao-button {
               background: #000;
               color: white;
-              padding: 2px 8px;
-              font-size: 7px;
+              padding: 1px 4px;
+              font-size: 5px;
               font-weight: bold;
-              margin: 2px 0;
+              margin: 1px 0;
               border: none;
             }
             @media print {
@@ -174,7 +153,7 @@ const PWDIDCard = ({ member, open, onClose }) => {
               
               <div class="right-section">
                 <div class="photo-placeholder">PHOTO</div>
-                ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" class="qr-code" alt="QR Code" />` : '<div class="qr-code" style="border: 1px dashed #000; display: flex; align-items: center; justify-content: center; font-size: 5px;">QR CODE</div>'}
+                ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" class="qr-code" alt="QR Code" />` : '<div class="qr-code" style="border: 1px dashed #000; display: flex; align-items: center; justify-content: center; font-size: 3px;">QR CODE</div>'}
               </div>
             </div>
             
