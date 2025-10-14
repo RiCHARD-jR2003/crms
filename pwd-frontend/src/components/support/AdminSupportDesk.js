@@ -182,7 +182,7 @@ const AdminSupportDesk = () => {
       setError(null); // Clear any previous errors
       
       // Use the same approach as document management - direct API endpoint
-      const url = `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/download`;
+      const url = `http://192.168.1.6:8000/api/support-tickets/messages/${message.id}/download`;
       console.log('Opening URL:', url);
       
       // Use window.open directly like document management does

@@ -1,1 +1,5 @@
 node_modules
+
+# Allow .env files to be indexed by AI features
+!.env
+!.env.*

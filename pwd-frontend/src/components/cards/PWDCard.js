@@ -1308,7 +1308,7 @@ function PWDCard() {
                             }
                             
                             if (imagePath) {
-                              const fullUrl = `http://127.0.0.1:8000/storage/${imagePath}`;
+                              const fullUrl = `http://192.168.1.6:8000/storage/${imagePath}`;
                               console.log('Final image URL:', fullUrl);
                               
                               return (

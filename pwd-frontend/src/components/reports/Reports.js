@@ -1219,7 +1219,7 @@ const Reports = () => {
       
       // Fetch city statistics from API
       try {
-        const cityStatsResponse = await fetch('http://192.168.18.18:8000/api/city-stats');
+        const cityStatsResponse = await fetch('http://192.168.1.6:8000/api/city-stats');
         if (cityStatsResponse.ok) {
           const cityStatsData = await cityStatsResponse.json();
           setCityStats(cityStatsData);

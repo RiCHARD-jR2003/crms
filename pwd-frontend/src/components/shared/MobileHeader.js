@@ -25,7 +25,11 @@ import {
   Assessment as AssessmentIcon,
   Settings as SettingsIcon,
   Logout as LogoutIcon,
-  AccountCircle as AccountCircleIcon
+  AccountCircle as AccountCircleIcon,
+  CreditCard as CreditCardIcon,
+  Favorite as FavoriteIcon,
+  TrackChanges as TrackChangesIcon,
+  Description as DescriptionIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -37,14 +41,20 @@ const MobileHeader = ({ onMenuToggle, isMenuOpen }) => {
   const { currentUser, logout } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Keep mobile menu items in sync with AdminSidebar
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin-dashboard' },
     { text: 'PWD Records', icon: <PeopleIcon />, path: '/pwd-records' },
-    { text: 'Applications', icon: <AssignmentIcon />, path: '/applications' },
-    { text: 'Announcements', icon: <AnnouncementIcon />, path: '/announcements' },
-    { text: 'Support Tickets', icon: <SupportIcon />, path: '/support-tickets' },
+    { text: 'PWD Card', icon: <CreditCardIcon />, path: '/pwd-card' },
     { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
-    { text: 'Settings', icon: <SettingsIcon />, path: '/settings' }
+    { text: 'Ayuda', icon: <FavoriteIcon />, path: '/ayuda' },
+    { text: 'Benefit Tracking', icon: <TrackChangesIcon />, path: '/benefit-tracking' },
+    { text: 'Announcement', icon: <AnnouncementIcon />, path: '/announcement' },
+    { text: 'Support Desk', icon: <SupportIcon />, path: '/admin-support' },
+    { text: 'Document Management', icon: <DescriptionIcon />, path: '/document-management' },
+    // Optional legacy entries if routes exist in app
+    // { text: 'Applications', icon: <AssignmentIcon />, path: '/applications' },
+    // { text: 'Settings', icon: <SettingsIcon />, path: '/settings' }
   ];
 
   const handleDrawerToggle = () => {

@@ -17,6 +17,7 @@ import {
   CameraAlt as CameraIcon
 } from '@mui/icons-material';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BrowserCodeReader } from '@zxing/browser';
 import QRCodeService from '../../services/qrCodeService';
 
 const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
@@ -25,6 +26,7 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
   const [scannerReady, setScannerReady] = useState(false);
   const videoRef = useRef(null);
   const readerRef = useRef(null);
+  const scannerControlsRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -45,43 +47,102 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
 
       // Initialize ZXing reader
       readerRef.current = new BrowserMultiFormatReader();
-      
-      // Get available video devices
-      const videoInputDevices = await readerRef.current.listVideoInputDevices();
+
+      // Warm up permissions: some browsers block enumerateDevices until getUserMedia is called
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+      } catch (_) {
+        // Ignore, we'll try fallback start below
+      }
+
+      // Get available video devices (may still fail on insecure origin)
+      let videoInputDevices = [];
+      try {
+        videoInputDevices = await BrowserCodeReader.listVideoInputDevices();
+      } catch (e) {
+        console.warn('enumerateDevices failed, will use fallback:', e?.message);
+      }
       
       if (videoInputDevices.length === 0) {
         throw new Error('No camera devices found');
       }
 
-      // Use the first available camera (usually the back camera on mobile)
-      const selectedDeviceId = videoInputDevices[0].deviceId;
+      let selectedDeviceId = undefined;
+      if (videoInputDevices && videoInputDevices.length > 0) {
+        // Prefer environment/back camera if available
+        const backCam = videoInputDevices.find(d => /back|environment/i.test(`${d.label}`));
+        selectedDeviceId = (backCam || videoInputDevices[0]).deviceId;
+      } else {
+        console.warn('No cameras returned from enumerateDevices; proceeding with default/facingMode fallback');
+      }
 
-      // Start scanning
-      await readerRef.current.decodeFromVideoDevice(
-        selectedDeviceId,
-        videoRef.current,
-        (result, error) => {
-          if (result) {
-            handleScanSuccess(result.getText());
-          } else if (error && !error.message.includes('No MultiFormat Readers')) {
-            // Ignore continuous scanning errors, only show actual problems
-            console.log('Scanning...', error.message);
+      // Start scanning: if deviceId is undefined, ZXing will choose a suitable camera
+      try {
+        scannerControlsRef.current = await readerRef.current.decodeFromVideoDevice(
+          selectedDeviceId,
+          videoRef.current,
+          (result, error) => {
+            if (result) {
+              handleScanSuccess(result.getText());
+            } else if (error && !error.message?.includes('No MultiFormat Readers')) {
+              console.log('Scanning...', error.message);
+            }
           }
+        );
+      } catch (e) {
+        console.warn('decodeFromVideoDevice failed, trying constraints with facingMode=environment', e?.message);
+        try {
+          const constraints = { video: { facingMode: { ideal: 'environment' } } };
+          scannerControlsRef.current = await readerRef.current.decodeFromConstraints(
+            constraints,
+            videoRef.current,
+            (result, error) => {
+              if (result) {
+                handleScanSuccess(result.getText());
+              } else if (error && !error.message?.includes('No MultiFormat Readers')) {
+                console.log('Scanning...', error.message);
+              }
+            }
+          );
+        } catch (constraintsError) {
+          console.warn('Constraints failed, trying basic video constraint', constraintsError?.message);
+          // Last resort: try with basic video constraint
+          const basicConstraints = { video: true };
+          scannerControlsRef.current = await readerRef.current.decodeFromConstraints(
+            basicConstraints,
+            videoRef.current,
+            (result, error) => {
+              if (result) {
+                handleScanSuccess(result.getText());
+              } else if (error && !error.message?.includes('No MultiFormat Readers')) {
+                console.log('Scanning...', error.message);
+              }
+            }
+          );
         }
-      );
+      }
 
       setScannerReady(true);
     } catch (err) {
       console.error('Scanner initialization error:', err);
-      setError(err.message || 'Failed to initialize camera');
+      // Provide actionable guidance for insecure origins (HTTP over LAN)
+      if (typeof window !== 'undefined' && !window.isSecureContext) {
+        setError('Camera blocked on HTTP. Please use HTTPS (npm run start:https) or open via a secure origin.');
+      } else {
+        setError(err.message || 'Failed to initialize camera');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const stopScanner = () => {
+    if (scannerControlsRef.current) {
+      // Stop the scanning process
+      scannerControlsRef.current.stop();
+      scannerControlsRef.current = null;
+    }
     if (readerRef.current) {
-      // ZXing doesn't have a reset method, just set to null
       readerRef.current = null;
     }
     setScannerReady(false);

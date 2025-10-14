@@ -60,7 +60,7 @@ import CloseIcon from '@mui/icons-material/Close';
   } from '../../utils/themeStyles';
 
 // Use localhost-bound storage URL to avoid network interface issues
-const STORAGE_BASE_URL = 'http://127.0.0.1:8000/storage';
+const STORAGE_BASE_URL = 'http://192.168.1.6:8000/storage';
 
 function PWDRecords() {
   const { currentUser } = useAuth();

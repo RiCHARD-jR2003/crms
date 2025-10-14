@@ -412,7 +412,7 @@ function MemberDocumentUpload() {
                             <Button
                               size="small"
                               startIcon={<VisibilityIcon />}
-                              onClick={() => window.open(`http://127.0.0.1:8000/api/documents/file/${memberDoc.id}`, '_blank')}
+                              onClick={() => window.open(`http://192.168.1.6:8000/api/documents/file/${memberDoc.id}`, '_blank')}
                               variant="outlined"
                             >
                               {t('common.view')}
