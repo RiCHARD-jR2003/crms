@@ -23,7 +23,14 @@ class DatabaseSeeder extends Seeder
 
         // Seed barangay presidents for all barangays
         $this->call([
+            AdminAnnouncementSeeder::class,
+            AdminSeeder::class,
+            AnnouncementSeeder::class,
             BarangayPresidentSeeder::class,
+            PWDMemberSeeder::class,
+            PWDMembersFromApplicationsSeeder::class,
+            RequiredDocumentSeeder::class,
+            SuperAdminSeeder::class
         ]);
     }
 }

@@ -14,10 +14,12 @@ class Application extends Model
     protected $primaryKey = 'applicationID';
     
     protected $fillable = [
+        'referenceNumber',
         'pwdID',
         'firstName',
         'lastName',
         'middleName',
+        'suffix',
         'birthDate',
         'gender',
         'civilStatus',

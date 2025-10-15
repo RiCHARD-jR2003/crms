@@ -26,13 +26,14 @@ class SupportTicketController extends Controller
         try {
             $user = Auth::user();
             
-            if ($user->role === 'Admin') {
-                // Admin can see all tickets
-        $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+            if ($user->role === 'Admin' || $user->role === 'SuperAdmin') {
+                // Admin and SuperAdmin can see all active tickets (excluding resolved)
+                $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
+                    ->where('status', '!=', 'resolved')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
             } elseif ($user->role === 'PWDMember') {
-                // PWD member can only see their own tickets
+                // PWD member can only see their own active tickets (excluding resolved)
                 $pwdMember = PWDMember::where('userID', $user->userID)->first();
                 if (!$pwdMember) {
                     return response()->json(['error' => 'PWD Member not found'], 404);
@@ -40,6 +41,21 @@ class SupportTicketController extends Controller
                 
                 $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
                     ->where('pwd_member_id', $pwdMember->id)
+                    ->where('status', '!=', 'resolved')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } elseif ($user->role === 'BarangayPresident') {
+                // Barangay Presidents can see active tickets from their barangay (excluding resolved)
+                $barangayPresident = \App\Models\BarangayPresident::where('userID', $user->userID)->first();
+                if (!$barangayPresident) {
+                    return response()->json(['error' => 'Barangay President not found'], 404);
+                }
+                
+                $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
+                    ->where('status', '!=', 'resolved')
+                    ->whereHas('pwdMember', function($query) use ($barangayPresident) {
+                        $query->where('barangay', $barangayPresident->barangay);
+                    })
                     ->orderBy('created_at', 'desc')
                     ->get();
             } else {
@@ -49,6 +65,58 @@ class SupportTicketController extends Controller
             return response()->json($tickets);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to fetch tickets'], 500);
+        }
+    }
+
+    /**
+     * Display archived (resolved) support tickets.
+     * For admin: shows all resolved tickets
+     * For PWD member: shows only their resolved tickets
+     */
+    public function archived(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            if ($user->role === 'Admin' || $user->role === 'SuperAdmin') {
+                // Admin and SuperAdmin can see all resolved tickets
+                $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
+                    ->where('status', 'resolved')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } elseif ($user->role === 'PWDMember') {
+                // PWD member can only see their own resolved tickets
+                $pwdMember = PWDMember::where('userID', $user->userID)->first();
+                if (!$pwdMember) {
+                    return response()->json(['error' => 'PWD Member not found'], 404);
+                }
+                
+                $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
+                    ->where('pwd_member_id', $pwdMember->id)
+                    ->where('status', 'resolved')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } elseif ($user->role === 'BarangayPresident') {
+                // Barangay Presidents can see resolved tickets from their barangay
+                $barangayPresident = \App\Models\BarangayPresident::where('userID', $user->userID)->first();
+                if (!$barangayPresident) {
+                    return response()->json(['error' => 'Barangay President not found'], 404);
+                }
+                
+                $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
+                    ->where('status', 'resolved')
+                    ->whereHas('pwdMember', function($query) use ($barangayPresident) {
+                        $query->where('barangay', $barangayPresident->barangay);
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } else {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            return response()->json($tickets);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to fetch archived tickets'], 500);
         }
     }
 

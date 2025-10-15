@@ -45,6 +45,7 @@ class PWDMembersFromApplicationsSeeder extends Seeder
                 'firstName' => $app->firstName,
                 'lastName' => $app->lastName,
                 'middleName' => $app->middleName,
+                'suffix' => $app->suffix,
                 'birthDate' => $app->birthDate,
                 'gender' => $app->gender,
                 'disabilityType' => $app->disabilityType,

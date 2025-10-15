@@ -42,6 +42,39 @@ Route::get('/dashboard-monthly', [MainDashboardController::class, 'getMonthlySta
 Route::get('/dashboard-activities', [MainDashboardController::class, 'getRecentActivities']);
 Route::get('/dashboard-coordination', [MainDashboardController::class, 'getBarangayCoordination']);
 
+// Public application status check route
+Route::get('/application-status/{referenceNumber}', function ($referenceNumber) {
+    try {
+        $application = \App\Models\Application::where('referenceNumber', $referenceNumber)->first();
+        
+        if (!$application) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'application' => [
+                'referenceNumber' => $application->referenceNumber,
+                'firstName' => $application->firstName,
+                'middleName' => $application->middleName,
+                'lastName' => $application->lastName,
+                'suffix' => $application->suffix,
+                'status' => $application->status,
+                'submissionDate' => $application->submissionDate,
+                'remarks' => $application->remarks
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Error checking application status: ' . $e->getMessage()
+        ], 500);
+    }
+});
+
 // Public user status check route (for troubleshooting login issues)
 Route::get('/check-user-status/{email}', function ($email) {
     try {
@@ -142,6 +175,7 @@ Route::get('/pwd-members-fallback', function () {
                 'firstName' => $app->firstName,
                 'lastName' => $app->lastName,
                 'middleName' => $app->middleName,
+                'suffix' => $app->suffix,
                 'birthDate' => $app->birthDate,
                 'gender' => $app->gender,
                 'disabilityType' => $app->disabilityType,
@@ -612,6 +646,7 @@ Route::get('/mock-pwd', function () {
                 'firstName' => $member->firstName,
                 'lastName' => $member->lastName,
                 'middleName' => $member->middleName,
+                'suffix' => $member->suffix,
                 'birthDate' => $member->birthDate,
                 'gender' => $member->gender,
                 'disabilityType' => $member->disabilityType,
@@ -1422,6 +1457,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('audit-logs/action/{action}', [AuditLogController::class, 'getByAction']);
     
     // Support Ticket routes
+    Route::get('support-tickets/archived', [SupportTicketController::class, 'archived']);
     Route::apiResource('support-tickets', SupportTicketController::class);
     Route::post('support-tickets/{id}/messages', [SupportTicketController::class, 'addMessage']);
     Route::get('support-tickets/messages/{messageId}/force-download', [SupportTicketController::class, 'forceDownloadAttachment']);

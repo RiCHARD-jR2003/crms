@@ -20,6 +20,7 @@ class PWDMember extends Model
         'firstName',
         'lastName',
         'middleName',
+        'suffix',
         'birthDate',
         'gender',
         'disabilityType',
