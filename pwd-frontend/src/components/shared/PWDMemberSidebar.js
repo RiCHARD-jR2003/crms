@@ -24,6 +24,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/api';
+import { supportService } from '../../services/supportService';
 
 function PWDMemberSidebar({ isOpen, onToggle }) {
   const navigate = useNavigate();
@@ -50,23 +51,22 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
     setMobileOpen(!mobileOpen);
   };
 
-  // Fetch unread notifications count
+  // Fetch support ticket notifications count (only open tickets)
   useEffect(() => {
-    const fetchUnreadNotifications = async () => {
+    const fetchSupportNotifications = async () => {
       try {
-        const response = await api.get('/notifications/unread');
-        if (response.success) {
-          setUnreadNotifications(response.unread_count);
-        }
+        const tickets = await supportService.getTickets();
+        const openTickets = tickets.filter(ticket => ticket.status === 'open').length;
+        setUnreadNotifications(openTickets);
       } catch (error) {
-        console.error('Error fetching unread notifications:', error);
+        console.error('Error fetching support notifications:', error);
         setUnreadNotifications(0);
       }
     };
 
-    fetchUnreadNotifications();
+    fetchSupportNotifications();
     // Refresh notifications every 30 seconds
-    const interval = setInterval(fetchUnreadNotifications, 30000);
+    const interval = setInterval(fetchSupportNotifications, 30000);
     return () => clearInterval(interval);
   }, []);
 

@@ -175,22 +175,56 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
       maxWidth="sm"
       fullWidth
       disableEscapeKeyDown={submitting}
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          overflow: 'hidden'
+        }
+      }}
     >
-      <DialogTitle>
-        <Box display="flex" alignItems="center" gap={1}>
-          <SecurityIcon color="warning" />
-          <Typography variant="h6" component="div">
+      <DialogTitle sx={{ 
+        bgcolor: '#0b87ac', 
+        color: '#FFFFFF',
+        textAlign: 'center',
+        py: 3
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+          <Box sx={{ 
+            width: 40, 
+            height: 40, 
+            borderRadius: '50%', 
+            bgcolor: 'rgba(255,255,255,0.2)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center' 
+          }}>
+            <SecurityIcon sx={{ color: '#FFFFFF', fontSize: 24 }} />
+          </Box>
+          <Typography variant="h5" sx={{ color: '#FFFFFF', fontWeight: 'bold' }}>
             Password Change Required
           </Typography>
         </Box>
       </DialogTitle>
       
-      <DialogContent>
-        <Alert severity="warning" sx={{ mb: 2 }}>
+      <DialogContent sx={{ bgcolor: '#f8f9fa', p: 4 }}>
+        <Alert severity="warning" sx={{ 
+          mb: 3, 
+          borderRadius: 2,
+          bgcolor: '#FFF8E1',
+          border: '1px solid #FFE082',
+          '& .MuiAlert-icon': {
+            color: '#F57C00'
+          },
+          '& .MuiAlert-message': {
+            color: '#E65100',
+            fontWeight: 500
+          }
+        }}>
           For security purposes, you must change your password before continuing.
         </Alert>
 
-        <Box component="form" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 2 }}>
           <TextField
             fullWidth
             label="Current Password"
@@ -201,10 +235,37 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
             helperText={errors.current_password}
             margin="normal"
             required
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                bgcolor: '#FFFFFF',
+                '& fieldset': {
+                  borderColor: errors.current_password ? '#E74C3C' : '#E0E0E0',
+                },
+                '&:hover fieldset': {
+                  borderColor: errors.current_password ? '#E74C3C' : '#0b87ac',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: errors.current_password ? '#E74C3C' : '#0b87ac',
+                  borderWidth: 2,
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: '#2C3E50',
+                fontWeight: 500,
+                '&.Mui-focused': {
+                  color: '#0b87ac',
+                },
+              },
+              '& .MuiFormHelperText-root': {
+                color: errors.current_password ? '#E74C3C' : '#7F8C8D',
+                fontSize: '0.8rem'
+              }
+            }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <LockIcon color="action" />
+                  <LockIcon sx={{ color: '#7F8C8D' }} />
                 </InputAdornment>
               ),
               endAdornment: (
@@ -212,6 +273,7 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
                   <IconButton
                     onClick={() => togglePasswordVisibility('current')}
                     edge="end"
+                    sx={{ color: '#7F8C8D' }}
                   >
                     {showPasswords.current ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
@@ -230,10 +292,37 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
             helperText={errors.new_password || 'Minimum 6 characters'}
             margin="normal"
             required
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                bgcolor: '#FFFFFF',
+                '& fieldset': {
+                  borderColor: errors.new_password ? '#E74C3C' : '#E0E0E0',
+                },
+                '&:hover fieldset': {
+                  borderColor: errors.new_password ? '#E74C3C' : '#0b87ac',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: errors.new_password ? '#E74C3C' : '#0b87ac',
+                  borderWidth: 2,
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: '#2C3E50',
+                fontWeight: 500,
+                '&.Mui-focused': {
+                  color: '#0b87ac',
+                },
+              },
+              '& .MuiFormHelperText-root': {
+                color: errors.new_password ? '#E74C3C' : '#7F8C8D',
+                fontSize: '0.8rem'
+              }
+            }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <LockIcon color="action" />
+                  <LockIcon sx={{ color: '#7F8C8D' }} />
                 </InputAdornment>
               ),
               endAdornment: (
@@ -241,6 +330,7 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
                   <IconButton
                     onClick={() => togglePasswordVisibility('new')}
                     edge="end"
+                    sx={{ color: '#7F8C8D' }}
                   >
                     {showPasswords.new ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
@@ -259,10 +349,37 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
             helperText={errors.new_password_confirmation}
             margin="normal"
             required
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                bgcolor: '#FFFFFF',
+                '& fieldset': {
+                  borderColor: errors.new_password_confirmation ? '#E74C3C' : '#E0E0E0',
+                },
+                '&:hover fieldset': {
+                  borderColor: errors.new_password_confirmation ? '#E74C3C' : '#0b87ac',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: errors.new_password_confirmation ? '#E74C3C' : '#0b87ac',
+                  borderWidth: 2,
+                },
+              },
+              '& .MuiInputLabel-root': {
+                color: '#2C3E50',
+                fontWeight: 500,
+                '&.Mui-focused': {
+                  color: '#0b87ac',
+                },
+              },
+              '& .MuiFormHelperText-root': {
+                color: errors.new_password_confirmation ? '#E74C3C' : '#7F8C8D',
+                fontSize: '0.8rem'
+              }
+            }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <LockIcon color="action" />
+                  <LockIcon sx={{ color: '#7F8C8D' }} />
                 </InputAdornment>
               ),
               endAdornment: (
@@ -270,6 +387,7 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
                   <IconButton
                     onClick={() => togglePasswordVisibility('confirm')}
                     edge="end"
+                    sx={{ color: '#7F8C8D' }}
                   >
                     {showPasswords.confirm ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
@@ -279,18 +397,42 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
           />
 
           {serverError && (
-            <Alert severity="error" sx={{ mt: 2 }}>
+            <Alert severity="error" sx={{ 
+              mt: 3, 
+              borderRadius: 2,
+              bgcolor: '#FFF5F5',
+              border: '1px solid #FFE0E0',
+              '& .MuiAlert-icon': {
+                color: '#E74C3C'
+              },
+              '& .MuiAlert-message': {
+                color: '#C0392B',
+                fontWeight: 500
+              }
+            }}>
               {serverError}
             </Alert>
           )}
         </Box>
       </DialogContent>
 
-      <DialogActions>
+      <DialogActions sx={{ 
+        p: 3, 
+        bgcolor: '#f8f9fa', 
+        borderTop: '1px solid #E0E0E0',
+        justifyContent: 'space-between'
+      }}>
         <Button 
           onClick={handleClose} 
           disabled={submitting}
-          color="inherit"
+          sx={{ 
+            color: '#7F8C8D',
+            textTransform: 'none',
+            fontWeight: 500,
+            '&:hover': {
+              bgcolor: 'rgba(127, 140, 141, 0.1)'
+            }
+          }}
         >
           Cancel
         </Button>
@@ -298,8 +440,29 @@ const PasswordChangeModal = ({ open, onClose, onPasswordChanged }) => {
           onClick={handleSubmit}
           disabled={submitting}
           variant="contained"
-          color="primary"
-          startIcon={submitting ? <CircularProgress size={20} /> : <SecurityIcon />}
+          startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <SecurityIcon />}
+          sx={{ 
+            bgcolor: '#0b87ac',
+            color: '#FFFFFF',
+            borderRadius: 2,
+            px: 3,
+            py: 1.5,
+            textTransform: 'none',
+            fontWeight: 'bold',
+            fontSize: '1rem',
+            boxShadow: '0 4px 12px rgba(11, 135, 172, 0.3)',
+            '&:hover': {
+              bgcolor: '#0a6b8a',
+              boxShadow: '0 6px 16px rgba(11, 135, 172, 0.4)',
+              transform: 'translateY(-1px)',
+            },
+            '&:disabled': {
+              bgcolor: '#95A5A6',
+              boxShadow: 'none',
+              transform: 'none',
+            },
+            transition: 'all 0.2s ease-in-out',
+          }}
         >
           {submitting ? 'Changing...' : 'Change Password'}
         </Button>

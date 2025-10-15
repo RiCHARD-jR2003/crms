@@ -49,9 +49,9 @@ function BarangayPresidentPWDCard() {
         setLoading(true);
         setError(null);
         console.log('Fetching PWD members for barangay:', barangay);
-        const response = await api.get('/mock-pwd');
+        const response = await api.get('/pwd-members');
         console.log('API Response:', response);
-        const members = response.data?.members || response.members || [];
+        const members = response.data || response.members || [];
         console.log('All members data:', members);
         
         // Filter members by barangay
@@ -295,7 +295,7 @@ function BarangayPresidentPWDCard() {
                             </TableCell>
                             <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>{row.pwd_id || `PWD-${row.userID}` || 'Not assigned'}</TableCell>
                             <TableCell sx={{ color: '#34495E' }}>
-                              {`${row.firstName || ''} ${row.lastName || ''}`.trim() || 'Name not provided'}
+                              {`${row.firstName || ''} ${row.middleName || ''} ${row.lastName || ''} ${row.suffix || ''}`.trim() || 'Name not provided'}
                             </TableCell>
                             <TableCell sx={{ color: '#34495E' }}>
                               {row.birthDate ? getAgeFromBirthDate(row.birthDate) : 'N/A'}
@@ -419,7 +419,7 @@ function BarangayPresidentPWDCard() {
                           textTransform: 'uppercase',
                           letterSpacing: '0.3px'
                         }}>
-                          NAME: {selectedPWD.firstName} {selectedPWD.lastName}
+                          NAME: {selectedPWD.firstName} {selectedPWD.middleName || ''} {selectedPWD.lastName} {selectedPWD.suffix || ''}
                         </Typography>
                         <Typography variant="body2" sx={{ 
                           mb: 0.5, 

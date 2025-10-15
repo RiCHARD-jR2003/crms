@@ -825,7 +825,7 @@ function AccessibilitySettings() {
       </Dialog>
 
       {/* Global CSS for accessibility features */}
-      <style jsx global>{`
+      <style>{`
         :root {
           --accessibility-text-size: 100%;
         }

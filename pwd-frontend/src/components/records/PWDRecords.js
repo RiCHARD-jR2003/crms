@@ -44,6 +44,8 @@ import CloseIcon from '@mui/icons-material/Close';
   import pwdMemberService from '../../services/pwdMemberService';
   import { api } from '../../services/api';
   import { useAuth } from '../../contexts/AuthContext';
+import SuccessModal from '../shared/SuccessModal';
+import { useModal } from '../../hooks/useModal';
   import { 
     mainContainerStyles, 
     contentAreaStyles, 
@@ -60,7 +62,7 @@ import CloseIcon from '@mui/icons-material/Close';
   } from '../../utils/themeStyles';
 
 // Use localhost-bound storage URL to avoid network interface issues
-const STORAGE_BASE_URL = 'http://192.168.1.6:8000/storage';
+const STORAGE_BASE_URL = 'http://192.168.18.25:8000/storage';
 
 function PWDRecords() {
   const { currentUser } = useAuth();
@@ -87,6 +89,9 @@ function PWDRecords() {
     const [fileViewerOpen, setFileViewerOpen] = useState(false);
     const [viewedFile, setViewedFile] = useState(null);
     const [fileType, setFileType] = useState('image'); // 'image' or 'pdf'
+    
+    // Success modal
+    const { modalOpen, modalConfig, showModal, hideModal } = useModal();
 
     // Sample data for dropdowns
     const barangays = [
@@ -147,7 +152,7 @@ function PWDRecords() {
           let members = [];
           try {
             const pwdResponse = await pwdMemberService.getAll();
-            members = pwdResponse.data?.members || pwdResponse.members || [];
+            members = pwdResponse.data || pwdResponse.members || [];
             console.log('PWD members fetched successfully:', members.length);
           } catch (pwdError) {
             console.log('PWD Member service failed, using approved applications directly:', pwdError);
@@ -222,7 +227,7 @@ function PWDRecords() {
         let members = [];
         try {
           const pwdResponse = await pwdMemberService.getAll();
-          members = pwdResponse.data?.members || pwdResponse.members || [];
+           members = pwdResponse.data || pwdResponse.members || [];
         } catch (pwdError) {
           console.log('PWD Member service failed, using approved applications directly:', pwdError);
           // If service fails, use approved applications directly
@@ -264,10 +269,20 @@ function PWDRecords() {
         
         setPwdMembers(enhancedMembers);
         
-        alert('Application approved successfully! PWD Member created and added to masterlist.');
+         showModal({
+           type: 'success',
+           title: 'Application Approved!',
+           message: 'Application approved successfully! PWD Member created and added to masterlist.',
+           buttonText: 'Continue'
+         });
       } catch (err) {
         console.error('Error approving application:', err);
-        alert('Failed to approve application: ' + (err.message || 'Unknown error'));
+        showModal({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to approve application: ' + (err.message || 'Unknown error'),
+          buttonText: 'OK'
+        });
       }
     };
 
@@ -284,10 +299,20 @@ function PWDRecords() {
         // Refresh the applications list
         const data = await applicationService.getByStatus('Pending Admin Approval');
         setApplications(data);
-        alert('Application rejected successfully!');
+         showModal({
+           type: 'success',
+           title: 'Application Rejected',
+           message: 'Application rejected successfully!',
+           buttonText: 'Continue'
+         });
       } catch (err) {
         console.error('Error rejecting application:', err);
-        alert('Failed to reject application: ' + (err.message || 'Unknown error'));
+        showModal({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to reject application: ' + (err.message || 'Unknown error'),
+          buttonText: 'OK'
+        });
       }
     };
 
@@ -302,10 +327,20 @@ function PWDRecords() {
     };
 
     // File viewer functions
-    const handleViewFile = (filePath, fileName) => {
-      // Always open in a new browser tab to leverage native preview (e.g., PDF viewer)
-      const url = `${STORAGE_BASE_URL}/${filePath}`;
-      window.open(url, '_blank', 'noopener');
+    const handleViewFile = (fileType) => {
+      if (!selectedApplication) {
+        console.error('No application selected');
+        return;
+      }
+      
+      // Use the proper API route for application files
+      const url = `http://192.168.18.25:8000/api/application-file/${selectedApplication.applicationID}/${fileType}`;
+      console.log('Opening document URL:', url);
+      
+      // Set the file URL and open modal instead of new tab
+      setViewedFile(url);
+      setFileType(url.includes('.pdf') ? 'pdf' : 'image');
+      setFileViewerOpen(true);
     };
 
     const handleCloseFileViewer = () => {
@@ -313,37 +348,378 @@ function PWDRecords() {
       setViewedFile(null);
     };
 
+
     const handlePrintApplication = () => {
       const printWindow = window.open('', '_blank');
-      const printContent = document.getElementById('application-details');
+      const app = selectedApplication;
+      
+      // Format date for display
+      const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      };
+
+      // Calculate age from birth date
+      const calculateAge = (birthDate) => {
+        if (!birthDate) return 'N/A';
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const monthDiff = today.getMonth() - birth.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+          age--;
+        }
+        return age;
+      };
       
       printWindow.document.write(`
+        <!DOCTYPE html>
         <html>
           <head>
-            <title>PWD Application Details</title>
+            <title>PWD Application Details - ${app?.firstName} ${app?.lastName}</title>
+            <meta charset="UTF-8">
             <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              .header { text-align: center; margin-bottom: 30px; }
-              .section { margin-bottom: 20px; }
-              .field { margin-bottom: 10px; }
-              .label { font-weight: bold; }
-              @media print { body { margin: 0; } }
+              * { 
+                margin: 0; 
+                padding: 0; 
+                box-sizing: border-box; 
+              }
+              
+              body { 
+                font-family: 'Arial', sans-serif; 
+                line-height: 1.6; 
+                color: #333; 
+                background: white;
+                padding: 20px;
+                font-size: 12px;
+              }
+              
+              .container { 
+                max-width: 800px; 
+                margin: 0 auto; 
+                background: white;
+              }
+              
+              /* Header Styles */
+              .header { 
+                text-align: center; 
+                border-bottom: 3px solid #0b87ac; 
+                padding-bottom: 20px; 
+                margin-bottom: 30px; 
+              }
+              
+              .header h1 { 
+                color: #0b87ac; 
+                font-size: 24px; 
+                font-weight: bold; 
+                margin-bottom: 8px; 
+                letter-spacing: 2px;
+                text-transform: uppercase;
+              }
+              
+              .header h2 { 
+                color: #2c3e50; 
+                font-size: 18px; 
+                margin-bottom: 15px; 
+                font-weight: 600;
+              }
+              
+              .header-info { 
+                display: flex; 
+                justify-content: space-between; 
+                margin-top: 15px; 
+                font-size: 11px; 
+                color: #666; 
+                background: #f8f9fa;
+                padding: 10px;
+                border-radius: 5px;
+              }
+              
+              /* Section Styles */
+              .section { 
+                margin-bottom: 25px; 
+                page-break-inside: avoid; 
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                overflow: hidden;
+              }
+              
+              .section-title { 
+                background: #0b87ac; 
+                color: white; 
+                padding: 12px 15px; 
+                font-size: 14px; 
+                font-weight: bold; 
+                margin: 0;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+              }
+              
+              .section-content { 
+                padding: 15px; 
+                background: white;
+              }
+              
+              /* Field Styles */
+              .field-row { 
+                display: flex; 
+                margin-bottom: 12px; 
+                border-bottom: 1px dotted #ddd; 
+                padding-bottom: 8px; 
+                align-items: flex-start;
+              }
+              
+              .field-label { 
+                font-weight: bold; 
+                color: #2c3e50; 
+                min-width: 180px; 
+                margin-right: 20px; 
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              
+              .field-value { 
+                color: #333; 
+                flex: 1; 
+                font-size: 12px;
+                line-height: 1.4;
+              }
+              
+              /* Status Styles */
+              .status { 
+                display: inline-block; 
+                padding: 4px 12px; 
+                border-radius: 20px; 
+                font-weight: bold; 
+                font-size: 10px; 
+                text-transform: uppercase; 
+                letter-spacing: 0.5px;
+              }
+              
+              .status-pending { background: #f39c12; color: white; }
+              .status-approved { background: #27ae60; color: white; }
+              .status-rejected { background: #e74c3c; color: white; }
+              
+              /* Footer */
+              .footer { 
+                margin-top: 40px; 
+                text-align: center; 
+                font-size: 10px; 
+                color: #666; 
+                border-top: 2px solid #0b87ac; 
+                padding-top: 15px; 
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 5px;
+              }
+              
+              /* Print Specific Styles */
+              @media print {
+                body { 
+                  padding: 15px; 
+                  font-size: 11px;
+                }
+                .section { 
+                  page-break-inside: avoid; 
+                  margin-bottom: 20px;
+                }
+                .header { 
+                  page-break-after: avoid; 
+                }
+                .field-row {
+                  page-break-inside: avoid;
+                }
+                .container {
+                  max-width: 100%;
+                }
+              }
+              
+              /* Grid Layout for better organization */
+              .grid-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+              }
+              
+              .grid-3 {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 15px;
+              }
+              
+              @media print {
+                .grid-2, .grid-3 {
+                  display: block;
+                }
+                .grid-2 > *, .grid-3 > * {
+                  margin-bottom: 10px;
+                }
+              }
             </style>
           </head>
           <body>
+            <div class="container">
+              <!-- Header -->
             <div class="header">
               <h1>CABUYAO PDAO RMS</h1>
               <h2>PWD Application Details</h2>
-              <p>Application ID: ${selectedApplication?.applicationID}</p>
-              <p>Date: ${new Date().toLocaleDateString()}</p>
+                <div class="header-info">
+                  <span><strong>Application ID:</strong> ${app?.applicationID || 'N/A'}</span>
+                  <span><strong>Print Date:</strong> ${new Date().toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}</span>
             </div>
-            ${printContent.innerHTML}
+              </div>
+
+              <!-- Personal Information -->
+              <div class="section">
+                <div class="section-title">Personal Information</div>
+                <div class="section-content">
+                  <div class="grid-2">
+                    <div class="field-row">
+                      <span class="field-label">Full Name:</span>
+                      <span class="field-value">${app?.firstName || ''} ${app?.middleName || ''} ${app?.lastName || ''} ${app?.suffix || ''}</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Date of Birth:</span>
+                      <span class="field-value">${formatDate(app?.birthDate)} (Age: ${calculateAge(app?.birthDate)})</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Gender:</span>
+                      <span class="field-value">${app?.gender || 'N/A'}</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Civil Status:</span>
+                      <span class="field-value">${app?.civilStatus || 'N/A'}</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Contact Number:</span>
+                      <span class="field-value">${app?.contactNumber || 'N/A'}</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Email Address:</span>
+                      <span class="field-value">${app?.email || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Address Information -->
+              <div class="section">
+                <div class="section-title">Address Information</div>
+                <div class="section-content">
+                  <div class="field-row">
+                    <span class="field-label">Complete Address:</span>
+                    <span class="field-value">${(() => {
+                      const addressParts = [];
+                      if (app?.address) addressParts.push(app.address);
+                      if (app?.barangay && app.barangay !== 'N/A') addressParts.push(app.barangay);
+                      const city = app?.city && app.city !== 'N/A' ? app.city : 'Cabuyao';
+                      addressParts.push(city);
+                      const province = app?.province && app.province !== 'N/A' ? app.province : 'Laguna';
+                      addressParts.push(province);
+                      if (app?.postalCode && app.postalCode !== 'N/A') addressParts.push(app.postalCode);
+                      return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
+                    })()}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Disability Information -->
+              <div class="section">
+                <div class="section-title">Disability Information</div>
+                <div class="section-content">
+                  <div class="grid-3">
+                    <div class="field-row">
+                      <span class="field-label">Disability Type:</span>
+                      <span class="field-value">${app?.disabilityType || 'N/A'}</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Disability Cause:</span>
+                      <span class="field-value">${app?.disabilityCause || 'N/A'}</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Severity Level:</span>
+                      <span class="field-value">${app?.severityLevel || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Emergency Contact -->
+              <div class="section">
+                <div class="section-title">Emergency Contact</div>
+                <div class="section-content">
+                  <div class="grid-3">
+                    <div class="field-row">
+                      <span class="field-label">Contact Name:</span>
+                      <span class="field-value">${app?.emergencyContact || 'N/A'}</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Contact Number:</span>
+                      <span class="field-value">${app?.emergencyPhone || 'N/A'}</span>
+                    </div>
+                    <div class="field-row">
+                      <span class="field-label">Relationship:</span>
+                      <span class="field-value">${app?.emergencyRelationship || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Application Status -->
+              <div class="section">
+                <div class="section-title">Application Status</div>
+                <div class="section-content">
+                  <div class="field-row">
+                    <span class="field-label">Current Status:</span>
+                    <span class="field-value">
+                      <span class="status status-${(app?.status || 'pending').toLowerCase()}">
+                        ${app?.status || 'Pending'}
+                      </span>
+                    </span>
+                  </div>
+                  <div class="field-row">
+                    <span class="field-label">Submission Date:</span>
+                    <span class="field-value">${formatDate(app?.submissionDate)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div class="footer">
+                <p><strong>This document was generated by Cabuyao PDAO RMS</strong></p>
+                <p>Generated on: ${new Date().toLocaleString('en-US', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</p>
+                <p>For inquiries, please contact the Cabuyao PDAO office.</p>
+                <p style="margin-top: 10px; font-size: 9px; color: #999;">
+                  This is an official document. Please keep it secure.
+                </p>
+              </div>
+            </div>
           </body>
         </html>
       `);
       
       printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
       printWindow.print();
+        printWindow.close();
+      }, 500);
     };
 
     // Helper function to calculate age from birth date
@@ -592,6 +968,116 @@ function PWDRecords() {
                     <Tab label="Masterlist" />
                     <Tab label="Pending Application" />
                   </Tabs>
+                </Grid>
+                 <Grid item>
+                   <Button 
+                     variant="contained"
+                     onClick={() => showModal({
+                       type: 'success',
+                       title: 'Application Approved!',
+                       message: 'Application approved successfully! PWD Member created and added to masterlist.',
+                       buttonText: 'Continue'
+                     })}
+                     sx={{ 
+                       textTransform: 'none',
+                       bgcolor: '#27AE60',
+                       color: 'white',
+                       mr: 1,
+                       '&:hover': {
+                         bgcolor: '#229954'
+                       }
+                     }}
+                   >
+                     Test Success
+                   </Button>
+                 </Grid>
+                 <Grid item>
+                   <Button 
+                     variant="contained"
+                     onClick={() => showModal({
+                       type: 'success',
+                       title: 'Application Rejected',
+                       message: 'Application rejected successfully!',
+                       buttonText: 'Continue'
+                     })}
+                     sx={{ 
+                       textTransform: 'none',
+                       bgcolor: '#E74C3C',
+                       color: 'white',
+                       mr: 1,
+                       '&:hover': {
+                         bgcolor: '#C0392B'
+                       }
+                     }}
+                   >
+                     Test Reject
+                   </Button>
+                 </Grid>
+                 <Grid item>
+                   <Button 
+                     variant="contained"
+                     onClick={() => showModal({
+                       type: 'error',
+                       title: 'Error',
+                       message: 'Failed to approve application: Network connection error',
+                       buttonText: 'OK'
+                     })}
+                     sx={{ 
+                       textTransform: 'none',
+                       bgcolor: '#E74C3C',
+                       color: 'white',
+                       mr: 1,
+                       '&:hover': {
+                         bgcolor: '#C0392B'
+                       }
+                     }}
+                   >
+                     Test Error
+                   </Button>
+                 </Grid>
+                 <Grid item>
+                   <Button 
+                     variant="contained"
+                     onClick={() => showModal({
+                       type: 'warning',
+                       title: 'Warning',
+                       message: 'This action cannot be undone. Are you sure you want to continue?',
+                       buttonText: 'Proceed'
+                     })}
+                     sx={{ 
+                       textTransform: 'none',
+                       bgcolor: '#F39C12',
+                       color: 'white',
+                       mr: 1,
+                       '&:hover': {
+                         bgcolor: '#E67E22'
+                       }
+                     }}
+                   >
+                     Test Warning
+                   </Button>
+                 </Grid>
+                 <Grid item>
+                   <Button 
+                     variant="contained"
+                     onClick={() => showModal({
+                       type: 'info',
+                       title: 'Information',
+                       message: 'Your application is currently being reviewed by our team. You will be notified once a decision has been made.',
+                       buttonText: 'Got it'
+                     })}
+                     sx={{ 
+                       textTransform: 'none',
+                       bgcolor: '#3498DB',
+                       color: 'white',
+                       mr: 1,
+                       '&:hover': {
+                         bgcolor: '#2980B9'
+                       }
+                     }}
+                   >
+                     Test Info
+                   </Button>
                 </Grid>
                 <Grid item>
                   <Button 
@@ -1593,7 +2079,7 @@ function PWDRecords() {
                             size="small"
                             variant="outlined"
                             sx={{ fontSize: '0.7rem', minWidth: '100px' }}
-                            onClick={() => handleViewFile(selectedApplication.medicalCertificate, 'Medical Certificate')}
+                            onClick={() => handleViewFile('medicalCertificate')}
                           >
                             View Full Size
                           </Button>
@@ -1616,7 +2102,7 @@ function PWDRecords() {
                             size="small"
                             variant="outlined"
                             sx={{ fontSize: '0.7rem', minWidth: '100px' }}
-                            onClick={() => handleViewFile(selectedApplication.barangayCertificate, 'Barangay Certificate of Residency')}
+                            onClick={() => handleViewFile('barangayCertificate')}
                           >
                             View Full Size
                           </Button>
@@ -1640,7 +2126,7 @@ function PWDRecords() {
                             size="small"
                             variant="outlined"
                             sx={{ fontSize: '0.7rem', minWidth: '100px' }}
-                            onClick={() => handleViewFile(selectedApplication.clinicalAbstract, 'Clinical Abstract/Assessment')}
+                            onClick={() => handleViewFile('clinicalAbstract')}
                           >
                             View Full Size
                           </Button>
@@ -1664,7 +2150,7 @@ function PWDRecords() {
                             size="small"
                             variant="outlined"
                             sx={{ fontSize: '0.7rem', minWidth: '100px' }}
-                            onClick={() => handleViewFile(selectedApplication.voterCertificate, 'Voter Certificate')}
+                            onClick={() => handleViewFile('voterCertificate')}
                           >
                             View Full Size
                           </Button>
@@ -1690,7 +2176,7 @@ function PWDRecords() {
                               size="small"
                               variant="outlined"
                               sx={{ fontSize: '0.7rem', minWidth: '100px' }}
-                              onClick={() => handleViewFile(picture, `ID Picture ${index + 1}`)}
+                              onClick={() => handleViewFile('idPicture')}
                             >
                               View {index + 1}
                             </Button>
@@ -1714,7 +2200,7 @@ function PWDRecords() {
                             size="small"
                             variant="outlined"
                             sx={{ fontSize: '0.7rem', minWidth: '100px' }}
-                            onClick={() => handleViewFile(selectedApplication.birthCertificate, 'Birth Certificate')}
+                            onClick={() => handleViewFile('birthCertificate')}
                           >
                             View Full Size
                           </Button>
@@ -1738,7 +2224,7 @@ function PWDRecords() {
                             size="small"
                             variant="outlined"
                             sx={{ fontSize: '0.7rem', minWidth: '100px' }}
-                            onClick={() => handleViewFile(selectedApplication.wholeBodyPicture, 'Whole Body Picture')}
+                            onClick={() => handleViewFile('wholeBodyPicture')}
                           >
                             View Full Size
                           </Button>
@@ -1762,7 +2248,7 @@ function PWDRecords() {
                             size="small"
                             variant="outlined"
                             sx={{ fontSize: '0.7rem', minWidth: '100px' }}
-                            onClick={() => handleViewFile(selectedApplication.affidavit, 'Affidavit of Guardianship/Loss')}
+                            onClick={() => handleViewFile('affidavit')}
                           >
                             View Full Size
                           </Button>
@@ -1790,8 +2276,7 @@ function PWDRecords() {
                     Application Status
                   </Typography>
                   
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
+                  <Box>
                       <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
                         Current Status:
                       </Typography>
@@ -1805,16 +2290,7 @@ function PWDRecords() {
                           fontWeight: 'bold'
                         }}
                       />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                        Remarks:
-                      </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
-                        {selectedApplication.remarks || 'No remarks provided'}
-                      </Typography>
-                    </Grid>
-                  </Grid>
+                  </Box>
                 </Paper>
               </Box>
             )}
@@ -1856,7 +2332,80 @@ function PWDRecords() {
           </DialogActions>
         </Dialog>
 
-      {/* File Viewer Modal removed in favor of opening in a new tab for native preview */}
+        {/* File Viewer Modal */}
+        <Dialog
+          open={fileViewerOpen}
+          onClose={handleCloseFileViewer}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{
+            sx: {
+              height: '90vh',
+              maxHeight: '90vh'
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            bgcolor: '#0b87ac',
+            color: '#FFFFFF'
+          }}>
+            <Typography variant="h6">
+              Document Viewer
+            </Typography>
+            <IconButton
+              onClick={handleCloseFileViewer}
+              sx={{ color: '#FFFFFF' }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ p: 0, height: '100%' }}>
+            {viewedFile && (
+              <Box sx={{ 
+                height: '100%', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                bgcolor: '#f5f5f5'
+              }}>
+                {fileType === 'pdf' ? (
+                  <iframe
+                    src={viewedFile}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none'
+                    }}
+                    title="Document Viewer"
+                  />
+                ) : (
+                  <img
+                    src={viewedFile}
+                    alt="Document"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain'
+                    }}
+                  />
+                )}
+              </Box>
+            )}
+           </DialogContent>
+         </Dialog>
+
+         {/* Success Modal */}
+         <SuccessModal
+           open={modalOpen}
+           onClose={hideModal}
+           title={modalConfig.title}
+           message={modalConfig.message}
+           type={modalConfig.type}
+           buttonText={modalConfig.buttonText}
+         />
       </Box>
     );
   }

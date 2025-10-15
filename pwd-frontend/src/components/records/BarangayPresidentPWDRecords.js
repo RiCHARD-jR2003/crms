@@ -42,6 +42,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import BarangayPresidentSidebar from '../shared/BarangayPresidentSidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/api';
+import SuccessModal from '../shared/SuccessModal';
+import { useModal } from '../../hooks/useModal';
 
 // Helper function to convert text to proper case
 const toProperCase = (text) => {
@@ -69,6 +71,9 @@ function BarangayPresidentPWDRecords() {
   const [error, setError] = useState(null);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
+  
+  // Success modal
+  const { modalOpen, modalConfig, showModal, hideModal } = useModal();
 
   useEffect(() => {
     fetchData();
@@ -139,10 +144,20 @@ function BarangayPresidentPWDRecords() {
 
       // Refresh the applications list
       await fetchData();
-      alert('Application approved successfully!');
+      showModal({
+        type: 'success',
+        title: 'Application Approved!',
+        message: 'Application approved successfully!',
+        buttonText: 'Continue'
+      });
     } catch (err) {
       console.error('Error approving application:', err);
-      alert('Failed to approve application: ' + (err.message || 'Unknown error'));
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to approve application: ' + (err.message || 'Unknown error'),
+        buttonText: 'OK'
+      });
     }
   };
 
@@ -157,10 +172,20 @@ function BarangayPresidentPWDRecords() {
 
       // Refresh the applications list
       await fetchData();
-      alert('Application rejected successfully!');
+      showModal({
+        type: 'success',
+        title: 'Application Rejected',
+        message: 'Application rejected successfully!',
+        buttonText: 'Continue'
+      });
     } catch (err) {
       console.error('Error rejecting application:', err);
-      alert('Failed to reject application: ' + (err.message || 'Unknown error'));
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to reject application: ' + (err.message || 'Unknown error'),
+        buttonText: 'OK'
+      });
     }
   };
 
@@ -1386,6 +1411,16 @@ function BarangayPresidentPWDRecords() {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Success Modal */}
+      <SuccessModal
+        open={modalOpen}
+        onClose={hideModal}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        type={modalConfig.type}
+        buttonText={modalConfig.buttonText}
+      />
     </Box>
   );
 }

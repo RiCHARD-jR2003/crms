@@ -40,6 +40,8 @@ import {
 import { api } from '../../services/api';
 import applicationService from '../../services/applicationService';
 import EmailVerificationModal from './EmailVerificationModal';
+import SuccessModal from '../shared/SuccessModal';
+import { useModal } from '../../hooks/useModal';
 
 const steps = [
   'Personal Information',
@@ -60,6 +62,16 @@ function ApplicationForm() {
   const [duplicateErrors, setDuplicateErrors] = useState({});
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
+  
+  // Success modal
+  const { modalOpen, modalConfig, showModal, hideModal } = useModal();
+  
+  // Generate reference number
+  const generateReferenceNumber = () => {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `PWD-${new Date().getFullYear()}-${timestamp.toString().slice(-6)}-${random}`;
+  };
 
   // Reusable styling for form fields
   const getTextFieldStyles = (hasError = false) => ({
@@ -140,6 +152,7 @@ function ApplicationForm() {
     firstName: '',
     lastName: '',
     middleName: '',
+    suffix: '',
     dateOfBirth: '',
     gender: '',
     civilStatus: '',
@@ -456,6 +469,7 @@ function ApplicationForm() {
         firstName: formData.firstName,
         lastName: formData.lastName,
         middleName: formData.middleName,
+        suffix: formData.suffix,
         // Send both keys to satisfy different backend validators
         birthDate: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString().slice(0,10) : '',
         dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString().slice(0,10) : '',
@@ -491,7 +505,12 @@ function ApplicationForm() {
       const missingFields = requiredFields.filter(field => !fieldMapping[field]);
       
       if (missingFields.length > 0) {
-        alert(`Please fill in all required fields: ${missingFields.join(', ')}`);
+        showModal({
+          type: 'warning',
+          title: 'Missing Information',
+          message: `Please fill in all required fields: ${missingFields.join(', ')}`,
+          buttonText: 'OK'
+        });
         return;
       }
 
@@ -545,19 +564,31 @@ function ApplicationForm() {
       // Debug: Log what we're sending
       console.log('Sending FormData with fields:', Object.fromEntries(formDataToSend.entries()));
 
+      // Generate reference number
+      const referenceNumber = generateReferenceNumber();
+      
+      // Add reference number to form data
+      formDataToSend.append('referenceNumber', referenceNumber);
+
       const response = await applicationService.create(formDataToSend);
 
       if (response) {
-        alert('Application submitted successfully! You will be redirected to the login page.');
-        // Redirect to login page after successful submission
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000); // 2 second delay to allow user to read the success message
+        showModal({
+          type: 'success',
+          title: 'Application Submitted Successfully!',
+          message: `Your PWD application has been submitted successfully!\n\nReference Number: ${referenceNumber}\n\nPlease save this reference number to check your application status.`,
+          buttonText: 'Continue to Login',
+          onClose: () => {
+            // Redirect to login page only after user closes the modal
+            navigate('/login');
+          }
+        });
         // Reset form
         setFormData({
           firstName: '',
           lastName: '',
           middleName: '',
+          suffix: '',
           dateOfBirth: '',
           gender: '',
           civilStatus: '',
@@ -607,19 +638,49 @@ function ApplicationForm() {
         if (d.idNumber) {
           lines.push(`ID number already used by ${d.idNumber.existing_application?.name || ''}`);
         }
-        alert(`Duplicate application detected:\n${lines.join('\n') || 'See network response for details.'}`);
+        showModal({
+          type: 'warning',
+          title: 'Duplicate Application',
+          message: `Duplicate application detected:\n${lines.join('\n') || 'See network response for details.'}`,
+          buttonText: 'OK'
+        });
       } else if (data.messages) {
         const errorMessages = Object.values(data.messages).flat().join('\n');
-        alert(`Validation errors:\n${errorMessages}`);
+        showModal({
+          type: 'error',
+          title: 'Validation Error',
+          message: `Validation errors:\n${errorMessages}`,
+          buttonText: 'OK'
+        });
       } else if (data.errors) {
         const errorMessages = Object.values(data.errors).flat().join('\n');
-        alert(`Validation errors:\n${errorMessages}`);
+        showModal({
+          type: 'error',
+          title: 'Validation Error',
+          message: `Validation errors:\n${errorMessages}`,
+          buttonText: 'OK'
+        });
       } else if (data.message) {
-        alert(`Error: ${data.message}`);
+        showModal({
+          type: 'error',
+          title: 'Error',
+          message: `Error: ${data.message}`,
+          buttonText: 'OK'
+        });
       } else if (error.message) {
-        alert(`Error: ${error.message}`);
+        showModal({
+          type: 'error',
+          title: 'Error',
+          message: `Error: ${error.message}`,
+          buttonText: 'OK'
+        });
       } else {
-        alert('Error submitting application. Please try again.');
+        showModal({
+          type: 'error',
+          title: 'Error',
+          message: 'Error submitting application. Please try again.',
+          buttonText: 'OK'
+        });
       }
     }
   };
@@ -679,6 +740,49 @@ function ApplicationForm() {
                    }}
                    sx={getTextFieldStyles()}
                  />
+               </Grid>
+               <Grid item xs={12} sm={6}>
+                 <FormControl fullWidth sx={getSelectStyles()}>
+                   <InputLabel shrink>Suffix</InputLabel>
+                   <Select
+                     value={formData.suffix}
+                     onChange={(e) => handleInputChange('suffix', e.target.value)}
+                     label="Suffix"
+                     displayEmpty
+                     MenuProps={{
+                       PaperProps: {
+                         sx: {
+                           backgroundColor: '#FFFFFF',
+                           border: '1px solid #e9ecef',
+                           borderRadius: 3,
+                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                           '& .MuiMenuItem-root': {
+                             backgroundColor: '#FFFFFF',
+                             color: '#2C3E50',
+                             fontSize: '0.95rem',
+                             '&:hover': {
+                               backgroundColor: '#f8f9fa',
+                             },
+                             '&.Mui-selected': {
+                               backgroundColor: '#f8f9fa',
+                               color: '#2C3E50',
+                               '&:hover': {
+                                 backgroundColor: '#e9ecef',
+                               },
+                             },
+                           },
+                         }
+                       }
+                     }}
+                   >
+                     <MenuItem value="">None</MenuItem>
+                     <MenuItem value="Jr.">Jr.</MenuItem>
+                     <MenuItem value="Sr.">Sr.</MenuItem>
+                     <MenuItem value="I">I</MenuItem>
+                     <MenuItem value="II">II</MenuItem>
+                     <MenuItem value="III">III</MenuItem>
+                   </Select>
+                 </FormControl>
                </Grid>
                              <Grid item xs={12} sm={6}>
                  <TextField
@@ -1150,51 +1254,6 @@ function ApplicationForm() {
               Required Documents
             </Typography>
             
-            {/* Document Requirements Checklist */}
-            <Paper sx={{ 
-              p: 2, 
-              mb: 3, 
-              bgcolor: '#FFF5F5', 
-              border: '1px solid #FFE0E0',
-              borderRadius: 3
-            }}>
-              <Typography variant="h6" sx={{ 
-                mb: 2, 
-                color: '#D32F2F',
-                fontWeight: 700,
-                fontSize: '1.1rem'
-              }}>
-                📋 Document Requirements Checklist
-              </Typography>
-              <Box sx={{ pl: 2 }}>
-                <Typography variant="body2" sx={{ mb: 1, color: '#2C3E50', fontWeight: 600 }}>
-                  ✓ <strong>Medical Certificate</strong> stating the patient's <strong>Type of Disability</strong> & <strong>Doctor's qualification</strong> for <strong>PWD ID</strong> (Latest date and original copy)
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1, color: '#2C3E50', fontWeight: 600 }}>
-                  ✓ <strong>Clinical Abstract/Protocol/ Behavioral Assessment/ Audiometry Test</strong> (photocopy)
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1, color: '#2C3E50', fontWeight: 600 }}>
-                  ✓ <strong>Voter Certificate</strong> (Photocopy)
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1, color: '#2C3E50', fontWeight: 600 }}>
-                  ✓ <strong>2pcs 1"x1" ID picture</strong>, white background (latest photo)
-                </Typography>
-                {isMinor() && (
-                  <Typography variant="body2" sx={{ mb: 1, color: '#2C3E50', fontWeight: 600 }}>
-                    ✓ <strong>Birth Certificate if minor</strong> (Photocopy) *
-                  </Typography>
-                )}
-                <Typography variant="body2" sx={{ mb: 1, color: '#2C3E50', fontWeight: 600 }}>
-                  ✓ <strong>Whole body picture Only for Apparent Disability</strong>
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1, color: '#2C3E50', fontWeight: 600 }}>
-                  ✓ <strong>Affidavit of Guardianship/Loss</strong>
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1, color: '#2C3E50', fontWeight: 600 }}>
-                  ✓ <strong>Barangay Certificate of Residency</strong>
-                </Typography>
-              </Box>
-            </Paper>
 
             <Alert severity="info" sx={{ 
               mb: 3, 
@@ -1203,7 +1262,14 @@ function ApplicationForm() {
               borderRadius: 3,
               border: '1px solid #BBDEFB'
             }}>
-              Please upload the following documents in PDF, JPG, or PNG format (max 2MB each)
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                📄 File Requirements:
+              </Typography>
+              <Typography variant="body2">
+                • Allowed formats: PDF, JPG, JPEG, PNG<br/>
+                • Maximum file size: 2MB per document<br/>
+                • Upload clear, readable copies of your documents
+              </Typography>
             </Alert>
             
             {documentsLoading ? (
@@ -1253,31 +1319,31 @@ function ApplicationForm() {
                         </Typography>
                       )}
                       
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="caption" sx={{ color: '#666' }}>
-                          Allowed file types: {document.file_types?.join(', ') || 'PDF, JPG, PNG'}
-                        </Typography>
-                        <br />
-                        <Typography variant="caption" sx={{ color: '#666' }}>
-                          Maximum file size: {document.max_file_size} KB
-                        </Typography>
+                      <Box sx={{ 
+                        border: '2px dashed #BDC3C7', 
+                        borderRadius: '8px', 
+                        backgroundColor: '#F8F9FA',
+                        p: 2,
+                        textAlign: 'center',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          borderColor: '#0b87ac',
+                          backgroundColor: '#f0f8ff'
+                        }
+                      }}>
+                        <input
+                          type="file"
+                          accept={document.file_types?.map(type => `.${type}`).join(',') || '.pdf,image/*'}
+                          onChange={(e) => handleFileChange(`doc_${document.id}`, e.target.files[0])}
+                          required={document.is_required}
+                          style={{ 
+                            width: '100%', 
+                            color: '#2C3E50', 
+                            fontSize: '0.95rem',
+                            cursor: 'pointer'
+                          }}
+                        />
                       </Box>
-                      
-                      <input
-                        type="file"
-                        accept={document.file_types?.map(type => `.${type}`).join(',') || '.pdf,image/*'}
-                        onChange={(e) => handleFileChange(`doc_${document.id}`, e.target.files[0])}
-                        required={document.is_required}
-                        style={{ 
-                          padding: '12px', 
-                          border: '2px dashed #BDC3C7', 
-                          borderRadius: '8px', 
-                          width: '100%', 
-                          backgroundColor: '#F8F9FA', 
-                          color: '#2C3E50', 
-                          fontSize: '0.95rem' 
-                        }}
-                      />
                       
                       {formData.documents && formData.documents[`doc_${document.id}`] && (
                         <Box sx={{ mt: 2 }}>
@@ -1659,6 +1725,16 @@ function ApplicationForm() {
         email={formData.email}
         onVerified={handleVerified}
         onCancel={handleVerificationCancel}
+      />
+      
+      <SuccessModal
+        open={modalOpen}
+        onClose={hideModal}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        type={modalConfig.type}
+        buttonText={modalConfig.buttonText}
+        onButtonClick={modalConfig.onClose}
       />
     </Box>
   );

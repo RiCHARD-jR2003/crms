@@ -44,6 +44,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import AdminSidebar from '../shared/AdminSidebar';
 import pwdMemberService from '../../services/pwdMemberService';
 import QRCodeService from '../../services/qrCodeService';
+import SuccessModal from '../shared/SuccessModal';
+import { useModal } from '../../hooks/useModal';
 
 function PWDCard() {
   const { currentUser } = useAuth();
@@ -53,6 +55,10 @@ function PWDCard() {
   const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [qrCodeDataURL, setQrCodeDataURL] = useState('');
+  
+  // Success modal
+  const { modalOpen, modalConfig, showModal, hideModal } = useModal();
+  
   const [filters, setFilters] = useState({
     search: '',
     barangay: '',
@@ -67,7 +73,7 @@ function PWDCard() {
       setLoading(true);
       setError(null);
       const response = await pwdMemberService.getAll();
-      const members = response.data?.members || response.members || [];
+      const members = response.data || response.members || [];
       
       // Debug: Log the raw API response
       console.log('=== API Response Debug ===');
@@ -78,7 +84,7 @@ function PWDCard() {
       // Transform the data to match our expected format
       const transformedMembers = members.map((member, index) => ({
         id: member.pwd_id || `PWD-2025-${String(index + 1).padStart(6, '0')}`,
-        name: `${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || 'Unknown Member',
+        name: `${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Unknown Member',
         age: member.birthDate ? new Date().getFullYear() - new Date(member.birthDate).getFullYear() : 'N/A',
         barangay: member.barangay || 'N/A',
         status: 'Active',
@@ -95,155 +101,12 @@ function PWDCard() {
         idPictures: member.idPictures // Add ID pictures to the transformation
       }));
       
-      // If no members from API, use mock data for demonstration
-      if (transformedMembers.length === 0) {
-        const mockMembers = [
-          {
-            id: 'PWD-2025-000001',
-            name: 'Juan Dela Cruz Alimagno Jr.',
-            age: 56,
-            barangay: 'Banaybanay',
-            status: 'Active',
-            disabilityType: 'Physical Disability',
-            birthDate: '1968-05-15',
-            firstName: 'Juan',
-            lastName: 'Dela Cruz',
-            middleName: 'Alimagno',
-            suffix: 'Jr.',
-            address: '#24 Purok 4, Brgy. Mamatid, City of Cabuyao, Laguna',
-            contactNumber: '+63 987 654 3210',
-            gender: 'Male',
-            bloodType: 'O+'
-          },
-          {
-            id: 'PWD-2025-000002',
-            name: 'Maria Santos Garcia',
-            age: 42,
-            barangay: 'Banlic',
-            status: 'Active',
-            disabilityType: 'Visual Impairment',
-            birthDate: '1982-03-22',
-            firstName: 'Maria',
-            lastName: 'Santos',
-            middleName: 'Garcia',
-            suffix: '',
-            address: '#15 Purok 2, Brgy. Banlic, City of Cabuyao, Laguna',
-            contactNumber: '+63 912 345 6789',
-            gender: 'Female',
-            bloodType: 'A+'
-          },
-          {
-            id: 'PWD-2025-000003',
-            name: 'Pedro Rodriguez Lopez',
-            age: 38,
-            barangay: 'Bigaa',
-            status: 'Active',
-            disabilityType: 'Hearing Impairment',
-            birthDate: '1986-07-10',
-            firstName: 'Pedro',
-            lastName: 'Rodriguez',
-            middleName: 'Lopez',
-            suffix: '',
-            address: '#8 Purok 3, Brgy. Bigaa, City of Cabuyao, Laguna',
-            contactNumber: '+63 923 456 7890',
-            gender: 'Male',
-            bloodType: 'B+'
-          },
-          {
-            id: 'PWD-2025-000004',
-            name: 'Ana Martinez Cruz',
-            age: 29,
-            barangay: 'Butong',
-            status: 'Active',
-            disabilityType: 'Mobility Impairment',
-            birthDate: '1995-12-03',
-            firstName: 'Ana',
-            lastName: 'Martinez',
-            middleName: 'Cruz',
-            suffix: '',
-            address: '#12 Purok 1, Brgy. Butong, City of Cabuyao, Laguna',
-            contactNumber: '+63 934 567 8901',
-            gender: 'Female',
-            bloodType: 'AB+'
-          },
-          {
-            id: 'PWD-2025-000005',
-            name: 'Carlos Mendoza Reyes',
-            age: 45,
-            barangay: 'Casile',
-            status: 'Active',
-            disabilityType: 'Speech Impairment',
-            birthDate: '1979-04-18',
-            firstName: 'Carlos',
-            lastName: 'Mendoza',
-            middleName: 'Reyes',
-            suffix: '',
-            address: '#6 Purok 5, Brgy. Casile, City of Cabuyao, Laguna',
-            contactNumber: '+63 945 678 9012',
-            gender: 'Male',
-            bloodType: 'O-'
-          },
-          {
-            id: 'PWD-2025-000006',
-            name: 'Elena Torres Villanueva',
-            age: 33,
-            barangay: 'Mamatid',
-            status: 'Active',
-            disabilityType: 'Intellectual Disability',
-            birthDate: '1991-09-25',
-            firstName: 'Elena',
-            lastName: 'Torres',
-            middleName: 'Villanueva',
-            suffix: '',
-            address: '#20 Purok 2, Brgy. Mamatid, City of Cabuyao, Laguna',
-            contactNumber: '+63 956 789 0123',
-            gender: 'Female',
-            bloodType: 'A-'
-          },
-          {
-            id: 'PWD-2025-000007',
-            name: 'Roberto Silva Morales',
-            age: 51,
-            barangay: 'Pulo',
-            status: 'Active',
-            disabilityType: 'Physical Disability',
-            birthDate: '1973-11-12',
-            firstName: 'Roberto',
-            lastName: 'Silva',
-            middleName: 'Morales',
-            suffix: '',
-            address: '#14 Purok 4, Brgy. Pulo, City of Cabuyao, Laguna',
-            contactNumber: '+63 967 890 1234',
-            gender: 'Male',
-            bloodType: 'B-'
-          },
-          {
-            id: 'PWD-2025-000008',
-            name: 'Carmen Flores Aguilar',
-            age: 27,
-            barangay: 'Sala',
-            status: 'Active',
-            disabilityType: 'Visual Impairment',
-            birthDate: '1997-02-28',
-            firstName: 'Carmen',
-            lastName: 'Flores',
-            middleName: 'Aguilar',
-            suffix: '',
-            address: '#18 Purok 3, Brgy. Sala, City of Cabuyao, Laguna',
-            contactNumber: '+63 978 901 2345',
-            gender: 'Female',
-            bloodType: 'AB-'
-          }
-        ];
-        setPwdMembers(mockMembers);
-        setSelectedMember(mockMembers[0].id);
-      } else {
-        setPwdMembers(transformedMembers);
-        
-        // Set first member as selected if none selected
-        if (!selectedMember && transformedMembers.length > 0) {
-          setSelectedMember(transformedMembers[0].id);
-        }
+      // Set the members from API (no fallback to mock data)
+      setPwdMembers(transformedMembers);
+      
+      // Set first member as selected if none selected and members exist
+      if (!selectedMember && transformedMembers.length > 0) {
+        setSelectedMember(transformedMembers[0].id);
       }
     } catch (err) {
       console.error('Error fetching PWD members:', err);
@@ -284,7 +147,12 @@ function PWDCard() {
 
   const handlePrintCard = () => {
     if (!selectedMemberData) {
-      alert('Please select a PWD member to print their card.');
+      showModal({
+        type: 'warning',
+        title: 'No Member Selected',
+        message: 'Please select a PWD member to print their card.',
+        buttonText: 'OK'
+      });
       return;
     }
 
@@ -1308,7 +1176,7 @@ function PWDCard() {
                             }
                             
                             if (imagePath) {
-                              const fullUrl = `http://192.168.1.6:8000/storage/${imagePath}`;
+                              const fullUrl = `http://192.168.18.25:8000/storage/${imagePath}`;
                               console.log('Final image URL:', fullUrl);
                               
                               return (
@@ -1557,6 +1425,16 @@ function PWDCard() {
           </Grid>
         </Container>
       </Box>
+      
+      {/* Success Modal */}
+      <SuccessModal
+        open={modalOpen}
+        onClose={hideModal}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        type={modalConfig.type}
+        buttonText={modalConfig.buttonText}
+      />
     </Box>
   );
 }

@@ -246,7 +246,7 @@ const MobileQRScanner = ({
         </Button>
       </DialogActions>
 
-      <style jsx>{`
+      <style>{`
         @keyframes pulse {
           0% {
             opacity: 1;

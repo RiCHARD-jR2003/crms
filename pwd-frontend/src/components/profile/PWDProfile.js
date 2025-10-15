@@ -101,9 +101,9 @@ function PWDProfile() {
       console.log('Current User:', currentUser);
       console.log('Current User PWD Member:', currentUser?.pwd_member);
       
-      // Try to get fresh data from the mock-pwd endpoint
-      const response = await api.get('/mock-pwd');
-      console.log('Mock PWD Response:', response);
+      // Try to get fresh data from the PWD members endpoint
+      const response = await api.get('/pwd-members');
+      console.log('PWD Members Response:', response);
       
       if (response && response.members) {
         // Find the current user in the members list
@@ -932,7 +932,7 @@ label={t('profile.birthDate')}
                           }
                           
                           if (imagePath) {
-                            const fullUrl = `http://192.168.1.6:8000/storage/${imagePath}`;
+                            const fullUrl = `http://192.168.18.25:8000/storage/${imagePath}`;
                             console.log('Final image URL:', fullUrl);
                             
                             return (

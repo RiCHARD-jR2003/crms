@@ -69,6 +69,8 @@ const PWDMemberSupportDesk = () => {
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [tickets, setTickets] = useState([]);
+  const [archivedTickets, setArchivedTickets] = useState([]);
+  const [showArchive, setShowArchive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -102,6 +104,21 @@ const PWDMemberSupportDesk = () => {
     } catch (error) {
       console.error('Error fetching tickets:', error);
       setError('Failed to load support tickets');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchArchivedTickets = async () => {
+    try {
+      console.log('fetchArchivedTickets: Starting to fetch archived tickets');
+      setLoading(true);
+      const response = await supportService.getArchivedTickets();
+      console.log('fetchArchivedTickets: Response received:', response);
+      setArchivedTickets(response);
+    } catch (error) {
+      console.error('Error fetching archived tickets:', error);
+      setError('Failed to load archived tickets');
     } finally {
       setLoading(false);
     }
@@ -216,7 +233,7 @@ const PWDMemberSupportDesk = () => {
       setError(null); // Clear any previous errors
       
       // Use the same approach as document management - direct API endpoint
-      const url = `http://192.168.1.6:8000/api/support-tickets/messages/${message.id}/download`;
+      const url = `http://192.168.18.25:8000/api/support-tickets/messages/${message.id}/download`;
       console.log('Opening URL:', url);
       
       // Use window.open directly like document management does
@@ -283,8 +300,12 @@ const PWDMemberSupportDesk = () => {
     try {
       setLoading(true);
       await supportService.pwdMember.markResolved(ticketId);
-      setSuccess('Ticket marked as resolved!');
+      setSuccess('Ticket marked as resolved and archived!');
       fetchTickets();
+      // Also refresh archived tickets if archive view is open
+      if (showArchive) {
+        fetchArchivedTickets();
+      }
     } catch (error) {
       console.error('Error marking ticket as resolved:', error);
       setError('Failed to mark ticket as resolved');
@@ -293,18 +314,14 @@ const PWDMemberSupportDesk = () => {
     }
   };
 
-  const handleMarkClosed = async (ticketId) => {
-    try {
-      setLoading(true);
-      await supportService.pwdMember.markClosed(ticketId);
-      setSuccess('Ticket marked as closed!');
-      fetchTickets();
-    } catch (error) {
-      console.error('Error marking ticket as closed:', error);
-      setError('Failed to mark ticket as closed');
-    } finally {
-      setLoading(false);
-    }
+  const handleShowActiveTickets = () => {
+    setShowArchive(false);
+    fetchTickets();
+  };
+
+  const handleShowArchivedTickets = () => {
+    setShowArchive(true);
+    fetchArchivedTickets();
   };
 
   const getStatusIcon = (status) => {
@@ -348,7 +365,7 @@ const PWDMemberSupportDesk = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <Schedule sx={{ color: '#E74C3C', mr: 1 }} />
                   <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
-                    {tickets.filter(ticket => ticket.status === 'open').length}
+                    {showArchive ? 0 : tickets.filter(ticket => ticket.status === 'open').length}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
@@ -363,7 +380,7 @@ const PWDMemberSupportDesk = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <Warning sx={{ color: '#F39C12', mr: 1 }} />
                   <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
-                    {tickets.filter(ticket => ticket.status === 'in_progress').length}
+                    {showArchive ? 0 : tickets.filter(ticket => ticket.status === 'in_progress').length}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
@@ -378,7 +395,7 @@ const PWDMemberSupportDesk = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <CheckCircle sx={{ color: '#27AE60', mr: 1 }} />
                   <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
-                    {tickets.filter(ticket => ticket.status === 'resolved').length}
+                    {showArchive ? archivedTickets.length : 0}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
@@ -393,7 +410,7 @@ const PWDMemberSupportDesk = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <SupportAgent sx={{ color: '#3498DB', mr: 1 }} />
                   <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
-                    {tickets.length}
+                    {showArchive ? archivedTickets.length : tickets.length}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
@@ -405,7 +422,7 @@ const PWDMemberSupportDesk = () => {
         </Grid>
 
         {/* Action Buttons */}
-        <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -422,6 +439,48 @@ const PWDMemberSupportDesk = () => {
           >
 {t('support.createTicket')}
           </Button>
+          
+          {/* Archive Toggle Buttons */}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant={!showArchive ? "contained" : "outlined"}
+              onClick={handleShowActiveTickets}
+              sx={{
+                backgroundColor: !showArchive ? '#0b87ac' : 'transparent',
+                color: !showArchive ? '#FFFFFF' : '#0b87ac',
+                borderColor: '#0b87ac',
+                '&:hover': { 
+                  backgroundColor: !showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
+                },
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                py: 1.5
+              }}
+            >
+              Active Tickets
+            </Button>
+            <Button
+              variant={showArchive ? "contained" : "outlined"}
+              onClick={handleShowArchivedTickets}
+              sx={{
+                backgroundColor: showArchive ? '#0b87ac' : 'transparent',
+                color: showArchive ? '#FFFFFF' : '#0b87ac',
+                borderColor: '#0b87ac',
+                '&:hover': { 
+                  backgroundColor: showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
+                },
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                py: 1.5
+              }}
+            >
+              Archive
+            </Button>
+          </Box>
         </Box>
 
         {/* Alerts */}
@@ -458,22 +517,22 @@ const PWDMemberSupportDesk = () => {
                       <CircularProgress />
                     </TableCell>
                   </TableRow>
-                ) : tickets.length === 0 ? (
+                ) : (showArchive ? archivedTickets : tickets).length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} align="center" sx={{ py: 4, color: '#000000' }}>
                       <Box sx={{ textAlign: 'center' }}>
                         <SupportAgent sx={{ fontSize: 48, color: '#BDC3C7', mb: 2 }} />
                         <Typography variant="h6" sx={{ color: '#000000', mb: 1 }}>
-                          No support tickets found
+                          {showArchive ? 'No archived tickets found' : 'No support tickets found'}
                         </Typography>
                         <Typography variant="body2" sx={{ color: '#666666' }}>
-                          Create your first ticket to get started!
+                          {showArchive ? 'Resolved tickets will appear here' : 'Create your first ticket to get started!'}
                         </Typography>
                       </Box>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  tickets.map((ticket) => (
+                  (showArchive ? archivedTickets : tickets).map((ticket) => (
                     <TableRow key={ticket.id} hover>
                       <TableCell sx={{ fontWeight: 600, color: '#3498DB' }}>
                         {ticket.ticket_number}
@@ -555,28 +614,28 @@ const PWDMemberSupportDesk = () => {
                           >
 {t('common.view')}
                           </Button>
-                          {ticket.status === 'resolved' && (
+                          {!showArchive && ticket.status !== 'resolved' && (
                             <Button
                               size="small"
                               variant="outlined"
-                              startIcon={<Close />}
-                              onClick={() => handleMarkClosed(ticket.id)}
+                              startIcon={<CheckCircle />}
+                              onClick={() => handleMarkResolved(ticket.id)}
                               sx={{ 
-                                color: '#E74C3C',
-                                borderColor: '#E74C3C',
+                                color: '#27AE60',
+                                borderColor: '#27AE60',
                                 textTransform: 'none',
                                 fontWeight: 600,
                                 fontSize: '0.75rem',
                                 py: 0.5,
                                 px: 1,
                                 '&:hover': {
-                                  backgroundColor: '#E74C3C',
+                                  backgroundColor: '#27AE60',
                                   color: '#FFFFFF',
-                                  borderColor: '#E74C3C'
+                                  borderColor: '#27AE60'
                                 }
                               }}
                             >
-{t('support.closed')}
+                              Resolve
                             </Button>
                           )}
                           {ticket.status === 'in_progress' && (
@@ -659,6 +718,31 @@ const PWDMemberSupportDesk = () => {
                     name="priority"
                     value={formData.priority}
                     onChange={handleInputChange}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid #e9ecef',
+                          borderRadius: 3,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          '& .MuiMenuItem-root': {
+                            backgroundColor: '#FFFFFF',
+                            color: '#2C3E50',
+                            fontSize: '0.95rem',
+                            '&:hover': {
+                              backgroundColor: '#f8f9fa',
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: '#f8f9fa',
+                              color: '#2C3E50',
+                              '&:hover': {
+                                backgroundColor: '#e9ecef',
+                              },
+                            },
+                          },
+                        }
+                      }
+                    }}
                     sx={{
                       color: '#000000',
                       width: '100%',
@@ -692,6 +776,31 @@ const PWDMemberSupportDesk = () => {
                     name="category"
                     value={formData.category}
                     onChange={handleInputChange}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid #e9ecef',
+                          borderRadius: 3,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          '& .MuiMenuItem-root': {
+                            backgroundColor: '#FFFFFF',
+                            color: '#2C3E50',
+                            fontSize: '0.95rem',
+                            '&:hover': {
+                              backgroundColor: '#f8f9fa',
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: '#f8f9fa',
+                              color: '#2C3E50',
+                              '&:hover': {
+                                backgroundColor: '#e9ecef',
+                              },
+                            },
+                          },
+                        }
+                      }
+                    }}
                     sx={{
                       color: '#000000',
                       width: '100%',
@@ -1063,7 +1172,17 @@ const PWDMemberSupportDesk = () => {
             )}
           </DialogContent>
           {/* Reply Section */}
-          {selectedTicket?.status !== 'closed' && (
+          {selectedTicket?.status === 'resolved' && (
+            <Box sx={{ p: 3, backgroundColor: '#E8F5E8', borderTop: '1px solid #E0E0E0' }}>
+              <Typography variant="h6" sx={{ mb: 2, color: '#27AE60', fontWeight: 600, textAlign: 'center' }}>
+                ✓ Ticket Resolved
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#2E7D32', textAlign: 'center' }}>
+                This ticket has been resolved and archived. No further replies are allowed.
+              </Typography>
+            </Box>
+          )}
+          {selectedTicket?.status !== 'closed' && selectedTicket?.status !== 'resolved' && (
             <Box sx={{ p: 3, backgroundColor: '#F8F9FA', borderTop: '1px solid #E0E0E0' }}>
               <Typography variant="h6" sx={{ mb: 2, color: '#2C3E50', fontWeight: 600 }}>
                 Reply to Ticket

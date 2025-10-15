@@ -56,6 +56,8 @@ const AdminSupportDesk = () => {
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [tickets, setTickets] = useState([]);
+  const [archivedTickets, setArchivedTickets] = useState([]);
+  const [showArchive, setShowArchive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -81,6 +83,42 @@ const AdminSupportDesk = () => {
 
     fetchTickets();
   }, []);
+
+  const fetchArchivedTickets = async () => {
+    try {
+      setLoading(true);
+      const response = await supportService.getArchivedTickets();
+      setArchivedTickets(response);
+    } catch (error) {
+      console.error('Error fetching archived tickets:', error);
+      setError('Failed to load archived tickets');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleShowActiveTickets = () => {
+    setShowArchive(false);
+    const fetchTickets = async () => {
+      try {
+        setLoading(true);
+        const response = await supportService.getTickets();
+        setTickets(response);
+      } catch (error) {
+        console.error('Error fetching tickets:', error);
+        setError('Failed to load support tickets');
+        setTickets([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTickets();
+  };
+
+  const handleShowArchivedTickets = () => {
+    setShowArchive(true);
+    fetchArchivedTickets();
+  };
 
   const handleViewTicket = (ticket) => {
     setSelectedTicket(ticket);
@@ -182,7 +220,7 @@ const AdminSupportDesk = () => {
       setError(null); // Clear any previous errors
       
       // Use the same approach as document management - direct API endpoint
-      const url = `http://192.168.1.6:8000/api/support-tickets/messages/${message.id}/download`;
+      const url = `http://192.168.18.25:8000/api/support-tickets/messages/${message.id}/download`;
       console.log('Opening URL:', url);
       
       // Use window.open directly like document management does
@@ -230,10 +268,12 @@ const AdminSupportDesk = () => {
     }
   };
 
-  const openTickets = tickets.filter(ticket => ticket.status === 'open').length;
-  const inProgressTickets = tickets.filter(ticket => ticket.status === 'in_progress').length;
-  const resolvedTickets = tickets.filter(ticket => ticket.status === 'resolved').length;
-  const totalTickets = tickets.length;
+  // Calculate statistics based on current view (active or archive)
+  const currentTickets = showArchive ? archivedTickets : tickets;
+  const openTickets = showArchive ? 0 : tickets.filter(ticket => ticket.status === 'open').length;
+  const inProgressTickets = showArchive ? 0 : tickets.filter(ticket => ticket.status === 'in_progress').length;
+  const resolvedTickets = showArchive ? archivedTickets.length : 0;
+  const totalTickets = currentTickets.length;
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#FFFFFF' }}>
@@ -471,6 +511,48 @@ const AdminSupportDesk = () => {
           </Grid>
         </Grid>
 
+        {/* Archive Toggle Buttons */}
+        <Box sx={{ mb: 3, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+          <Button
+            variant={!showArchive ? "contained" : "outlined"}
+            onClick={handleShowActiveTickets}
+            sx={{
+              backgroundColor: !showArchive ? '#0b87ac' : 'transparent',
+              color: !showArchive ? '#FFFFFF' : '#0b87ac',
+              borderColor: '#0b87ac',
+              '&:hover': { 
+                backgroundColor: !showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
+              },
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+              px: 3,
+              py: 1.5
+            }}
+          >
+            Active Tickets
+          </Button>
+          <Button
+            variant={showArchive ? "contained" : "outlined"}
+            onClick={handleShowArchivedTickets}
+            sx={{
+              backgroundColor: showArchive ? '#0b87ac' : 'transparent',
+              color: showArchive ? '#FFFFFF' : '#0b87ac',
+              borderColor: '#0b87ac',
+              '&:hover': { 
+                backgroundColor: showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
+              },
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+              px: 3,
+              py: 1.5
+            }}
+          >
+            Archive
+          </Button>
+        </Box>
+
         {/* Tickets Table */}
         <Paper elevation={0} sx={{
           p: { xs: 2, sm: 3 },
@@ -542,8 +624,23 @@ const AdminSupportDesk = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {tickets.map((ticket) => (
-                  <TableRow key={ticket.id} hover>
+                {(showArchive ? archivedTickets : tickets).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} align="center" sx={{ py: 4, color: '#2C3E50' }}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <SupportAgent sx={{ fontSize: 48, color: '#BDC3C7', mb: 2 }} />
+                        <Typography variant="h6" sx={{ color: '#2C3E50', mb: 1 }}>
+                          {showArchive ? 'No archived tickets found' : 'No support tickets found'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                          {showArchive ? 'Resolved tickets will appear here' : 'Support tickets will appear here when created'}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  (showArchive ? archivedTickets : tickets).map((ticket) => (
+                    <TableRow key={ticket.id} hover>
                     <TableCell sx={{ 
                       fontWeight: 600, 
                       color: '#3498DB',
@@ -658,8 +755,9 @@ const AdminSupportDesk = () => {
                         </Button>
                       </Box>
                     </TableCell>
-                  </TableRow>
-                ))}
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -1052,14 +1150,15 @@ const AdminSupportDesk = () => {
 
                 <Divider sx={{ mb: 3, borderColor: '#BDC3C7' }} />
 
-                {/* Reply Section */}
-               <Card sx={{ 
-                 mb: 3,
-                 borderRadius: 2,
-                 boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                 bgcolor: '#FFFFFF',
-                 border: '1px solid #E9ECEF'
-               }}>
+                {/* Reply Section - Only show if ticket is not resolved */}
+                {selectedTicket?.status !== 'resolved' && (
+                  <Card sx={{ 
+                    mb: 3,
+                    borderRadius: 2,
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                    bgcolor: '#FFFFFF',
+                    border: '1px solid #E9ECEF'
+                  }}>
                   <Box sx={{ p: 3 }}>
                     <Typography 
                       variant="h6" 
@@ -1196,12 +1295,13 @@ const AdminSupportDesk = () => {
                     </Box>
                   </Box>
                 </Card>
+                )}
               </Box>
             )}
           </DialogContent>
           <DialogActions sx={{ 
             p: { xs: 2, sm: 3 }, 
-            backgroundColor: '#FAFBFC',
+            backgroundColor: selectedTicket?.status === 'resolved' ? '#E8F5E8' : '#FAFBFC',
             borderTop: '1px solid #E9ECEF',
             borderRadius: '0 0 12px 12px',
             flexDirection: { xs: 'column', sm: 'row' },
@@ -1209,54 +1309,75 @@ const AdminSupportDesk = () => {
             gap: { xs: 1, sm: 2 },
             justifyContent: 'flex-end'
           }}>
-            <Button 
-              onClick={handleCloseViewDialog} 
-              sx={{ 
-                color: '#6C757D',
-                fontSize: { xs: '0.9rem', sm: '0.95rem' },
-                py: { xs: 1.5, sm: 1.25 },
-                px: { xs: 2, sm: 3 },
-                fontWeight: 500,
-                textTransform: 'none',
-                borderRadius: 2,
-                border: '1px solid #E9ECEF',
-                backgroundColor: '#FFFFFF',
-                '&:hover': {
-                  backgroundColor: '#F8F9FA',
-                  borderColor: '#DDE0E1'
-                }
-              }}
-            >
-              Close
-            </Button>
-            <Button 
-              onClick={handleSubmitReply}
-              variant="contained"
-              disabled={!replyText.trim()}
-              startIcon={<Reply />}
-              sx={{
-                fontSize: { xs: '0.9rem', sm: '0.95rem' },
-                py: { xs: 1.5, sm: 1.25 },
-                px: { xs: 2, sm: 3 },
-                fontWeight: 600,
-                textTransform: 'none',
-                borderRadius: 2,
-                backgroundColor: '#0b87ac',
-                color: '#FFFFFF',
-                boxShadow: '0 2px 8px rgba(11, 135, 172, 0.3)',
-                '&:hover': {
-                  backgroundColor: '#0a6b8a',
-                  boxShadow: '0 4px 12px rgba(11, 135, 172, 0.4)'
-                },
-                '&:disabled': {
-                  background: '#E9ECEF',
-                  color: '#6C757D',
-                  boxShadow: 'none'
-                }
-              }}
-            >
-              Send Reply
-            </Button>
+            {selectedTicket?.status === 'resolved' ? (
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 2, 
+                width: '100%',
+                justifyContent: 'center',
+                py: 2
+              }}>
+                <CheckCircle sx={{ color: '#27AE60', fontSize: 24 }} />
+                <Typography variant="h6" sx={{ color: '#27AE60', fontWeight: 600 }}>
+                  Ticket Resolved
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#2E7D32' }}>
+                  This ticket has been resolved and archived. No further replies are allowed.
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Button 
+                  onClick={handleCloseViewDialog} 
+                  sx={{ 
+                    color: '#6C757D',
+                    fontSize: { xs: '0.9rem', sm: '0.95rem' },
+                    py: { xs: 1.5, sm: 1.25 },
+                    px: { xs: 2, sm: 3 },
+                    fontWeight: 500,
+                    textTransform: 'none',
+                    borderRadius: 2,
+                    border: '1px solid #E9ECEF',
+                    backgroundColor: '#FFFFFF',
+                    '&:hover': {
+                      backgroundColor: '#F8F9FA',
+                      borderColor: '#DDE0E1'
+                    }
+                  }}
+                >
+                  Close
+                </Button>
+                <Button 
+                  onClick={handleSubmitReply}
+                  variant="contained"
+                  disabled={!replyText.trim()}
+                  startIcon={<Reply />}
+                  sx={{
+                    fontSize: { xs: '0.9rem', sm: '0.95rem' },
+                    py: { xs: 1.5, sm: 1.25 },
+                    px: { xs: 2, sm: 3 },
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    borderRadius: 2,
+                    backgroundColor: '#0b87ac',
+                    color: '#FFFFFF',
+                    boxShadow: '0 2px 8px rgba(11, 135, 172, 0.3)',
+                    '&:hover': {
+                      backgroundColor: '#0a6b8a',
+                      boxShadow: '0 4px 12px rgba(11, 135, 172, 0.4)'
+                    },
+                    '&:disabled': {
+                      background: '#E9ECEF',
+                      color: '#6C757D',
+                      boxShadow: 'none'
+                    }
+                  }}
+                >
+                  Send Reply
+                </Button>
+              </>
+            )}
           </DialogActions>
         </Dialog>
         

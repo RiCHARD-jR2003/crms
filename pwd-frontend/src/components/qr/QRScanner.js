@@ -17,7 +17,6 @@ import {
   CameraAlt as CameraIcon
 } from '@mui/icons-material';
 import { BrowserMultiFormatReader } from '@zxing/browser';
-import { BrowserCodeReader } from '@zxing/browser';
 import QRCodeService from '../../services/qrCodeService';
 
 const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
@@ -58,7 +57,9 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
       // Get available video devices (may still fail on insecure origin)
       let videoInputDevices = [];
       try {
-        videoInputDevices = await BrowserCodeReader.listVideoInputDevices();
+        videoInputDevices = await navigator.mediaDevices.enumerateDevices();
+        // Filter for video input devices
+        videoInputDevices = videoInputDevices.filter(device => device.kind === 'videoinput');
       } catch (e) {
         console.warn('enumerateDevices failed, will use fallback:', e?.message);
       }
@@ -361,7 +362,7 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
       </DialogActions>
 
       {/* CSS Animation */}
-      <style jsx>{`
+      <style>{`
         @keyframes pulse {
           0% {
             opacity: 1;

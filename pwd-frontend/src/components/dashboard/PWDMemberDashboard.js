@@ -124,7 +124,7 @@ function PWDMemberDashboard() {
         
         // Fetch PWD member profile to get approval date
         try {
-          const profileResponse = await api.get(`/pwd-members/${currentUser.userID}`);
+          const profileResponse = await api.get('/pwd-member/profile');
           const profileData = profileResponse;
           
           // Get the approval date from created_at or pwd_id_generated_at
@@ -401,7 +401,7 @@ function PWDMemberDashboard() {
                                 }
                               />
                             </ListItem>
-                            {index < announcements.length - 1 && <Divider />}
+                            {index < announcements.length - 1 && <Divider key={`divider-${announcement.id}`} />}
                           </React.Fragment>
                         ))}
                       </List>

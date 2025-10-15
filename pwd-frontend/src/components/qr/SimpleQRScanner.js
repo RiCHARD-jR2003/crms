@@ -184,32 +184,44 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
         }
       }
 
-      // Get camera stream - try back camera first for mobile devices
+      // Get camera stream - optimized for both mobile and PC
       let stream;
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
       try {
-        // Try back camera first (environment) for better QR scanning
-        stream = await getUserMedia({
-          video: {
-            facingMode: 'environment', // Use back camera for QR scanning
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-      } catch (backCameraError) {
-        console.log('Back camera not available, trying front camera...');
-        console.log('Back camera error:', backCameraError);
-        try {
-          // Fallback to front camera if back camera is not available
+        if (isMobile) {
+          // For mobile devices, try back camera first
           stream = await getUserMedia({
             video: {
-              facingMode: 'user', // Front camera fallback
+              facingMode: 'environment', // Use back camera for QR scanning
               width: { ideal: 1280 },
               height: { ideal: 720 }
             }
           });
-        } catch (frontCameraError) {
-          console.log('Front camera also failed, trying any available camera...');
-          console.log('Front camera error:', frontCameraError);
+        } else {
+          // For PC/desktop, use any available camera with better settings
+          stream = await getUserMedia({
+            video: {
+              width: { ideal: 1920, min: 640 },
+              height: { ideal: 1080, min: 480 },
+              frameRate: { ideal: 30, min: 15 }
+            }
+          });
+        }
+      } catch (primaryCameraError) {
+        console.log('Primary camera failed, trying fallback...');
+        console.log('Primary camera error:', primaryCameraError);
+        try {
+          // Fallback: try with basic constraints
+          stream = await getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          });
+        } catch (fallbackError) {
+          console.log('Fallback camera failed, trying any available camera...');
+          console.log('Fallback camera error:', fallbackError);
           try {
             // Last resort: try any available camera
             stream = await getUserMedia({
@@ -239,10 +251,8 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
               qrScanner = new QrScanner(
                 videoRef.current,
                 (result) => {
-                  // Add a small delay to prevent multiple rapid scans
-                  setTimeout(() => {
-                    handleQRScan(result);
-                  }, 100);
+                  // Process scan immediately without delay
+                  handleQRScan(result);
                 },
                 {
                   onDecodeError: (error) => {
@@ -253,12 +263,24 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
                   },
                   highlightScanRegion: true,
                   highlightCodeOutline: true,
-                  preferredCamera: 'environment', // Use back camera for better QR scanning
-                  maxScansPerSecond: 15, // Increase scan frequency for better detection
+                  preferredCamera: isMobile ? 'environment' : undefined, // Only prefer back camera on mobile
+                  maxScansPerSecond: isMobile ? 30 : 20, // Slightly lower frequency for PC
                   returnDetailedScanResult: true,
-                  preferredEnvironment: 'environment',
+                  preferredEnvironment: isMobile ? 'environment' : undefined,
                   // Disable web worker to avoid chunk loading issues
-                  worker: false
+                  worker: false,
+                  // Add additional scanning options for better detection
+                  calculateScanRegion: (video) => {
+                    const smallerDimension = Math.min(video.videoWidth, video.videoHeight);
+                    // Use larger scan region for PC (better for webcams)
+                    const scanRegionSize = Math.round(isMobile ? 0.7 : 0.8 * smallerDimension);
+                    return {
+                      x: Math.round((video.videoWidth - scanRegionSize) / 2),
+                      y: Math.round((video.videoHeight - scanRegionSize) / 2),
+                      width: scanRegionSize,
+                      height: scanRegionSize,
+                    };
+                  }
                 }
               );
             } catch (scannerError) {
@@ -333,6 +355,8 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
       console.log('🎯 QR Code scanned:', result);
       console.log('📄 QR Code data:', result.data);
       console.log('🔍 QR Code format:', typeof result.data);
+      console.log('📏 QR Code length:', result.data.length);
+      console.log('🔍 QR Code first 100 chars:', result.data.substring(0, 100));
       
       // Try to parse QR code data
       let qrData;

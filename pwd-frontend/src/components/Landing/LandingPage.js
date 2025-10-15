@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import ApplicationStatusCheck from '../application/ApplicationStatusCheck';
 
 function LandingPage() {
   const { currentUser, logout } = useAuth();
@@ -239,6 +240,40 @@ function LandingPage() {
                   >
                     Login to Account
                   </Button>
+                </Box>
+
+                {/* Divider */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  my: 3,
+                  '&::before, &::after': {
+                    content: '""',
+                    flex: 1,
+                    height: 1,
+                    backgroundColor: '#e9ecef'
+                  }
+                }}>
+                  <Typography variant="body2" sx={{ 
+                    px: 2, 
+                    color: '#7F8C8D',
+                    fontWeight: 500
+                  }}>
+                    OR
+                  </Typography>
+                </Box>
+
+                {/* Application Status Check */}
+                <Box>
+                  <Typography variant="h6" sx={{ 
+                    textAlign: 'center', 
+                    mb: 2, 
+                    color: '#2C3E50',
+                    fontWeight: 600
+                  }}>
+                    Check Application Status
+                  </Typography>
+                  <ApplicationStatusCheck />
                 </Box>
 
               </CardContent>

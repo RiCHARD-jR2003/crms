@@ -1,7 +1,7 @@
 // src/services/supportService.js
 import { api } from './api';
 
-const API_BASE_URL = 'http://192.168.1.6:8000/api';
+const API_BASE_URL = 'http://192.168.18.25:8000/api';
 
 async function getStoredToken() {
   try {
@@ -20,6 +20,9 @@ async function getStoredToken() {
 export const supportService = {
   // Get all support tickets (role-based)
   getTickets: () => api.get('/support-tickets'),
+  
+  // Get archived support tickets (role-based)
+  getArchivedTickets: () => api.get('/support-tickets/archived'),
   
   // Get a specific ticket by ID
   getTicket: (id) => api.get(`/support-tickets/${id}`),

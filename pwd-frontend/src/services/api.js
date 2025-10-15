@@ -1,7 +1,7 @@
 // src/services/api.js
 
 // For React Web, we'll use localStorage and a simple API URL
-const API_BASE_URL = 'http://192.168.1.6:8000/api'; // Network accessible server for mobile
+const API_BASE_URL = 'http://192.168.18.25:8000/api'; // Network accessible server for mobile
 
 async function getStoredToken() {
   try {

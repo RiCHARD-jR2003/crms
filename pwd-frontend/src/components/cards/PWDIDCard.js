@@ -145,7 +145,7 @@ const PWDIDCard = ({ member, open, onClose }) => {
               <div class="left-section">
                 <div class="pdao-button">CABUYAO PDAO</div>
                 <br>
-                <strong>NAME:</strong> ${member.firstName} ${member.middleName || ''} ${member.lastName}<br>
+                <strong>NAME:</strong> ${member.firstName} ${member.middleName || ''} ${member.lastName} ${member.suffix || ''}<br>
                 <strong>ID NO.:</strong> ${member.pwd_id || `PWD-${member.userID}`}<br>
                 <strong>TYPE OF DISABILITY:</strong> ${member.disabilityType || 'NOT SPECIFIED'}<br>
                 <strong>SIGNATURE:</strong> _________
@@ -209,7 +209,7 @@ const PWDIDCard = ({ member, open, onClose }) => {
     ctx.fillStyle = '#000000';
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText(`NAME: ${member.firstName} ${member.middleName || ''} ${member.lastName}`, 20, 120);
+    ctx.fillText(`NAME: ${member.firstName} ${member.middleName || ''} ${member.lastName} ${member.suffix || ''}`, 20, 120);
     ctx.fillText(`ID NO.: ${member.pwd_id || `PWD-${member.userID}`}`, 20, 140);
     ctx.fillText(`TYPE OF DISABILITY: ${member.disabilityType || 'NOT SPECIFIED'}`, 20, 160);
     ctx.fillText('SIGNATURE: _________', 20, 180);
@@ -334,7 +334,7 @@ const PWDIDCard = ({ member, open, onClose }) => {
                   }} 
                 />
                 <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.3, mt: 1 }}>
-                  <strong>NAME:</strong> {member.firstName} {member.middleName || ''} {member.lastName}<br/>
+                  <strong>NAME:</strong> {member.firstName} {member.middleName || ''} {member.lastName} {member.suffix || ''}<br/>
                   <strong>ID NO.:</strong> {member.pwd_id || `PWD-${member.userID}`}<br/>
                   <strong>TYPE OF DISABILITY:</strong> {member.disabilityType || 'NOT SPECIFIED'}<br/>
                   <strong>SIGNATURE:</strong> _________

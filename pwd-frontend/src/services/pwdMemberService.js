@@ -4,19 +4,13 @@ import { api } from './api';
 const pwdMemberService = {
   // Get all PWD members
   async getAll() {
-    // Use fallback endpoint that doesn't require authentication
+    // Use the proper PWD members API endpoint
     try {
-      const fallbackResponse = await api.get('/pwd-members-fallback');
-      return fallbackResponse;
-    } catch (fallbackError) {
-      console.warn('Fallback /pwd-members-fallback failed, trying mock endpoint:', fallbackError?.message || fallbackError);
-      try {
-        const mockResponse = await api.get('/mock-pwd');
-        return mockResponse;
-      } catch (mockError) {
-        console.error('Error fetching PWD members (both endpoints failed):', mockError);
-        throw mockError;
-      }
+      const response = await api.get('/pwd-members');
+      return response;
+    } catch (error) {
+      console.error('Error fetching PWD members:', error);
+      throw error;
     }
   },
 
@@ -106,7 +100,7 @@ const pwdMemberService = {
   async getFiltered(filters = {}) {
     try {
       // For now, use the mock endpoint and apply filters on the frontend
-      const response = await api.get('/mock-pwd');
+      const response = await api.get('/pwd-members');
       return response;
     } catch (error) {
       console.error('Error fetching filtered PWD members:', error);
