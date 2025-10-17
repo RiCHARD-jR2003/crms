@@ -414,7 +414,7 @@ function BarangayPresidentDashboard() {
                             </Avatar>
                             <Box>
                               <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50', fontSize: '1rem' }}>
-                                {application.firstName} {application.lastName}
+                                {application.firstName} {application.lastName} {application.suffix || ''}
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.9rem' }}>
                                 {application.email}

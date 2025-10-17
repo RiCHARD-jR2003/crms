@@ -77,7 +77,7 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
       bgcolor: '#FFFFFF',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden',
+      overflow: 'hidden', // No scrolling - all content should fit
       borderRight: '1px solid #000000'
     }}>
       {/* Header */}

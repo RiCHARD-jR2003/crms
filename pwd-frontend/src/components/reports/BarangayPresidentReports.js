@@ -163,12 +163,16 @@ function BarangayPresidentReports() {
     try {
       // Load PWD Registration Data
       const pwdData = await reportsService.getPWDMasterlist(barangay);
+      
+      // Ensure pwdData is an array
+      const safePwdData = Array.isArray(pwdData) ? pwdData : [];
+      
       setPwdRegistrationData({
-        totalRegistrations: pwdData.length,
+        totalRegistrations: safePwdData.length,
         monthlyTrends: [], // Will be populated from API
         disabilityTypeDistribution: [], // Will be populated from API
         ageGroupDistribution: [], // Will be populated from API
-        recentRegistrations: pwdData.slice(0, 10)
+        recentRegistrations: safePwdData.slice(0, 10)
       });
 
       // Load Application Status Data

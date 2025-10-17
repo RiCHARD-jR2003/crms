@@ -435,7 +435,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
         }
         
         // Show success message
-        alert(`Successfully scanned QR code for: ${member.firstName} ${member.lastName}`);
+        alert(`Successfully scanned QR code for: ${member.firstName} ${member.lastName} ${member.suffix || ''}`.trim());
         
       } else {
         setError(`PWD member not found in database. Searched for: ${JSON.stringify({
@@ -521,7 +521,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
       
       // Show success message
       const benefitNames = eligibleBenefits.map(b => b.title || b.benefitType || b.type || 'Unknown Benefit').join(', ');
-      alert(`Successfully processed ${eligibleBenefits.length} benefit claims for ${member.firstName} ${member.lastName}: ${benefitNames}`);
+      alert(`Successfully processed ${eligibleBenefits.length} benefit claims for ${member.firstName} ${member.lastName} ${member.suffix || ''}: ${benefitNames}`);
       
     } catch (error) {
       console.error('Error processing benefit claims:', error);
@@ -546,7 +546,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
       
       // Show success message
       setError(null);
-      alert(`Benefit "${benefit.name}" claimed successfully for ${memberInfo.firstName} ${memberInfo.lastName}!`);
+      alert(`Benefit "${benefit.name}" claimed successfully for ${memberInfo.firstName} ${memberInfo.lastName} ${memberInfo.suffix || ''}!`);
       
       // Call the onScan callback if provided
       if (onScan) {
@@ -708,7 +708,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
                       Full Name
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {`${memberInfo.firstName} ${memberInfo.middleName || ''} ${memberInfo.lastName}`.trim()}
+                      {`${memberInfo.firstName} ${memberInfo.middleName || ''} ${memberInfo.lastName} ${memberInfo.suffix || ''}`.trim()}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>

@@ -33,11 +33,21 @@ const passwordService = {
   // Admin reset user password
   async adminResetUserPassword(email, newPassword) {
     try {
-      const response = await api.post('/admin/reset-user-password', {
-        email,
-        newPassword
+      // First, get all users to find the user by email
+      const usersResponse = await api.get('/users');
+      const users = Array.isArray(usersResponse) ? usersResponse : usersResponse.data || [];
+      
+      // Find the user by email
+      const user = users.find(u => u.email === email);
+      if (!user) {
+        throw new Error('User not found with the provided email');
+      }
+      
+      // Update the user's password using the standard REST API
+      const response = await api.put(`/users/${user.userID}`, {
+        password: newPassword
       });
-      // api already returns parsed JSON; return as-is
+      
       return response;
     } catch (error) {
       throw error.response?.data || { error: 'Failed to reset user password' };

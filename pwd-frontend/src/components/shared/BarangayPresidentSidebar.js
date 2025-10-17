@@ -73,11 +73,11 @@ function BarangayPresidentSidebar() {
         sx={{
           display: 'flex', 
           alignItems: 'center', 
-          gap: 2, 
-          px: 2, 
-          py: 1.5, 
+          gap: 1.5, // Reduced gap
+          px: 1.5, // Reduced padding
+          py: 1, // Reduced padding
           borderRadius: 2, 
-          mb: 1,
+          mb: 0.5, // Reduced margin
           bgcolor: active ? '#0b87ac' : 'transparent',
           color: active ? '#FFFFFF' : '#566573',
           fontWeight: active ? 600 : 500,
@@ -112,10 +112,11 @@ function BarangayPresidentSidebar() {
       height: '100vh',
       left: 0,
       top: 0,
-      borderRight: '1px solid #E0E0E0'
+      borderRight: '1px solid #E0E0E0',
+      overflow: 'hidden' // No scrolling - all content should fit
     }}>
       {/* Header with Logo */}
-      <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
         <Box sx={{
           width: 40,
           height: 40,
@@ -193,7 +194,11 @@ function BarangayPresidentSidebar() {
       </Box>
 
       {/* Logout Button */}
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ 
+        p: 1.5, // Reduced padding
+        flexShrink: 0, // Prevent this section from shrinking
+        borderTop: '1px solid #E0E0E0' // Add visual separation
+      }}>
         <Button
           fullWidth
           variant="outlined"
@@ -204,7 +209,7 @@ function BarangayPresidentSidebar() {
             borderColor: '#D5DBDB',
             textTransform: 'none',
             fontWeight: 600,
-            py: 1.2,
+            py: 0.8, // Reduced padding
             borderRadius: 2,
             '&:hover': {
               borderColor: '#0b87ac',

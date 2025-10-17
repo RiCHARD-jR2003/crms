@@ -42,6 +42,12 @@ function AdminPasswordReset({ open, onClose }) {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [validation, setValidation] = useState({ email: '', newPassword: '' });
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Filter users based on search term
+  const filteredUsers = users.filter(user => 
+    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const verifyAdminAuth = async () => {
     try {
@@ -177,15 +183,14 @@ function AdminPasswordReset({ open, onClose }) {
         console.warn('Users endpoint not available:', e?.message || e);
       }
 
-      // 2) Fetch Barangay Presidents (explicit endpoint if available)
+      // 2) Filter Barangay Presidents from users data
       try {
-        const resBp = await api.get('/barangay-presidents');
-        const arr = pickArray(resBp) || [];
-        arr.forEach(b => {
-          combined.push({ email: b.email || b.user?.email, role: 'Barangay President' });
+        const barangayPresidents = users.filter(user => user.role === 'BarangayPresident');
+        barangayPresidents.forEach(bp => {
+          combined.push({ email: bp.email, role: 'Barangay President' });
         });
       } catch (e) {
-        // optional endpoint; ignore if missing
+        console.warn('Error filtering barangay presidents:', e?.message || e);
       }
 
       // 3) Fetch PWD Members
@@ -347,9 +352,35 @@ function AdminPasswordReset({ open, onClose }) {
 
           {/* Users List */}
           <Paper elevation={2} sx={{ p: 3, bgcolor: '#FFFFFF' }}>
-            <Typography variant="h6" sx={{ mb: 2, color: '#2C3E50' }}>
-              All Users
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ color: '#2C3E50' }}>
+                All Users
+              </Typography>
+              <TextField
+                size="small"
+                placeholder="Search by email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                sx={{
+                  width: 250,
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: '#F8F9FA',
+                    '& fieldset': {
+                      borderColor: '#E0E0E0',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#0b87ac',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#0b87ac',
+                    },
+                  },
+                  '& .MuiInputBase-input': {
+                    fontSize: '0.9rem',
+                  }
+                }}
+              />
+            </Box>
             {loadingUsers ? (
               <Box display="flex" justifyContent="center" p={3}>
                 <CircularProgress />
@@ -357,6 +388,12 @@ function AdminPasswordReset({ open, onClose }) {
             ) : users.length === 0 ? (
               <Box display="flex" justifyContent="center" p={3}>
                 <Typography variant="body2" color="text.secondary">No users found.</Typography>
+              </Box>
+            ) : filteredUsers.length === 0 ? (
+              <Box display="flex" justifyContent="center" p={3}>
+                <Typography variant="body2" color="text.secondary">
+                  No users found matching "{searchTerm}".
+                </Typography>
               </Box>
             ) : (
               <TableContainer>
@@ -369,8 +406,8 @@ function AdminPasswordReset({ open, onClose }) {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.userID}>
+                    {filteredUsers.map((user, index) => (
+                      <TableRow key={user.userID || user.id || `user-${index}`}>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>
                           <Chip 

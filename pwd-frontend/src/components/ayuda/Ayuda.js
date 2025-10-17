@@ -2096,7 +2096,7 @@ const Ayuda = () => {
                               {member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned')}
                             </TableCell>
                             <TableCell sx={{ color: '#2C3E50', fontSize: '0.8rem' }}>
-                              {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || 'Name not provided'}
+                              {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Name not provided'}
                             </TableCell>
                             <TableCell sx={{ color: '#2C3E50', fontSize: '0.8rem' }}>
                               {getMonthName(new Date(member.birthDate).getMonth() + 1)}

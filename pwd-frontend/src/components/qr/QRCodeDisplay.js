@@ -148,7 +148,7 @@ const QRCodeDisplay = ({ open, onClose, member, onScan }) => {
                       Full Name
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {`${member.firstName} ${member.middleName || ''} ${member.lastName}`.trim()}
+                      {`${member.firstName} ${member.middleName || ''} ${member.lastName} ${member.suffix || ''}`.trim()}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>

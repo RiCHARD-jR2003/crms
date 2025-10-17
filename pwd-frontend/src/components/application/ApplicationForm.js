@@ -46,7 +46,7 @@ import { useModal } from '../../hooks/useModal';
 const steps = [
   'Personal Information',
   'Disability Details',
-  'Contact Information',
+  'Guardian Information',
   'Documents'
 ];
 
@@ -148,6 +148,7 @@ function ApplicationForm() {
       },
     }
   });
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -194,6 +195,14 @@ function ApplicationForm() {
       const dateError = validateDateOfBirth(value);
       if (dateError) {
         setErrors(prev => ({ ...prev, [field]: dateError }));
+      }
+    }
+    
+    // Real-time validation for disability date
+    if (field === 'disabilityDate' && value) {
+      const disabilityDateError = validateDisabilityDate(value);
+      if (disabilityDateError) {
+        setErrors(prev => ({ ...prev, [field]: disabilityDateError }));
       }
     }
     
@@ -357,11 +366,6 @@ function ApplicationForm() {
       return 'Date of birth cannot be in the future';
     }
     
-    // Check if date is within current year (not born this year)
-    if (birthYear === currentYear) {
-      return 'Date of birth cannot be within the current year';
-    }
-    
     // Check if person is too old (more than 120 years)
     const age = calculateAge(dateOfBirth);
     if (age > 120) {
@@ -371,6 +375,27 @@ function ApplicationForm() {
     // Check if person is too young (less than 1 year old)
     if (age < 1) {
       return 'Please enter a valid date of birth (minimum age is 1 year)';
+    }
+    
+    return null; // No error
+  };
+
+  // Validate disability date
+  const validateDisabilityDate = (disabilityDate) => {
+    if (!disabilityDate) return null; // Optional field
+    
+    const today = new Date();
+    const disabilityOnsetDate = new Date(disabilityDate);
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    
+    // Check if date is in the future
+    if (disabilityOnsetDate > today) {
+      return 'Date of disability onset cannot be in the future';
+    }
+    
+    // Check if date is within 2 weeks of current date
+    if (disabilityOnsetDate > twoWeeksAgo) {
+      return 'Date of disability onset must be at least 2 weeks before the current date';
     }
     
     return null; // No error
@@ -406,9 +431,15 @@ function ApplicationForm() {
         
       case 1: // Disability Details
         if (!formData.disabilityType) currentErrors.disabilityType = 'Type of Disability is required';
+        
+        // Validate disability date if provided
+        if (formData.disabilityDate) {
+          const disabilityDateError = validateDisabilityDate(formData.disabilityDate);
+          if (disabilityDateError) currentErrors.disabilityDate = disabilityDateError;
+        }
         break;
         
-      case 2: // Contact Information
+      case 2: // Guardian Information
         if (!formData.address) currentErrors.address = 'Complete Address is required';
         if (!formData.phoneNumber) currentErrors.phoneNumber = 'Phone Number is required';
         if (!formData.email) currentErrors.email = 'Email is required';
@@ -576,7 +607,19 @@ function ApplicationForm() {
         showModal({
           type: 'success',
           title: 'Application Submitted Successfully!',
-          message: `Your PWD application has been submitted successfully!\n\nReference Number: ${referenceNumber}\n\nPlease save this reference number to check your application status.`,
+          message: (
+            <Box>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                Your PWD application has been submitted successfully!
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>Reference Number: {referenceNumber}</strong>
+              </Typography>
+              <Typography variant="body1">
+                Please save this reference number to check your application status.
+              </Typography>
+            </Box>
+          ),
           buttonText: 'Continue to Login',
           onClose: () => {
             // Redirect to login page only after user closes the modal
@@ -729,81 +772,81 @@ function ApplicationForm() {
                   sx={getTextFieldStyles(!!errors.lastName)}
                 />
               </Grid>
-                             <Grid item xs={12} sm={6}>
-                 <TextField
-                   fullWidth
-                   label="Middle Name"
-                   value={formData.middleName}
-                   onChange={(e) => handleInputChange('middleName', e.target.value)}
-                   InputLabelProps={{
-                     shrink: true,
-                   }}
-                   sx={getTextFieldStyles()}
-                 />
-               </Grid>
-               <Grid item xs={12} sm={6}>
-                 <FormControl fullWidth sx={getSelectStyles()}>
-                   <InputLabel shrink>Suffix</InputLabel>
-                   <Select
-                     value={formData.suffix}
-                     onChange={(e) => handleInputChange('suffix', e.target.value)}
-                     label="Suffix"
-                     displayEmpty
-                     MenuProps={{
-                       PaperProps: {
-                         sx: {
-                           backgroundColor: '#FFFFFF',
-                           border: '1px solid #e9ecef',
-                           borderRadius: 3,
-                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                           '& .MuiMenuItem-root': {
-                             backgroundColor: '#FFFFFF',
-                             color: '#2C3E50',
-                             fontSize: '0.95rem',
-                             '&:hover': {
-                               backgroundColor: '#f8f9fa',
-                             },
-                             '&.Mui-selected': {
-                               backgroundColor: '#f8f9fa',
-                               color: '#2C3E50',
-                               '&:hover': {
-                                 backgroundColor: '#e9ecef',
-                               },
-                             },
-                           },
-                         }
-                       }
-                     }}
-                   >
-                     <MenuItem value="">None</MenuItem>
-                     <MenuItem value="Jr.">Jr.</MenuItem>
-                     <MenuItem value="Sr.">Sr.</MenuItem>
-                     <MenuItem value="I">I</MenuItem>
-                     <MenuItem value="II">II</MenuItem>
-                     <MenuItem value="III">III</MenuItem>
-                   </Select>
-                 </FormControl>
-               </Grid>
-                             <Grid item xs={12} sm={6}>
-                 <TextField
-                   fullWidth
-                   type="date"
-                   label="Date of Birth"
-                   value={formData.dateOfBirth}
-                   onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                   InputLabelProps={{ shrink: true }}
-                   error={!!errors.dateOfBirth}
-                   helperText={errors.dateOfBirth}
-                   required
-                   inputProps={{
-                     max: new Date(new Date().getFullYear() - 1, 11, 31).toISOString().split('T')[0], // Last day of previous year
-                     min: new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0] // First day 120 years ago
-                   }}
-                   sx={getTextFieldStyles(!!errors.dateOfBirth)}
-                 />
-               </Grid>
-                             <Grid item xs={12} sm={6}>
-                 <FormControl fullWidth required error={!!errors.gender}>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth sx={getSelectStyles()}>
+                  <InputLabel shrink>Suffix</InputLabel>
+                  <Select
+                    value={formData.suffix}
+                    onChange={(e) => handleInputChange('suffix', e.target.value)}
+                    label="Suffix"
+                    displayEmpty
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid #e9ecef',
+                          borderRadius: 3,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          '& .MuiMenuItem-root': {
+                            backgroundColor: '#FFFFFF',
+                            color: '#2C3E50',
+                            fontSize: '0.95rem',
+                            '&:hover': {
+                              backgroundColor: '#f8f9fa',
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: '#f8f9fa',
+                              color: '#2C3E50',
+                              '&:hover': {
+                                backgroundColor: '#e9ecef',
+                              },
+                            },
+                          },
+                        }
+                      }
+                    }}
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    <MenuItem value="Jr.">Jr.</MenuItem>
+                    <MenuItem value="Sr.">Sr.</MenuItem>
+                    <MenuItem value="I">I</MenuItem>
+                    <MenuItem value="II">II</MenuItem>
+                    <MenuItem value="III">III</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Middle Name"
+                  value={formData.middleName}
+                  onChange={(e) => handleInputChange('middleName', e.target.value)}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={getTextFieldStyles()}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="Date of Birth"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  error={!!errors.dateOfBirth}
+                  helperText={errors.dateOfBirth}
+                  required
+                  inputProps={{
+                    max: new Date(new Date().getFullYear() - 1, 11, 31).toISOString().split('T')[0], // Last day of previous year
+                    min: new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0] // First day 120 years ago
+                  }}
+                  sx={getTextFieldStyles(!!errors.dateOfBirth)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth required error={!!errors.gender}>
                    <InputLabel 
                      shrink={true}
                      sx={{ 
@@ -1031,7 +1074,13 @@ function ApplicationForm() {
                    value={formData.disabilityDate}
                    onChange={(e) => handleInputChange('disabilityDate', e.target.value)}
                    InputLabelProps={{ shrink: true }}
-                   sx={getTextFieldStyles()}
+                   error={!!errors.disabilityDate}
+                   helperText={errors.disabilityDate}
+                   inputProps={{
+                     max: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 weeks ago
+                     min: new Date(new Date().getFullYear() - 100, 0, 1).toISOString().split('T')[0] // 100 years ago
+                   }}
+                   sx={getTextFieldStyles(!!errors.disabilityDate)}
                  />
                </Grid>
             </Grid>
@@ -1047,7 +1096,7 @@ function ApplicationForm() {
               fontWeight: 700,
               fontSize: '1.5rem'
             }}>
-              Contact Information
+              Guardian Information
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12}>
@@ -1205,7 +1254,7 @@ function ApplicationForm() {
                              <Grid item xs={12} sm={6}>
                  <TextField
                    fullWidth
-                   label="Emergency Contact Name"
+                   label="Guardian Name"
                    value={formData.emergencyContact}
                    onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
                    InputLabelProps={{
@@ -1217,7 +1266,7 @@ function ApplicationForm() {
                <Grid item xs={12} sm={6}>
                  <TextField
                    fullWidth
-                   label="Emergency Contact Phone"
+                   label="Guardian's Phone Number"
                    value={formData.emergencyPhone}
                    onChange={(e) => handleInputChange('emergencyPhone', e.target.value)}
                    InputLabelProps={{
@@ -1227,16 +1276,51 @@ function ApplicationForm() {
                  />
                </Grid>
                <Grid item xs={12} sm={6}>
-                 <TextField
-                   fullWidth
-                   label="Relationship to Emergency Contact"
-                   value={formData.emergencyRelationship}
-                   onChange={(e) => handleInputChange('emergencyRelationship', e.target.value)}
-                   InputLabelProps={{
-                     shrink: true,
-                   }}
-                   sx={getTextFieldStyles()}
-                 />
+                 <FormControl fullWidth sx={getSelectStyles()}>
+                   <InputLabel shrink>Relationship to Guardian</InputLabel>
+                   <Select
+                     value={formData.emergencyRelationship}
+                     onChange={(e) => handleInputChange('emergencyRelationship', e.target.value)}
+                     label="Relationship to Guardian"
+                     displayEmpty
+                     MenuProps={{
+                       PaperProps: {
+                         sx: {
+                           backgroundColor: '#FFFFFF',
+                           border: '1px solid #e9ecef',
+                           borderRadius: 3,
+                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                           '& .MuiMenuItem-root': {
+                             backgroundColor: '#FFFFFF',
+                             color: '#2C3E50',
+                             fontSize: '0.95rem',
+                             '&:hover': {
+                               backgroundColor: '#f8f9fa',
+                             },
+                             '&.Mui-selected': {
+                               backgroundColor: '#f8f9fa',
+                               color: '#2C3E50',
+                               '&:hover': {
+                                 backgroundColor: '#e9ecef',
+                               },
+                             },
+                           },
+                         }
+                       }
+                     }}
+                   >
+                     <MenuItem value="">Select Relationship</MenuItem>
+                     <MenuItem value="Parent">Parent</MenuItem>
+                     <MenuItem value="Sibling">Sibling</MenuItem>
+                     <MenuItem value="Spouse">Spouse</MenuItem>
+                     <MenuItem value="Child">Child</MenuItem>
+                     <MenuItem value="Friend">Friend</MenuItem>
+                     <MenuItem value="Colleague">Colleague</MenuItem>
+                     <MenuItem value="Relative">Relative</MenuItem>
+                     <MenuItem value="Guardian">Guardian</MenuItem>
+                     <MenuItem value="Other">Other</MenuItem>
+                   </Select>
+                 </FormControl>
                </Grid>
             </Grid>
           </Box>

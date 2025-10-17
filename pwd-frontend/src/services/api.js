@@ -1,7 +1,8 @@
 // src/services/api.js
 
 // For React Web, we'll use localStorage and a simple API URL
-const API_BASE_URL = 'http://192.168.18.25:8000/api'; // Network accessible server for mobile
+const API_BASE_URL = 'http://127.0.0.1:8000/api'; // Local server for development
+const STORAGE_BASE_URL = 'http://127.0.0.1:8000'; // Base URL for storage files
 
 async function getStoredToken() {
   try {
@@ -69,6 +70,7 @@ export const api = {
   delete: (path, opts) => request(path, { ...opts, method: 'DELETE' }),
   setToken: (token) => localStorage.setItem('auth.token', JSON.stringify(token)),
   clearToken: () => localStorage.removeItem('auth.token'),
+  getStorageUrl: (path) => `${STORAGE_BASE_URL}/storage/${path}`,
 };
 
 export default api;

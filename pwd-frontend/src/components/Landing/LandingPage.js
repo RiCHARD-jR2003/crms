@@ -1,5 +1,5 @@
 // src/components/Landing/LandingPage.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import {
   Box,
   Typography,
@@ -9,10 +9,13 @@ import {
   Grid,
   Card,
   CardContent,
+  CircularProgress,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import ApplicationStatusCheck from '../application/ApplicationStatusCheck';
+
+// Lazy load the ApplicationStatusCheck component
+const ApplicationStatusCheck = React.lazy(() => import('../application/ApplicationStatusCheck'));
 
 function LandingPage() {
   const { currentUser, logout } = useAuth();
@@ -24,6 +27,11 @@ function LandingPage() {
       navigate('/dashboard');
     }
   }, [currentUser, navigate]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('LandingPage render - currentUser:', currentUser);
+  }, [currentUser]);
 
   const handleApplyClick = () => {
     navigate('/register');
@@ -264,7 +272,7 @@ function LandingPage() {
                 </Box>
 
                 {/* Application Status Check */}
-                <Box>
+                <Box key="application-status-check">
                   <Typography variant="h6" sx={{ 
                     textAlign: 'center', 
                     mb: 2, 
@@ -273,7 +281,13 @@ function LandingPage() {
                   }}>
                     Check Application Status
                   </Typography>
-                  <ApplicationStatusCheck />
+                  <Suspense fallback={
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                      <CircularProgress size={24} />
+                    </Box>
+                  }>
+                    <ApplicationStatusCheck key="status-check-component" />
+                  </Suspense>
                 </Box>
 
               </CardContent>

@@ -257,7 +257,7 @@ function PWDMemberDashboard() {
             >
               {t('dashboard.welcome', { 
                 name: currentUser?.pwd_member?.firstName && currentUser?.pwd_member?.lastName 
-                  ? `${currentUser.pwd_member.firstName} ${currentUser.pwd_member.lastName}` 
+                  ? `${currentUser.pwd_member.firstName} ${currentUser.pwd_member.lastName} ${currentUser.pwd_member.suffix || ''}`.trim()
                   : currentUser?.username || 'PWD Member'
               })}
             </Typography>

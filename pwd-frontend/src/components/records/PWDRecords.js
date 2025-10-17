@@ -740,7 +740,7 @@ function PWDRecords() {
       return pwdMembers.map((member, index) => ({
         id: member.id,
         pwdId: `PWD-${member.userID}`,
-        name: `${member.firstName} ${member.lastName}`,
+        name: `${member.firstName} ${member.lastName} ${member.suffix || ''}`.trim(),
         age: getAgeFromBirthDate(member.birthDate),
         barangay: member.barangay || 'Not specified',
         disability: member.disabilityType || 'Not specified',
@@ -768,7 +768,7 @@ function PWDRecords() {
           (row.pwdId && row.pwdId.toLowerCase().includes(filters.search.toLowerCase())) ||
           (row.guardian && row.guardian.toLowerCase().includes(filters.search.toLowerCase())) ||
           (row.contact && row.contact.toLowerCase().includes(filters.search.toLowerCase())) ||
-          (row.firstName && `${row.firstName} ${row.lastName}`.toLowerCase().includes(filters.search.toLowerCase())) ||
+          (row.firstName && `${row.firstName} ${row.lastName} ${row.suffix || ''}`.toLowerCase().includes(filters.search.toLowerCase())) ||
           (row.email && row.email.toLowerCase().includes(filters.search.toLowerCase()));
 
         // Barangay filter
@@ -968,116 +968,6 @@ function PWDRecords() {
                     <Tab label="Masterlist" />
                     <Tab label="Pending Application" />
                   </Tabs>
-                </Grid>
-                 <Grid item>
-                   <Button 
-                     variant="contained"
-                     onClick={() => showModal({
-                       type: 'success',
-                       title: 'Application Approved!',
-                       message: 'Application approved successfully! PWD Member created and added to masterlist.',
-                       buttonText: 'Continue'
-                     })}
-                     sx={{ 
-                       textTransform: 'none',
-                       bgcolor: '#27AE60',
-                       color: 'white',
-                       mr: 1,
-                       '&:hover': {
-                         bgcolor: '#229954'
-                       }
-                     }}
-                   >
-                     Test Success
-                   </Button>
-                 </Grid>
-                 <Grid item>
-                   <Button 
-                     variant="contained"
-                     onClick={() => showModal({
-                       type: 'success',
-                       title: 'Application Rejected',
-                       message: 'Application rejected successfully!',
-                       buttonText: 'Continue'
-                     })}
-                     sx={{ 
-                       textTransform: 'none',
-                       bgcolor: '#E74C3C',
-                       color: 'white',
-                       mr: 1,
-                       '&:hover': {
-                         bgcolor: '#C0392B'
-                       }
-                     }}
-                   >
-                     Test Reject
-                   </Button>
-                 </Grid>
-                 <Grid item>
-                   <Button 
-                     variant="contained"
-                     onClick={() => showModal({
-                       type: 'error',
-                       title: 'Error',
-                       message: 'Failed to approve application: Network connection error',
-                       buttonText: 'OK'
-                     })}
-                     sx={{ 
-                       textTransform: 'none',
-                       bgcolor: '#E74C3C',
-                       color: 'white',
-                       mr: 1,
-                       '&:hover': {
-                         bgcolor: '#C0392B'
-                       }
-                     }}
-                   >
-                     Test Error
-                   </Button>
-                 </Grid>
-                 <Grid item>
-                   <Button 
-                     variant="contained"
-                     onClick={() => showModal({
-                       type: 'warning',
-                       title: 'Warning',
-                       message: 'This action cannot be undone. Are you sure you want to continue?',
-                       buttonText: 'Proceed'
-                     })}
-                     sx={{ 
-                       textTransform: 'none',
-                       bgcolor: '#F39C12',
-                       color: 'white',
-                       mr: 1,
-                       '&:hover': {
-                         bgcolor: '#E67E22'
-                       }
-                     }}
-                   >
-                     Test Warning
-                   </Button>
-                 </Grid>
-                 <Grid item>
-                   <Button 
-                     variant="contained"
-                     onClick={() => showModal({
-                       type: 'info',
-                       title: 'Information',
-                       message: 'Your application is currently being reviewed by our team. You will be notified once a decision has been made.',
-                       buttonText: 'Got it'
-                     })}
-                     sx={{ 
-                       textTransform: 'none',
-                       bgcolor: '#3498DB',
-                       color: 'white',
-                       mr: 1,
-                       '&:hover': {
-                         bgcolor: '#2980B9'
-                       }
-                     }}
-                   >
-                     Test Info
-                   </Button>
                 </Grid>
                 <Grid item>
                   <Button 
@@ -1653,7 +1543,7 @@ function PWDRecords() {
                                   {row.applicationID}
                                 </TableCell>
                                 <TableCell sx={{ color: '#0b87ac', fontWeight: 600, py: 2, px: 2 }}>
-                                  {`${row.firstName} ${row.lastName}`}
+                                  {`${row.firstName} ${row.lastName} ${row.suffix || ''}`.trim()}
                                 </TableCell>
                                 <TableCell sx={{ color: '#D35400', fontWeight: 500, py: 2, px: 2 }}>
                                   {row.email}

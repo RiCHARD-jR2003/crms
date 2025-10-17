@@ -320,23 +320,31 @@ const PWDIDCard = ({ member, open, onClose }) => {
             </Box>
 
             {/* Content */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'stretch' }}>
               {/* Left Section */}
-              <Box sx={{ flex: 1 }}>
-                <Chip 
-                  label="CABUYAO PDAO" 
-                  sx={{ 
-                    bgcolor: '#000', 
-                    color: 'white', 
-                    fontSize: '0.6rem',
-                    height: '20px',
-                    mb: 1
-                  }} 
-                />
-                <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.3, mt: 1 }}>
-                  <strong>NAME:</strong> {member.firstName} {member.middleName || ''} {member.lastName} {member.suffix || ''}<br/>
-                  <strong>ID NO.:</strong> {member.pwd_id || `PWD-${member.userID}`}<br/>
-                  <strong>TYPE OF DISABILITY:</strong> {member.disabilityType || 'NOT SPECIFIED'}<br/>
+              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <Box>
+                  <Chip 
+                    label="CABUYAO PDAO" 
+                    sx={{ 
+                      bgcolor: '#000000', 
+                      color: '#FFFFFF !important', 
+                      fontSize: '0.6rem',
+                      height: '20px',
+                      mb: 1.5,
+                      fontWeight: 'bold',
+                      '& .MuiChip-label': {
+                        color: '#FFFFFF !important'
+                      }
+                    }} 
+                  />
+                  <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.4, mt: 1.5 }}>
+                    <strong>NAME:</strong> {member.firstName} {member.middleName || ''} {member.lastName} {member.suffix || ''}<br/><br/>
+                    <strong>ID NO.:</strong> {member.pwd_id || `PWD-${member.userID}`}<br/><br/>
+                    <strong>TYPE OF DISABILITY:</strong> {member.disabilityType || 'NOT SPECIFIED'}<br/><br/>
+                  </Typography>
+                </Box>
+                <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.4, mt: 2 }}>
                   <strong>SIGNATURE:</strong> _________
                 </Typography>
               </Box>
@@ -347,7 +355,9 @@ const PWDIDCard = ({ member, open, onClose }) => {
                 display: 'flex', 
                 flexDirection: 'column', 
                 alignItems: 'center',
-                gap: 1
+                justifyContent: 'space-between',
+                gap: 1.5,
+                py: 1
               }}>
                 {/* Photo Placeholder */}
                 <Box sx={{ 

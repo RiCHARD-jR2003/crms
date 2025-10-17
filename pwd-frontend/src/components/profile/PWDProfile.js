@@ -721,7 +721,7 @@ label={t('profile.birthDate')}
                           fontSize: '1rem',
                           mt: 0.5
                         }}>
-                          {profile?.firstName} {profile?.lastName}
+                          {profile?.firstName} {profile?.lastName} {profile?.suffix || ''}
                         </Typography>
                       </Box>
                       

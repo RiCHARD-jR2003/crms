@@ -384,7 +384,7 @@ function DocumentManagement() {
             {pendingReviews.map((review) => (
               <TableRow key={review.id}>
                 <TableCell>
-                  {review.member?.firstName} {review.member?.lastName}
+                  {review.member?.firstName} {review.member?.lastName} {review.member?.suffix || ''}
                 </TableCell>
                 <TableCell>{review.requiredDocument?.name}</TableCell>
                 <TableCell>{review.file_name}</TableCell>
@@ -738,7 +738,7 @@ function DocumentManagement() {
             {selectedReview && (
               <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary">
-                  Member: {selectedReview.member?.firstName} {selectedReview.member?.lastName}
+                  Member: {selectedReview.member?.firstName} {selectedReview.member?.lastName} {selectedReview.member?.suffix || ''}
                 </Typography>
                 <Typography variant="subtitle2" color="text.secondary">
                   Document: {selectedReview.requiredDocument?.name}

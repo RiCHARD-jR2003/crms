@@ -31,7 +31,8 @@ import {
   DialogActions,
   Avatar,
   Card,
-  CardContent
+  CardContent,
+  CircularProgress
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PrintIcon from '@mui/icons-material/Print';
@@ -71,6 +72,7 @@ function BarangayPresidentPWDRecords() {
   const [error, setError] = useState(null);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
+  const [printing, setPrinting] = useState(false);
   
   // Success modal
   const { modalOpen, modalConfig, showModal, hideModal } = useModal();
@@ -159,6 +161,227 @@ function BarangayPresidentPWDRecords() {
         buttonText: 'OK'
       });
     }
+  };
+
+  const handlePrintList = () => {
+    setPrinting(true);
+    
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    
+    // Get barangay name from current user
+    const barangay = currentUser?.barangay || 'Unknown Barangay';
+    
+    // Get current data based on active tab and apply filters
+    const baseData = tab === 0 ? rows : applications;
+    const currentTitle = tab === 0 ? 'PWD Masterlist' : 'Pending Applications';
+    
+    // Apply search filter
+    let currentData = baseData;
+    if (searchTerm) {
+      currentData = baseData.filter(item =>
+        Object.values(item).some(value =>
+          String(value).toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      );
+    }
+    
+    // Apply status filter if active
+    if (filters.status && filters.status !== 'all') {
+      currentData = currentData.filter(item => 
+        item.status && item.status.toLowerCase().includes(filters.status.toLowerCase())
+      );
+    }
+    
+    // Apply disability type filter if active
+    if (filters.disability && filters.disability !== 'all') {
+      currentData = currentData.filter(item => 
+        item.disabilityType && item.disabilityType.toLowerCase().includes(filters.disability.toLowerCase())
+      );
+    }
+    
+    // Create HTML content for printing
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${currentTitle} - ${barangay}</title>
+          <style>
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none !important; }
+            }
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+              color: #333;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #3498DB;
+              padding-bottom: 20px;
+            }
+            .header h1 {
+              color: #2C3E50;
+              margin: 0;
+              font-size: 24px;
+            }
+            .header h2 {
+              color: #7F8C8D;
+              margin: 5px 0;
+              font-size: 18px;
+            }
+            .info {
+              margin-bottom: 20px;
+              font-size: 14px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+            }
+            th, td {
+              border: 1px solid #ddd;
+              padding: 8px;
+              text-align: left;
+              font-size: 12px;
+            }
+            th {
+              background-color: #3498DB;
+              color: white;
+              font-weight: bold;
+            }
+            tr:nth-child(even) {
+              background-color: #f2f2f2;
+            }
+            .status-pending {
+              background-color: #FFF3CD;
+              color: #856404;
+              padding: 2px 6px;
+              border-radius: 3px;
+              font-size: 10px;
+            }
+            .status-approved {
+              background-color: #D4EDDA;
+              color: #155724;
+              padding: 2px 6px;
+              border-radius: 3px;
+              font-size: 10px;
+            }
+            .status-rejected {
+              background-color: #F8D7DA;
+              color: #721C24;
+              padding: 2px 6px;
+              border-radius: 3px;
+              font-size: 10px;
+            }
+            .footer {
+              margin-top: 30px;
+              text-align: center;
+              font-size: 12px;
+              color: #7F8C8D;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>CABUYAO PDAO RMS</h1>
+            <h2>${currentTitle} - ${barangay}</h2>
+            <div class="info">
+              Generated on: ${new Date().toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+              ${searchTerm ? `<br>Search Filter: "${searchTerm}"` : ''}
+              ${filters.status && filters.status !== 'all' ? `<br>Status Filter: ${filters.status}` : ''}
+              ${filters.disability && filters.disability !== 'all' ? `<br>Disability Filter: ${filters.disability}` : ''}
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                ${tab === 0 ? `
+                  <th>PWD ID</th>
+                  <th>First Name</th>
+                  <th>Last Name</th>
+                  <th>Disability Type</th>
+                  <th>Status</th>
+                  <th>Contact Number</th>
+                  <th>Email</th>
+                ` : `
+                  <th>Application ID</th>
+                  <th>First Name</th>
+                  <th>Last Name</th>
+                  <th>Disability Type</th>
+                  <th>Status</th>
+                  <th>Submission Date</th>
+                  <th>Contact Number</th>
+                  <th>Email</th>
+                `}
+              </tr>
+            </thead>
+            <tbody>
+              ${currentData.map(item => `
+                <tr>
+                  ${tab === 0 ? `
+                    <td>${item.pwdID || 'N/A'}</td>
+                    <td>${item.firstName || 'N/A'}</td>
+                    <td>${item.lastName || 'N/A'}</td>
+                    <td>${item.disabilityType || 'N/A'}</td>
+                    <td><span class="status-approved">${item.status || 'Active'}</span></td>
+                    <td>${item.contactNumber || 'N/A'}</td>
+                    <td>${item.email || 'N/A'}</td>
+                  ` : `
+                    <td>${item.applicationID || 'N/A'}</td>
+                    <td>${item.firstName || 'N/A'}</td>
+                    <td>${item.lastName || 'N/A'}</td>
+                    <td>${item.disabilityType || 'N/A'}</td>
+                    <td><span class="status-pending">${item.status || 'Pending'}</span></td>
+                    <td>${item.submissionDate ? new Date(item.submissionDate).toLocaleDateString() : 'N/A'}</td>
+                    <td>${item.contactNumber || 'N/A'}</td>
+                    <td>${item.email || 'N/A'}</td>
+                  `}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            <p>Total Records: ${currentData.length}</p>
+            <p>This document was generated by CABUYAO PDAO RMS</p>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    // Check if there's data to print
+    if (currentData.length === 0) {
+      setPrinting(false);
+      showModal({
+        type: 'warning',
+        title: 'No Data to Print',
+        message: 'There are no records to print with the current filters.',
+        buttonText: 'OK'
+      });
+      printWindow.close();
+      return;
+    }
+    
+    // Write content to the new window
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    
+    // Wait for content to load, then print
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.close();
+      setPrinting(false);
+    };
   };
 
   const handleRejectApplication = async (applicationId) => {
@@ -422,8 +645,10 @@ function BarangayPresidentPWDRecords() {
               </Grid>
               <Grid item>
                 <Button 
-                  startIcon={<PrintIcon />} 
+                  startIcon={printing ? <CircularProgress size={16} color="inherit" /> : <PrintIcon />} 
                   variant="outlined" 
+                  onClick={handlePrintList}
+                  disabled={printing}
                   sx={{ 
                     textTransform: 'none',
                     color: '#FFFFFF',
@@ -433,10 +658,15 @@ function BarangayPresidentPWDRecords() {
                       borderColor: '#2980B9',
                       bgcolor: '#2980B9',
                       color: '#FFFFFF'
+                    },
+                    '&:disabled': {
+                      bgcolor: '#BDC3C7',
+                      borderColor: '#BDC3C7',
+                      color: '#FFFFFF'
                     }
                   }}
                 >
-                  Print List
+                  {printing ? 'Printing...' : 'Print List'}
                 </Button>
               </Grid>
               <Grid item>
@@ -913,7 +1143,7 @@ function BarangayPresidentPWDRecords() {
           position: 'relative',
           borderBottom: '1px solid #E0E0E0'
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+          <Typography component="div" variant="h6" sx={{ fontWeight: 'bold' }}>
             PWD Application Details
           </Typography>
           <IconButton
@@ -1205,7 +1435,7 @@ function BarangayPresidentPWDRecords() {
                     {selectedApplication.idPicture ? (
                       <Box sx={{ textAlign: 'center' }}>
                         <img 
-                          src={`http://192.168.18.18:8000/storage/${selectedApplication.idPicture}`}
+                          src={api.getStorageUrl(selectedApplication.idPicture)}
                           alt="ID Picture"
                           style={{
                             maxWidth: '150px',
@@ -1231,7 +1461,7 @@ function BarangayPresidentPWDRecords() {
                           size="small"
                           variant="outlined"
                           sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(`http://192.168.18.18:8000/storage/${selectedApplication.idPicture}`, '_blank')}
+                          onClick={() => window.open(api.getStorageUrl(selectedApplication.idPicture), '_blank')}
                         >
                           View Full Size
                         </Button>
@@ -1250,7 +1480,7 @@ function BarangayPresidentPWDRecords() {
                     {selectedApplication.medicalCertificate ? (
                       <Box sx={{ textAlign: 'center' }}>
                         <img 
-                          src={`http://192.168.18.18:8000/storage/${selectedApplication.medicalCertificate}`}
+                          src={api.getStorageUrl(selectedApplication.medicalCertificate)}
                           alt="Medical Certificate"
                           style={{
                             maxWidth: '150px',
@@ -1276,7 +1506,7 @@ function BarangayPresidentPWDRecords() {
                           size="small"
                           variant="outlined"
                           sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(`http://192.168.18.18:8000/storage/${selectedApplication.medicalCertificate}`, '_blank')}
+                          onClick={() => window.open(api.getStorageUrl(selectedApplication.medicalCertificate), '_blank')}
                         >
                           View Full Size
                         </Button>
@@ -1295,7 +1525,7 @@ function BarangayPresidentPWDRecords() {
                     {selectedApplication.barangayClearance ? (
                       <Box sx={{ textAlign: 'center' }}>
                         <img 
-                          src={`http://192.168.18.18:8000/storage/${selectedApplication.barangayClearance}`}
+                          src={api.getStorageUrl(selectedApplication.barangayClearance)}
                           alt="Barangay Clearance"
                           style={{
                             maxWidth: '150px',
@@ -1321,7 +1551,7 @@ function BarangayPresidentPWDRecords() {
                           size="small"
                           variant="outlined"
                           sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(`http://192.168.18.18:8000/storage/${selectedApplication.barangayClearance}`, '_blank')}
+                          onClick={() => window.open(api.getStorageUrl(selectedApplication.barangayClearance), '_blank')}
                         >
                           View Full Size
                         </Button>

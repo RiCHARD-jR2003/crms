@@ -105,7 +105,7 @@ const SuccessModal = ({
             mb: 3,
             lineHeight: 1.6
           }}>
-            {message}
+            {typeof message === 'string' ? message : message}
           </Typography>
           
           <Button

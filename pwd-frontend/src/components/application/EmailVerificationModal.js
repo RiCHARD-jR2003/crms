@@ -152,7 +152,8 @@ function EmailVerificationModal({
       PaperProps={{
         sx: {
           borderRadius: 2,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          backgroundColor: '#FFFFFF'
         }
       }}
     >

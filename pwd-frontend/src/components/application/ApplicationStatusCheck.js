@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   TextField,
@@ -22,9 +22,19 @@ const ApplicationStatusCheck = () => {
   const [applicationData, setApplicationData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mounted, setMounted] = useState(false);
   
   // Success modal
   const { modalOpen, modalConfig, showModal, hideModal } = useModal();
+
+  // Ensure component is mounted
+  useEffect(() => {
+    setMounted(true);
+    console.log('ApplicationStatusCheck component mounted');
+  }, []);
+
+  // Debug logging
+  console.log('ApplicationStatusCheck component rendered, mounted:', mounted);
 
   const handleSearch = async () => {
     if (!referenceNumber.trim()) {
@@ -79,6 +89,17 @@ const ApplicationStatusCheck = () => {
       day: 'numeric'
     });
   };
+
+  // Don't render until component is properly mounted
+  if (!mounted) {
+    return (
+      <Box sx={{ minHeight: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+          Loading...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -235,7 +256,7 @@ const ApplicationStatusCheck = () => {
                 <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#7F8C8D', mb: 0.5, display: 'block' }}>
                   Reference Number:
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#2C3E50', mb: 1, fontWeight: 500 }}>
+                <Typography variant="body2" sx={{ color: '#2C3E50', mb: 1, fontWeight: 'bold' }}>
                   {applicationData.referenceNumber || 'N/A'}
                 </Typography>
               </Grid>
@@ -303,6 +324,6 @@ const ApplicationStatusCheck = () => {
       />
     </Box>
   );
-};
+}
 
 export default ApplicationStatusCheck;

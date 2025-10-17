@@ -981,12 +981,12 @@ function PWDCard() {
               <Card elevation={0} sx={{ height: '50%', backgroundColor: 'transparent', mb: 2 }}>
                 <CardContent sx={{ p: 0, height: '100%' }}>
                   <Box sx={{
-                    background: 'linear-gradient(135deg, #2C3E50 0%, #34495E 100%)',
+                    backgroundColor: '#FFFFFF',
                     display: 'flex',
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    color: '#FFFFFF',
+                    color: '#2C3E50',
                     position: 'relative',
                     borderRadius: 2,
                     border: '2px solid #E0E0E0',
@@ -1003,39 +1003,43 @@ function PWDCard() {
                       pr: 2
                   }}>
                     {/* Card Header */}
-                      <Box sx={{ textAlign: 'center', mb: 1.5 }}>
+                      <Box sx={{ textAlign: 'center', mb: 2 }}>
                         <Typography variant="body2" sx={{ 
                           fontWeight: 'bold', 
-                          mb: 0.3, 
+                          mb: 0.2, 
                           fontSize: '10px', 
-                          color: '#FFFFFF',
-                          letterSpacing: '0.3px'
+                          color: '#2C3E50',
+                          letterSpacing: '0.3px',
+                          lineHeight: 1.2
                         }}>
                         REPUBLIC OF THE PHILIPPINES
                       </Typography>
                         <Typography variant="body2" sx={{ 
                           fontWeight: 'bold', 
-                          mb: 0.3, 
+                          mb: 0.2, 
                           fontSize: '10px', 
-                          color: '#FFFFFF',
-                          letterSpacing: '0.3px'
+                          color: '#2C3E50',
+                          letterSpacing: '0.3px',
+                          lineHeight: 1.2
                         }}>
                         PROVINCE OF LAGUNA
                       </Typography>
                         <Typography variant="body2" sx={{ 
                           fontWeight: 'bold', 
-                          mb: 0.3, 
+                          mb: 0.2, 
                           fontSize: '10px', 
-                          color: '#FFFFFF',
-                          letterSpacing: '0.3px'
+                          color: '#2C3E50',
+                          letterSpacing: '0.3px',
+                          lineHeight: 1.2
                         }}>
                         CITY OF CABUYAO
                       </Typography>
                         <Typography variant="body2" sx={{ 
                           fontWeight: 'bold', 
                           fontSize: '10px', 
-                          color: '#FFFFFF',
-                          letterSpacing: '0.3px'
+                          color: '#2C3E50',
+                          letterSpacing: '0.3px',
+                          lineHeight: 1.2
                         }}>
                         (P.D.A.O)
                       </Typography>
@@ -1046,20 +1050,22 @@ function PWDCard() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        mb: 1.5
+                        mb: 2
                       }}>
                         <Box sx={{
-                          backgroundColor: '#F8F9FA',
+                          backgroundColor: '#000000',
                           borderRadius: 0.5,
                           px: 1.5,
                           py: 0.5,
                           border: '1px solid #E0E0E0'
                         }}>
                           <Typography variant="caption" sx={{ 
-                            color: '#FFFFFF', 
+                            color: '#FFFFFF !important', 
                             fontSize: '9px', 
                             fontWeight: 'bold',
-                            letterSpacing: '0.3px'
+                            letterSpacing: '0.3px',
+                            textAlign: 'center',
+                            display: 'block'
                           }}>
                             CABUYAO PDAO
                         </Typography>
@@ -1067,43 +1073,50 @@ function PWDCard() {
                       </Box>
 
                       {/* Member Details */}
-                      <Box sx={{ flex: 1 }}>
+                      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ 
+                            mb: 0.8, 
+                            fontSize: '9px', 
+                            color: '#2C3E50', 
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                            lineHeight: 1.3
+                          }}>
+                            NAME: {selectedMemberData?.name || 'Unknown Member'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ 
+                            mb: 0.8, 
+                            fontSize: '9px', 
+                            color: '#2C3E50', 
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                            lineHeight: 1.3
+                          }}>
+                            ID No.: {selectedMemberData?.id || 'N/A'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ 
+                            mb: 0.8, 
+                            fontSize: '9px', 
+                            color: '#2C3E50', 
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                            lineHeight: 1.3
+                          }}>
+                            TYPE OF DISABILITY: {selectedMemberData?.disabilityType || 'Not specified'}
+                          </Typography>
+                        </Box>
                         <Typography variant="body2" sx={{ 
-                          mb: 0.5, 
                           fontSize: '9px', 
-                          color: '#FFFFFF', 
+                          color: '#2C3E50', 
                           fontWeight: 'bold',
                           textTransform: 'uppercase',
-                          letterSpacing: '0.3px'
-                        }}>
-                          NAME: {selectedMemberData?.name || 'Unknown Member'}
-                        </Typography>
-                        <Typography variant="body2" sx={{ 
-                          mb: 0.5, 
-                          fontSize: '9px', 
-                          color: '#FFFFFF', 
-                          fontWeight: 'bold',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.3px'
-                        }}>
-                          ID No.: {selectedMemberData?.id || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" sx={{ 
-                          mb: 0.5, 
-                          fontSize: '9px', 
-                          color: '#FFFFFF', 
-                          fontWeight: 'bold',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.3px'
-                        }}>
-                          TYPE OF DISABILITY: {selectedMemberData?.disabilityType || 'Not specified'}
-                        </Typography>
-                        <Typography variant="body2" sx={{ 
-                          fontSize: '9px', 
-                          color: '#FFFFFF', 
-                          fontWeight: 'bold',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.3px'
+                          letterSpacing: '0.3px',
+                          lineHeight: 1.3,
+                          mt: 1
                         }}>
                           SIGNATURE: _________
                         </Typography>
@@ -1113,11 +1126,11 @@ function PWDCard() {
                       <Typography variant="body2" sx={{ 
                         fontWeight: 'bold', 
                         fontSize: '8px', 
-                        color: '#FFFFFF',
+                        color: '#2C3E50',
                         textAlign: 'center',
                         letterSpacing: '0.3px',
                         textTransform: 'uppercase',
-                        mt: 1
+                        mt: 2
                       }}>
                         VALID ANYWHERE IN THE PHILIPPINES
                       </Typography>
@@ -1128,9 +1141,11 @@ function PWDCard() {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 1.5,
-                      flexShrink: 0
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      flexShrink: 0,
+                      height: '100%',
+                      py: 1
                     }}>
                         {/* ID Picture */}
                         <Box sx={{
@@ -1176,7 +1191,7 @@ function PWDCard() {
                             }
                             
                             if (imagePath) {
-                              const fullUrl = `http://192.168.18.25:8000/storage/${imagePath}`;
+                              const fullUrl = `http://127.0.0.1:8000/storage/${imagePath}`;
                               console.log('Final image URL:', fullUrl);
                               
                               return (
@@ -1230,14 +1245,6 @@ function PWDCard() {
                                 borderRadius: '2px'
                               }}
                             />
-                            <Typography variant="caption" sx={{ 
-                              color: '#FFFFFF', 
-                              fontSize: '7px',
-                              fontWeight: 'bold',
-                              mt: 0.5
-                            }}>
-                              BENEFIT CLAIM
-                            </Typography>
                           </Box>
                         )}
                     </Box>

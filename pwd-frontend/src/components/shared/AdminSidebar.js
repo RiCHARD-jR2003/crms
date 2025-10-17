@@ -23,7 +23,7 @@ import AdminPasswordReset from '../admin/AdminPasswordReset';
 function AdminSidebar({ isOpen, onToggle }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, currentUser } = useAuth();
   const [supportNotifications, setSupportNotifications] = useState(0);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [adminPasswordResetOpen, setAdminPasswordResetOpen] = useState(false);
@@ -63,11 +63,11 @@ function AdminSidebar({ isOpen, onToggle }) {
         sx={{
           display: 'flex', 
           alignItems: 'center', 
-          gap: 2, 
-          px: 2, 
-          py: 1.5, 
+          gap: 1.5, // Restored to comfortable size
+          px: 1.5, // Restored to comfortable size
+          py: 1, // Restored to comfortable size
           borderRadius: 2, 
-          mb: 1,
+          mb: 0.5, // Restored to comfortable size
           bgcolor: active ? '#0b87ac' : 'transparent',
           color: active ? '#FFFFFF' : '#566573',
           fontWeight: active ? 600 : 500,
@@ -105,16 +105,17 @@ function AdminSidebar({ isOpen, onToggle }) {
       borderRight: '1px solid #E0E0E0',
       zIndex: 1300,
       transition: 'width 0.3s ease-in-out',
-      overflow: 'hidden',
+      overflow: 'hidden', // No scrolling - all content should fit
       boxShadow: { xs: isOpen ? '2px 0 8px rgba(0,0,0,0.1)' : 'none', md: 'none' }
     }}>
       {/* Header with Logo and Toggle Button */}
       <Box sx={{ 
-        p: 2.5, 
+        p: 2, // Reduced padding
         display: 'flex', 
         alignItems: 'center', 
         gap: 2,
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        flexShrink: 0 // Prevent header from shrinking
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Box sx={{
@@ -164,12 +165,13 @@ function AdminSidebar({ isOpen, onToggle }) {
 
       {/* User Info */}
       <Box sx={{ 
-        p: 2.5, 
+        p: 2, // Reduced padding
         display: 'flex', 
         alignItems: 'center', 
         gap: 2,
         opacity: { xs: isOpen ? 1 : 0, md: 1 },
-        transition: 'opacity 0.3s ease-in-out'
+        transition: 'opacity 0.3s ease-in-out',
+        flexShrink: 0 // Prevent user info from shrinking
       }}>
         <Avatar sx={{ width: 40, height: 40, bgcolor: '#3498DB', color: 'white' }}>
           <PersonIcon />
@@ -179,17 +181,19 @@ function AdminSidebar({ isOpen, onToggle }) {
           color: '#2C3E50',
           display: { xs: isOpen ? 'block' : 'none', md: 'block' }
         }}>
-          Hello Admin
+          Hello {currentUser?.role === 'SuperAdmin' ? 'SuperAdmin' : 'Admin'}
         </Typography>
       </Box>
 
       {/* Navigation Menu */}
       <Box sx={{ 
-        p: 2, 
+        p: 1.5, // Restored to comfortable size
         flex: 1, 
-        mt: 2,
+        mt: 1, // Restored to comfortable size
         opacity: { xs: isOpen ? 1 : 0, md: 1 },
-        transition: 'opacity 0.3s ease-in-out'
+        transition: 'opacity 0.3s ease-in-out',
+        overflow: 'hidden', // No scrolling
+        minHeight: 0 // Allow flex item to shrink
       }}>
         <SidebarItem 
           icon={<DashboardIcon />} 
@@ -250,24 +254,29 @@ function AdminSidebar({ isOpen, onToggle }) {
 
       {/* Password Management */}
       <Box sx={{ 
-        p: 2,
+        p: 1, // Further reduced padding
         opacity: { xs: isOpen ? 1 : 0, md: 1 },
         transition: 'opacity 0.3s ease-in-out',
-        display: { xs: isOpen ? 'block' : 'none', md: 'block' }
+        display: { xs: isOpen ? 'block' : 'none', md: 'block' },
+        flexShrink: 0, // Prevent this section from shrinking
+        borderTop: '1px solid #E0E0E0' // Add visual separation
       }}>
         <Button
           fullWidth
           variant="outlined"
           startIcon={<PersonIcon />}
           onClick={() => setChangePasswordOpen(true)}
+          size="small"
           sx={{
             color: '#566573',
             borderColor: '#D5DBDB',
             textTransform: 'none',
             fontWeight: 600,
-            py: 1.2,
+            py: 0.4, // Much smaller padding
             borderRadius: 2,
-            mb: 1,
+            mb: 0.3, // Smaller margin
+            fontSize: '0.8rem', // Smaller font
+            minHeight: '32px', // Smaller button height
             '&:hover': {
               borderColor: '#3498DB',
               background: '#F4F7FC',
@@ -283,13 +292,16 @@ function AdminSidebar({ isOpen, onToggle }) {
           variant="outlined"
           startIcon={<SupportAgentIcon />}
           onClick={() => setAdminPasswordResetOpen(true)}
+          size="small"
           sx={{
             color: '#566573',
             borderColor: '#D5DBDB',
             textTransform: 'none',
             fontWeight: 600,
-            py: 1.2,
+            py: 0.4, // Much smaller padding
             borderRadius: 2,
+            fontSize: '0.8rem', // Smaller font
+            minHeight: '32px', // Smaller button height
             '&:hover': {
               borderColor: '#E74C3C',
               background: '#F4F7FC',
@@ -303,23 +315,28 @@ function AdminSidebar({ isOpen, onToggle }) {
 
       {/* Logout Button */}
       <Box sx={{ 
-        p: 3,
+        p: 1, // Further reduced padding
         opacity: { xs: isOpen ? 1 : 0, md: 1 },
         transition: 'opacity 0.3s ease-in-out',
-        display: { xs: isOpen ? 'block' : 'none', md: 'block' }
+        display: { xs: isOpen ? 'block' : 'none', md: 'block' },
+        flexShrink: 0, // Prevent this section from shrinking
+        borderTop: '1px solid #E0E0E0' // Add visual separation
       }}>
         <Button
           fullWidth
           variant="outlined"
           endIcon={<ArrowForwardIcon />}
           onClick={handleLogout}
+          size="small"
           sx={{
             color: '#566573',
             borderColor: '#D5DBDB',
             textTransform: 'none',
             fontWeight: 600,
-            py: 1.2,
+            py: 0.4, // Much smaller padding
             borderRadius: 2,
+            fontSize: '0.8rem', // Smaller font
+            minHeight: '32px', // Smaller button height
             '&:hover': {
               borderColor: '#0b87ac',
               background: '#F4F7FC',

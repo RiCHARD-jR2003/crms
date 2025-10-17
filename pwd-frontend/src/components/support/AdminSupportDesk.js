@@ -671,7 +671,7 @@ const AdminSupportDesk = () => {
                           color: '#2C3E50',
                           fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
                         }}>
-                          {ticket.pwd_member ? `${ticket.pwd_member.firstName} ${ticket.pwd_member.lastName}` : 'PWD Member'}
+                          {ticket.pwd_member ? `${ticket.pwd_member.firstName} ${ticket.pwd_member.lastName} ${ticket.pwd_member.suffix || ''}`.trim() : 'PWD Member'}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -920,7 +920,7 @@ const AdminSupportDesk = () => {
                                 fontWeight: 600
                               }}
                             >
-                              {selectedTicket.pwd_member ? `${selectedTicket.pwd_member.firstName} ${selectedTicket.pwd_member.lastName}` : 'PWD Member'}
+                              {selectedTicket.pwd_member ? `${selectedTicket.pwd_member.firstName} ${selectedTicket.pwd_member.lastName} ${selectedTicket.pwd_member.suffix || ''}`.trim() : 'PWD Member'}
                             </Typography>
                           </Box>
                         </Box>

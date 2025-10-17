@@ -693,8 +693,7 @@ const Reports = () => {
   const fetchComplaintsAnalysisData = async () => {
     try {
       // Fetch complaints data from API
-      const complaintsResponse = await fetch('http://192.168.18.18:8000/api/complaints');
-      const complaints = complaintsResponse.ok ? await complaintsResponse.json() : [];
+      const complaints = await api.get('/complaints');
       
       // Calculate complaints statistics
       const totalComplaints = complaints.length;
@@ -804,8 +803,7 @@ const Reports = () => {
       const applications = applicationsResponse.data || applicationsResponse || [];
       
       // Fetch complaints data
-      const complaintsResponse = await fetch('http://192.168.18.18:8000/api/complaints');
-      const complaints = complaintsResponse.ok ? await complaintsResponse.json() : [];
+      const complaints = await api.get('/complaints');
       
       // Define barangays list - All 18 barangays
       const barangays = [
@@ -958,8 +956,7 @@ const Reports = () => {
       const applicationsResponse = await applicationService.getAll();
       const applications = applicationsResponse.data || applicationsResponse || [];
       
-      const complaintsResponse = await fetch('http://192.168.18.18:8000/api/complaints');
-      const complaints = complaintsResponse.ok ? await complaintsResponse.json() : [];
+      const complaints = await api.get('/complaints');
       
       // Filter data for current year
       const currentYearMembers = pwdMembers.filter(member => {
@@ -1237,36 +1234,9 @@ const Reports = () => {
       
       // Fetch barangay performance from API (now includes all barangays)
       try {
-        const barangayPerformanceResponse = await fetch('http://192.168.18.18:8000/api/reports/barangay-performance');
-        if (barangayPerformanceResponse.ok) {
-          const barangayData = await barangayPerformanceResponse.json();
-          console.log('Barangay Performance API Response:', barangayData);
-          setBarangayPerformance(barangayData.barangays || []);
-        } else {
-          console.error('Barangay Performance API Error:', barangayPerformanceResponse.status);
-          // Use fallback data when API fails - All 18 barangays
-          const fallbackData = [
-            { barangay: 'Bigaa', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Butong', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Marinig', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Gulod', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Pob. Uno', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Pob. Dos', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Pob. Tres', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Sala', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Niugan', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Banaybanay', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Pulo', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Diezmo', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Pittland', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'San Isidro', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Mamatid', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Baclaran', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Casile', registered: 0, cards: 0, benefits: 0, complaints: 0 },
-            { barangay: 'Banlic', registered: 0, cards: 0, benefits: 0, complaints: 0 }
-          ];
-          setBarangayPerformance(fallbackData);
-        }
+        const barangayData = await api.get('/reports/barangay-performance');
+        console.log('Barangay Performance API Response:', barangayData);
+        setBarangayPerformance(barangayData.barangays || []);
       } catch (error) {
         console.error('Error fetching barangay performance:', error);
         // Use fallback data when API fails - All 18 barangays
@@ -1790,7 +1760,7 @@ const Reports = () => {
                       {member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned')}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>
-                      {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || 'Name not provided'}
+                      {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Name not provided'}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.barangay || 'Not specified'}</TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.disabilityType || 'Not specified'}</TableCell>
@@ -2100,7 +2070,7 @@ const Reports = () => {
                       {member.pwd_id || 'Not assigned'}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>
-                      {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || 'Name not provided'}
+                      {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Name not provided'}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.barangay || 'Not specified'}</TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.disabilityType || 'Not specified'}</TableCell>

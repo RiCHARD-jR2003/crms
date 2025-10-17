@@ -1055,7 +1055,7 @@ const PWDMemberSupportDesk = () => {
                     sx={{ color: '#000000 !important', mb: 1 }}
                     style={{ color: '#000000' }}
                   >
-                    <strong>Name:</strong> {selectedTicket.pwd_member?.firstName} {selectedTicket.pwd_member?.lastName}
+                    <strong>Name:</strong> {selectedTicket.pwd_member?.firstName} {selectedTicket.pwd_member?.lastName} {selectedTicket.pwd_member?.suffix || ''}
                   </Typography>
                   <Typography 
                     variant="body2" 

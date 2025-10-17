@@ -207,6 +207,8 @@ class ApplicationValidationService
         return [
             'firstName' => 'required|string|max:50',
             'lastName' => 'required|string|max:50',
+            'middleName' => 'nullable|string|max:50',
+            'suffix' => 'nullable|string|in:,Jr.,Sr.,I,II,III',
             'email' => [
                 'required',
                 'email',
@@ -225,7 +227,7 @@ class ApplicationValidationService
             'nationality' => 'required|string|max:50',
             'disabilityType' => 'required|string|max:100',
             'disabilityCause' => 'nullable|string|max:200',
-            'disabilityDate' => 'nullable|date',
+            'disabilityDate' => 'nullable|date|before:today|before:' . date('Y-m-d', strtotime('-14 days')),
             'address' => 'required|string|max:500',
             'barangay' => 'required|string|max:100',
             'city' => 'required|string|max:100',
@@ -233,7 +235,7 @@ class ApplicationValidationService
             'postalCode' => 'required|string|max:10',
             'emergencyContact' => 'required|string|max:100',
             'emergencyPhone' => 'required|string|max:20',
-            'emergencyRelationship' => 'required|string|max:50',
+            'emergencyRelationship' => 'required|string|in:Parent,Sibling,Spouse,Child,Friend,Colleague,Relative,Guardian,Other',
             // Document validation rules
             'medicalCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
             'clinicalAbstract' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
@@ -255,6 +257,8 @@ class ApplicationValidationService
         return [
             'firstName.required' => 'First name is required.',
             'lastName.required' => 'Last name is required.',
+            'middleName.required' => 'Middle name is required.',
+            'suffix.in' => 'Please select a valid suffix option.',
             'email.required' => 'Email address is required.',
             'email.email' => 'Please enter a valid email address.',
             'email.unique' => 'An application with this email address already exists.',
@@ -270,9 +274,11 @@ class ApplicationValidationService
             'city.required' => 'City is required.',
             'province.required' => 'Province is required.',
             'postalCode.required' => 'Postal code is required.',
-            'emergencyContact.required' => 'Emergency contact name is required.',
-            'emergencyPhone.required' => 'Emergency contact phone is required.',
-            'emergencyRelationship.required' => 'Emergency contact relationship is required.',
+            'emergencyContact.required' => 'Guardian name is required.',
+            'emergencyPhone.required' => 'Guardian phone is required.',
+            'emergencyRelationship.required' => 'Relationship to guardian is required.',
+            'emergencyRelationship.in' => 'Please select a valid relationship option.',
+            'disabilityDate.before' => 'Date of disability onset must be at least 2 weeks before the current date and cannot be in the future.',
         ];
     }
 }
