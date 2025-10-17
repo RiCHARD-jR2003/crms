@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Test - PWD Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        video {
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Camera Test</h1>
+        <p>This page tests camera access on your mobile device.</p>
+        
+        <div id="status" class="status info">Ready to test camera...</div>
+        
+        <div>
+            <button onclick="testCamera()">Test Camera Access</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <video id="video" autoplay muted style="display: none;"></video>
+        
+        <div class="log" id="log"></div>
+        
+        <h3>Debug Information:</h3>
+        <div id="debug"></div>
+    </div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function updateDebug() {
+            const debugDiv = document.getElementById('debug');
+            debugDiv.innerHTML = `
+                <strong>User Agent:</strong> ${navigator.userAgent}<br>
+                <strong>HTTPS:</strong> ${location.protocol === 'https:'}<br>
+                <strong>Hostname:</strong> ${location.hostname}<br>
+                <strong>URL:</strong> ${location.href}<br>
+                <strong>MediaDevices:</strong> ${!!navigator.mediaDevices}<br>
+                <strong>getUserMedia:</strong> ${!!navigator.mediaDevices?.getUserMedia}<br>
+                <strong>Legacy getUserMedia:</strong> ${!!(navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia)}
+            `;
+        }
+
+        async function testCamera() {
+            updateStatus('Testing camera access...', 'info');
+            log('🔍 Starting camera test...');
+            
+            updateDebug();
+            
+            try {
+                // Check basic requirements
+                log('📱 Checking browser support...');
+                
+                if (!navigator.mediaDevices) {
+                    throw new Error('MediaDevices API not available');
+                }
+                
+                if (!navigator.mediaDevices.getUserMedia) {
+                    throw new Error('getUserMedia not available');
+                }
+                
+                log('✅ Browser support check passed');
+                
+                // Try to get camera access
+                log('📷 Requesting camera access...');
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                
+                log('✅ Camera access granted!');
+                
+                // Display video
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                video.style.display = 'block';
+                
+                updateStatus('✅ Camera test successful!', 'success');
+                log('🎉 Camera is working properly');
+                
+                // Stop the stream after 5 seconds
+                setTimeout(() => {
+                    stream.getTracks().forEach(track => track.stop());
+                    video.style.display = 'none';
+                    log('📷 Camera stream stopped');
+                }, 5000);
+                
+            } catch (error) {
+                log(`❌ Camera test failed: ${error.name} - ${error.message}`);
+                updateStatus(`❌ Camera test failed: ${error.message}`, 'error');
+                
+                // Try fallback
+                if (error.name === 'NotAllowedError') {
+                    log('💡 Try allowing camera permissions and refresh the page');
+                } else if (error.name === 'NotFoundError') {
+                    log('💡 No camera found on this device');
+                } else if (error.name === 'NotSupportedError') {
+                    log('💡 Camera not supported - try Chrome or Safari');
+                } else if (error.name === 'SecurityError') {
+                    log('💡 Security error - ensure HTTPS or localhost');
+                }
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Initialize debug info on page load
+        updateDebug();
+        log('📱 Camera test page loaded');
+        log(`🌐 Current URL: ${location.href}`);
+        log(`📱 User Agent: ${navigator.userAgent}`);
+    </script>
+</body>
+</html>

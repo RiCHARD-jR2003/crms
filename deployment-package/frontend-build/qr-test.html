@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWD QR Code Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2C3E50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .qr-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            background-color: #F8F9FA;
+        }
+        .qr-code {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .member-info {
+            background-color: #E8F4FD;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .instructions {
+            background-color: #FFF3CD;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #FFC107;
+            margin: 20px 0;
+        }
+        .test-buttons {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #3498DB;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #2980B9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 PWD QR Code Test Page</h1>
+        
+        <div class="instructions">
+            <h3>📋 Instructions:</h3>
+            <ol>
+                <li>Open the PWD system in another tab</li>
+                <li>Login as Admin, Barangay President, or PWD Member</li>
+                <li>Go to the dashboard and click "Open QR Scanner"</li>
+                <li>Use the QR codes below to test the scanner functionality</li>
+            </ol>
+        </div>
+
+        <div class="qr-section">
+            <h3>👤 Test QR Code 1: Banlic PWD Member</h3>
+            <div class="member-info">
+                <strong>Member:</strong> Juan Dela Cruz<br>
+                <strong>PWD ID:</strong> PWD-2025-000999<br>
+                <strong>Barangay:</strong> Banlic<br>
+                <strong>Birth Month:</strong> March (Q1)
+            </div>
+            <div class="qr-code">
+                <div id="qr1"></div>
+            </div>
+        </div>
+
+        <div class="qr-section">
+            <h3>👤 Test QR Code 2: Generic PWD Member</h3>
+            <div class="member-info">
+                <strong>Member:</strong> Maria Santos<br>
+                <strong>PWD ID:</strong> PWD-2025-000001<br>
+                <strong>Barangay:</strong> Bigaa<br>
+                <strong>Birth Month:</strong> July (Q3)
+            </div>
+            <div class="qr-code">
+                <div id="qr2"></div>
+            </div>
+        </div>
+
+        <div class="qr-section">
+            <h3>👤 Test QR Code 3: Simple Text Format</h3>
+            <div class="member-info">
+                <strong>Format:</strong> Plain text with PWD ID<br>
+                <strong>Content:</strong> "PWD Member: PWD-2025-000999"
+            </div>
+            <div class="qr-code">
+                <div id="qr3"></div>
+            </div>
+        </div>
+
+        <div class="test-buttons">
+            <button onclick="generateAllQRCodes()">🔄 Generate All QR Codes</button>
+            <button onclick="testScanner()">📱 Test Scanner</button>
+        </div>
+
+        <div class="instructions">
+            <h3>🧪 Testing Scenarios:</h3>
+            <ul>
+                <li><strong>Benefit Tracking:</strong> Scan QR codes to test birthday benefit claiming</li>
+                <li><strong>Member Verification:</strong> Test member identification and lookup</li>
+                <li><strong>Different Formats:</strong> Test JSON and plain text QR codes</li>
+                <li><strong>Error Handling:</strong> Test with invalid QR codes</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- QR Code Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <script>
+        // Test QR Code Data
+        const testData = {
+            qr1: {
+                pwd_id: "PWD-2025-000999",
+                userID: "999",
+                firstName: "Juan",
+                lastName: "Dela Cruz",
+                barangay: "Banlic",
+                birthDate: "1990-03-15",
+                disabilityType: "Physical Disability"
+            },
+            qr2: {
+                pwd_id: "PWD-2025-000001",
+                userID: "1",
+                firstName: "Maria",
+                lastName: "Santos",
+                barangay: "Bigaa",
+                birthDate: "1985-07-20",
+                disabilityType: "Visual Impairment"
+            },
+            qr3: "PWD Member: PWD-2025-000999"
+        };
+
+        function generateQRCode(elementId, data) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = '';
+            
+            QRCode.toCanvas(element, JSON.stringify(data), {
+                width: 200,
+                height: 200,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error) {
+                if (error) {
+                    console.error('QR Code generation error:', error);
+                    element.innerHTML = '<p style="color: red;">Error generating QR code</p>';
+                } else {
+                    console.log('QR Code generated successfully for', elementId);
+                }
+            });
+        }
+
+        function generateAllQRCodes() {
+            generateQRCode('qr1', testData.qr1);
+            generateQRCode('qr2', testData.qr2);
+            
+            // For QR3, generate a simple text QR code
+            const element3 = document.getElementById('qr3');
+            element3.innerHTML = '';
+            QRCode.toCanvas(element3, testData.qr3, {
+                width: 200,
+                height: 200,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            });
+        }
+
+        function testScanner() {
+            alert('To test the scanner:\n\n1. Open the PWD system dashboard\n2. Click "Open QR Scanner"\n3. Point the camera at any QR code above\n4. Check the console for scan results');
+        }
+
+        // Generate QR codes on page load
+        window.onload = function() {
+            generateAllQRCodes();
+        };
+    </script>
+</body>
+</html>

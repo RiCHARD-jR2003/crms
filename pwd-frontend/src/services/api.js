@@ -1,8 +1,11 @@
 // src/services/api.js
 
-// For React Web, we'll use localStorage and a simple API URL
-const API_BASE_URL = 'http://127.0.0.1:8000/api'; // Local server for development
-const STORAGE_BASE_URL = 'http://127.0.0.1:8000'; // Base URL for storage files
+// Import production configuration
+import { API_CONFIG } from '../config/production';
+
+// Use environment-appropriate configuration
+const API_BASE_URL = API_CONFIG.API_BASE_URL;
+const STORAGE_BASE_URL = API_CONFIG.STORAGE_BASE_URL;
 
 async function getStoredToken() {
   try {

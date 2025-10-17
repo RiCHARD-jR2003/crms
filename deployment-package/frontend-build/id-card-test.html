@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWD ID Card QR Code Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2C3E50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .card-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            background-color: #F8F9FA;
+        }
+        .id-card {
+            width: 300px;
+            height: 200px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 2px solid #e74c3c;
+            border-radius: 10px;
+            padding: 15px;
+            color: white;
+            position: relative;
+            margin: 20px auto;
+            font-family: Arial, sans-serif;
+        }
+        .card-header {
+            text-align: center;
+            font-size: 10px;
+            margin-bottom: 10px;
+        }
+        .card-body {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 120px;
+        }
+        .member-info {
+            flex: 1;
+            font-size: 9px;
+            line-height: 1.2;
+        }
+        .photo-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .photo-placeholder {
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.2);
+            border: 2px dashed rgba(255,255,255,0.5);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+        }
+        .qr-code {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 3px;
+            padding: 2px;
+        }
+        .instructions {
+            background-color: #FFF3CD;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #FFC107;
+            margin: 20px 0;
+        }
+        .test-buttons {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #3498DB;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #2980B9;
+        }
+        .member-selector {
+            margin: 20px 0;
+            text-align: center;
+        }
+        select {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🆔 PWD ID Card with QR Code Test</h1>
+        
+        <div class="instructions">
+            <h3>📋 Instructions:</h3>
+            <ol>
+                <li>Select a PWD member from the dropdown below</li>
+                <li>View the generated ID card with QR code</li>
+                <li>Open the PWD system and go to Benefit Tracking</li>
+                <li>Click "Open QR Scanner" and scan the QR code from the ID card</li>
+                <li>The member should be automatically marked as "claimed" for eligible benefits</li>
+            </ol>
+        </div>
+
+        <div class="member-selector">
+            <label for="memberSelect"><strong>Select PWD Member:</strong></label><br><br>
+            <select id="memberSelect" onchange="updateMemberCard()">
+                <option value="PWD-2025-000001">Mel Ivan Mananquil (PWD-2025-000001)</option>
+                <option value="PWD-2025-000002">Maria Santos (PWD-2025-000002)</option>
+                <option value="PWD-2025-000003">Juan Dela Cruz (PWD-2025-000003)</option>
+                <option value="PWD-2025-000004">Ana Reyes (PWD-2025-000004)</option>
+                <option value="PWD-2025-000005">Pedro Martinez (PWD-2025-000005)</option>
+            </select>
+        </div>
+
+        <div class="card-section">
+            <h3>🆔 Generated PWD ID Card</h3>
+            <div class="id-card" id="idCard">
+                <div class="card-header">
+                    <div>REPUBLIC OF THE PHILIPPINES</div>
+                    <div>PROVINCE OF LAGUNA</div>
+                    <div>CITY OF CABUYAO</div>
+                    <div>(P.D.A.O)</div>
+                </div>
+                
+                <div class="card-body">
+                    <div class="member-info">
+                        <div><strong>NAME:</strong> <span id="memberName">Mel Ivan Mananquil</span></div>
+                        <div><strong>ID No.:</strong> <span id="memberId">PWD-2025-000001</span></div>
+                        <div><strong>TYPE OF DISABILITY:</strong> visual</div>
+                        <div><strong>SIGNATURE:</strong> ________________</div>
+                        <div style="margin-top: 10px; font-size: 8px;">🇵🇭 VALID ANYWHERE IN THE PHILIPPINES</div>
+                    </div>
+                    
+                    <div class="photo-section">
+                        <div class="photo-placeholder">PHOTO</div>
+                        <div class="qr-code" id="qrCodeContainer">
+                            <div id="qrCode"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-buttons">
+            <button onclick="generateQRCode()">🔄 Generate QR Code</button>
+            <button onclick="testScanner()">📱 Test Scanner</button>
+            <button onclick="downloadCard()">💾 Download Card</button>
+        </div>
+
+        <div class="instructions">
+            <h3>🧪 Testing Scenarios:</h3>
+            <ul>
+                <li><strong>Benefit Claiming:</strong> Scan QR code to automatically claim birthday benefits</li>
+                <li><strong>Member Verification:</strong> Verify PWD member identity and eligibility</li>
+                <li><strong>Real-time Processing:</strong> Benefits are marked as "claimed" instantly</li>
+                <li><strong>Multiple Formats:</strong> QR codes contain JSON data with member information</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- QR Code Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <script>
+        // PWD Members data
+        const pwdMembers = {
+            'PWD-2025-000001': {
+                name: 'Mel Ivan Mananquil',
+                barangay: 'N/A',
+                birthDate: '2002-03-15',
+                disabilityType: 'visual'
+            },
+            'PWD-2025-000002': {
+                name: 'Maria Santos',
+                barangay: 'Bigaa',
+                birthDate: '1985-07-20',
+                disabilityType: 'physical'
+            },
+            'PWD-2025-000003': {
+                name: 'Juan Dela Cruz',
+                barangay: 'Butong',
+                birthDate: '1990-03-10',
+                disabilityType: 'hearing'
+            },
+            'PWD-2025-000004': {
+                name: 'Ana Reyes',
+                barangay: 'Marinig',
+                birthDate: '1975-09-25',
+                disabilityType: 'intellectual'
+            },
+            'PWD-2025-000005': {
+                name: 'Pedro Martinez',
+                barangay: 'Gulod',
+                birthDate: '1988-12-05',
+                disabilityType: 'physical'
+            }
+        };
+
+        function updateMemberCard() {
+            const select = document.getElementById('memberSelect');
+            const selectedId = select.value;
+            const member = pwdMembers[selectedId];
+            
+            document.getElementById('memberName').textContent = member.name;
+            document.getElementById('memberId').textContent = selectedId;
+            
+            generateQRCode();
+        }
+
+        function generateQRCode() {
+            const select = document.getElementById('memberSelect');
+            const selectedId = select.value;
+            const member = pwdMembers[selectedId];
+            
+            const memberData = {
+                pwd_id: selectedId,
+                userID: selectedId.replace('PWD-2025-', ''),
+                firstName: member.name.split(' ')[0],
+                lastName: member.name.split(' ').slice(1).join(' '),
+                barangay: member.barangay,
+                disabilityType: member.disabilityType,
+                birthDate: member.birthDate,
+                generatedAt: new Date().toISOString()
+            };
+
+            const qrContainer = document.getElementById('qrCode');
+            qrContainer.innerHTML = '';
+            
+            QRCode.toCanvas(qrContainer, JSON.stringify(memberData), {
+                width: 36,
+                height: 36,
+                margin: 1,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error) {
+                if (error) {
+                    console.error('QR Code generation error:', error);
+                    qrContainer.innerHTML = '<div style="color: red; font-size: 8px;">Error</div>';
+                } else {
+                    console.log('QR Code generated successfully for', selectedId);
+                    console.log('QR Data:', memberData);
+                }
+            });
+        }
+
+        function testScanner() {
+            alert('To test the scanner:\n\n1. Open the PWD system dashboard\n2. Go to Benefit Tracking\n3. Click "Open QR Scanner"\n4. Point the camera at the QR code on the ID card above\n5. Check the console for scan results and benefit claiming');
+        }
+
+        function downloadCard() {
+            // Create a canvas to render the card
+            const card = document.getElementById('idCard');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = card.offsetWidth * 2;
+            canvas.height = card.offsetHeight * 2;
+            
+            // This is a simplified version - in production you'd use html2canvas
+            alert('Download functionality would be implemented with html2canvas library to capture the card as an image.');
+        }
+
+        // Generate QR code on page load
+        window.onload = function() {
+            generateQRCode();
+        };
+    </script>
+</body>
+</html>

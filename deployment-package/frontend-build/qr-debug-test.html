@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Scanner Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2C3E50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .qr-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #E0E0E0;
+            border-radius: 8px;
+            background-color: #F8F9FA;
+            text-align: center;
+        }
+        .qr-code {
+            margin: 20px 0;
+            display: inline-block;
+        }
+        .instructions {
+            background-color: #FFF3CD;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #FFC107;
+            margin: 20px 0;
+        }
+        .test-buttons {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #3498DB;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #2980B9;
+        }
+        .debug-info {
+            background-color: #E8F4FD;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 QR Scanner Debug Test</h1>
+        
+        <div class="instructions">
+            <h3>📋 Debug Instructions:</h3>
+            <ol>
+                <li>Open the PWD system and go to Benefit Tracking</li>
+                <li>Click "Open QR Scanner"</li>
+                <li>Try scanning the QR codes below</li>
+                <li>Check the browser console (F12) for debug messages</li>
+                <li>Look for ✅ or ❌ symbols in the console logs</li>
+            </ol>
+        </div>
+
+        <div class="qr-section">
+            <h3>🧪 Test QR Code 1: Simple JSON</h3>
+            <div class="debug-info">
+                <strong>Expected Data:</strong><br>
+                {"pwd_id":"PWD-2025-000001","userID":"1","firstName":"Mel","lastName":"Ivan Mananquil","barangay":"N/A","disabilityType":"visual","birthDate":"2002-03-15","generatedAt":"2024-01-15T10:30:00.000Z"}
+            </div>
+            <div class="qr-code" id="qr1"></div>
+        </div>
+
+        <div class="qr-section">
+            <h3>🧪 Test QR Code 2: Simple Text</h3>
+            <div class="debug-info">
+                <strong>Expected Data:</strong><br>
+                PWD-2025-000001
+            </div>
+            <div class="qr-code" id="qr2"></div>
+        </div>
+
+        <div class="qr-section">
+            <h3>🧪 Test QR Code 3: URL Format</h3>
+            <div class="debug-info">
+                <strong>Expected Data:</strong><br>
+                https://pwd-system.com/member/PWD-2025-000001
+            </div>
+            <div class="qr-code" id="qr3"></div>
+        </div>
+
+        <div class="test-buttons">
+            <button onclick="generateAllQRCodes()">🔄 Generate All QR Codes</button>
+            <button onclick="testScanner()">📱 Test Scanner</button>
+            <button onclick="showDebugInfo()">🐛 Show Debug Info</button>
+        </div>
+
+        <div class="instructions">
+            <h3>🐛 Debug Information:</h3>
+            <ul>
+                <li><strong>Console Logs:</strong> Check browser console (F12) for detailed scan results</li>
+                <li><strong>QR Data:</strong> Look for "Result data:" in console logs</li>
+                <li><strong>Parse Status:</strong> Look for ✅ (success) or ❌ (error) symbols</li>
+                <li><strong>Camera Access:</strong> Ensure camera permissions are granted</li>
+                <li><strong>HTTPS/Localhost:</strong> QR scanner requires HTTPS or localhost</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- QR Code Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <script>
+        // Test QR Code Data
+        const testData = {
+            qr1: {
+                pwd_id: "PWD-2025-000001",
+                userID: "1",
+                firstName: "Mel",
+                lastName: "Ivan Mananquil",
+                barangay: "N/A",
+                disabilityType: "visual",
+                birthDate: "2002-03-15",
+                generatedAt: new Date().toISOString()
+            },
+            qr2: "PWD-2025-000001",
+            qr3: "https://pwd-system.com/member/PWD-2025-000001"
+        };
+
+        function generateQRCode(elementId, data) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = '';
+            
+            QRCode.toCanvas(element, JSON.stringify(data), {
+                width: 200,
+                height: 200,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                },
+                errorCorrectionLevel: 'M'
+            }, function (error) {
+                if (error) {
+                    console.error('QR Code generation error:', error);
+                    element.innerHTML = '<p style="color: red;">Error generating QR code</p>';
+                } else {
+                    console.log('✅ QR Code generated successfully for', elementId);
+                    console.log('QR Data:', data);
+                }
+            });
+        }
+
+        function generateAllQRCodes() {
+            generateQRCode('qr1', testData.qr1);
+            generateQRCode('qr2', testData.qr2);
+            generateQRCode('qr3', testData.qr3);
+        }
+
+        function testScanner() {
+            alert('To test the scanner:\n\n1. Open the PWD system dashboard\n2. Go to Benefit Tracking\n3. Click "Open QR Scanner"\n4. Point the camera at any QR code above\n5. Check the console (F12) for debug messages\n\nLook for ✅ or ❌ symbols in the console!');
+        }
+
+        function showDebugInfo() {
+            console.log('=== QR SCANNER DEBUG INFO ===');
+            console.log('Test QR Data:', testData);
+            console.log('QR1 (JSON):', JSON.stringify(testData.qr1));
+            console.log('QR2 (Text):', testData.qr2);
+            console.log('QR3 (URL):', testData.qr3);
+            console.log('=============================');
+            alert('Debug information logged to console. Press F12 to view.');
+        }
+
+        // Generate QR codes on page load
+        window.onload = function() {
+            generateAllQRCodes();
+            console.log('QR Scanner Test Page Loaded');
+            console.log('Test QR Data:', testData);
+        };
+    </script>
+</body>
+</html>

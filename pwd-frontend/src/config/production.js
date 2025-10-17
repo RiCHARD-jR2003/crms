@@ -2,9 +2,9 @@
 // Update these URLs to match your Hostinger domain
 
 const PRODUCTION_CONFIG = {
-  // Replace 'yourdomain.com' with your actual domain
-  API_BASE_URL: 'https://yourdomain.com/api',
-  STORAGE_BASE_URL: 'https://yourdomain.com',
+  // Updated for Hostinger temporary domain
+  API_BASE_URL: 'https://lightgoldenrodyellow-ibis-644404.hostingersite.com/api',
+  STORAGE_BASE_URL: 'https://lightgoldenrodyellow-ibis-644404.hostingersite.com',
   
   // Example configurations for different domains:
   // API_BASE_URL: 'https://pwdmanagement.yourdomain.com/api',

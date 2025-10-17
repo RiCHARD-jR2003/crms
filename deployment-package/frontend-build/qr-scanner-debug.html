@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Scanner Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .qr-code {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .debug-info {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #video {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 QR Scanner Debug Test</h1>
+        
+        <div class="test-section">
+            <h3>📱 Camera Access Test</h3>
+            <button onclick="testCameraAccess()">Test Camera Access</button>
+            <div id="cameraStatus" class="status info">Click "Test Camera Access" to check camera permissions</div>
+            <video id="video" autoplay playsinline></video>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 QR Scanner Test</h3>
+            <button onclick="startQRScanner()">Start QR Scanner</button>
+            <button onclick="stopQRScanner()">Stop QR Scanner</button>
+            <div id="scannerStatus" class="status info">Click "Start QR Scanner" to begin scanning</div>
+            <div id="scanResults" class="debug-info"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📄 Test QR Codes</h3>
+            <p>Try scanning these test QR codes:</p>
+            
+            <div class="qr-code">
+                <h4>Simple Text QR Code</h4>
+                <div id="simpleQR"></div>
+                <p><strong>Content:</strong> "Hello World"</p>
+            </div>
+
+            <div class="qr-code">
+                <h4>PWD ID QR Code</h4>
+                <div id="pwdQR"></div>
+                <p><strong>Content:</strong> PWD-2025-000001</p>
+            </div>
+
+            <div class="qr-code">
+                <h4>JSON QR Code</h4>
+                <div id="jsonQR"></div>
+                <p><strong>Content:</strong> {"pwd_id":"PWD-2025-000001","userID":"1","firstName":"John","lastName":"Doe"}</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>💻 PC-Specific Tips</h3>
+            <div class="status info">
+                <strong>For PC/Desktop Users:</strong><br>
+                • Hold QR code 6-12 inches from webcam<br>
+                • Ensure good lighting (avoid shadows)<br>
+                • Keep QR code steady and centered<br>
+                • Use external webcam if built-in camera is poor<br>
+                • Try different browsers (Chrome, Firefox, Edge)<br>
+                • Make sure QR code fills at least 1/3 of camera view<br>
+                • If scanning fails, use the manual input option below
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Debug Information</h3>
+            <button onclick="showDebugInfo()">Show Debug Info</button>
+            <div id="debugInfo" class="debug-info"></div>
+        </div>
+    </div>
+
+    <!-- Include QR Code generation library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <!-- Include QR Scanner library -->
+    <script src="https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+
+    <script>
+        let qrScanner = null;
+        let cameraStream = null;
+
+        // Generate test QR codes
+        function generateTestQRCodes() {
+            // Simple text QR code
+            QRCode.toCanvas(document.createElement('canvas'), 'Hello World', {
+                width: 200,
+                height: 200,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error, canvas) {
+                if (error) console.error('Simple QR error:', error);
+                else {
+                    document.getElementById('simpleQR').appendChild(canvas);
+                }
+            });
+
+            // PWD ID QR code
+            QRCode.toCanvas(document.createElement('canvas'), 'PWD-2025-000001', {
+                width: 200,
+                height: 200,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error, canvas) {
+                if (error) console.error('PWD QR error:', error);
+                else {
+                    document.getElementById('pwdQR').appendChild(canvas);
+                }
+            });
+
+            // JSON QR code
+            const jsonData = JSON.stringify({
+                pwd_id: "PWD-2025-000001",
+                userID: "1",
+                firstName: "John",
+                lastName: "Doe"
+            });
+            
+            QRCode.toCanvas(document.createElement('canvas'), jsonData, {
+                width: 200,
+                height: 200,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error, canvas) {
+                if (error) console.error('JSON QR error:', error);
+                else {
+                    document.getElementById('jsonQR').appendChild(canvas);
+                }
+            });
+        }
+
+        // Test camera access
+        async function testCameraAccess() {
+            const statusDiv = document.getElementById('cameraStatus');
+            const video = document.getElementById('video');
+            
+            try {
+                statusDiv.className = 'status info';
+                statusDiv.textContent = 'Testing camera access...';
+                
+                // Check if getUserMedia is supported
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('getUserMedia not supported');
+                }
+
+                // Detect if mobile or PC
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                
+                let stream;
+                if (isMobile) {
+                    // For mobile, try back camera first
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'environment', // Back camera
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    });
+                } else {
+                    // For PC, use any available camera with better settings
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            width: { ideal: 1920, min: 640 },
+                            height: { ideal: 1080, min: 480 },
+                            frameRate: { ideal: 30, min: 15 }
+                        }
+                    });
+                }
+
+                cameraStream = stream;
+                video.srcObject = stream;
+                
+                statusDiv.className = 'status success';
+                statusDiv.textContent = `✅ Camera access successful! ${isMobile ? 'Back camera' : 'Webcam'} is active.`;
+                
+            } catch (error) {
+                console.error('Camera access error:', error);
+                statusDiv.className = 'status error';
+                
+                switch (error.name) {
+                    case 'NotAllowedError':
+                        statusDiv.textContent = '❌ Camera access denied. Please allow camera permissions.';
+                        break;
+                    case 'NotFoundError':
+                        statusDiv.textContent = '❌ No camera found on this device.';
+                        break;
+                    case 'NotSupportedError':
+                        statusDiv.textContent = '❌ Camera not supported. Please use a modern browser.';
+                        break;
+                    default:
+                        statusDiv.textContent = `❌ Camera error: ${error.message}`;
+                }
+            }
+        }
+
+        // Start QR scanner
+        async function startQRScanner() {
+            const statusDiv = document.getElementById('scannerStatus');
+            const video = document.getElementById('video');
+            const resultsDiv = document.getElementById('scanResults');
+            
+            try {
+                statusDiv.className = 'status info';
+                statusDiv.textContent = 'Starting QR scanner...';
+                
+                // Stop existing scanner
+                if (qrScanner) {
+                    qrScanner.stop();
+                    qrScanner.destroy();
+                }
+
+                // Detect if mobile or PC
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                
+                // Create new QR scanner
+                qrScanner = new QrScanner(
+                    video,
+                    (result) => {
+                        console.log('🎯 QR Code scanned:', result);
+                        resultsDiv.textContent += `\n🎯 QR Code scanned: ${result.data}\n`;
+                        resultsDiv.textContent += `📄 QR Code format: ${typeof result.data}\n`;
+                        resultsDiv.textContent += `📏 QR Code length: ${result.data.length}\n`;
+                        
+                        // Try to parse as JSON
+                        try {
+                            const jsonData = JSON.parse(result.data);
+                            resultsDiv.textContent += `✅ Successfully parsed as JSON: ${JSON.stringify(jsonData, null, 2)}\n`;
+                        } catch (parseError) {
+                            resultsDiv.textContent += `❌ Failed to parse as JSON: ${parseError.message}\n`;
+                        }
+                        
+                        resultsDiv.textContent += '---\n';
+                        resultsDiv.scrollTop = resultsDiv.scrollHeight;
+                    },
+                    {
+                        onDecodeError: (error) => {
+                            // Only log occasionally to avoid spam
+                            if (Math.random() < 0.01) {
+                                console.log('Decode error (normal):', error.message);
+                            }
+                        },
+                        highlightScanRegion: true,
+                        highlightCodeOutline: true,
+                        preferredCamera: isMobile ? 'environment' : undefined,
+                        maxScansPerSecond: isMobile ? 30 : 20,
+                        returnDetailedScanResult: true,
+                        calculateScanRegion: (video) => {
+                            const smallerDimension = Math.min(video.videoWidth, video.videoHeight);
+                            const scanRegionSize = Math.round(isMobile ? 0.7 : 0.8 * smallerDimension);
+                            return {
+                                x: Math.round((video.videoWidth - scanRegionSize) / 2),
+                                y: Math.round((video.videoHeight - scanRegionSize) / 2),
+                                width: scanRegionSize,
+                                height: scanRegionSize,
+                            };
+                        }
+                    }
+                );
+
+                await qrScanner.start();
+                
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ QR Scanner started successfully! Point camera at QR codes to scan.';
+                
+            } catch (error) {
+                console.error('QR Scanner error:', error);
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ QR Scanner error: ${error.message}`;
+            }
+        }
+
+        // Stop QR scanner
+        function stopQRScanner() {
+            const statusDiv = document.getElementById('scannerStatus');
+            
+            if (qrScanner) {
+                qrScanner.stop();
+                qrScanner.destroy();
+                qrScanner = null;
+            }
+            
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+            
+            const video = document.getElementById('video');
+            video.srcObject = null;
+            
+            statusDiv.className = 'status info';
+            statusDiv.textContent = 'QR Scanner stopped.';
+        }
+
+        // Show debug information
+        function showDebugInfo() {
+            const debugDiv = document.getElementById('debugInfo');
+            
+            const debugInfo = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                cookieEnabled: navigator.cookieEnabled,
+                onLine: navigator.onLine,
+                mediaDevices: !!navigator.mediaDevices,
+                getUserMedia: !!navigator.mediaDevices?.getUserMedia,
+                protocol: location.protocol,
+                hostname: location.hostname,
+                href: location.href,
+                screen: {
+                    width: screen.width,
+                    height: screen.height,
+                    availWidth: screen.availWidth,
+                    availHeight: screen.availHeight
+                },
+                window: {
+                    innerWidth: window.innerWidth,
+                    innerHeight: window.innerHeight
+                }
+            };
+            
+            debugDiv.textContent = JSON.stringify(debugInfo, null, 2);
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            generateTestQRCodes();
+            showDebugInfo();
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopQRScanner();
+        });
+    </script>
+</body>
+</html>

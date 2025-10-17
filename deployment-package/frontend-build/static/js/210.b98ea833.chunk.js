@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkpwd_frontend=self.webpackChunkpwd_frontend||[]).push([[210],{5829:(e,s,n)=>{n.d(s,{ScreenReaderWeb:()=>t});var a=n(5403);class t extends a.E_{async isEnabled(){throw this.unavailable("This feature is not available in the browser.")}async speak(e){if(!("speechSynthesis"in window))throw this.unavailable("Browser does not support the SpeechSynthesis API");const s=new SpeechSynthesisUtterance(e.value);e.language&&(s.lang=e.language),speechSynthesis.speak(s)}}}}]);
+//# sourceMappingURL=210.b98ea833.chunk.js.map
