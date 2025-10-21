@@ -64,6 +64,19 @@ function MemberDocumentUpload() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
   
   // Dialog states
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -380,7 +393,7 @@ function MemberDocumentUpload() {
                         {memberDoc ? (
                           <>
                             <Typography variant="caption" color="text.secondary">
-                              {t('documents.uploadDate')}: {new Date(memberDoc.uploaded_at).toLocaleDateString()}
+                              {t('documents.uploadDate')}: {formatDateMMDDYYYY(memberDoc.uploaded_at)}
                             </Typography>
                             {memberDoc.notes && (
                               <>

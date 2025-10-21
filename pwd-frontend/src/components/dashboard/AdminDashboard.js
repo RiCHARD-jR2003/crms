@@ -25,6 +25,7 @@ import {
   CircularProgress,
   Alert,
 } from '@mui/material';
+import toastService from '../../services/toastService';
 import {
   Dashboard as DashboardIcon,
   People as PeopleIcon,
@@ -120,7 +121,12 @@ function AdminDashboard() {
   };
 
   const handleMigrateDocuments = async () => {
-    if (!window.confirm('This will migrate all application documents to the member documents system. Are you sure you want to continue?')) {
+    const confirmed = await toastService.confirmAsync(
+      'Confirm Document Migration',
+      'This will migrate all application documents to the member documents system. Are you sure you want to continue?'
+    );
+    
+    if (!confirmed) {
       return;
     }
 
@@ -128,14 +134,14 @@ function AdminDashboard() {
     try {
       const response = await api.post('/admin/migrate-documents');
       if (response.success) {
-        alert(`Migration completed successfully!\nMigrated ${response.data.migrated_documents} documents\nSkipped ${response.data.skipped_applications} applications`);
+        toastService.success(`Migration completed successfully!\nMigrated ${response.data.migrated_documents} documents\nSkipped ${response.data.skipped_applications} applications`);
         await fetchMigrationStatus();
       } else {
-        alert('Migration failed: ' + response.message);
+        toastService.error('Migration failed: ' + response.message);
       }
     } catch (error) {
       console.error('Error migrating documents:', error);
-      alert('Migration failed: ' + (error.response?.data?.message || error.message));
+      toastService.error('Migration failed: ' + (error.response?.data?.message || error.message));
     } finally {
       setMigrating(false);
     }

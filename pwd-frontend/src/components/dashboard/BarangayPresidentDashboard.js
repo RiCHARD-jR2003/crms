@@ -77,6 +77,19 @@ function BarangayPresidentDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -185,7 +198,7 @@ function BarangayPresidentDashboard() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CalendarToday sx={{ color: '#000000', fontSize: 20 }} />
             <Typography variant="body2" sx={{ color: '#000000' }}>
-              {new Date().toLocaleDateString()}
+              {formatDateMMDDYYYY(new Date().toISOString())}
             </Typography>
           </Box>
         </Box>
@@ -436,7 +449,7 @@ function BarangayPresidentDashboard() {
                           />
                         </TableCell>
                         <TableCell sx={{ color: '#000000', fontSize: '1rem' }}>
-                          {new Date(application.created_at).toLocaleDateString()}
+                          {formatDateMMDDYYYY(application.created_at)}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -491,7 +504,7 @@ function BarangayPresidentDashboard() {
                             }
                             secondary={
                               <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.9rem' }}>
-                                {new Date(announcement.created_at).toLocaleDateString()}
+                                {formatDateMMDDYYYY(announcement.created_at)}
                               </Typography>
                             }
                           />

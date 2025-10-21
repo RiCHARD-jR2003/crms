@@ -191,6 +191,61 @@ class EmailService
     }
 
     /**
+     * Send document correction request email
+     *
+     * @param string $email
+     * @param string $applicantName
+     * @param array $documentsToCorrect
+     * @param string $notes
+     * @param string $correctionToken
+     * @return bool
+     */
+    public static function sendCorrectionRequestEmail($email, $applicantName, $documentsToCorrect, $notes, $correctionToken)
+    {
+        $emailData = [
+            'applicantName' => $applicantName,
+            'documentsToCorrect' => $documentsToCorrect,
+            'notes' => $notes,
+            'correctionUrl' => config('app.frontend_url', 'http://localhost:3000') . '/document-correction/' . $correctionToken,
+            'expiryDays' => 7
+        ];
+
+        $subject = 'Document Correction Required - PWD Application';
+        $to = $email;
+
+        Log::info('Attempting to send correction request email', [
+            'to' => $to,
+            'applicantName' => $applicantName,
+            'documentsCount' => count($documentsToCorrect)
+        ]);
+
+        // Try SMTP first
+        try {
+            Mail::send('emails.document-correction-request', $emailData, function ($message) use ($to, $subject) {
+                $message->to($to)
+                       ->subject($subject)
+                       ->from('sarinonhoelivan29@gmail.com', 'Cabuyao PDAO RMS');
+            });
+
+            Log::info('Document correction request email sent via SMTP', [
+                'to' => $to,
+                'applicantName' => $applicantName
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send document correction request email', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+                'applicantName' => $applicantName
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
      * Get Gmail service instance for OAuth operations
      *
      * @return GmailService

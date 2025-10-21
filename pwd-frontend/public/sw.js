@@ -1,5 +1,5 @@
 // public/sw.js
-const CACHE_NAME = 'pwd-system-v2';
+const CACHE_NAME = 'pwd-system-v3'; // Updated cache version
 const urlsToCache = [
   '/static/js/bundle.js',
   '/static/css/main.css',
@@ -25,6 +25,27 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   // Skip caching for API requests to avoid fetch issues
   if (event.request.url.includes('/api/')) {
+    return;
+  }
+  
+  // For JavaScript and CSS files, always fetch from network first in development
+  if (event.request.url.includes('/static/js/') || event.request.url.includes('/static/css/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Cache the fresh response
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME)
+            .then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          return response;
+        })
+        .catch(() => {
+          // If network fails, try cache as fallback
+          return caches.match(event.request);
+        })
+    );
     return;
   }
   

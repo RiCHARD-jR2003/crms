@@ -45,8 +45,8 @@ import { useModal } from '../../hooks/useModal';
 
 const steps = [
   'Personal Information',
+  'Address',
   'Disability Details',
-  'Guardian Information',
   'Documents'
 ];
 
@@ -105,6 +105,19 @@ function ApplicationForm() {
       fontWeight: 500
     }
   });
+
+  // Format date as DD/MM/YYYY for disability onset
+  const formatDateDDMMYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${day}/${month}/${year}`;
+  };
 
   // Reusable styling for select fields
   const getSelectStyles = (hasError = false) => ({
@@ -220,12 +233,7 @@ function ApplicationForm() {
     try {
       const checkData = { [field]: value };
       
-      // Add name and birth date if available for comprehensive checking
-      if (formData.firstName && formData.lastName && formData.dateOfBirth) {
-        checkData.firstName = formData.firstName;
-        checkData.lastName = formData.lastName;
-        checkData.dateOfBirth = formData.dateOfBirth;
-      }
+      // Note: Removed name and birth date from duplicate checking as members can have identical birth dates
       
       const response = await api.post('/applications/check-duplicates', checkData, { auth: false });
       
@@ -358,23 +366,22 @@ function ApplicationForm() {
     
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
-    const currentYear = today.getFullYear();
-    const birthYear = birthDate.getFullYear();
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
     
     // Check if date is in the future
     if (birthDate > today) {
       return 'Date of birth cannot be in the future';
     }
     
+    // Check if person is too young (less than 1 year old)
+    if (birthDate > oneYearAgo) {
+      return 'Must be at least 1 year old to apply for PWD ID';
+    }
+    
     // Check if person is too old (more than 120 years)
     const age = calculateAge(dateOfBirth);
     if (age > 120) {
       return 'Please enter a valid date of birth (maximum age is 120 years)';
-    }
-    
-    // Check if person is too young (less than 1 year old)
-    if (age < 1) {
-      return 'Please enter a valid date of birth (minimum age is 1 year)';
     }
     
     return null; // No error
@@ -418,18 +425,30 @@ function ApplicationForm() {
     const currentErrors = {};
     
     switch (activeStep) {
-      case 0: // Personal Information
-        if (!formData.firstName) currentErrors.firstName = 'First Name is required';
-        if (!formData.lastName) currentErrors.lastName = 'Last Name is required';
+       case 0: // Personal Information
+         if (!formData.firstName) currentErrors.firstName = 'First Name is required';
+         if (!formData.middleName) currentErrors.middleName = 'Middle Name is required';
+         if (!formData.lastName) currentErrors.lastName = 'Last Name is required';
+         if (!formData.phoneNumber) currentErrors.phoneNumber = 'Phone Number is required';
+         if (!formData.email) currentErrors.email = 'Email is required';
+         if (!formData.confirmEmail) currentErrors.confirmEmail = 'Please confirm your email';
+         if (formData.email && formData.confirmEmail && formData.email !== formData.confirmEmail) {
+           currentErrors.confirmEmail = 'Email addresses do not match';
+         }
+         if (!formData.emergencyContact) currentErrors.emergencyContact = 'Guardian Name is required';
+         
+         // Validate date of birth with comprehensive checks
+         const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
+         if (dateOfBirthError) currentErrors.dateOfBirth = dateOfBirthError;
+         
+         if (!formData.gender) currentErrors.gender = 'Gender is required';
+         break;
         
-        // Validate date of birth with comprehensive checks
-        const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
-        if (dateOfBirthError) currentErrors.dateOfBirth = dateOfBirthError;
-        
-        if (!formData.gender) currentErrors.gender = 'Gender is required';
+      case 1: // Address
+        if (!formData.address) currentErrors.address = 'Complete Address is required';
         break;
         
-      case 1: // Disability Details
+      case 2: // Disability Details
         if (!formData.disabilityType) currentErrors.disabilityType = 'Type of Disability is required';
         
         // Validate disability date if provided
@@ -437,12 +456,6 @@ function ApplicationForm() {
           const disabilityDateError = validateDisabilityDate(formData.disabilityDate);
           if (disabilityDateError) currentErrors.disabilityDate = disabilityDateError;
         }
-        break;
-        
-      case 2: // Guardian Information
-        if (!formData.address) currentErrors.address = 'Complete Address is required';
-        if (!formData.phoneNumber) currentErrors.phoneNumber = 'Phone Number is required';
-        if (!formData.email) currentErrors.email = 'Email is required';
         break;
         
       case 3: // Documents
@@ -530,7 +543,7 @@ function ApplicationForm() {
 
       // Check for required fields - only the fields that backend expects
       const requiredFields = [
-        'firstName', 'lastName', 'birthDate', 'gender', 'disabilityType', 
+        'firstName', 'middleName', 'lastName', 'birthDate', 'gender', 'disabilityType', 
         'address', 'email', 'contactNumber', 'idType', 'idNumber'
       ];
       const missingFields = requiredFields.filter(field => !fieldMapping[field]);
@@ -675,9 +688,7 @@ function ApplicationForm() {
         if (d.phoneNumber) {
           lines.push(`Phone number already used by ${d.phoneNumber.existing_application?.name || ''}`);
         }
-        if (d.name_birth) {
-          lines.push(`Same name and date of birth as ${d.name_birth.existing_application?.name || ''}`);
-        }
+        // Note: Removed name_birth duplicate check as members can have identical birth dates
         if (d.idNumber) {
           lines.push(`ID number already used by ${d.idNumber.existing_application?.name || ''}`);
         }
@@ -815,36 +826,86 @@ function ApplicationForm() {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Middle Name"
-                  value={formData.middleName}
-                  onChange={(e) => handleInputChange('middleName', e.target.value)}
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  sx={getTextFieldStyles()}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  type="date"
-                  label="Date of Birth"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  error={!!errors.dateOfBirth}
-                  helperText={errors.dateOfBirth}
-                  required
-                  inputProps={{
-                    max: new Date(new Date().getFullYear() - 1, 11, 31).toISOString().split('T')[0], // Last day of previous year
-                    min: new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0] // First day 120 years ago
-                  }}
-                  sx={getTextFieldStyles(!!errors.dateOfBirth)}
-                />
-              </Grid>
+               <Grid item xs={12} sm={6}>
+                 <TextField
+                   fullWidth
+                   label="Middle Name"
+                   value={formData.middleName}
+                   onChange={(e) => handleInputChange('middleName', e.target.value)}
+                   InputLabelProps={{
+                     shrink: true,
+                   }}
+                   required
+                   error={!!errors.middleName}
+                   helperText={errors.middleName}
+                   sx={getTextFieldStyles(!!errors.middleName)}
+                 />
+               </Grid>
+               <Grid item xs={12} sm={6}>
+                 <TextField
+                   fullWidth
+                   label="Phone Number"
+                   value={formData.phoneNumber}
+                   onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                   error={!!errors.phoneNumber || !!duplicateErrors.phoneNumber}
+                   helperText={errors.phoneNumber || duplicateErrors.phoneNumber}
+                   required
+                   InputLabelProps={{
+                     shrink: true,
+                   }}
+                   sx={getTextFieldStyles(!!errors.phoneNumber || !!duplicateErrors.phoneNumber)}
+                 />
+               </Grid>
+               <Grid item xs={12} sm={6}>
+                 <TextField
+                   fullWidth
+                   label="Email Address"
+                   type="email"
+                   value={formData.email}
+                   onChange={(e) => handleInputChange('email', e.target.value)}
+                   error={!!errors.email || !!duplicateErrors.email}
+                   helperText={errors.email || duplicateErrors.email}
+                   required
+                   InputLabelProps={{
+                     shrink: true,
+                   }}
+                   sx={getTextFieldStyles(!!errors.email || !!duplicateErrors.email)}
+                 />
+               </Grid>
+               <Grid item xs={12} sm={6}>
+                 <TextField
+                   fullWidth
+                   label="Confirm Email Address"
+                   type="email"
+                   value={formData.confirmEmail}
+                   onChange={(e) => handleInputChange('confirmEmail', e.target.value)}
+                   error={!!errors.confirmEmail}
+                   helperText={errors.confirmEmail}
+                   required
+                   InputLabelProps={{
+                     shrink: true,
+                   }}
+                   sx={getTextFieldStyles(!!errors.confirmEmail)}
+                 />
+               </Grid>
+               <Grid item xs={12} sm={6}>
+                 <TextField
+                   fullWidth
+                   type="date"
+                   label="Date of Birth"
+                   value={formData.dateOfBirth}
+                   onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                   InputLabelProps={{ shrink: true }}
+                   error={!!errors.dateOfBirth}
+                   helperText={errors.dateOfBirth || "Must be at least 1 year old (cannot be today or future dates)"}
+                   required
+                   inputProps={{
+                     max: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Exactly 1 year ago
+                     min: new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0] // First day 120 years ago
+                   }}
+                   sx={getTextFieldStyles(!!errors.dateOfBirth)}
+                 />
+               </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth required error={!!errors.gender}>
                    <InputLabel 
@@ -956,18 +1017,33 @@ function ApplicationForm() {
                     </Select>
                   </FormControl>
                 </Grid>
-                              <Grid item xs={12} sm={6}>
-                 <TextField
-                   fullWidth
-                   label="Nationality"
-                   value={formData.nationality}
-                   onChange={(e) => handleInputChange('nationality', e.target.value)}
-                   InputLabelProps={{
-                     shrink: true,
-                   }}
-                   sx={getTextFieldStyles()}
-                 />
-                </Grid>
+                               <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Nationality"
+                    value={formData.nationality}
+                    onChange={(e) => handleInputChange('nationality', e.target.value)}
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                    sx={getTextFieldStyles()}
+                  />
+                 </Grid>
+                 <Grid item xs={12} sm={6}>
+                   <TextField
+                     fullWidth
+                     label="Guardian Name"
+                     value={formData.emergencyContact}
+                     onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
+                     error={!!errors.emergencyContact}
+                     helperText={errors.emergencyContact}
+                     required
+                     InputLabelProps={{
+                       shrink: true,
+                     }}
+                     sx={getTextFieldStyles(!!errors.emergencyContact)}
+                   />
+                 </Grid>
             </Grid>
           </Box>
         );
@@ -981,122 +1057,7 @@ function ApplicationForm() {
               fontWeight: 700,
               fontSize: '1.5rem'
             }}>
-              Disability Details
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <FormControl fullWidth required error={!!errors.disabilityType}>
-                  <InputLabel 
-                    shrink={true}
-                    sx={{ 
-                      color: errors.disabilityType ? '#E74C3C' : '#2C3E50',
-                      fontWeight: 500,
-                      fontSize: '0.95rem',
-                      backgroundColor: 'white',
-                      px: 1,
-                      transform: 'translate(14px, -9px) scale(0.75)',
-                      '&.Mui-focused': {
-                        color: errors.disabilityType ? '#E74C3C' : '#0b87ac'
-                      }
-                    }}
-                  >
-                    Type of Disability
-                  </InputLabel>
-                  <Select
-                    value={formData.disabilityType}
-                    onChange={(e) => handleInputChange('disabilityType', e.target.value)}
-                    sx={getSelectStyles(!!errors.disabilityType)}
-                    MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          backgroundColor: '#FFFFFF',
-                          border: '1px solid #e9ecef',
-                          borderRadius: 3,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                          '& .MuiMenuItem-root': {
-                            color: '#2C3E50',
-                            fontSize: '0.95rem',
-                            '&:hover': {
-                              backgroundColor: '#f8f9fa',
-                            },
-                            '&.Mui-selected': {
-                              backgroundColor: '#0b87ac',
-                              color: '#FFFFFF',
-                              '&:hover': {
-                                backgroundColor: '#0a6b8a',
-                              },
-                            },
-                          },
-                        }
-                      }
-                    }}
-                  >
-                    <MenuItem value="Visual Impairment">Visual Impairment</MenuItem>
-                    <MenuItem value="Hearing Impairment">Hearing Impairment</MenuItem>
-                    <MenuItem value="Speech and Language Impairment">Speech and Language Impairment</MenuItem>
-                    <MenuItem value="Intellectual Disability">Intellectual Disability</MenuItem>
-                    <MenuItem value="Mental Health Condition">Mental Health Condition</MenuItem>
-                    <MenuItem value="Learning Disability">Learning Disability</MenuItem>
-                    <MenuItem value="Psychosocial Disability">Psychosocial Disability</MenuItem>
-                    <MenuItem value="Autism Spectrum Disorder">Autism Spectrum Disorder</MenuItem>
-                    <MenuItem value="ADHD">ADHD</MenuItem>
-                    <MenuItem value="Physical Disability">Physical Disability</MenuItem>
-                    <MenuItem value="Orthopedic/Physical Disability">Orthopedic/Physical Disability</MenuItem>
-                    <MenuItem value="Chronic Illness">Chronic Illness</MenuItem>
-                    <MenuItem value="Multiple Disabilities">Multiple Disabilities</MenuItem>
-                  </Select>
-                  {errors.disabilityType && (
-                    <FormHelperText sx={{ color: '#E74C3C', fontSize: '0.8rem', fontWeight: 500 }}>
-                      {errors.disabilityType}
-                    </FormHelperText>
-                  )}
-                </FormControl>
-              </Grid>
-                             <Grid item xs={12}>
-                 <TextField
-                   fullWidth
-                   label="Cause of Disability"
-                   value={formData.disabilityCause}
-                   onChange={(e) => handleInputChange('disabilityCause', e.target.value)}
-                   multiline
-                   rows={3}
-                   InputLabelProps={{
-                     shrink: true,
-                   }}
-                   sx={getTextFieldStyles()}
-                 />
-               </Grid>
-               <Grid item xs={12} sm={6}>
-                 <TextField
-                   fullWidth
-                   type="date"
-                   label="Date of Disability Onset"
-                   value={formData.disabilityDate}
-                   onChange={(e) => handleInputChange('disabilityDate', e.target.value)}
-                   InputLabelProps={{ shrink: true }}
-                   error={!!errors.disabilityDate}
-                   helperText={errors.disabilityDate}
-                   inputProps={{
-                     max: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 weeks ago
-                     min: new Date(new Date().getFullYear() - 100, 0, 1).toISOString().split('T')[0] // 100 years ago
-                   }}
-                   sx={getTextFieldStyles(!!errors.disabilityDate)}
-                 />
-               </Grid>
-            </Grid>
-          </Box>
-        );
-
-      case 2:
-        return (
-          <Box>
-            <Typography variant="h5" sx={{ 
-              mb: 3, 
-              color: '#2C3E50',
-              fontWeight: 700,
-              fontSize: '1.5rem'
-            }}>
-              Guardian Information
+              Address
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12}>
@@ -1220,43 +1181,98 @@ function ApplicationForm() {
                    sx={getTextFieldStyles()}
                  />
                </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Phone Number"
-                  value={formData.phoneNumber}
-                  onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                  error={!!errors.phoneNumber || !!duplicateErrors.phoneNumber}
-                  helperText={errors.phoneNumber || duplicateErrors.phoneNumber}
-                  required
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  sx={getTextFieldStyles(!!errors.phoneNumber || !!duplicateErrors.phoneNumber)}
-                />
+            </Grid>
+          </Box>
+        );
+
+      case 2:
+        return (
+          <Box>
+            <Typography variant="h5" sx={{ 
+              mb: 3, 
+              color: '#2C3E50',
+              fontWeight: 700,
+              fontSize: '1.5rem'
+            }}>
+              Disability Details
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <FormControl fullWidth required error={!!errors.disabilityType}>
+                  <InputLabel 
+                    shrink={true}
+                    sx={{ 
+                      color: errors.disabilityType ? '#E74C3C' : '#2C3E50',
+                      fontWeight: 500,
+                      fontSize: '0.95rem',
+                      backgroundColor: 'white',
+                      px: 1,
+                      transform: 'translate(14px, -9px) scale(0.75)',
+                      '&.Mui-focused': {
+                        color: errors.disabilityType ? '#E74C3C' : '#0b87ac'
+                      }
+                    }}
+                  >
+                    Type of Disability
+                  </InputLabel>
+                  <Select
+                    value={formData.disabilityType}
+                    onChange={(e) => handleInputChange('disabilityType', e.target.value)}
+                    sx={getSelectStyles(!!errors.disabilityType)}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid #e9ecef',
+                          borderRadius: 3,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          '& .MuiMenuItem-root': {
+                            color: '#2C3E50',
+                            fontSize: '0.95rem',
+                            '&:hover': {
+                              backgroundColor: '#f8f9fa',
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: '#0b87ac',
+                              color: '#FFFFFF',
+                              '&:hover': {
+                                backgroundColor: '#0a6b8a',
+                              },
+                            },
+                          },
+                        }
+                      }
+                    }}
+                  >
+                    <MenuItem value="Visual Impairment">Visual Impairment</MenuItem>
+                    <MenuItem value="Hearing Impairment">Hearing Impairment</MenuItem>
+                    <MenuItem value="Speech and Language Impairment">Speech and Language Impairment</MenuItem>
+                    <MenuItem value="Intellectual Disability">Intellectual Disability</MenuItem>
+                    <MenuItem value="Mental Health Condition">Mental Health Condition</MenuItem>
+                    <MenuItem value="Learning Disability">Learning Disability</MenuItem>
+                    <MenuItem value="Psychosocial Disability">Psychosocial Disability</MenuItem>
+                    <MenuItem value="Autism Spectrum Disorder">Autism Spectrum Disorder</MenuItem>
+                    <MenuItem value="ADHD">ADHD</MenuItem>
+                    <MenuItem value="Physical Disability">Physical Disability</MenuItem>
+                    <MenuItem value="Orthopedic/Physical Disability">Orthopedic/Physical Disability</MenuItem>
+                    <MenuItem value="Chronic Illness">Chronic Illness</MenuItem>
+                    <MenuItem value="Multiple Disabilities">Multiple Disabilities</MenuItem>
+                  </Select>
+                  {errors.disabilityType && (
+                    <FormHelperText sx={{ color: '#E74C3C', fontSize: '0.8rem', fontWeight: 500 }}>
+                      {errors.disabilityType}
+                    </FormHelperText>
+                  )}
+                </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  error={!!errors.email || !!duplicateErrors.email}
-                  helperText={errors.email || duplicateErrors.email}
-                  required
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  sx={getTextFieldStyles(!!errors.email || !!duplicateErrors.email)}
-                />
-              </Grid>
-                             <Grid item xs={12} sm={6}>
+                             <Grid item xs={12}>
                  <TextField
                    fullWidth
-                   label="Guardian Name"
-                   value={formData.emergencyContact}
-                   onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
+                   label="Cause of Disability"
+                   value={formData.disabilityCause}
+                   onChange={(e) => handleInputChange('disabilityCause', e.target.value)}
+                   multiline
+                   rows={3}
                    InputLabelProps={{
                      shrink: true,
                    }}
@@ -1266,61 +1282,30 @@ function ApplicationForm() {
                <Grid item xs={12} sm={6}>
                  <TextField
                    fullWidth
-                   label="Guardian's Phone Number"
-                   value={formData.emergencyPhone}
-                   onChange={(e) => handleInputChange('emergencyPhone', e.target.value)}
-                   InputLabelProps={{
-                     shrink: true,
+                   type="text"
+                   label="Date of Disability Onset (DD/MM/YYYY)"
+                   placeholder="DD/MM/YYYY"
+                   value={formData.disabilityDate ? formatDateDDMMYYYY(formData.disabilityDate) : ''}
+                   onChange={(e) => {
+                     const value = e.target.value;
+                     // Convert DD/MM/YYYY to YYYY-MM-DD for storage
+                     if (value && value.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+                       const [day, month, year] = value.split('/');
+                       const isoDate = `${year}-${month}-${day}`;
+                       handleInputChange('disabilityDate', isoDate);
+                     } else if (value === '') {
+                       handleInputChange('disabilityDate', '');
+                     }
                    }}
-                   sx={getTextFieldStyles()}
+                   InputLabelProps={{ shrink: true }}
+                   error={!!errors.disabilityDate}
+                   helperText={errors.disabilityDate || "Format: DD/MM/YYYY (e.g., 15/01/2020)"}
+                   inputProps={{
+                     maxLength: 10,
+                     pattern: "\\d{2}/\\d{2}/\\d{4}"
+                   }}
+                   sx={getTextFieldStyles(!!errors.disabilityDate)}
                  />
-               </Grid>
-               <Grid item xs={12} sm={6}>
-                 <FormControl fullWidth sx={getSelectStyles()}>
-                   <InputLabel shrink>Relationship to Guardian</InputLabel>
-                   <Select
-                     value={formData.emergencyRelationship}
-                     onChange={(e) => handleInputChange('emergencyRelationship', e.target.value)}
-                     label="Relationship to Guardian"
-                     displayEmpty
-                     MenuProps={{
-                       PaperProps: {
-                         sx: {
-                           backgroundColor: '#FFFFFF',
-                           border: '1px solid #e9ecef',
-                           borderRadius: 3,
-                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                           '& .MuiMenuItem-root': {
-                             backgroundColor: '#FFFFFF',
-                             color: '#2C3E50',
-                             fontSize: '0.95rem',
-                             '&:hover': {
-                               backgroundColor: '#f8f9fa',
-                             },
-                             '&.Mui-selected': {
-                               backgroundColor: '#f8f9fa',
-                               color: '#2C3E50',
-                               '&:hover': {
-                                 backgroundColor: '#e9ecef',
-                               },
-                             },
-                           },
-                         }
-                       }
-                     }}
-                   >
-                     <MenuItem value="">Select Relationship</MenuItem>
-                     <MenuItem value="Parent">Parent</MenuItem>
-                     <MenuItem value="Sibling">Sibling</MenuItem>
-                     <MenuItem value="Spouse">Spouse</MenuItem>
-                     <MenuItem value="Child">Child</MenuItem>
-                     <MenuItem value="Friend">Friend</MenuItem>
-                     <MenuItem value="Colleague">Colleague</MenuItem>
-                     <MenuItem value="Relative">Relative</MenuItem>
-                     <MenuItem value="Guardian">Guardian</MenuItem>
-                     <MenuItem value="Other">Other</MenuItem>
-                   </Select>
-                 </FormControl>
                </Grid>
             </Grid>
           </Box>

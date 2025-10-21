@@ -15,19 +15,20 @@ const PRODUCTION_CONFIG = {
   // STORAGE_BASE_URL: 'https://yourdomain.com/pwd-backend',
 };
 
-// Development Configuration (current)
+// Network Development Configuration (accessible from other PCs)
+const NETWORK_CONFIG = {
+  API_BASE_URL: 'http://192.168.0.126:8000/api',
+  STORAGE_BASE_URL: 'http://192.168.0.126:8000',
+};
+
+// Development Configuration (localhost only)
 const DEVELOPMENT_CONFIG = {
   API_BASE_URL: 'http://127.0.0.1:8000/api',
   STORAGE_BASE_URL: 'http://127.0.0.1:8000',
 };
 
-// Auto-detect environment
-const isProduction = process.env.NODE_ENV === 'production' || 
-                    window.location.hostname !== 'localhost' && 
-                    window.location.hostname !== '127.0.0.1';
-
-// Export the appropriate configuration
-export const API_CONFIG = isProduction ? PRODUCTION_CONFIG : DEVELOPMENT_CONFIG;
+// Export development configuration for local testing
+export const API_CONFIG = DEVELOPMENT_CONFIG;
 
 // Instructions for updating:
 // 1. Replace 'yourdomain.com' with your actual Hostinger domain

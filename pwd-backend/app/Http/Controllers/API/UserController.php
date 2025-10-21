@@ -23,7 +23,7 @@ class UserController extends Controller
             'username' => 'required|unique:users',
             'email' => 'required|email|unique:users',
             'password' => 'required|min:6',
-            'role' => 'required|in:Admin,BarangayPresident,PWDMember',
+            'role' => 'required|in:Admin,BarangayPresident,PWDMember,SuperAdmin,Staff1,Staff2,FrontDesk',
             'firstName' => 'required_if:role,PWDMember',
             'lastName' => 'required_if:role,PWDMember',
         ]);

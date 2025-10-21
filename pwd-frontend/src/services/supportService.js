@@ -1,7 +1,8 @@
 // src/services/supportService.js
 import { api } from './api';
+import { API_CONFIG } from '../config/production';
 
-const API_BASE_URL = 'http://192.168.18.25:8000/api';
+const API_BASE_URL = API_CONFIG.API_BASE_URL;
 
 async function getStoredToken() {
   try {
@@ -223,9 +224,17 @@ export const supportService = {
       return ticketNumber ? `#${ticketNumber}` : 'N/A';
     },
     
-    // Format date
+    // Format date as MM/DD/YYYY
     formatDate: (date) => {
-      return new Date(date).toLocaleDateString();
+      if (!date) return null;
+      const dateObj = new Date(date);
+      if (isNaN(dateObj.getTime())) return null;
+      
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      
+      return `${month}/${day}/${year}`;
     },
     
     // Format datetime

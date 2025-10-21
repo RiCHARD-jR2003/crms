@@ -26,8 +26,8 @@ class SupportTicketController extends Controller
         try {
             $user = Auth::user();
             
-            if ($user->role === 'Admin' || $user->role === 'SuperAdmin') {
-                // Admin and SuperAdmin can see all active tickets (excluding resolved)
+            if ($user->role === 'Admin' || $user->role === 'SuperAdmin' || $user->role === 'FrontDesk') {
+                // Admin, SuperAdmin, and FrontDesk can see all active tickets (excluding resolved)
                 $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
                     ->where('status', '!=', 'resolved')
                     ->orderBy('created_at', 'desc')
@@ -78,8 +78,8 @@ class SupportTicketController extends Controller
         try {
             $user = Auth::user();
             
-            if ($user->role === 'Admin' || $user->role === 'SuperAdmin') {
-                // Admin and SuperAdmin can see all resolved tickets
+            if ($user->role === 'Admin' || $user->role === 'SuperAdmin' || $user->role === 'FrontDesk') {
+                // Admin, SuperAdmin, and FrontDesk can see all resolved tickets
                 $tickets = SupportTicket::with(['pwdMember.user', 'messages'])
                     ->where('status', 'resolved')
                     ->orderBy('created_at', 'desc')
@@ -233,8 +233,8 @@ class SupportTicketController extends Controller
                 return response()->json(['error' => 'Ticket not found'], 404);
             }
 
-            if ($user->role === 'Admin') {
-                // Admin can update status and priority
+            if ($user->role === 'Admin' || $user->role === 'FrontDesk') {
+                // Admin and FrontDesk can update status and priority
                 $validator = Validator::make($request->all(), [
                     'status' => 'nullable|in:open,in_progress,resolved,closed',
                     'priority' => 'nullable|in:low,medium,high,urgent'
@@ -305,8 +305,8 @@ class SupportTicketController extends Controller
         try {
             $user = Auth::user();
             
-            if ($user->role !== 'Admin') {
-                return response()->json(['error' => 'Only admin can delete tickets'], 403);
+            if ($user->role !== 'Admin' && $user->role !== 'FrontDesk') {
+                return response()->json(['error' => 'Only admin and frontdesk can delete tickets'], 403);
             }
 
             $ticket = SupportTicket::find($id);
@@ -341,9 +341,14 @@ class SupportTicketController extends Controller
             }
 
             $validator = Validator::make($request->all(), [
-                'message' => 'required|string',
+                'message' => 'nullable|string',
                 'attachment' => 'nullable|file|max:10240|mimes:pdf,doc,docx,txt,jpg,jpeg,png,gif'
             ]);
+
+            // Custom validation: require either message or attachment
+            if (empty($request->message) && !$request->hasFile('attachment')) {
+                return response()->json(['errors' => ['message' => ['Either message or attachment is required']]], 422);
+            }
 
             if ($validator->fails()) {
                 return response()->json(['errors' => $validator->errors()], 422);
@@ -352,10 +357,10 @@ class SupportTicketController extends Controller
             $senderType = null;
             $senderId = null;
 
-            if ($user->role === 'Admin') {
+            if ($user->role === 'Admin' || $user->role === 'FrontDesk') {
                 $admin = Admin::where('userID', $user->userID)->first();
                 if (!$admin) {
-                    return response()->json(['error' => 'Admin not found'], 404);
+                    return response()->json(['error' => 'Admin/FrontDesk not found'], 404);
                 }
                 $senderType = 'admin';
                 $senderId = $admin->userID;
@@ -391,13 +396,38 @@ class SupportTicketController extends Controller
 
             $message = SupportTicketMessage::create($messageData);
 
-            // Update ticket status to in_progress if it was open
+            // Update ticket status based on who is replying
             if ($ticket->status === 'open') {
-                $ticket->update(['status' => 'in_progress']);
+                // If admin/frontdesk replies to a new ticket, set to in_progress (PWD member needs to respond)
+                if ($user->role === 'Admin' || $user->role === 'FrontDesk') {
+                    $ticket->update(['status' => 'in_progress']);
+                }
+                // If PWD member replies to a new ticket, set to waiting_for_reply (admin needs to respond)
+                elseif ($user->role === 'PWDMember') {
+                    $ticket->update(['status' => 'waiting_for_reply']);
+                }
+            } elseif ($ticket->status === 'waiting_for_reply') {
+                // If admin/frontdesk replies to waiting ticket, set to in_progress (PWD member needs to respond)
+                if ($user->role === 'Admin' || $user->role === 'FrontDesk') {
+                    $ticket->update(['status' => 'in_progress']);
+                }
+                // If PWD member replies to waiting ticket, set to waiting_for_reply (admin needs to respond)
+                elseif ($user->role === 'PWDMember') {
+                    $ticket->update(['status' => 'waiting_for_reply']);
+                }
+            } elseif ($ticket->status === 'in_progress') {
+                // If admin/frontdesk replies to in_progress ticket, set to in_progress (PWD member needs to respond)
+                if ($user->role === 'Admin' || $user->role === 'FrontDesk') {
+                    $ticket->update(['status' => 'in_progress']);
+                }
+                // If PWD member replies to in_progress ticket, set to waiting_for_reply (admin needs to respond)
+                elseif ($user->role === 'PWDMember') {
+                    $ticket->update(['status' => 'waiting_for_reply']);
+                }
             }
 
-            // Create notification if admin is replying to PWD member
-            if ($user->role === 'Admin') {
+            // Create notification if admin or frontdesk is replying to PWD member
+            if ($user->role === 'Admin' || $user->role === 'FrontDesk') {
                 $pwdMember = PWDMember::find($ticket->pwd_member_id);
                 if ($pwdMember) {
                     Notification::create([
@@ -433,6 +463,15 @@ class SupportTicketController extends Controller
         try {
             // Try to get authenticated user (route is now public, so this might be null)
             $user = Auth::user();
+            
+            // Check for token-based authentication if no user session
+            if (!$user && request()->has('token')) {
+                $token = request()->get('token');
+                $user = \App\Models\User::where('remember_token', $token)->first();
+                if ($user) {
+                    Auth::setUser($user);
+                }
+            }
             
             $message = SupportTicketMessage::with('supportTicket')->find($messageId);
 
@@ -525,6 +564,50 @@ class SupportTicketController extends Controller
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to download attachment'], 500);
+        }
+    }
+
+    /**
+     * Serve image attachment from a support ticket message (for inline display).
+     */
+    public function serveImage($messageId): \Symfony\Component\HttpFoundation\Response|JsonResponse
+    {
+        try {
+            $message = SupportTicketMessage::with('supportTicket')->find($messageId);
+
+            if (!$message) {
+                return response()->json(['error' => 'Message not found'], 404);
+            }
+
+            if (!$message->hasAttachment()) {
+                return response()->json(['error' => 'No attachment found'], 404);
+            }
+
+            // Check if it's an image file
+            if (!$message->attachment_type || strpos($message->attachment_type, 'image/') !== 0) {
+                return response()->json(['error' => 'Not an image file'], 400);
+            }
+
+            $filePath = storage_path('app/public/' . $message->attachment_path);
+            
+            if (!file_exists($filePath)) {
+                // Try alternative path
+                $alternativePath = storage_path('app/public/support_attachments/' . $message->attachment_name);
+                if (file_exists($alternativePath)) {
+                    $filePath = $alternativePath;
+                } else {
+                    return response()->json(['error' => 'File not found'], 404);
+                }
+            }
+
+            return response()->file($filePath, [
+                'Content-Type' => $message->attachment_type,
+                'Cache-Control' => 'public, max-age=3600',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error serving image: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to serve image'], 500);
         }
     }
 

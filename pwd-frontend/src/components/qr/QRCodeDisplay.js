@@ -25,6 +25,19 @@ const QRCodeDisplay = ({ open, onClose, member, onScan }) => {
   const [qrCodeDataURL, setQrCodeDataURL] = React.useState(null);
   const [error, setError] = React.useState(null);
 
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
+
   React.useEffect(() => {
     if (member && open) {
       generateQRCode();
@@ -156,7 +169,7 @@ const QRCodeDisplay = ({ open, onClose, member, onScan }) => {
                       Birth Date
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {member.birthDate ? new Date(member.birthDate).toLocaleDateString() : 'Not provided'}
+                      {member.birthDate ? formatDateMMDDYYYY(member.birthDate) : 'Not provided'}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>

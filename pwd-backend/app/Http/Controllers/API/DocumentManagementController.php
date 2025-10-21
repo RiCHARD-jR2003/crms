@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class DocumentManagementController extends Controller
 {
@@ -284,7 +285,31 @@ class DocumentManagementController extends Controller
     public function getDocumentFile($id)
     {
         try {
+            // Check for token-based authentication
+            $user = Auth::user();
+            if (!$user && request()->has('token')) {
+                $token = request()->get('token');
+                $user = \App\Models\User::where('remember_token', $token)->first();
+                if ($user) {
+                    Auth::setUser($user);
+                }
+            }
+            
             $memberDocument = MemberDocument::findOrFail($id);
+            
+            // Check permissions if user is authenticated
+            if ($user) {
+                // Admin users can access any file
+                if (!in_array($user->role, ['Admin', 'SuperAdmin'])) {
+                    // PWD members can only access their own files
+                    if ($user->role === 'PWDMember' && $memberDocument->member_id !== $user->userID) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Unauthorized access to document'
+                        ], 403);
+                    }
+                }
+            }
             
             $filePath = storage_path('app/public/' . $memberDocument->file_path);
             

@@ -17,6 +17,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supportService } from '../../services/supportService';
+import toastService from '../../services/toastService';
 import ChangePassword from '../auth/ChangePassword';
 import AdminPasswordReset from '../admin/AdminPasswordReset';
 
@@ -47,8 +48,15 @@ function AdminSidebar({ isOpen, onToggle }) {
   }, []);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    const confirmed = await toastService.confirmAsync(
+      'Logout Confirmation',
+      'Are you sure you want to logout? You will need to sign in again to access your account.'
+    );
+    
+    if (confirmed) {
+      await logout();
+      navigate('/login');
+    }
   };
 
   // Determine which menu item is active based on current path
@@ -202,47 +210,10 @@ function AdminSidebar({ isOpen, onToggle }) {
           active={isActive('/admin-dashboard') || isActive('/dashboard')}
         />
         <SidebarItem 
-          icon={<PeopleIcon />} 
-          label="PWD Records" 
-          path="/pwd-records"
-          active={isActive('/pwd-records')}
-        />
-        <SidebarItem 
-          icon={<CreditCardIcon />} 
-          label="PWD Card" 
-          path="/pwd-card"
-          active={isActive('/pwd-card')}
-        />
-        <SidebarItem 
           icon={<BarChartIcon />} 
           label="Reports" 
           path="/reports"
           active={isActive('/reports')}
-        />
-        <SidebarItem 
-          icon={<FavoriteIcon />} 
-          label="Ayuda" 
-          path="/ayuda"
-          active={isActive('/ayuda')}
-        />
-        <SidebarItem 
-          icon={<TrackChangesIcon />} 
-          label="Benefit Tracking" 
-          path="/benefit-tracking"
-          active={isActive('/benefit-tracking')}
-        />
-        <SidebarItem 
-          icon={<AnnouncementIcon />} 
-          label="Announcement" 
-          path="/announcement"
-          active={isActive('/announcement')}
-        />
-        <SidebarItem 
-          icon={<SupportAgentIcon />} 
-          label="Support Desk" 
-          path="/admin-support"
-          active={isActive('/admin-support')}
-          badgeCount={supportNotifications}
         />
         <SidebarItem 
           icon={<DescriptionIcon />} 

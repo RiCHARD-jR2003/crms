@@ -44,9 +44,12 @@ import {
   Menu as MenuIcon
 } from '@mui/icons-material';
 import AdminSidebar from '../shared/AdminSidebar';
+import FrontDeskSidebar from '../shared/FrontDeskSidebar';
+import { useAuth } from '../../contexts/AuthContext';
 import announcementService from '../../services/announcementService';
 
 const Announcement = () => {
+  const { currentUser } = useAuth();
   const [openDialog, setOpenDialog] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
@@ -63,6 +66,19 @@ const Announcement = () => {
     publishDate: '', // Will be set automatically by backend
     expiryDate: ''
   });
+
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
 
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -182,6 +198,17 @@ const Announcement = () => {
       setError(null);
       setSuccess(null);
       
+      // Validate expiry date
+      const today = new Date();
+      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+      const selectedExpiryDate = new Date(formData.expiryDate);
+      
+      if (selectedExpiryDate <= today) {
+        setError('Expiry date must be at least tomorrow. Please select a future date.');
+        setSubmitting(false);
+        return;
+      }
+      
       if (editingAnnouncement) {
         // Update existing announcement
         await announcementService.update(editingAnnouncement.announcementID, formData);
@@ -227,7 +254,7 @@ const Announcement = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'white' }}>
-      <AdminSidebar />
+      {currentUser?.role === 'FrontDesk' ? <FrontDeskSidebar /> : <AdminSidebar />}
       
       <Box sx={{ 
         flex: 1, 
@@ -937,7 +964,10 @@ const Announcement = () => {
                       margin="normal"
                       InputLabelProps={{ shrink: true }}
                       required
-                      helperText="Publish date will be automatically set to today's date"
+                      inputProps={{
+                        min: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Tomorrow's date
+                      }}
+                      helperText="Expiry date must be at least tomorrow (cannot be today or previous dates)"
                       FormHelperTextProps={{
                         sx: {
                           color: '#B0BEC5',
@@ -1345,11 +1375,7 @@ const Announcement = () => {
                               sx={{ color: 'white !important' }}
                               style={{ color: 'white' }}
                             >
-                              {new Date(selectedAnnouncement.publishDate).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
+                              {formatDateMMDDYYYY(selectedAnnouncement.publishDate)}
                             </Typography>
                           </Box>
                           <Box>
@@ -1365,11 +1391,7 @@ const Announcement = () => {
                               sx={{ color: 'white !important' }}
                               style={{ color: 'white' }}
                             >
-                              {new Date(selectedAnnouncement.expiryDate).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
+                              {formatDateMMDDYYYY(selectedAnnouncement.expiryDate)}
                             </Typography>
                           </Box>
                         </Box>

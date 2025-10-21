@@ -18,7 +18,7 @@ class AuthController extends Controller
             'username' => 'required|unique:users',
             'email' => 'required|email|unique:users',
             'password' => 'required|min:6',
-            'role' => 'required|in:Admin,BarangayPresident,PWDMember,SuperAdmin',
+            'role' => 'required|in:Admin,BarangayPresident,PWDMember,SuperAdmin,Staff1,Staff2,FrontDesk',
             'firstName' => 'required_if:role,PWDMember',
             'lastName' => 'required_if:role,PWDMember',
         ]);
@@ -69,25 +69,101 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        $credentials = $request->only('username', 'password');
-        
+        $validator = Validator::make($request->all(), [
+            'username' => 'required|string',
+            'password' => 'required|string',
+            'captcha' => 'nullable|string', // Captcha will be required for PWDMember after 3 failed attempts
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 400);
+        }
+
         // Find user by username first, then by email if not found
         $user = User::where('username', $request->username)->first();
         if (!$user) {
             $user = User::where('email', $request->username)->first();
         }
-        
-        if (!$user || !Hash::check($request->password, $user->password)) {
+
+        // If user not found, return generic error (don't reveal if user exists)
+        if (!$user) {
             return response()->json([
-                'message' => 'Invalid login credentials'
+                'message' => 'Invalid login credentials',
+                'requires_captcha' => false
             ], 401);
         }
-        
+
+        // Check if account is locked (only for PWDMember)
+        if ($user->role === 'PWDMember' && $user->isAccountLocked()) {
+            $lockoutMinutes = now()->diffInMinutes($user->account_locked_until, false);
+            return response()->json([
+                'message' => "Account is locked due to too many failed attempts. Please try again in {$lockoutMinutes} minutes.",
+                'requires_captcha' => false,
+                'account_locked' => true,
+                'lockout_until' => $user->account_locked_until
+            ], 423);
+        }
+
+        // Check if captcha is required for PWDMember
+        if ($user->role === 'PWDMember' && $user->requiresCaptcha()) {
+            if (!$request->captcha) {
+                return response()->json([
+                    'message' => 'Please complete the captcha verification',
+                    'requires_captcha' => true,
+                    'failed_attempts' => $user->failed_login_attempts
+                ], 422);
+            }
+
+            // Simple captcha validation (you can integrate with Google reCAPTCHA or similar)
+            if ($request->captcha !== 'PWD123') { // Simple test captcha
+                $user->incrementFailedAttempts();
+                return response()->json([
+                    'message' => 'Invalid captcha. Please try again.',
+                    'requires_captcha' => true,
+                    'failed_attempts' => $user->failed_login_attempts
+                ], 422);
+            }
+        }
+
+        // Check password
+        if (!Hash::check($request->password, $user->password)) {
+            // Only track failed attempts for PWDMember
+            if ($user->role === 'PWDMember') {
+                $user->incrementFailedAttempts();
+                
+                $response = [
+                    'message' => 'Invalid login credentials',
+                    'requires_captcha' => $user->requiresCaptcha(),
+                    'failed_attempts' => $user->failed_login_attempts
+                ];
+
+                // If account is now locked after this attempt
+                if ($user->isAccountLocked()) {
+                    $response['message'] = 'Account locked due to too many failed attempts. Please try again in 5 minutes.';
+                    $response['account_locked'] = true;
+                    $response['lockout_until'] = $user->account_locked_until;
+                }
+
+                return response()->json($response, 401);
+            } else {
+                return response()->json([
+                    'message' => 'Invalid login credentials',
+                    'requires_captcha' => false
+                ], 401);
+            }
+        }
+
         // Check if user is active
         if (strtolower($user->status) !== 'active') {
             return response()->json([
-                'message' => 'Your account is inactive. Please contact administrator.'
+                'message' => 'Your account is inactive. Please contact administrator.',
+                'requires_captcha' => false
             ], 403);
+        }
+
+        // Reset failed attempts on successful login (only for PWDMember)
+        if ($user->role === 'PWDMember') {
+            $user->resetFailedAttempts();
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -202,6 +278,7 @@ class AuthController extends Controller
             'user' => $userData,
             'access_token' => $token,
             'token_type' => 'Bearer',
+            'requires_captcha' => false
         ]);
     }
 

@@ -20,7 +20,10 @@ class User extends Authenticatable
         'email',
         'role',
         'status',
-        'password_change_required'
+        'password_change_required',
+        'failed_login_attempts',
+        'last_failed_login',
+        'account_locked_until'
     ];
 
     protected $hidden = [
@@ -107,5 +110,36 @@ class User extends Authenticatable
     public function markPasswordChanged()
     {
         $this->update(['password_change_required' => false]);
+    }
+
+    // Login security helper methods
+    public function isAccountLocked()
+    {
+        return $this->account_locked_until && now()->isBefore($this->account_locked_until);
+    }
+
+    public function requiresCaptcha()
+    {
+        return $this->failed_login_attempts >= 3;
+    }
+
+    public function incrementFailedAttempts()
+    {
+        $this->increment('failed_login_attempts');
+        $this->update(['last_failed_login' => now()]);
+        
+        // Lock account after 5 failed attempts
+        if ($this->failed_login_attempts >= 5) {
+            $this->update(['account_locked_until' => now()->addMinutes(5)]);
+        }
+    }
+
+    public function resetFailedAttempts()
+    {
+        $this->update([
+            'failed_login_attempts' => 0,
+            'last_failed_login' => null,
+            'account_locked_until' => null
+        ]);
     }
 }

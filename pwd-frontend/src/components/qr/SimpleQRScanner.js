@@ -15,6 +15,7 @@ import {
   Chip,
   Grid
 } from '@mui/material';
+import toastService from '../../services/toastService';
 import {
   Close as CloseIcon,
   QrCodeScanner as QrCodeScannerIcon,
@@ -40,6 +41,19 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
   const [showManualInput, setShowManualInput] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
 
   useEffect(() => {
     if (open) {
@@ -435,7 +449,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
         }
         
         // Show success message
-        alert(`Successfully scanned QR code for: ${member.firstName} ${member.lastName} ${member.suffix || ''}`.trim());
+        toastService.success(`Successfully scanned QR code for: ${member.firstName} ${member.lastName} ${member.suffix || ''}`.trim());
         
       } else {
         setError(`PWD member not found in database. Searched for: ${JSON.stringify({
@@ -521,7 +535,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
       
       // Show success message
       const benefitNames = eligibleBenefits.map(b => b.title || b.benefitType || b.type || 'Unknown Benefit').join(', ');
-      alert(`Successfully processed ${eligibleBenefits.length} benefit claims for ${member.firstName} ${member.lastName} ${member.suffix || ''}: ${benefitNames}`);
+      toastService.success(`Successfully processed ${eligibleBenefits.length} benefit claims for ${member.firstName} ${member.lastName} ${member.suffix || ''}: ${benefitNames}`);
       
     } catch (error) {
       console.error('Error processing benefit claims:', error);
@@ -546,7 +560,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
       
       // Show success message
       setError(null);
-      alert(`Benefit "${benefit.name}" claimed successfully for ${memberInfo.firstName} ${memberInfo.lastName} ${memberInfo.suffix || ''}!`);
+      toastService.success(`Benefit "${benefit.name}" claimed successfully for ${memberInfo.firstName} ${memberInfo.lastName} ${memberInfo.suffix || ''}!`);
       
       // Call the onScan callback if provided
       if (onScan) {
@@ -716,7 +730,7 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
                       Birth Date
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {memberInfo.birthDate ? new Date(memberInfo.birthDate).toLocaleDateString() : 'Not provided'}
+                      {memberInfo.birthDate ? formatDateMMDDYYYY(memberInfo.birthDate) : 'Not provided'}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>

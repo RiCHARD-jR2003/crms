@@ -40,11 +40,13 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
+import EditIcon from '@mui/icons-material/Edit';
 import BarangayPresidentSidebar from '../shared/BarangayPresidentSidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/api';
-import SuccessModal from '../shared/SuccessModal';
-import { useModal } from '../../hooks/useModal';
+import { filePreviewService } from '../../services/filePreviewService';
+import toastService from '../../services/toastService';
+import { documentService } from '../../services/documentService';
 
 // Helper function to convert text to proper case
 const toProperCase = (text) => {
@@ -65,6 +67,19 @@ function BarangayPresidentPWDRecords() {
     status: ''
   });
 
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
+
   // Mock data - in real implementation, this would fetch from API filtered by barangay
   const [rows, setRows] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -74,11 +89,31 @@ function BarangayPresidentPWDRecords() {
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [printing, setPrinting] = useState(false);
   
-  // Success modal
-  const { modalOpen, modalConfig, showModal, hideModal } = useModal();
+  // Document correction modal state
+  const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
+  const [selectedDocumentsForCorrection, setSelectedDocumentsForCorrection] = useState([]);
+  const [correctionNotes, setCorrectionNotes] = useState('');
+  const [documentTypes, setDocumentTypes] = useState([]);
+  const [documentMapping, setDocumentMapping] = useState({});
+  
+  // Toast notifications will be used instead of modals
+
+  // Fetch document types
+  const fetchDocumentTypes = async () => {
+    try {
+      const types = await documentService.getActiveDocumentTypes();
+      setDocumentTypes(types);
+      
+      const mapping = documentService.getDocumentFieldMapping(types);
+      setDocumentMapping(mapping);
+    } catch (error) {
+      console.error('Error fetching document types:', error);
+    }
+  };
 
   useEffect(() => {
     fetchData();
+    fetchDocumentTypes();
   }, [currentUser]);
 
   const fetchData = async () => {
@@ -146,20 +181,10 @@ function BarangayPresidentPWDRecords() {
 
       // Refresh the applications list
       await fetchData();
-      showModal({
-        type: 'success',
-        title: 'Application Approved!',
-        message: 'Application approved successfully!',
-        buttonText: 'Continue'
-      });
+      toastService.success('Application approved successfully!');
     } catch (err) {
       console.error('Error approving application:', err);
-      showModal({
-        type: 'error',
-        title: 'Error',
-        message: 'Failed to approve application: ' + (err.message || 'Unknown error'),
-        buttonText: 'OK'
-      });
+      toastService.error('Failed to approve application: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -289,13 +314,7 @@ function BarangayPresidentPWDRecords() {
             <h1>CABUYAO PDAO RMS</h1>
             <h2>${currentTitle} - ${barangay}</h2>
             <div class="info">
-              Generated on: ${new Date().toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
+              Generated on: ${formatDateMMDDYYYY(new Date().toISOString())}
               ${searchTerm ? `<br>Search Filter: "${searchTerm}"` : ''}
               ${filters.status && filters.status !== 'all' ? `<br>Status Filter: ${filters.status}` : ''}
               ${filters.disability && filters.disability !== 'all' ? `<br>Disability Filter: ${filters.disability}` : ''}
@@ -342,7 +361,7 @@ function BarangayPresidentPWDRecords() {
                     <td>${item.lastName || 'N/A'}</td>
                     <td>${item.disabilityType || 'N/A'}</td>
                     <td><span class="status-pending">${item.status || 'Pending'}</span></td>
-                    <td>${item.submissionDate ? new Date(item.submissionDate).toLocaleDateString() : 'N/A'}</td>
+                    <td>${item.submissionDate ? formatDateMMDDYYYY(item.submissionDate) : 'N/A'}</td>
                     <td>${item.contactNumber || 'N/A'}</td>
                     <td>${item.email || 'N/A'}</td>
                   `}
@@ -362,12 +381,7 @@ function BarangayPresidentPWDRecords() {
     // Check if there's data to print
     if (currentData.length === 0) {
       setPrinting(false);
-      showModal({
-        type: 'warning',
-        title: 'No Data to Print',
-        message: 'There are no records to print with the current filters.',
-        buttonText: 'OK'
-      });
+      toastService.warning('There are no records to print with the current filters.');
       printWindow.close();
       return;
     }
@@ -395,20 +409,10 @@ function BarangayPresidentPWDRecords() {
 
       // Refresh the applications list
       await fetchData();
-      showModal({
-        type: 'success',
-        title: 'Application Rejected',
-        message: 'Application rejected successfully!',
-        buttonText: 'Continue'
-      });
+      toastService.success('Application rejected successfully!');
     } catch (err) {
       console.error('Error rejecting application:', err);
-      showModal({
-        type: 'error',
-        title: 'Error',
-        message: 'Failed to reject application: ' + (err.message || 'Unknown error'),
-        buttonText: 'OK'
-      });
+      toastService.error('Failed to reject application: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -420,6 +424,75 @@ function BarangayPresidentPWDRecords() {
   const handleCloseDetails = () => {
     setViewDetailsOpen(false);
     setSelectedApplication(null);
+  };
+
+  // Document correction handlers
+  const handleRequestCorrection = () => {
+    setCorrectionModalOpen(true);
+    setSelectedDocumentsForCorrection([]);
+    setCorrectionNotes('');
+  };
+
+  const handleCloseCorrectionModal = () => {
+    setCorrectionModalOpen(false);
+    setSelectedDocumentsForCorrection([]);
+    setCorrectionNotes('');
+  };
+
+  const handleDocumentSelection = (documentType) => {
+    setSelectedDocumentsForCorrection(prev => {
+      if (prev.includes(documentType)) {
+        return prev.filter(doc => doc !== documentType);
+      } else {
+        return [...prev, documentType];
+      }
+    });
+  };
+
+  const handleSubmitCorrectionRequest = async () => {
+    if (selectedDocumentsForCorrection.length === 0) {
+      toastService.error('Please select at least one document that needs correction.');
+      return;
+    }
+
+    // Show confirmation dialog using toast service
+    const documentLabels = documentService.getDocumentLabels(documentMapping);
+
+    const selectedDocumentsList = selectedDocumentsForCorrection.map(doc => `• ${documentLabels[doc]}`).join('\n');
+    
+    const confirmed = await toastService.confirmAsync(
+      'Send Correction Request?',
+      `Are you sure you want to send a correction request for ${selectedDocumentsForCorrection.length} document(s)?\n\n` +
+      `Selected documents:\n${selectedDocumentsList}\n\n` +
+      `This will send an email notification to the applicant with a secure link to re-upload the selected documents.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      // Debug: Log the data being sent
+      const requestData = {
+        applicationId: String(selectedApplication.applicationID),
+        documentsToCorrect: selectedDocumentsForCorrection,
+        notes: correctionNotes,
+        requestedBy: String(currentUser.userID),
+        requestedByName: currentUser.username || currentUser.email
+      };
+      
+      console.log('Sending correction request with data:', requestData);
+      console.log('Current user:', currentUser);
+
+      // Call API to create correction request
+      await api.post('/applications/correction-request', requestData);
+
+      toastService.success('Correction request sent! The applicant has been notified via email to re-upload the selected documents.');
+      handleCloseCorrectionModal();
+    } catch (error) {
+      console.error('Error submitting correction request:', error);
+      toastService.error('Failed to send correction request. Please try again.');
+    }
   };
 
   const handlePrintApplication = () => {
@@ -444,7 +517,7 @@ function BarangayPresidentPWDRecords() {
             <h1>CABUYAO PDAO RMS</h1>
             <h2>PWD Application Details</h2>
             <p>Application ID: ${selectedApplication?.applicationID}</p>
-            <p>Date: ${new Date().toLocaleDateString()}</p>
+            <p>Date: {formatDateMMDDYYYY(new Date().toISOString())}</p>
           </div>
           ${printContent.innerHTML}
         </body>
@@ -1201,7 +1274,7 @@ function BarangayPresidentPWDRecords() {
                       Submission Date:
                     </Typography>
                     <Typography variant="body1" sx={{ color: '#1976D2' }}>
-                      {new Date(selectedApplication.submissionDate).toLocaleDateString()}
+                      {formatDateMMDDYYYY(selectedApplication.submissionDate)}
                     </Typography>
                   </Grid>
                 </Grid>
@@ -1249,7 +1322,7 @@ function BarangayPresidentPWDRecords() {
                       Birth Date:
                     </Typography>
                     <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {new Date(selectedApplication.birthDate).toLocaleDateString()}
+                      {formatDateMMDDYYYY(selectedApplication.birthDate)}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
@@ -1305,7 +1378,7 @@ function BarangayPresidentPWDRecords() {
                       Disability Date:
                     </Typography>
                     <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.disabilityDate ? new Date(selectedApplication.disabilityDate).toLocaleDateString() : 'N/A'}
+                      {selectedApplication.disabilityDate ? formatDateMMDDYYYY(selectedApplication.disabilityDate) : 'N/A'}
                     </Typography>
                   </Grid>
                 </Grid>
@@ -1551,7 +1624,7 @@ function BarangayPresidentPWDRecords() {
                           size="small"
                           variant="outlined"
                           sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(api.getStorageUrl(selectedApplication.barangayClearance), '_blank')}
+                          onClick={() => filePreviewService.openPreview('application-file', selectedApplication.applicationID, 'barangayClearance')}
                         >
                           View Full Size
                         </Button>
@@ -1625,6 +1698,21 @@ function BarangayPresidentPWDRecords() {
             Close
           </Button>
           <Button
+            onClick={handleRequestCorrection}
+            variant="contained"
+            startIcon={<EditIcon />}
+            sx={{
+              bgcolor: '#F39C12',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                bgcolor: '#E67E22'
+              }
+            }}
+          >
+            Request Document Correction
+          </Button>
+          <Button
             onClick={handlePrintApplication}
             variant="contained"
             startIcon={<PrintIcon />}
@@ -1642,17 +1730,167 @@ function BarangayPresidentPWDRecords() {
         </DialogActions>
       </Dialog>
       
-      {/* Success Modal */}
-      <SuccessModal
-        open={modalOpen}
-        onClose={hideModal}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        type={modalConfig.type}
-        buttonText={modalConfig.buttonText}
-      />
-    </Box>
-  );
-}
+      {/* Document Correction Modal */}
+      <Dialog
+        open={correctionModalOpen}
+        onClose={handleCloseCorrectionModal}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            bgcolor: '#FFFFFF'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#F39C12', 
+          color: '#FFFFFF', 
+          textAlign: 'center',
+          py: 2,
+          position: 'relative'
+        }}>
+          <Typography variant="h2" component="div" sx={{ fontWeight: 'bold', fontSize: '1.25rem' }}>
+            Request Document Correction
+          </Typography>
+          <IconButton
+            onClick={handleCloseCorrectionModal}
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#FFFFFF'
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 3, bgcolor: '#FFFFFF' }}>
+          <Typography variant="body1" sx={{ mb: 3, color: '#2C3E50' }}>
+            Select the documents that need correction for <strong>{selectedApplication?.firstName} {selectedApplication?.lastName}</strong>:
+          </Typography>
+          
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {Object.keys(documentMapping).map((fieldName) => {
+              const docInfo = documentMapping[fieldName];
+              return (
+                <Grid item xs={12} sm={6} key={fieldName}>
+                  <Box sx={{ 
+                    p: 2, 
+                    border: '1px solid #DEE2E6', 
+                    borderRadius: 2,
+                    cursor: 'pointer',
+                    bgcolor: selectedDocumentsForCorrection.includes(fieldName) ? '#E8F5E8' : '#FFFFFF',
+                    borderColor: selectedDocumentsForCorrection.includes(fieldName) ? '#4CAF50' : '#DEE2E6',
+                    '&:hover': {
+                      borderColor: '#0b87ac',
+                      bgcolor: selectedDocumentsForCorrection.includes(fieldName) ? '#E8F5E8' : '#F8F9FA'
+                    }
+                  }}
+                  onClick={() => handleDocumentSelection(fieldName)}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ 
+                        width: 20, 
+                        height: 20, 
+                        border: '2px solid #0b87ac', 
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: selectedDocumentsForCorrection.includes(fieldName) ? '#0b87ac' : 'transparent'
+                      }}>
+                        {selectedDocumentsForCorrection.includes(fieldName) && (
+                          <Typography sx={{ color: '#FFFFFF', fontSize: '12px', fontWeight: 'bold' }}>
+                            ✓
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {docInfo.name}
+                        </Typography>
+                        {docInfo.description && (
+                          <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block' }}>
+                            {docInfo.description}
+                          </Typography>
+                        )}
+                        {docInfo.isRequired && (
+                          <Box sx={{ mt: 0.5 }}>
+                            <Chip 
+                              label="Required" 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: '#E74C3C', 
+                                color: '#FFFFFF',
+                                fontSize: '0.7rem',
+                                height: '18px'
+                              }} 
+                            />
+                          </Box>
+                        )}
+                      </Box>
+                    </Box>
+                  </Box>
+                </Grid>
+              );
+            })}
+          </Grid>
+          
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Additional Notes (Optional)"
+            value={correctionNotes}
+            onChange={(e) => setCorrectionNotes(e.target.value)}
+            placeholder="Provide specific instructions about what needs to be corrected..."
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2
+              }
+            }}
+          />
+        </DialogContent>
+        
+        <DialogActions sx={{ 
+          p: 3, 
+          bgcolor: '#F8F9FA',
+          borderTop: '1px solid #DEE2E6'
+        }}>
+          <Button
+            onClick={handleCloseCorrectionModal}
+            variant="outlined"
+            sx={{
+              borderColor: '#6C757D',
+              color: '#6C757D',
+              textTransform: 'none',
+              fontWeight: 600
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmitCorrectionRequest}
+            variant="contained"
+            sx={{
+              bgcolor: '#F39C12',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                bgcolor: '#E67E22'
+              }
+            }}
+          >
+            Send Correction Request
+          </Button>
+        </DialogActions>
+         </Dialog>
+      </Box>
+    );
+  }
 
-export default BarangayPresidentPWDRecords;
+  export default BarangayPresidentPWDRecords;

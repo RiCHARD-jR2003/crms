@@ -36,6 +36,7 @@ import {
   Badge,
   Tooltip
 } from '@mui/material';
+import toastService from '../../services/toastService';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -54,6 +55,7 @@ import {
 import AdminSidebar from '../shared/AdminSidebar';
 import MobileHeader from '../shared/MobileHeader';
 import { api } from '../../services/api';
+import { filePreviewService } from '../../services/filePreviewService';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   mainContainerStyles, 
@@ -85,6 +87,19 @@ function DocumentManagement() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
+
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
   const [selectedReview, setSelectedReview] = useState(null);
   
   // Form states
@@ -234,18 +249,25 @@ function DocumentManagement() {
   };
 
   const handleDeleteDocument = async (document) => {
-    if (window.confirm(`Are you sure you want to delete "${document.name}"?`)) {
-      try {
-        const response = await api.delete(`/documents/${document.id}`);
-        
-        if (response.success) {
-          await fetchDocuments();
+    toastService.confirm(
+      'Delete Document',
+      `Are you sure you want to delete "${document.name}"?`,
+      async () => {
+        try {
+          const response = await api.delete(`/documents/${document.id}`);
+          
+          if (response.success) {
+            await fetchDocuments();
+            toastService.success('Document deleted successfully!');
+          } else {
+            toastService.error('Failed to delete document: ' + response.message);
+          }
+        } catch (error) {
+          console.error('Error deleting document:', error);
+          toastService.error('Failed to delete document: ' + (error.message || 'Unknown error'));
         }
-      } catch (error) {
-        console.error('Error deleting document:', error);
-        setError('Failed to delete document');
       }
-    }
+    );
   };
 
   const getStatusColor = (status) => {
@@ -389,7 +411,7 @@ function DocumentManagement() {
                 <TableCell>{review.requiredDocument?.name}</TableCell>
                 <TableCell>{review.file_name}</TableCell>
                 <TableCell>
-                  {new Date(review.uploaded_at).toLocaleDateString()}
+                  {formatDateMMDDYYYY(review.uploaded_at)}
                 </TableCell>
                 <TableCell>
                   <Chip 
@@ -402,7 +424,7 @@ function DocumentManagement() {
                 <TableCell>
                   <IconButton 
                     size="small" 
-                    onClick={() => window.open(`/api/documents/file/${review.id}`, '_blank')}
+                    onClick={() => filePreviewService.openPreview('document-file', review.id)}
                     color="primary"
                   >
                     <VisibilityIcon />
@@ -614,6 +636,16 @@ function DocumentManagement() {
                   value={formData.expiry_date}
                   onChange={(e) => setFormData({...formData, expiry_date: e.target.value})}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{
+                    min: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Tomorrow's date
+                  }}
+                  helperText="Expiry date must be at least tomorrow (cannot be today or previous dates)"
+                  FormHelperTextProps={{
+                    sx: {
+                      color: '#B0BEC5',
+                      fontSize: '0.75rem'
+                    }
+                  }}
                   sx={textFieldStyles}
                 />
               </Grid>
@@ -716,6 +748,16 @@ function DocumentManagement() {
                   value={formData.expiry_date}
                   onChange={(e) => setFormData({...formData, expiry_date: e.target.value})}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{
+                    min: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Tomorrow's date
+                  }}
+                  helperText="Expiry date must be at least tomorrow (cannot be today or previous dates)"
+                  FormHelperTextProps={{
+                    sx: {
+                      color: '#B0BEC5',
+                      fontSize: '0.75rem'
+                    }
+                  }}
                   sx={textFieldStyles}
                 />
               </Grid>

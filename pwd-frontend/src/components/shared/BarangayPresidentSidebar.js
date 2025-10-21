@@ -11,6 +11,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/api';
+import toastService from '../../services/toastService';
 
 function BarangayPresidentSidebar() {
   const navigate = useNavigate();
@@ -19,8 +20,15 @@ function BarangayPresidentSidebar() {
   const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    const confirmed = await toastService.confirmAsync(
+      'Logout Confirmation',
+      'Are you sure you want to logout? You will need to sign in again to access your account.'
+    );
+    
+    if (confirmed) {
+      await logout();
+      navigate('/login');
+    }
   };
 
   // Fetch pending applications count

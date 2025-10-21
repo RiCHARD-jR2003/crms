@@ -34,6 +34,7 @@ import {
   ListItemText,
   ListItemIcon
 } from '@mui/material';
+import toastService from '../../services/toastService';
 import {
   Assessment,
   Download,
@@ -106,6 +107,19 @@ const Reports = () => {
   const [generating, setGenerating] = useState({});
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
   const [pdfBlob, setPdfBlob] = useState(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState('all');
@@ -1765,7 +1779,7 @@ const Reports = () => {
                     <TableCell sx={{ color: '#2C3E50' }}>{member.barangay || 'Not specified'}</TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.disabilityType || 'Not specified'}</TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>
-                      {member.created_at ? new Date(member.created_at).toLocaleDateString() : 'Not available'}
+                      {member.created_at ? formatDateMMDDYYYY(member.created_at) : 'Not available'}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2075,7 +2089,7 @@ const Reports = () => {
                     <TableCell sx={{ color: '#2C3E50' }}>{member.barangay || 'Not specified'}</TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.disabilityType || 'Not specified'}</TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>
-                      {member.created_at ? new Date(member.created_at).toLocaleDateString() : 'Not available'}
+                      {member.created_at ? formatDateMMDDYYYY(member.created_at) : 'Not available'}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2417,7 +2431,7 @@ const Reports = () => {
                       ₱{averageBenefitAmount.toLocaleString()}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>
-                      {benefit.created_at ? new Date(benefit.created_at).toLocaleDateString() : 'Not available'}
+                      {benefit.created_at ? formatDateMMDDYYYY(benefit.created_at) : 'Not available'}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2802,7 +2816,7 @@ const Reports = () => {
                       />
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>
-                      {complaint.created_at ? new Date(complaint.created_at).toLocaleDateString() : 'Not available'}
+                      {complaint.created_at ? formatDateMMDDYYYY(complaint.created_at) : 'Not available'}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -3464,7 +3478,7 @@ const Reports = () => {
       });
       
       const doc = new jsPDF();
-      const currentDate = new Date().toLocaleDateString();
+      const currentDate = formatDateMMDDYYYY(new Date().toISOString());
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       
@@ -4219,11 +4233,11 @@ const Reports = () => {
         console.log('PDF download initiated successfully');
       } catch (error) {
         console.error('Error downloading PDF:', error);
-        alert('Failed to download PDF: ' + (error.message || 'Unknown error'));
+        toastService.error('Failed to download PDF: ' + (error.message || 'Unknown error'));
       }
     } else {
       console.error('No PDF blob available for download');
-      alert('No PDF available to download. Please generate the report first.');
+      toastService.warning('No PDF available to download. Please generate the report first.');
     }
   };
 

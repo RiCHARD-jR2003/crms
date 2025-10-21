@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import toastService from '../../services/toastService';
 
 const MobileHeader = ({ onMenuToggle, isMenuOpen }) => {
   const theme = useTheme();
@@ -69,10 +70,17 @@ const MobileHeader = ({ onMenuToggle, isMenuOpen }) => {
     setDrawerOpen(false);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-    setDrawerOpen(false);
+  const handleLogout = async () => {
+    const confirmed = await toastService.confirmAsync(
+      'Logout Confirmation',
+      'Are you sure you want to logout? You will need to sign in again to access your account.'
+    );
+    
+    if (confirmed) {
+      await logout();
+      navigate('/login');
+      setDrawerOpen(false);
+    }
   };
 
   const drawer = (

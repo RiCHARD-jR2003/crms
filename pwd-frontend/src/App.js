@@ -1,6 +1,6 @@
 // src/App.js
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
@@ -14,6 +14,9 @@ import PasswordChangeWrapper from './components/auth/PasswordChangeWrapper';
 import AdminDashboard from './components/dashboard/AdminDashboard';
 import BarangayPresidentDashboard from './components/dashboard/BarangayPresidentDashboard';
 import PWDMemberDashboard from './components/dashboard/PWDMemberDashboard';
+import Staff1Dashboard from './components/dashboard/Staff1Dashboard';
+import Staff2Dashboard from './components/dashboard/Staff2Dashboard';
+import FrontDeskDashboard from './components/dashboard/FrontDeskDashboard';
 
 // Admin components
 import PWDRecords from './components/records/PWDRecords';
@@ -23,6 +26,11 @@ import Ayuda from './components/ayuda/Ayuda';
 import BenefitTracking from './components/benefit/BenefitTracking';
 import Announcement from './components/announcement/Announcement';
 import AdminSupportDesk from './components/support/AdminSupportDesk';
+
+// Staff components
+import Staff1Sidebar from './components/shared/Staff1Sidebar';
+import Staff2Sidebar from './components/shared/Staff2Sidebar';
+import FrontDeskSidebar from './components/shared/FrontDeskSidebar';
 
 // Barangay President components
 import BarangayPresidentPWDRecords from './components/records/BarangayPresidentPWDRecords';
@@ -36,6 +44,11 @@ import PWDMemberAnnouncement from './components/announcement/PWDMemberAnnounceme
 import PWDMemberSupportDesk from './components/support/PWDMemberSupportDesk';
 import PWDProfile from './components/profile/PWDProfile';
 import MemberDocumentUpload from './components/documents/MemberDocumentUpload';
+
+// Application components
+import ApplicationForm from './components/application/ApplicationForm';
+import ApplicationStatusCheck from './components/application/ApplicationStatusCheck';
+import DocumentCorrectionPage from './components/application/DocumentCorrectionPage';
 
 // Document Management components
 import DocumentManagement from './components/documents/DocumentManagement';
@@ -97,15 +110,25 @@ const theme = createTheme({
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { currentUser } = useAuth();
+  const location = useLocation();
+  
+  // Debug logging
+  console.log('ProtectedRoute - currentUser:', currentUser);
+  console.log('ProtectedRoute - allowedRoles:', allowedRoles);
+  console.log('ProtectedRoute - current pathname:', location.pathname);
   
   if (!currentUser) {
+    console.log('ProtectedRoute - No currentUser, redirecting to login');
     return <Navigate to="/login" />;
   }
   
   if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
+    console.log('ProtectedRoute - Role not allowed:', currentUser.role, 'not in', allowedRoles);
+    console.log('ProtectedRoute - Current pathname:', location.pathname);
     return <Navigate to="/unauthorized" />;
   }
   
+  console.log('ProtectedRoute - Access granted for role:', currentUser.role);
   return children;
 };
 
@@ -132,9 +155,38 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PasswordChangeWrapper>
-              {(currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && <AdminDashboard />}
-              {currentUser?.role === 'BarangayPresident' && <BarangayPresidentDashboard />}
-              {currentUser?.role === 'PWDMember' && <PWDMemberDashboard />}
+              {(() => {
+                console.log('Dashboard route - currentUser:', currentUser);
+                console.log('Dashboard route - currentUser.role:', currentUser?.role);
+                
+                if (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') {
+                  console.log('Dashboard route - Rendering AdminDashboard');
+                  return <AdminDashboard />;
+                }
+                if (currentUser?.role === 'Staff1') {
+                  console.log('Dashboard route - Rendering Staff1Dashboard');
+                  return <Staff1Dashboard />;
+                }
+                if (currentUser?.role === 'Staff2') {
+                  console.log('Dashboard route - Rendering Staff2Dashboard');
+                  return <Staff2Dashboard />;
+                }
+                if (currentUser?.role === 'FrontDesk') {
+                  console.log('Dashboard route - Rendering FrontDeskDashboard');
+                  return <FrontDeskDashboard />;
+                }
+                if (currentUser?.role === 'BarangayPresident') {
+                  console.log('Dashboard route - Rendering BarangayPresidentDashboard');
+                  return <BarangayPresidentDashboard />;
+                }
+                if (currentUser?.role === 'PWDMember') {
+                  console.log('Dashboard route - Rendering PWDMemberDashboard');
+                  return <PWDMemberDashboard />;
+                }
+                
+                console.log('Dashboard route - No matching role, currentUser:', currentUser);
+                return <div>No dashboard available for role: {currentUser?.role}</div>;
+              })()}
             </PasswordChangeWrapper>
           </ProtectedRoute>
         } 
@@ -152,7 +204,7 @@ function AppContent() {
       <Route 
         path="/pwd-records" 
         element={
-          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin', 'Staff1']}>
             <PWDRecords />
           </ProtectedRoute>
         } 
@@ -210,6 +262,60 @@ function AppContent() {
         element={
           <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <DocumentManagement />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Staff1 Routes - PWD Masterlist and PWD Records */}
+      <Route 
+        path="/pwd-masterlist" 
+        element={
+          <ProtectedRoute allowedRoles={['Staff1']}>
+            <PWDRecords />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Staff2 Routes - Ayuda and Benefit Tracking */}
+      <Route 
+        path="/staff2-ayuda" 
+        element={
+          <ProtectedRoute allowedRoles={['Staff2']}>
+            <Ayuda />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/staff2-benefit-tracking" 
+        element={
+          <ProtectedRoute allowedRoles={['Staff2']}>
+            <BenefitTracking />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* FrontDesk Routes - PWD Card, Support Desk, Announcements */}
+      <Route 
+        path="/frontdesk-pwd-card" 
+        element={
+          <ProtectedRoute allowedRoles={['FrontDesk']}>
+            <PWDCard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/frontdesk-support" 
+        element={
+          <ProtectedRoute allowedRoles={['FrontDesk']}>
+            <AdminSupportDesk />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/frontdesk-announcement" 
+        element={
+          <ProtectedRoute allowedRoles={['FrontDesk']}>
+            <Announcement />
           </ProtectedRoute>
         } 
       />
@@ -308,6 +414,9 @@ function AppContent() {
       
       <Route path="/unauthorized" element={<div>Unauthorized access</div>} />
       <Route path="/apply" element={<div>Apply for PWD membership — Coming soon</div>} />
+      
+      {/* Public Document Correction Route */}
+      <Route path="/document-correction/:token" element={<DocumentCorrectionPage />} />
     </Routes>
   );
 }

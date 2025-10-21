@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\PWDMemberController;
@@ -388,7 +389,7 @@ Route::post('/test-application-submission', function (Request $request) {
         // Log the incoming request
         \Illuminate\Support\Facades\Log::info('Test application submission', [
             'request_data' => $request->all(),
-            'has_files' => $request->hasFile('idPicture') || $request->hasFile('medicalCertificate') || $request->hasFile('barangayClearance')
+            'has_files' => $request->hasFile('medicalCertificate') || $request->hasFile('barangayCertificate')
         ]);
 
         // Use the validation service for comprehensive duplicate checking
@@ -438,12 +439,6 @@ Route::post('/test-application-submission', function (Request $request) {
         $uploadPath = 'uploads/applications/' . date('Y/m/d');
         \Illuminate\Support\Facades\Storage::makeDirectory($uploadPath);
 
-        if ($request->hasFile('idPicture')) {
-            $idPictureFile = $request->file('idPicture');
-            $idPictureName = 'id_picture_' . time() . '.' . $idPictureFile->getClientOriginalExtension();
-            $idPicturePath = $idPictureFile->storeAs($uploadPath, $idPictureName, 'public');
-            $data['idPicture'] = $idPicturePath;
-        }
 
         if ($request->hasFile('medicalCertificate')) {
             $medicalFile = $request->file('medicalCertificate');
@@ -452,12 +447,6 @@ Route::post('/test-application-submission', function (Request $request) {
             $data['medicalCertificate'] = $medicalPath;
         }
 
-        if ($request->hasFile('barangayClearance')) {
-            $clearanceFile = $request->file('barangayClearance');
-            $clearanceName = 'barangay_clearance_' . time() . '.' . $clearanceFile->getClientOriginalExtension();
-            $clearancePath = $clearanceFile->storeAs($uploadPath, $clearanceName, 'public');
-            $data['barangayClearance'] = $clearancePath;
-        }
 
         // Handle new document fields
         if ($request->hasFile('clinicalAbstract')) {
@@ -985,13 +974,294 @@ Route::post('/verify-code', function (Request $request) {
     }
 });
 
+// Test route to check applications
+Route::get('/test-applications', function () {
+    $applications = \App\Models\Application::select('applicationID', 'firstName', 'lastName', 'email')->get();
+    return response()->json([
+        'applications' => $applications,
+        'count' => $applications->count()
+    ]);
+});
+
+// Document correction request route
+Route::post('/applications/correction-request', function (Request $request) {
+    try {
+        // Log the incoming request for debugging
+        \Illuminate\Support\Facades\Log::info('Correction request received', [
+            'request_data' => $request->all(),
+            'has_applicationId' => $request->has('applicationId'),
+            'has_documentsToCorrect' => $request->has('documentsToCorrect'),
+            'has_notes' => $request->has('notes'),
+            'has_requestedBy' => $request->has('requestedBy'),
+            'has_requestedByName' => $request->has('requestedByName'),
+            'documentsToCorrect_count' => is_array($request->documentsToCorrect) ? count($request->documentsToCorrect) : 'not_array'
+        ]);
+
+        try {
+            $request->validate([
+                'applicationId' => 'required|string',
+                'documentsToCorrect' => 'required|array|min:1',
+                'notes' => 'nullable|string|max:1000',
+                'requestedBy' => 'required|string',
+                'requestedByName' => 'required|string'
+            ]);
+            \Illuminate\Support\Facades\Log::info('Validation passed for correction request');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Illuminate\Support\Facades\Log::error('Validation failed for correction request', [
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json([
+                'success' => false,
+                'errors' => $e->errors()
+            ], 422);
+        }
+
+        // Convert empty string notes to null
+        $notes = $request->notes === '' ? null : $request->notes;
+
+        // Find the application
+        $application = \App\Models\Application::where('applicationID', $request->applicationId)->first();
+        if (!$application) {
+            \Illuminate\Support\Facades\Log::error('Application not found for correction request', [
+                'applicationId' => $request->applicationId,
+                'request_data' => $request->all(),
+                'available_applications' => \App\Models\Application::pluck('applicationID')->toArray()
+            ]);
+            return response()->json([
+                'success' => false,
+                'error' => 'Application not found',
+                'message' => 'The application you are trying to correct does not exist. Please refresh the page and try again.'
+            ], 404);
+        }
+
+        \Illuminate\Support\Facades\Log::info('Application found for correction request', [
+            'applicationId' => $request->applicationId,
+            'application_name' => $application->firstName . ' ' . $application->lastName,
+            'application_email' => $application->email
+        ]);
+
+        // Create correction request record
+        try {
+            $correctionRequest = \App\Models\DocumentCorrectionRequest::create([
+                'application_id_string' => $request->applicationId,
+                'documents_to_correct' => json_encode($request->documentsToCorrect),
+                'notes' => $notes,
+                'requested_by' => $request->requestedBy,
+                'requested_by_name' => $request->requestedByName,
+                'status' => 'pending',
+                'correction_token' => \Illuminate\Support\Str::random(32),
+                'expires_at' => now()->addDays(7) // Token expires in 7 days
+            ]);
+
+            \Illuminate\Support\Facades\Log::info('Correction request created successfully', [
+                'correction_request_id' => $correctionRequest->id,
+                'application_id' => $request->applicationId,
+                'token' => $correctionRequest->correction_token
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to create correction request', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to create correction request: ' . $e->getMessage()
+            ], 500);
+        }
+
+        // Send email notification to applicant
+        try {
+            \App\Services\EmailService::sendCorrectionRequestEmail(
+                $application->email,
+                $application->firstName . ' ' . $application->lastName,
+                $request->documentsToCorrect,
+                $notes,
+                $correctionRequest->correction_token
+            );
+        } catch (\Exception $emailError) {
+            \Illuminate\Support\Facades\Log::error('Failed to send correction request email', [
+                'application_id' => $request->applicationId,
+                'error' => $emailError->getMessage()
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Correction request created successfully',
+            'correction_request_id' => $correctionRequest->id
+        ]);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Error creating correction request', [
+            'error' => $e->getMessage(),
+            'request_data' => $request->all()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'error' => 'Failed to create correction request'
+        ], 500);
+    }
+});
+
+// Get correction request by token
+Route::get('/applications/correction-request/{token}', function ($token) {
+    try {
+        $correctionRequest = \App\Models\DocumentCorrectionRequest::where('correction_token', $token)
+            ->where('status', 'pending')
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (!$correctionRequest) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid, expired, or completed correction request'
+            ], 404);
+        }
+
+        // Find the application
+        $application = \App\Models\Application::where('applicationID', $correctionRequest->application_id_string)->first();
+        if (!$application) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'correction_request' => $correctionRequest,
+            'application' => $application
+        ]);
+
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Error fetching correction request', [
+            'token' => $token,
+            'error' => $e->getMessage()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to fetch correction request'
+        ], 500);
+    }
+});
+
+// Submit document corrections
+Route::post('/applications/submit-corrections', function (Request $request) {
+    try {
+        $request->validate([
+            'correction_token' => 'required|string|size:32',
+            'medicalCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+            'clinicalAbstract' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+            'voterCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+            'idPictures' => 'nullable|array|max:2',
+            'idPictures.*' => 'file|mimes:jpeg,png,jpg|max:2048',
+            'birthCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+            'wholeBodyPicture' => 'nullable|file|mimes:jpeg,png,jpg|max:2048',
+            'affidavit' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+            'barangayCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048'
+        ]);
+
+        // Find the correction request
+        $correctionRequest = \App\Models\DocumentCorrectionRequest::where('correction_token', $request->correction_token)
+            ->where('status', 'pending')
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (!$correctionRequest) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid, expired, or completed correction request'
+            ], 404);
+        }
+
+        // Find the application
+        $application = \App\Models\Application::where('applicationID', $correctionRequest->application_id_string)->first();
+        if (!$application) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+
+        // Process file uploads
+        $uploadedFiles = [];
+        $documentsToCorrect = json_decode($correctionRequest->documents_to_correct, true);
+
+        foreach ($documentsToCorrect as $docType) {
+            if ($request->hasFile($docType)) {
+                $file = $request->file($docType);
+                
+                // Handle multiple files for idPictures
+                if ($docType === 'idPictures' && is_array($file)) {
+                    $fileNames = [];
+                    foreach ($file as $index => $singleFile) {
+                        $fileName = time() . '_' . $index . '_' . $singleFile->getClientOriginalName();
+                        $singleFile->move(public_path('storage/applications'), $fileName);
+                        $fileNames[] = $fileName;
+                    }
+                    $uploadedFiles[$docType] = json_encode($fileNames);
+                } else {
+                    $fileName = time() . '_' . $file->getClientOriginalName();
+                    $file->move(public_path('storage/applications'), $fileName);
+                    $uploadedFiles[$docType] = $fileName;
+                }
+            }
+        }
+
+        // Update application with new files
+        $application->update($uploadedFiles);
+
+        // Mark correction request as completed
+        $correctionRequest->markAsCompleted();
+
+        // Log the correction submission
+        \Illuminate\Support\Facades\Log::info('Document corrections submitted', [
+            'application_id' => $application->applicationID,
+            'correction_request_id' => $correctionRequest->id,
+            'documents_corrected' => $documentsToCorrect,
+            'uploaded_files' => array_keys($uploadedFiles)
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Document corrections submitted successfully'
+        ]);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Error submitting document corrections', [
+            'token' => $request->correction_token,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to submit corrections'
+        ], 500);
+    }
+});
+
 // Public application submission route
 Route::post('/applications', function (Request $request) {
     try {
         // Log the incoming request for debugging
         \Illuminate\Support\Facades\Log::info('Application submission attempt', [
             'request_data' => $request->all(),
-            'has_files' => $request->hasFile('idPicture') || $request->hasFile('medicalCertificate') || $request->hasFile('barangayClearance')
+            'has_files' => $request->hasFile('medicalCertificate') || $request->hasFile('barangayCertificate')
         ]);
 
         // Check email verification first
@@ -1062,12 +1332,6 @@ Route::post('/applications', function (Request $request) {
         $uploadPath = 'uploads/applications/' . date('Y/m/d');
         \Illuminate\Support\Facades\Storage::makeDirectory($uploadPath);
 
-        if ($request->hasFile('idPicture')) {
-            $idPictureFile = $request->file('idPicture');
-            $idPictureName = 'id_picture_' . time() . '.' . $idPictureFile->getClientOriginalExtension();
-            $idPicturePath = $idPictureFile->storeAs($uploadPath, $idPictureName, 'public');
-            $data['idPicture'] = $idPicturePath;
-        }
 
         if ($request->hasFile('medicalCertificate')) {
             $medicalFile = $request->file('medicalCertificate');
@@ -1076,12 +1340,6 @@ Route::post('/applications', function (Request $request) {
             $data['medicalCertificate'] = $medicalPath;
         }
 
-        if ($request->hasFile('barangayClearance')) {
-            $clearanceFile = $request->file('barangayClearance');
-            $clearanceName = 'barangay_clearance_' . time() . '.' . $clearanceFile->getClientOriginalExtension();
-            $clearancePath = $clearanceFile->storeAs($uploadPath, $clearanceName, 'public');
-            $data['barangayClearance'] = $clearancePath;
-        }
 
         // Handle new document fields
         if ($request->hasFile('clinicalAbstract')) {
@@ -1289,23 +1547,45 @@ Route::get('documents/file/{id}', [DocumentManagementController::class, 'getDocu
 
 // Support ticket file serving route (public access for viewing)
 Route::get('support-tickets/messages/{messageId}/download', [SupportTicketController::class, 'downloadAttachment']);
+Route::get('support-tickets/messages/{messageId}/image', [SupportTicketController::class, 'serveImage']);
 
 // Application file serving route (for admin document preview)
 Route::get('application-file/{applicationId}/{fileType}', function($applicationId, $fileType) {
     try {
+        // Check for token-based authentication
+        $user = Auth::user();
+        if (!$user && request()->has('token')) {
+            $token = request()->get('token');
+            $user = \App\Models\User::where('remember_token', $token)->first();
+            if ($user) {
+                Auth::setUser($user);
+            }
+        }
+        
         $application = \App\Models\Application::findOrFail($applicationId);
+        
+        // Check permissions if user is authenticated
+        if ($user) {
+            // Admin users can access any file
+            if (!in_array($user->role, ['Admin', 'SuperAdmin'])) {
+                // PWD members can only access their own application files
+                if ($user->role === 'PWDMember' && $application->email !== $user->email) {
+                    return response()->json([
+                        'error' => 'Unauthorized access to application file'
+                    ], 403);
+                }
+            }
+        }
         
         // Map file types to database fields
         $fileFieldMap = [
-            'idPicture' => 'idPicture',
             'medicalCertificate' => 'medicalCertificate',
-            'barangayClearance' => 'barangayClearance',
+            'barangayCertificate' => 'barangayCertificate',
             'clinicalAbstract' => 'clinicalAbstract',
             'voterCertificate' => 'voterCertificate',
             'birthCertificate' => 'birthCertificate',
             'wholeBodyPicture' => 'wholeBodyPicture',
-            'affidavit' => 'affidavit',
-            'barangayCertificate' => 'barangayCertificate'
+            'affidavit' => 'affidavit'
         ];
         
         if (!isset($fileFieldMap[$fileType])) {
@@ -1905,6 +2185,118 @@ Route::get('/api/test-approve-application/{applicationId}', function ($applicati
                 ]
             ]);
         }
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to approve application',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+
+// Admin approval route for applications (protected)
+Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-admin', function (Request $request, $applicationId) {
+    try {
+        // Check if user is admin
+        $user = $request->user();
+        if (!$user || !in_array($user->role, ['Admin', 'SuperAdmin', 'Staff1'])) {
+            return response()->json([
+                'error' => 'Unauthorized. Admin privileges required.'
+            ], 403);
+        }
+
+        // Find the application
+        $application = \App\Models\Application::where('applicationID', $applicationId)->first();
+        
+        if (!$application) {
+            return response()->json([
+                'error' => 'Application not found'
+            ], 404);
+        }
+
+        // Check if application is in pending status
+        if ($application->status !== 'Pending Admin Approval') {
+            return response()->json([
+                'error' => 'Application is not pending admin approval'
+            ], 400);
+        }
+
+        // Generate secure random password
+        $randomPassword = \Illuminate\Support\Str::random(12);
+        
+        // Generate PWD ID
+        $pwdId = 'PWD-' . strtoupper(substr($application->firstName, 0, 2)) . 
+                strtoupper(substr($application->lastName, 0, 2)) . 
+                str_pad($application->applicationID, 4, '0', STR_PAD_LEFT);
+
+        // Update application status
+        $application->status = 'Approved';
+        $application->pwdID = $pwdId;
+        $application->save();
+
+        // Create PWD Member record
+        $pwdMember = new \App\Models\PWDMember();
+        $pwdMember->userID = $application->applicationID;
+        $pwdMember->firstName = $application->firstName;
+        $pwdMember->lastName = $application->lastName;
+        $pwdMember->middleName = $application->middleName;
+        $pwdMember->birthDate = $application->birthDate;
+        $pwdMember->disabilityType = $application->disabilityType;
+        $pwdMember->address = $application->address;
+        $pwdMember->barangay = $application->barangay;
+        $pwdMember->emergencyContact = $application->emergencyContact;
+        $pwdMember->emergencyPhone = $application->emergencyPhone;
+        $pwdMember->emergencyRelationship = $application->emergencyRelationship;
+        $pwdMember->pwd_id = $pwdId;
+        $pwdMember->status = 'Active';
+        $pwdMember->save();
+
+        // Create User account
+        $user = new \App\Models\User();
+        $user->userID = $application->applicationID;
+        $user->firstName = $application->firstName;
+        $user->lastName = $application->lastName;
+        $user->email = $application->email;
+        $user->password = \Illuminate\Support\Facades\Hash::make($randomPassword);
+        $user->role = 'PWD Member';
+        $user->status = 'Active';
+        $user->save();
+
+        // Send approval email
+        $emailSent = false;
+        try {
+            \Illuminate\Support\Facades\Mail::send('emails.application-approved', [
+                'firstName' => $application->firstName,
+                'lastName' => $application->lastName,
+                'email' => $application->email,
+                'username' => $application->email,
+                'password' => $randomPassword,
+                'pwdId' => $pwdId,
+                'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login')
+            ], function ($message) use ($application) {
+                $message->to($application->email)
+                        ->subject('PWD Application Approved - Your Account Details');
+            });
+            $emailSent = true;
+        } catch (\Exception $mailError) {
+            \Illuminate\Support\Facades\Log::error('Email sending failed', ['error' => $mailError->getMessage()]);
+        }
+
+        return response()->json([
+            'message' => 'Application approved successfully',
+            'application' => [
+                'id' => $application->applicationID,
+                'name' => $application->firstName . ' ' . $application->lastName,
+                'email' => $application->email,
+                'status' => $application->status,
+                'pwdId' => $pwdId
+            ],
+            'user_account' => [
+                'email' => $application->email,
+                'password' => $randomPassword
+            ],
+            'email_sent' => $emailSent
+        ]);
 
     } catch (\Exception $e) {
         return response()->json([

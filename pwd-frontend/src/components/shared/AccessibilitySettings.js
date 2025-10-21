@@ -86,8 +86,11 @@ function AccessibilitySettings() {
     if (savedSettings) {
       try {
         const parsedSettings = JSON.parse(savedSettings);
-        setSettings(prevSettings => ({ ...prevSettings, ...parsedSettings }));
-        applyAccessibilitySettings({ ...prevSettings, ...parsedSettings });
+        setSettings(prevSettings => {
+          const newSettings = { ...prevSettings, ...parsedSettings };
+          applyAccessibilitySettings(newSettings);
+          return newSettings;
+        });
         
         // Screen reader settings loaded
       } catch (error) {

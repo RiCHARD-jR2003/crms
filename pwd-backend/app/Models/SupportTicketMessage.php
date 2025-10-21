@@ -21,6 +21,8 @@ class SupportTicketMessage extends Model
         'attachment_size'
     ];
 
+    protected $appends = ['sender_name', 'is_admin'];
+
     /**
      * Get the support ticket that owns the message.
      */
@@ -51,10 +53,29 @@ class SupportTicketMessage extends Model
             $pwdMember = PWDMember::find($this->sender_id);
             return $pwdMember ? $pwdMember->firstName . ' ' . $pwdMember->lastName : 'PWD Member';
         } elseif ($this->sender_type === 'admin') {
-            $admin = Admin::find($this->sender_id);
-            return $admin ? $admin->firstName . ' ' . $admin->lastName : 'Admin';
+            // sender_id is the userID, so we need to find the User record first
+            $user = User::find($this->sender_id);
+            if ($user) {
+                // Get the user's role to determine display name
+                if ($user->role === 'FrontDesk') {
+                    return 'FrontDesk';
+                } elseif ($user->role === 'Admin') {
+                    return 'Admin';
+                } else {
+                    return $user->username ?? 'Admin';
+                }
+            }
+            return 'Admin';
         }
         return 'Unknown';
+    }
+
+    /**
+     * Check if message is from admin/FrontDesk.
+     */
+    public function getIsAdminAttribute(): bool
+    {
+        return $this->sender_type === 'admin';
     }
 
     /**

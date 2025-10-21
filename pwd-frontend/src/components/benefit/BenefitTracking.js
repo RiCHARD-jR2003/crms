@@ -29,6 +29,7 @@ import {
   Divider,
   Container
 } from '@mui/material';
+import toastService from '../../services/toastService';
 import {
   Print as PrintIcon,
   Search as SearchIcon,
@@ -43,10 +44,13 @@ import {
 import pwdMemberService from '../../services/pwdMemberService';
 import benefitService from '../../services/benefitService';
 import AdminSidebar from '../shared/AdminSidebar';
+import Staff2Sidebar from '../shared/Staff2Sidebar';
+import { useAuth } from '../../contexts/AuthContext';
 import PWDIDCard from '../cards/PWDIDCard';
 import FloatingQRScannerButton from '../qr/FloatingQRScannerButton';
 
 const BenefitTracking = () => {
+  const { currentUser } = useAuth();
   const [pwdMembers, setPwdMembers] = useState([]);
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -442,7 +446,7 @@ const BenefitTracking = () => {
           <div class="header">
             <h1>CABUYAO PDAO RMS</h1>
             <h2>PWD Members Master List</h2>
-            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+            <p>Generated on: ${formatDateMMDDYYYY(new Date().toISOString())}</p>
           </div>
           <div class="filters">
             <strong>Applied Filters:</strong>
@@ -480,7 +484,7 @@ const BenefitTracking = () => {
       doc.text('PWD Members Master List', 20, 30);
       
       doc.setFontSize(10);
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 40);
+      doc.text(`Generated on: ${formatDateMMDDYYYY(new Date().toISOString())}`, 20, 40);
       
       // Add filters info
       let filtersText = 'Applied Filters: ';
@@ -499,7 +503,7 @@ const BenefitTracking = () => {
         member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned'),
         `${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || 'Name not provided',
         getAge(member.birthDate),
-        member.birthDate ? new Date(member.birthDate).toLocaleDateString() : 'Not provided',
+        member.birthDate ? formatDateMMDDYYYY(member.birthDate) : 'Not provided',
         member.disabilityType || 'Not specified',
         'Active',
         getRegistrationDate(member) || 'Not available'
@@ -544,10 +548,9 @@ const BenefitTracking = () => {
         newWindow.focus();
         
         // Show confirmation dialog with download option
-        const userChoice = window.confirm(
-          `PDF generated successfully with ${filteredMembers.length} PWD members!\n\n` +
-          'The PDF is now open in a new tab for preview.\n\n' +
-          'Click OK to download the PDF, or Cancel to keep it open for preview only.'
+        const userChoice = await toastService.confirmAsync(
+          'PDF Generated Successfully',
+          `PDF generated successfully with ${filteredMembers.length} PWD members!\n\nThe PDF is now open in a new tab for preview.\n\nClick OK to download the PDF, or Cancel to keep it open for preview only.`
         );
         
         if (userChoice) {
@@ -567,14 +570,14 @@ const BenefitTracking = () => {
         }, 10000); // Clean up after 10 seconds
       } else {
         // Fallback if popup is blocked
-        alert('Popup blocked! Please allow popups for this site and try again, or the PDF will be downloaded automatically.');
+        toastService.warning('Popup blocked! Please allow popups for this site and try again, or the PDF will be downloaded automatically.');
         const fileName = `PWD_Members_Master_List_${new Date().toISOString().split('T')[0]}.pdf`;
         doc.save(fileName);
       }
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Error generating PDF. Please make sure jsPDF is installed.');
+      toastService.error('Error generating PDF. Please make sure jsPDF is installed.');
     }
   };
 
@@ -604,6 +607,19 @@ const BenefitTracking = () => {
     return new Date(birthDate).getFullYear();
   };
 
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
+
   // Determine member registration date from available fields
   const getRegistrationDate = (member) => {
     const candidates = [
@@ -617,8 +633,7 @@ const BenefitTracking = () => {
     ];
     const value = candidates.find(Boolean);
     if (!value) return null;
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? null : date.toLocaleDateString();
+    return formatDateMMDDYYYY(value);
   };
 
   const getStatusColor = (status) => {
@@ -695,8 +710,12 @@ const BenefitTracking = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'white' }}>
-      {/* Admin Sidebar with Toggle */}
-      <AdminSidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+      {/* Role-based Sidebar with Toggle */}
+      {currentUser?.role === 'Staff2' ? (
+        <Staff2Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+      ) : (
+        <AdminSidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+      )}
       
       {/* Main Content */}
       <Box sx={{ 
@@ -1462,7 +1481,7 @@ const BenefitTracking = () => {
                         <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: '#2C3E50' }}>
                           {member.birthDate ? (
                             <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                              {new Date(member.birthDate).toLocaleDateString()}
+                              {formatDateMMDDYYYY(member.birthDate)}
                             </Typography>
                           ) : (
                             <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>
@@ -1865,7 +1884,7 @@ const BenefitTracking = () => {
                                 <TableCell sx={{ color: '#2C3E50' }}>
                                   {member.claimDate ? (
                                     <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                                      {new Date(member.claimDate).toLocaleDateString()}
+                                      {formatDateMMDDYYYY(member.claimDate)}
                                     </Typography>
                                   ) : (
                                     <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>
@@ -2239,7 +2258,7 @@ const BenefitTracking = () => {
                                 <TableCell sx={{ color: '#2C3E50' }}>
                                   {member.claimDate ? (
                                     <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                                      {new Date(member.claimDate).toLocaleDateString()}
+                                      {formatDateMMDDYYYY(member.claimDate)}
                                     </Typography>
                                   ) : (
                                     <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>

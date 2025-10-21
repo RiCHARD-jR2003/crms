@@ -40,6 +40,7 @@ import {
   Divider,
   CircularProgress
 } from '@mui/material';
+import toastService from '../../services/toastService';
 import {
   VolunteerActivism,
   Add,
@@ -61,10 +62,13 @@ import {
   Menu as MenuIcon
 } from '@mui/icons-material';
 import AdminSidebar from '../shared/AdminSidebar';
+import Staff2Sidebar from '../shared/Staff2Sidebar';
+import { useAuth } from '../../contexts/AuthContext';
 import pwdMemberService from '../../services/pwdMemberService';
 import benefitService from '../../services/benefitService';
 
 const Ayuda = () => {
+  const { currentUser } = useAuth();
   const [openDialog, setOpenDialog] = useState(false);
   const [editingBenefit, setEditingBenefit] = useState(null);
   const [benefits, setBenefits] = useState([]);
@@ -76,6 +80,19 @@ const Ayuda = () => {
   const [eligibleMembers, setEligibleMembers] = useState([]);
   const [loadingEligibleMembers, setLoadingEligibleMembers] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
 
   const [formData, setFormData] = useState({
     type: '',
@@ -217,38 +234,57 @@ const Ayuda = () => {
   };
 
   const handleDeleteBenefit = async (benefitId) => {
-    if (window.confirm('Are you sure you want to delete this benefit program? This action cannot be undone.')) {
-      try {
-        await benefitService.delete(benefitId);
-        const updatedBenefits = benefits.filter(benefit => benefit.id !== benefitId);
-        setBenefits(updatedBenefits);
-        // Also update localStorage for backward compatibility
-        localStorage.setItem('benefits', JSON.stringify(updatedBenefits));
-        alert('Benefit program deleted successfully!');
-      } catch (error) {
-        console.error('Error deleting benefit:', error);
-        alert('Failed to delete benefit program: ' + (error.message || 'Unknown error'));
+    toastService.confirm(
+      'Delete Benefit Program',
+      'Are you sure you want to delete this benefit program? This action cannot be undone.',
+      async () => {
+        try {
+          await benefitService.delete(benefitId);
+          const updatedBenefits = benefits.filter(benefit => benefit.id !== benefitId);
+          setBenefits(updatedBenefits);
+          // Also update localStorage for backward compatibility
+          localStorage.setItem('benefits', JSON.stringify(updatedBenefits));
+          toastService.success('Benefit program deleted successfully!');
+        } catch (error) {
+          console.error('Error deleting benefit:', error);
+          toastService.error('Failed to delete benefit program: ' + (error.message || 'Unknown error'));
+        }
       }
-    }
+    );
   };
 
   const handleDeletePendingSchedule = async (scheduleId) => {
-    if (window.confirm('Are you sure you want to delete this pending schedule? This action cannot be undone.')) {
-      try {
-        // For pending schedules, we'll delete from localStorage for now
-        // In the future, you might want to create a separate table for pending schedules
-        const updatedPendingSchedules = pendingSchedules.filter(schedule => schedule.id !== scheduleId);
-        setPendingSchedules(updatedPendingSchedules);
-        localStorage.setItem('pendingSchedules', JSON.stringify(updatedPendingSchedules));
-        alert('Pending schedule deleted successfully!');
-      } catch (error) {
-        console.error('Error deleting pending schedule:', error);
-        alert('Failed to delete pending schedule: ' + (error.message || 'Unknown error'));
+    toastService.confirm(
+      'Delete Pending Schedule',
+      'Are you sure you want to delete this pending schedule? This action cannot be undone.',
+      async () => {
+        try {
+          // For pending schedules, we'll delete from localStorage for now
+          // In the future, you might want to create a separate table for pending schedules
+          const updatedPendingSchedules = pendingSchedules.filter(schedule => schedule.id !== scheduleId);
+          setPendingSchedules(updatedPendingSchedules);
+          localStorage.setItem('pendingSchedules', JSON.stringify(updatedPendingSchedules));
+          toastService.success('Pending schedule deleted successfully!');
+        } catch (error) {
+          console.error('Error deleting pending schedule:', error);
+          toastService.error('Failed to delete pending schedule: ' + (error.message || 'Unknown error'));
+        }
       }
-    }
+    );
   };
 
   const handleSubmit = async () => {
+    // Validate expiry date
+    if (formData.expiryDate) {
+      const today = new Date();
+      const selectedExpiryDate = new Date(formData.expiryDate);
+      
+      if (selectedExpiryDate <= today) {
+        toastService.error('Expiry date must be at least tomorrow. Please select a future date.');
+        return;
+      }
+    }
+    
     if (editingBenefit) {
       // Update existing benefit
       try {
@@ -274,21 +310,19 @@ const Ayuda = () => {
         setBenefits(updatedBenefits);
         // Save to localStorage for BenefitTracking to access
         localStorage.setItem('benefits', JSON.stringify(updatedBenefits));
-        alert('Benefit program updated successfully!');
+        toastService.success('Benefit program updated successfully!');
       } catch (error) {
         console.error('Error updating benefit:', error);
-        alert('Failed to update benefit program: ' + (error.message || 'Unknown error'));
+        toastService.error('Failed to update benefit program: ' + (error.message || 'Unknown error'));
       }
     } else {
       // Add new benefit to pending schedules
       try {
         // Check if there are eligible members and generate PDF first
         if (eligibleMembers.length > 0) {
-          const confirmGeneratePDF = window.confirm(
-            `This benefit program has ${eligibleMembers.length} eligible members. ` +
-            'A PDF with the eligible members list and signature spaces will be generated. ' +
-            'You must print this PDF and get signatures from the Head of PDAO Office, Barangay President, and Mayor before the program can be approved. ' +
-            'Do you want to continue?'
+          const confirmGeneratePDF = await toastService.confirmAsync(
+            'Generate PDF for Eligible Members',
+            `This benefit program has ${eligibleMembers.length} eligible members. A PDF with the eligible members list and signature spaces will be generated. You must print this PDF and get signatures from the Head of PDAO Office, Barangay President, and Mayor before the program can be approved. Do you want to continue?`
           );
           
           if (!confirmGeneratePDF) {
@@ -326,13 +360,13 @@ const Ayuda = () => {
         localStorage.setItem('pendingSchedules', JSON.stringify(updatedPendingSchedules));
         
         if (eligibleMembers.length > 0) {
-          alert('Benefit program submitted for approval! Please print the generated PDF and get the required signatures before the program can be approved.');
+          toastService.success('Benefit program submitted for approval! Please print the generated PDF and get the required signatures before the program can be approved.');
         } else {
-          alert('Benefit program submitted for approval!');
+          toastService.success('Benefit program submitted for approval!');
         }
       } catch (error) {
         console.error('Error creating benefit:', error);
-        alert('Failed to create benefit program: ' + (error.message || 'Unknown error'));
+        toastService.error('Failed to create benefit program: ' + (error.message || 'Unknown error'));
       }
     }
     handleCloseDialog();
@@ -340,7 +374,7 @@ const Ayuda = () => {
 
   const handleApproveSchedule = async () => {
     if (!approvalFile) {
-      alert('Please upload the signed letter of approval from the mayor first.');
+      toastService.warning('Please upload the signed letter of approval from the mayor first.');
       return;
     }
 
@@ -377,10 +411,10 @@ const Ayuda = () => {
         setSelectedPendingSchedule(null);
         setApprovalFile(null);
         
-        alert('Benefit program approved and saved to database successfully!');
+        toastService.success('Benefit program approved and saved to database successfully!');
       } catch (error) {
         console.error('Error approving schedule:', error);
-        alert('Failed to approve benefit program: ' + (error.message || 'Unknown error'));
+        toastService.error('Failed to approve benefit program: ' + (error.message || 'Unknown error'));
       }
     }
   };
@@ -393,14 +427,14 @@ const Ayuda = () => {
       if (allowedTypes.includes(file.type)) {
         setApprovalFile(file);
       } else {
-        alert('Please upload only image files (JPG, PNG) or PDF files.');
+        toastService.warning('Please upload only image files (JPG, PNG) or PDF files.');
       }
     }
   };
 
   const generateEligibleMembersPDF = async () => {
     if (eligibleMembers.length === 0) {
-      alert('No eligible members to generate PDF for.');
+      toastService.warning('No eligible members to generate PDF for.');
       return;
     }
 
@@ -444,7 +478,7 @@ const Ayuda = () => {
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 85);
+      doc.text(`Generated on: ${formatDateMMDDYYYY(new Date().toISOString())}`, 20, 85);
       doc.text(`Total Eligible Members: ${eligibleMembers.length}`, 20, 92);
       
        // Prepare table data - ensure we're using the current eligibleMembers
@@ -540,11 +574,9 @@ const Ayuda = () => {
         newWindow.focus();
         
         // Show confirmation dialog with download option
-        const userChoice = window.confirm(
-          `PDF generated successfully with ${eligibleMembers.length} eligible members!\n\n` +
-          'The PDF is now open in a new tab for preview.\n\n' +
-          'Click OK to download the PDF, or Cancel to keep it open for preview only.\n\n' +
-          'Remember: You must print this PDF and get signatures from the Head of PDAO Office, Barangay President, and Mayor before the program can be approved.'
+        const userChoice = await toastService.confirmAsync(
+          'PDF Generated Successfully',
+          `PDF generated successfully with ${eligibleMembers.length} eligible members!\n\nThe PDF is now open in a new tab for preview.\n\nClick OK to download the PDF, or Cancel to keep it open for preview only.\n\nRemember: You must print this PDF and get signatures from the Head of PDAO Office, Barangay President, and Mayor before the program can be approved.`
         );
         
         if (userChoice) {
@@ -564,14 +596,14 @@ const Ayuda = () => {
         }, 10000); // Clean up after 10 seconds
       } else {
         // Fallback if popup is blocked
-        alert('Popup blocked! Please allow popups for this site and try again, or the PDF will be downloaded automatically.');
+        toastService.warning('Popup blocked! Please allow popups for this site and try again, or the PDF will be downloaded automatically.');
         const fileName = `Eligible_Members_${formData.type.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
         doc.save(fileName);
       }
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF: ' + (error.message || 'Unknown error'));
+      toastService.error('Failed to generate PDF: ' + (error.message || 'Unknown error'));
     } finally {
       setGeneratingPDF(false);
     }
@@ -700,7 +732,7 @@ const Ayuda = () => {
             ${benefit.expiryDate ? `
             <div class="info-row">
               <div class="info-label">Expiry Date:</div>
-              <div class="info-value">${new Date(benefit.expiryDate).toLocaleDateString()}</div>
+              <div class="info-value">${formatDateMMDDYYYY(benefit.expiryDate)}</div>
             </div>
             ` : ''}
             <div class="info-row">
@@ -710,7 +742,7 @@ const Ayuda = () => {
             ${benefit.distributionDate ? `
             <div class="info-row">
               <div class="info-label">Distribution Date:</div>
-              <div class="info-value">${new Date(benefit.distributionDate).toLocaleDateString()}</div>
+              <div class="info-value">${formatDateMMDDYYYY(benefit.distributionDate)}</div>
             </div>
             ` : ''}
             ${benefit.birthdayMonth ? `
@@ -727,7 +759,7 @@ const Ayuda = () => {
           </div>
           
           <div class="footer">
-            <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            <p>Generated on ${formatDateMMDDYYYY(new Date().toISOString())} at ${new Date().toLocaleTimeString()}</p>
             <p>City of Cabuyao - Persons with Disability Affairs Office</p>
           </div>
         </body>
@@ -866,7 +898,7 @@ const Ayuda = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'white' }}>
-      <AdminSidebar />
+      {currentUser?.role === 'Staff2' ? <Staff2Sidebar /> : <AdminSidebar />}
       
       <Box sx={{ 
         flex: 1, 
@@ -1504,7 +1536,7 @@ const Ayuda = () => {
                             null
                           )}
                           <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mb: 2, fontWeight: 500 }}>
-                            Submitted: {new Date(schedule.submittedDate).toLocaleDateString()}
+                            Submitted: {formatDateMMDDYYYY(schedule.submittedDate)}
                           </Typography>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto', gap: 1 }}>
                             <Button
@@ -1725,6 +1757,16 @@ const Ayuda = () => {
                   onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
                   InputLabelProps={{
                     shrink: true,
+                  }}
+                  inputProps={{
+                    min: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Tomorrow's date
+                  }}
+                  helperText="Expiry date must be at least tomorrow (cannot be today or previous dates)"
+                  FormHelperTextProps={{
+                    sx: {
+                      color: '#B0BEC5',
+                      fontSize: '0.75rem'
+                    }
                   }}
                   sx={{
                     '& .MuiInputLabel-root': {

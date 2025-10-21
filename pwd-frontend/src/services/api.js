@@ -37,8 +37,6 @@ async function request(path, { method = 'GET', headers = {}, body, auth = true }
   }
 
   try {
-    console.log(`Making request to: ${API_BASE_URL}${path}`);
-    
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers: finalHeaders,
@@ -56,7 +54,6 @@ async function request(path, { method = 'GET', headers = {}, body, auth = true }
       throw error;
     }
     
-    console.log(`Success with URL: ${API_BASE_URL}${path}`);
     return data;
     
   } catch (error) {
@@ -74,6 +71,19 @@ export const api = {
   setToken: (token) => localStorage.setItem('auth.token', JSON.stringify(token)),
   clearToken: () => localStorage.removeItem('auth.token'),
   getStorageUrl: (path) => `${STORAGE_BASE_URL}/storage/${path}`,
+  getFilePreviewUrl: (type, id, fileType = null) => {
+    const baseUrl = API_BASE_URL;
+    switch (type) {
+      case 'support-ticket':
+        return `${baseUrl}/support-tickets/messages/${id}/download`;
+      case 'application-file':
+        return `${baseUrl}/application-file/${id}/${fileType}`;
+      case 'document-file':
+        return `${baseUrl}/documents/file/${id}`;
+      default:
+        return null;
+    }
+  },
 };
 
 export default api;

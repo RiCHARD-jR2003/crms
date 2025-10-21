@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "craco start",
+    "start:network": "set REACT_APP_NETWORK_MODE=true && set HOST=0.0.0.0 && craco start",
     "start:https": "set HTTPS=true && craco start",
     "build": "craco build",
     "test": "craco test",

@@ -25,6 +25,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/api';
 import { supportService } from '../../services/supportService';
+import toastService from '../../services/toastService';
 
 function PWDMemberSidebar({ isOpen, onToggle }) {
   const navigate = useNavigate();
@@ -42,9 +43,16 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
     { text: 'Profile', icon: <PersonIcon />, path: '/pwd-profile', badgeCount: 0 },
   ];
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    const confirmed = await toastService.confirmAsync(
+      'Logout Confirmation',
+      'Are you sure you want to logout? You will need to sign in again to access your account.'
+    );
+    
+    if (confirmed) {
+      await logout();
+      navigate('/login');
+    }
   };
 
   const handleDrawerToggle = () => {

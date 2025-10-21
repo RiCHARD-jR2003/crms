@@ -40,8 +40,9 @@ import {
   FilterList as FilterListIcon,
   Clear as ClearIcon
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
 import AdminSidebar from '../shared/AdminSidebar';
+import FrontDeskSidebar from '../shared/FrontDeskSidebar';
+import { useAuth } from '../../contexts/AuthContext';
 import pwdMemberService from '../../services/pwdMemberService';
 import QRCodeService from '../../services/qrCodeService';
 import SuccessModal from '../shared/SuccessModal';
@@ -110,6 +111,15 @@ function PWDCard() {
       }
     } catch (err) {
       console.error('Error fetching PWD members:', err);
+      
+      // Check if it's an authentication error
+      if (err.status === 401 || err.status === 403) {
+        console.error('Authentication error in PWDCard:', err);
+        setError('Authentication error. Please refresh the page and try again.');
+        // Don't throw the error to prevent it from affecting the parent component
+        return;
+      }
+      
       setError('Failed to fetch PWD members. Please try again.');
     } finally {
       setLoading(false);
@@ -422,7 +432,7 @@ function PWDCard() {
   if (loading) {
     return (
       <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8F9FA' }}>
-        <AdminSidebar />
+        {currentUser?.role === 'FrontDesk' ? <FrontDeskSidebar /> : <AdminSidebar />}
         <Box sx={{ 
           flexGrow: 1, 
           p: 3, 
@@ -446,7 +456,7 @@ function PWDCard() {
   if (error) {
     return (
       <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8F9FA' }}>
-        <AdminSidebar />
+        {currentUser?.role === 'FrontDesk' ? <FrontDeskSidebar /> : <AdminSidebar />}
         <Box sx={{ 
           flexGrow: 1, 
           p: 3, 
@@ -477,7 +487,7 @@ function PWDCard() {
   if (!loading && pwdMembers.length === 0) {
     return (
       <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8F9FA' }}>
-        <AdminSidebar />
+        {currentUser?.role === 'FrontDesk' ? <FrontDeskSidebar /> : <AdminSidebar />}
         <Box sx={{ 
           flexGrow: 1, 
           p: 3, 
@@ -514,7 +524,7 @@ function PWDCard() {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F8F9FA' }}>
-      <AdminSidebar />
+      {currentUser?.role === 'FrontDesk' ? <FrontDeskSidebar /> : <AdminSidebar />}
 
       {/* Main Content */}
       <Box sx={{ 

@@ -20,9 +20,18 @@ import {
   Description,
   InsertDriveFile
 } from '@mui/icons-material';
-import { supportService } from '../../services/supportService';
+import { filePreviewService } from '../../services/filePreviewService';
 
-const FilePreview = ({ open, onClose, messageId, fileName, fileType, fileSize }) => {
+const FilePreview = ({ 
+  open, 
+  onClose, 
+  messageId, 
+  fileName, 
+  fileType, 
+  fileSize,
+  previewType = 'support-ticket', // support-ticket, application-file, document-file
+  fileTypeParam = null // for application files
+}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
@@ -38,24 +47,12 @@ const FilePreview = ({ open, onClose, messageId, fileName, fileType, fileSize })
       setLoading(true);
       setError(null);
       
-      console.log('Loading file preview for messageId:', messageId);
-      console.log('File type:', fileType);
+      console.log('Loading file preview:', { messageId, fileType, previewType, fileTypeParam });
       
-      // Get the file URL from the backend
-      const response = await supportService.downloadAttachment(messageId);
+      // Get the preview URL using the file preview service
+      const url = filePreviewService.getPreviewUrl(previewType, messageId, fileTypeParam);
+      console.log('Preview URL generated:', url);
       
-      console.log('Response received:', response);
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      
-      // Get the blob from the response
-      const blob = await response.blob();
-      console.log('Blob created:', blob);
-      console.log('Blob type:', blob.type);
-      console.log('Blob size:', blob.size);
-      
-      const url = URL.createObjectURL(blob);
-      console.log('Object URL created:', url);
       setFileUrl(url);
     } catch (error) {
       console.error('Error loading file preview:', error);
@@ -73,16 +70,7 @@ const FilePreview = ({ open, onClose, messageId, fileName, fileType, fileSize })
 
   const handleDownload = async () => {
     try {
-      const response = await supportService.forceDownloadAttachment(messageId);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      await filePreviewService.downloadFile(previewType, messageId, fileName, fileTypeParam);
     } catch (error) {
       console.error('Error downloading file:', error);
       setError('Failed to download file');
@@ -90,10 +78,8 @@ const FilePreview = ({ open, onClose, messageId, fileName, fileType, fileSize })
   };
 
   const handleClose = () => {
-    if (fileUrl) {
-      URL.revokeObjectURL(fileUrl);
-      setFileUrl(null);
-    }
+    // No need to revoke URL since we're not using blob URLs anymore
+    setFileUrl(null);
     setError(null);
     onClose();
   };
@@ -111,11 +97,7 @@ const FilePreview = ({ open, onClose, messageId, fileName, fileType, fileSize })
   };
 
   const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return filePreviewService.formatFileSize(bytes);
   };
 
   const renderPreview = () => {

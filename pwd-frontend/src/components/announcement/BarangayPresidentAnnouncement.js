@@ -35,6 +35,19 @@ function BarangayPresidentAnnouncement() {
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
 
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
+
   // Fetch announcements from database
   useEffect(() => {
     fetchAnnouncements();
@@ -476,11 +489,7 @@ function BarangayPresidentAnnouncement() {
                           sx={{ color: '#000000 !important' }}
                           style={{ color: '#000000' }}
                         >
-                          {new Date(selectedAnnouncement.publishDate).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
+                          {formatDateMMDDYYYY(selectedAnnouncement.publishDate)}
                         </Typography>
                       </Box>
                       <Box>
@@ -496,11 +505,7 @@ function BarangayPresidentAnnouncement() {
                           sx={{ color: '#000000 !important' }}
                           style={{ color: '#000000' }}
                         >
-                          {new Date(selectedAnnouncement.expiryDate).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
+                          {formatDateMMDDYYYY(selectedAnnouncement.expiryDate)}
                         </Typography>
                       </Box>
                     </Box>

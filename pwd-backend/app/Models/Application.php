@@ -47,8 +47,6 @@ class Application extends Model
         'wholeBodyPicture',
         'affidavit',
         'barangayCertificate',
-        'barangayClearance',
-        'idPicture',
         'submissionDate',
         'status',
         'remarks'

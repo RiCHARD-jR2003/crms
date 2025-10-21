@@ -31,9 +31,13 @@ export function AuthProvider({ children }) {
     loadStoredAuth();
   }, []);
 
-  const login = async ({ username, password }) => {
-    console.log('Attempting login with:', { username, password });
-    const response = await api.post('/login', { username, password }, { auth: false });
+  const login = async ({ username, password, captcha }) => {
+    console.log('Attempting login with:', { username, password, captcha });
+    const loginData = { username, password };
+    if (captcha) {
+      loginData.captcha = captcha;
+    }
+    const response = await api.post('/login', loginData, { auth: false });
     console.log('Login response:', response);
     const { user, access_token: accessToken } = response;
     

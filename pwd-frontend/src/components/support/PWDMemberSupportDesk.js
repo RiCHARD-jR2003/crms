@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -57,6 +57,9 @@ import {
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
 import { supportService } from '../../services/supportService';
+import { filePreviewService } from '../../services/filePreviewService';
+import { api } from '../../services/api';
+import websocketService from '../../services/websocketService';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
 
@@ -67,6 +70,7 @@ const PWDMemberSupportDesk = () => {
   const { announcePageChange } = useScreenReader();
   const [openDialog, setOpenDialog] = useState(false);
   const [viewDialog, setViewDialog] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [archivedTickets, setArchivedTickets] = useState([]);
@@ -74,8 +78,139 @@ const PWDMemberSupportDesk = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [messageStatuses, setMessageStatuses] = useState({});
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [replyText, setReplyText] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  // Ref for auto-scrolling chat messages
+  const chatContainerRef = useRef(null);
+
+  // Auto-scroll to bottom of chat
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  };
+
+  // Update message status
+  const updateMessageStatus = (messageId, status) => {
+    setMessageStatuses(prev => ({
+      ...prev,
+      [messageId]: status
+    }));
+  };
+
+  // Get message status
+  const getMessageStatus = (messageId) => {
+    return messageStatuses[messageId] || 'sent';
+  };
+
+  // Initialize WebSocket connection
+  const initializeWebSocket = async () => {
+    try {
+      await websocketService.connect();
+      
+      // Set up event listeners
+      websocketService.on('new_message', handleNewMessage);
+      websocketService.on('message_status_update', handleMessageStatusUpdate);
+      websocketService.on('typing_indicator', handleTypingIndicator);
+      websocketService.on('connection', handleConnectionStatus);
+      
+    } catch (error) {
+      console.error('Error initializing WebSocket:', error);
+    }
+  };
+
+  // Handle new message from WebSocket
+  const handleNewMessage = (data) => {
+    console.log('New message received:', data);
+    
+    if (data.ticket_id === selectedTicketId) {
+      // Update the selected ticket with the new message
+      setSelectedTicket(prevTicket => {
+        if (prevTicket && prevTicket.id === data.ticket_id) {
+          return {
+            ...prevTicket,
+            messages: [...(prevTicket.messages || []), data.message]
+          };
+        }
+        return prevTicket;
+      });
+      
+      // Auto-scroll to bottom
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+    
+    // Update tickets list
+    fetchTickets();
+  };
+
+  // Handle message status updates
+  const handleMessageStatusUpdate = (data) => {
+    console.log('Message status update:', data);
+    updateMessageStatus(data.message_id, data.status);
+  };
+
+  // Handle typing indicators
+  const handleTypingIndicator = (data) => {
+    console.log('Typing indicator:', data);
+    
+    if (data.ticket_id === selectedTicketId) {
+      if (data.is_typing) {
+        setTypingUsers(prev => {
+          if (!prev.includes(data.user_name)) {
+            return [...prev, data.user_name];
+          }
+          return prev;
+        });
+      } else {
+        setTypingUsers(prev => prev.filter(user => user !== data.user_name));
+      }
+    }
+  };
+
+  // Handle connection status changes
+  const handleConnectionStatus = (data) => {
+    console.log('Connection status:', data);
+    setConnectionStatus(data.status);
+  };
+
+  // Format date as MM/DD/YYYY
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  };
+
+  // Format status for display
+  const formatStatus = (status) => {
+    switch (status) {
+      case 'open':
+        return 'NEW';
+      case 'waiting_for_reply':
+        return 'WAITING FOR REPLY';
+      case 'in_progress':
+        return 'IN PROGRESS';
+      case 'resolved':
+        return 'RESOLVED';
+      default:
+        return status.replace('_', ' ').toUpperCase();
+    }
+  };
   const [selectedReplyFile, setSelectedReplyFile] = useState(null);
   
   // Form states for creating new ticket
@@ -92,7 +227,30 @@ const PWDMemberSupportDesk = () => {
     announcePageChange(t('support.title'));
     
     fetchTickets();
+    
+    // Initialize WebSocket connection
+    initializeWebSocket();
+    
+    // Cleanup on unmount
+    return () => {
+      if (selectedTicketId) {
+        websocketService.leaveTicketRoom(selectedTicketId);
+      }
+      websocketService.off('new_message', handleNewMessage);
+      websocketService.off('message_status_update', handleMessageStatusUpdate);
+      websocketService.off('typing_indicator', handleTypingIndicator);
+      websocketService.off('connection', handleConnectionStatus);
+    };
   }, [announcePageChange, t]);
+
+  // Auto-scroll when selected ticket changes
+  useEffect(() => {
+    if (selectedTicket) {
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+  }, [selectedTicket]);
 
   const fetchTickets = async () => {
     try {
@@ -140,7 +298,12 @@ const PWDMemberSupportDesk = () => {
 
   const handleViewTicket = (ticket) => {
     setSelectedTicket(ticket);
-    setViewDialog(true);
+    setSelectedTicketId(ticket.id);
+    
+    // Join WebSocket room for this ticket
+    if (websocketService.isConnected()) {
+      websocketService.joinTicketRoom(ticket.id);
+    }
   };
 
   const handleCloseViewDialog = () => {
@@ -232,12 +395,8 @@ const PWDMemberSupportDesk = () => {
       console.log('Starting file preview for message:', message.id);
       setError(null); // Clear any previous errors
       
-      // Use the same approach as document management - direct API endpoint
-      const url = `http://192.168.18.25:8000/api/support-tickets/messages/${message.id}/download`;
-      console.log('Opening URL:', url);
-      
-      // Use window.open directly like document management does
-      window.open(url, '_blank', 'noopener');
+      // Use the file preview service
+      await filePreviewService.openPreview('support-ticket', message.id);
       
       console.log('File preview initiated');
       
@@ -277,22 +436,113 @@ const PWDMemberSupportDesk = () => {
     }
   };
 
-  const handleSubmitReply = async () => {
-    try {
-      setLoading(true);
-      await supportService.addMessage(selectedTicket.id, replyText, selectedReplyFile);
-      setSuccess('Reply sent successfully!');
-      setReplyText('');
-      setSelectedReplyFile(null);
-      fetchTickets();
-      // Refresh the selected ticket
-      const updatedTicket = await supportService.getTicket(selectedTicket.id);
-      setSelectedTicket(updatedTicket);
-    } catch (error) {
-      console.error('Error sending reply:', error);
-      setError('Failed to send reply');
-    } finally {
-      setLoading(false);
+  const handleReply = async () => {
+    if (replyText.trim() || selectedFile) {
+      try {
+        setLoading(true);
+        
+        // Create a temporary message ID for status tracking
+        const tempMessageId = `temp_${Date.now()}`;
+        
+        // Set status to sending
+        updateMessageStatus(tempMessageId, 'sending');
+        
+        await supportService.addMessage(selectedTicket.id, replyText, selectedFile);
+        
+        // Set status to sent
+        updateMessageStatus(tempMessageId, 'sent');
+        
+        setReplyText('');
+        setSelectedFile(null);
+        
+        // Clear preview
+        setPreviewFile(null);
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
+        
+        // Refresh tickets to get updated data
+        fetchTickets();
+        
+        // Refresh the selected ticket
+        const updatedTicket = await supportService.getTicket(selectedTicket.id);
+        setSelectedTicket(updatedTicket);
+        
+        // Auto-scroll to bottom after sending message
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+        
+        // Mark message as seen after a delay (simulated)
+        setTimeout(() => {
+          updateMessageStatus(tempMessageId, 'seen');
+        }, 2000);
+        
+      } catch (error) {
+        console.error('Error sending reply:', error);
+        setError('Failed to send reply');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      
+      // Check file size (10MB limit)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('File size must be less than 10MB');
+        return;
+      }
+      
+      // Check file type
+      const allowedTypes = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif'];
+      const fileExtension = file.name.split('.').pop().toLowerCase();
+      
+      if (!allowedTypes.includes(fileExtension)) {
+        setError('File type not supported. Allowed types: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF');
+        return;
+      }
+      
+      setSelectedFile(file);
+      setPreviewFile(file);
+      
+      // Create preview URL for images
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        setPreviewUrl(url);
+      } else {
+        setPreviewUrl(null);
+      }
+      
+      setError(null);
+    }
+  };
+
+  const handleRemovePreview = () => {
+    setSelectedFile(null);
+    setPreviewFile(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
     }
   };
 
@@ -365,11 +615,11 @@ const PWDMemberSupportDesk = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <Schedule sx={{ color: '#E74C3C', mr: 1 }} />
                   <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
-                    {showArchive ? 0 : tickets.filter(ticket => ticket.status === 'open').length}
+                    {showArchive ? 0 : tickets.filter(ticket => ticket.status === 'open' || ticket.status === 'waiting_for_reply').length}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
-                  {t('support.open')} {t('support.myTickets')}
+                  Waiting for Reply
                 </Typography>
               </CardContent>
             </Card>
@@ -395,7 +645,7 @@ const PWDMemberSupportDesk = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <CheckCircle sx={{ color: '#27AE60', mr: 1 }} />
                   <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
-                    {showArchive ? archivedTickets.length : 0}
+                    {archivedTickets.length}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
@@ -410,7 +660,7 @@ const PWDMemberSupportDesk = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
                   <SupportAgent sx={{ color: '#3498DB', mr: 1 }} />
                   <Typography variant="h4" sx={{ color: '#000000', fontWeight: 600 }}>
-                    {showArchive ? archivedTickets.length : tickets.length}
+                    {tickets.length + archivedTickets.length}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ color: '#000000' }}>
@@ -489,14 +739,18 @@ const PWDMemberSupportDesk = () => {
             {error}
           </Alert>
         )}
-        {success && (
-          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
-            {success}
-          </Alert>
-        )}
 
-        {/* Tickets Table */}
-        <Paper sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', bgcolor: '#FFFFFF' }}>
+        {/* Main Content - Two Column Layout */}
+        <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 300px)' }}>
+          {/* Left Column - Tickets List */}
+          <Paper sx={{ 
+            flex: selectedTicketId ? '0 0 35%' : '1',
+            borderRadius: 3, 
+            overflow: 'hidden', 
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)', 
+            bgcolor: '#FFFFFF',
+            transition: 'flex 0.3s ease'
+          }}>
           <TableContainer>
             <Table>
               <TableHead sx={{ backgroundColor: '#FFFFFF' }}>
@@ -533,7 +787,18 @@ const PWDMemberSupportDesk = () => {
                   </TableRow>
                 ) : (
                   (showArchive ? archivedTickets : tickets).map((ticket) => (
-                    <TableRow key={ticket.id} hover>
+                    <TableRow 
+                      key={ticket.id} 
+                      hover 
+                      onClick={() => handleViewTicket(ticket)}
+                      sx={{ 
+                        cursor: 'pointer',
+                        backgroundColor: selectedTicketId === ticket.id ? '#E3F2FD' : 'transparent',
+                        '&:hover': {
+                          backgroundColor: selectedTicketId === ticket.id ? '#E3F2FD' : '#F5F5F5'
+                        }
+                      }}
+                    >
                       <TableCell sx={{ fontWeight: 600, color: '#3498DB' }}>
                         {ticket.ticket_number}
                       </TableCell>
@@ -544,7 +809,7 @@ const PWDMemberSupportDesk = () => {
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={ticket.status.replace('_', ' ').toUpperCase()}
+                          label={formatStatus(ticket.status)}
                           size="small"
                           sx={{
                             backgroundColor: '#E8F5E8',
@@ -588,57 +853,22 @@ const PWDMemberSupportDesk = () => {
                         />
                       </TableCell>
                       <TableCell sx={{ color: '#000000', fontSize: '0.9rem' }}>
-                        {new Date(ticket.created_at).toLocaleDateString()}
+                        {formatDateMMDDYYYY(ticket.created_at)}
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                          <Button
+                          <Chip
+                            label={selectedTicketId === ticket.id ? 'Selected' : 'Click to view'}
                             size="small"
-                            variant="outlined"
-                            startIcon={<Visibility />}
-                            onClick={() => handleViewTicket(ticket)}
-                            sx={{ 
-                              color: '#3498DB',
-                              borderColor: '#3498DB',
-                              textTransform: 'none',
+                            sx={{
+                              backgroundColor: selectedTicketId === ticket.id ? '#3498DB' : '#F5F5F5',
+                              color: selectedTicketId === ticket.id ? '#FFFFFF' : '#7F8C8D',
                               fontWeight: 600,
-                              fontSize: '0.75rem',
-                              py: 0.5,
-                              px: 1,
-                              '&:hover': {
-                                backgroundColor: '#3498DB',
-                                color: '#FFFFFF',
-                                borderColor: '#3498DB'
-                              }
+                              fontSize: '0.7rem',
+                              height: '24px'
                             }}
-                          >
-{t('common.view')}
-                          </Button>
+                          />
                           {!showArchive && ticket.status !== 'resolved' && (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<CheckCircle />}
-                              onClick={() => handleMarkResolved(ticket.id)}
-                              sx={{ 
-                                color: '#27AE60',
-                                borderColor: '#27AE60',
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                fontSize: '0.75rem',
-                                py: 0.5,
-                                px: 1,
-                                '&:hover': {
-                                  backgroundColor: '#27AE60',
-                                  color: '#FFFFFF',
-                                  borderColor: '#27AE60'
-                                }
-                              }}
-                            >
-                              Resolve
-                            </Button>
-                          )}
-                          {ticket.status === 'in_progress' && (
                             <Button
                               size="small"
                               variant="outlined"
@@ -671,6 +901,511 @@ const PWDMemberSupportDesk = () => {
             </Table>
           </TableContainer>
         </Paper>
+
+          {/* Right Column - Chat Interface */}
+          {selectedTicketId && (
+            <Paper sx={{
+              flex: '0 0 65%',
+              borderRadius: 3, 
+              overflow: 'hidden', 
+              boxShadow: '0 4px 20px rgba(0,0,0,0.1)', 
+              bgcolor: '#FFFFFF',
+              transition: 'flex 0.3s ease',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              {/* Chat Header */}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                p: 2,
+                borderBottom: '1px solid #E0E0E0',
+                bgcolor: '#F8F9FA'
+              }}>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50' }}>
+                    {selectedTicket?.subject}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Ticket #{selectedTicket?.ticket_number}
+                  </Typography>
+                  {/* Connection Status */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <Box sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: connectionStatus === 'connected' ? '#27AE60' : 
+                                     connectionStatus === 'connecting' ? '#F39C12' : '#95A5A6'
+                    }} />
+                    <Typography variant="caption" sx={{ 
+                      color: connectionStatus === 'connected' ? '#27AE60' : 
+                             connectionStatus === 'connecting' ? '#F39C12' : '#95A5A6',
+                      fontSize: '0.7rem',
+                      textTransform: 'capitalize'
+                    }}>
+                      {connectionStatus === 'connected' ? 'Live' : 
+                       connectionStatus === 'connecting' ? 'Connecting...' : 'Standard Mode'}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Chip 
+                  label={selectedTicket?.status?.toUpperCase()} 
+                  size="small"
+                  sx={{
+                    backgroundColor: selectedTicket?.status === 'resolved' ? '#E8F5E8' : '#FFECEC',
+                    color: selectedTicket?.status === 'resolved' ? '#27AE60' : '#C0392B',
+                    fontWeight: 600
+                  }}
+                />
+              </Box>
+
+              {/* Chat Messages */}
+              <Box 
+                ref={chatContainerRef}
+                sx={{ 
+                  flex: 1, 
+                  overflowY: 'auto', 
+                  p: 2,
+                  '&::-webkit-scrollbar': { width: '6px' },
+                  '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
+                  '&::-webkit-scrollbar-thumb': { background: '#c1c1c1', borderRadius: '3px' }
+                }}>
+                {selectedTicket?.messages && selectedTicket.messages.length > 0 ? (
+                  selectedTicket.messages.map((message, index) => (
+                    <Box key={index} sx={{ 
+                      display: 'flex', 
+                      justifyContent: message.is_admin ? 'flex-start' : 'flex-end',
+                      mb: 2
+                    }}>
+                      <Box sx={{
+                        maxWidth: '70%',
+                        display: 'flex',
+                        flexDirection: message.is_admin ? 'row' : 'row-reverse',
+                        alignItems: 'flex-end',
+                        gap: 1
+                      }}>
+                        {/* Avatar */}
+                        <Avatar sx={{ 
+                          width: 32, 
+                          height: 32,
+                          bgcolor: message.is_admin ? '#3498DB' : '#95A5A6',
+                          fontSize: '0.8rem'
+                        }}>
+                          {message.is_admin ? 'A' : 'U'}
+                        </Avatar>
+                        
+                        {/* Message bubble */}
+                        <Box sx={{
+                          bgcolor: message.is_admin ? '#E3F2FD' : '#F5F5F5',
+                          borderRadius: message.is_admin ? '18px 18px 18px 4px' : '18px 18px 4px 18px',
+                          p: 2,
+                          position: 'relative'
+                        }}>
+                          {/* Sender name */}
+                          <Typography variant="body2" sx={{ 
+                            fontWeight: 600, 
+                            color: '#2C3E50',
+                            mb: 0.5,
+                            fontSize: '0.8rem'
+                          }}>
+                            {message.sender_name || (message.is_admin ? 'Admin' : 'You')}
+                          </Typography>
+                          
+                          {/* Message content */}
+                          <Typography variant="body2" sx={{ 
+                            color: '#2C3E50',
+                            mb: 1,
+                            whiteSpace: 'pre-wrap'
+                          }}>
+                            {message.message}
+                          </Typography>
+                          
+                          {/* Attachment */}
+                          {message.attachment_path && (
+                            <Box sx={{ mt: 1 }}>
+                              {/* Image Preview */}
+                              {message.attachment_type && message.attachment_type.startsWith('image/') ? (
+                                <Box sx={{ 
+                                  mt: 1,
+                                  borderRadius: 2,
+                                  overflow: 'hidden',
+                                  border: '1px solid #E0E0E0'
+                                }}>
+                                  <img
+                                    src={`http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/image`}
+                                    alt={message.attachment_name}
+                                    style={{
+                                      maxWidth: '250px',
+                                      maxHeight: '180px',
+                                      width: '100%',
+                                      height: 'auto',
+                                      objectFit: 'cover',
+                                      cursor: 'pointer',
+                                      display: 'block'
+                                    }}
+                                    onClick={() => handlePreviewFile(message)}
+                                    onError={(e) => {
+                                      console.error('Image failed to load:', `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/image`);
+                                      console.error('Message data:', message);
+                                      console.error('Image element:', e.target);
+                                      console.error('Error event:', e);
+                                      e.target.style.display = 'none';
+                                    }}
+                                    onLoad={() => {
+                                      console.log('Image loaded successfully:', `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/image`);
+                                    }}
+                                    onLoadStart={() => {
+                                      console.log('Image loading started:', `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/image`);
+                                    }}
+                                  />
+                                  <Box sx={{ 
+                                    p: 1, 
+                                    backgroundColor: '#F5F5F5',
+                                    borderTop: '1px solid #E0E0E0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1
+                                  }}>
+                                    <AttachFile sx={{ color: '#0b87ac', fontSize: 14 }} />
+                                    <Typography 
+                                      variant="caption" 
+                                      sx={{ 
+                                        color: '#000000',
+                                        flex: 1,
+                                        fontWeight: 500,
+                                        fontSize: '0.7rem'
+                                      }}
+                                    >
+                                      {message.attachment_name}
+                                    </Typography>
+                                    <Button
+                                      size="small"
+                                      startIcon={<Download />}
+                                      onClick={() => handleDownloadAttachment(message.id, message.attachment_name)}
+                                      sx={{
+                                        color: '#3498DB',
+                                        textTransform: 'none',
+                                        fontSize: '0.65rem',
+                                        minWidth: 'auto',
+                                        px: 1,
+                                        py: 0.5,
+                                        '&:hover': {
+                                          backgroundColor: '#3498DB',
+                                          color: '#FFFFFF'
+                                        }
+                                      }}
+                                    >
+                                      Download
+                                    </Button>
+                                  </Box>
+                                </Box>
+                              ) : (
+                                /* File Info for Non-Images */
+                                <Box sx={{ 
+                                  mt: 1,
+                                  p: 1.5, 
+                                  backgroundColor: '#F5F5F5',
+                                  borderRadius: 2,
+                                  border: '1px solid #E0E0E0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 1.5
+                                }}>
+                                  <AttachFile sx={{ color: '#0b87ac', fontSize: 18 }} />
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                      color: '#000000',
+                                      flex: 1,
+                                      fontWeight: 500,
+                                      fontSize: '0.8rem'
+                                    }}
+                                  >
+                                    {message.attachment_name}
+                                  </Typography>
+                                  <Button
+                                    size="small"
+                                    startIcon={<Visibility />}
+                                    onClick={() => handlePreviewFile(message)}
+                                    sx={{
+                                      color: '#3498DB',
+                                      textTransform: 'none',
+                                      fontSize: '0.7rem',
+                                      mr: 1,
+                                      '&:hover': {
+                                        backgroundColor: '#3498DB',
+                                        color: '#FFFFFF'
+                                      }
+                                    }}
+                                  >
+                                    Preview
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    startIcon={<Download />}
+                                    onClick={() => handleDownloadAttachment(message.id, message.attachment_name)}
+                                    sx={{
+                                      color: '#3498DB',
+                                      textTransform: 'none',
+                                      fontSize: '0.7rem',
+                                      '&:hover': {
+                                        backgroundColor: '#3498DB',
+                                        color: '#FFFFFF'
+                                      }
+                                    }}
+                                  >
+                                    Download
+                                  </Button>
+                                </Box>
+                              )}
+                            </Box>
+                          )}
+                          
+                          {/* Timestamp */}
+                          <Typography variant="caption" sx={{ 
+                            color: '#7F8C8D',
+                            fontSize: '0.7rem'
+                          }}>
+                            {formatDateMMDDYYYY(message.created_at)}
+                          </Typography>
+                          
+                          {/* Message Status */}
+                          {!message.is_admin && (
+                            <Box sx={{ 
+                              display: 'flex', 
+                              justifyContent: 'flex-end',
+                              mt: 0.5
+                            }}>
+                              <Typography variant="caption" sx={{ 
+                                color: getMessageStatus(message.id) === 'sending' ? '#F39C12' : 
+                                       getMessageStatus(message.id) === 'sent' ? '#3498DB' : '#27AE60',
+                                fontSize: '0.65rem',
+                                fontWeight: 500,
+                                textTransform: 'uppercase'
+                              }}>
+                                {getMessageStatus(message.id) === 'sending' ? 'Sending...' :
+                                 getMessageStatus(message.id) === 'sent' ? 'Sent' : 'Seen'}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))
+                ) : (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 4,
+                    color: '#7F8C8D'
+                  }}>
+                    <Message sx={{ fontSize: 48, mb: 1, opacity: 0.5 }} />
+                    <Typography variant="body2">
+                      No messages yet. Start the conversation below.
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Typing Indicator */}
+              {typingUsers.length > 0 && (
+                <Box sx={{ 
+                  px: 2, 
+                  py: 1, 
+                  borderTop: '1px solid #E0E0E0',
+                  bgcolor: '#F8F9FA'
+                }}>
+                  <Typography variant="caption" sx={{ 
+                    color: '#7F8C8D',
+                    fontStyle: 'italic',
+                    fontSize: '0.7rem'
+                  }}>
+                    {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Reply Input */}
+              {selectedTicket?.status !== 'resolved' && (
+                <Box sx={{ 
+                  borderTop: '1px solid #E0E0E0',
+                  p: 2,
+                  bgcolor: '#F8F9FA'
+                }}>
+                  {/* File Preview */}
+                  {previewFile && (
+                    <Box sx={{ mb: 2 }}>
+                      {previewUrl ? (
+                        // Image preview
+                        <Box sx={{ position: 'relative', display: 'inline-block' }}>
+                          <img
+                            src={previewUrl}
+                            alt="Preview"
+                            style={{
+                              maxWidth: '200px',
+                              maxHeight: '150px',
+                              borderRadius: '8px',
+                              objectFit: 'cover'
+                            }}
+                          />
+                          <IconButton
+                            onClick={handleRemovePreview}
+                            sx={{
+                              position: 'absolute',
+                              top: -8,
+                              right: -8,
+                              backgroundColor: '#FF4444',
+                              color: 'white',
+                              width: 24,
+                              height: 24,
+                              '&:hover': { backgroundColor: '#CC0000' }
+                            }}
+                          >
+                            <Close fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ) : (
+                        // File info for non-images
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 1,
+                          p: 1,
+                          backgroundColor: '#FFFFFF',
+                          borderRadius: 1,
+                          border: '1px solid #E0E0E0'
+                        }}>
+                          <AttachFile sx={{ color: '#3498DB' }} />
+                          <Typography variant="body2" sx={{ flex: 1 }}>
+                            {previewFile.name}
+                          </Typography>
+                          <IconButton
+                            onClick={handleRemovePreview}
+                            size="small"
+                            sx={{ color: '#FF4444' }}
+                          >
+                            <Close fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+                  
+                  {/* Text Input with Drag and Drop */}
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    placeholder={dragOver ? "Drop file here..." : "Type your reply..."}
+                    value={replyText}
+                    onChange={(e) => {
+                      setReplyText(e.target.value);
+                      
+                      // Send typing indicator
+                      if (selectedTicketId && websocketService.isConnected()) {
+                        if (e.target.value.trim() && !isTyping) {
+                          setIsTyping(true);
+                          websocketService.sendTypingIndicator(selectedTicketId, true);
+                        } else if (!e.target.value.trim() && isTyping) {
+                          setIsTyping(false);
+                          websocketService.sendTypingIndicator(selectedTicketId, false);
+                        }
+                      }
+                    }}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (replyText.trim() || selectedFile) {
+                          handleReply();
+                        }
+                      }
+                    }}
+                    sx={{ 
+                      mb: 2,
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: dragOver ? '#FFFFFF' : 'transparent',
+                        borderColor: dragOver ? '#3498DB' : undefined,
+                        transition: 'all 0.2s ease'
+                      }
+                    }}
+                  />
+                  
+                  {/* Action Buttons */}
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Reply />}
+                      onClick={handleReply}
+                      disabled={!replyText.trim() && !selectedFile}
+                      sx={{
+                        bgcolor: '#3498DB',
+                        '&:hover': { bgcolor: '#2980B9' }
+                      }}
+                    >
+                      Reply
+                    </Button>
+                    
+                    <input
+                      type="file"
+                      id="file-upload-member"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          // Check file size (10MB limit)
+                          if (file.size > 10 * 1024 * 1024) {
+                            setError('File size must be less than 10MB');
+                            return;
+                          }
+                          
+                          // Check file type
+                          const allowedTypes = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif'];
+                          const fileExtension = file.name.split('.').pop().toLowerCase();
+                          
+                          if (!allowedTypes.includes(fileExtension)) {
+                            setError('File type not supported. Allowed types: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF');
+                            return;
+                          }
+                          
+                          setSelectedFile(file);
+                          setPreviewFile(file);
+                          
+                          // Create preview URL for images
+                          if (file.type.startsWith('image/')) {
+                            const url = URL.createObjectURL(file);
+                            setPreviewUrl(url);
+                          } else {
+                            setPreviewUrl(null);
+                          }
+                          
+                          setError(null);
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outlined"
+                      startIcon={<AttachFile />}
+                      onClick={() => document.getElementById('file-upload-member').click()}
+                      sx={{ borderColor: '#3498DB', color: '#3498DB' }}
+                    >
+                      Attach File
+                    </Button>
+                    
+                    {previewFile && (
+                      <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                        {previewFile.name} ready to send
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              )}
+            </Paper>
+          )}
+        </Box>
 
         {/* Create Ticket Dialog */}
         <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
@@ -1121,48 +1856,109 @@ const PWDMemberSupportDesk = () => {
                       {/* Attachment Display */}
                       {message.attachment_path && (
                         <Box sx={{ ml: 4, mt: 1, p: 1, backgroundColor: '#F5F5F5', borderRadius: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <AttachFile sx={{ color: '#0b87ac', fontSize: 16 }} />
-                            <Typography 
-                              variant="body2" 
-                              sx={{ color: '#000000', flex: 1 }}
-                            >
-                              {message.attachment_name}
-                            </Typography>
-                            <Button
-                              size="small"
-                              startIcon={<Visibility />}
-                              onClick={() => handlePreviewFile(message)}
-                              sx={{
-                                color: '#3498DB',
-                                textTransform: 'none',
-                                fontSize: '0.75rem',
-                                mr: 1,
-                                '&:hover': {
-                                  backgroundColor: '#3498DB',
-                                  color: '#FFFFFF'
-                                }
-                              }}
-                            >
-                              Preview
-                            </Button>
-                            <Button
-                              size="small"
-                              startIcon={<Download />}
-                              onClick={() => handleDownloadAttachment(message.id, message.attachment_name)}
-                              sx={{
-                                color: '#3498DB',
-                                textTransform: 'none',
-                                fontSize: '0.75rem',
-                                '&:hover': {
-                                  backgroundColor: '#3498DB',
-                                  color: '#FFFFFF'
-                                }
-                              }}
-                            >
-                              Download
-                            </Button>
-                          </Box>
+                          {/* Image Preview */}
+                          {message.attachment_type && message.attachment_type.startsWith('image/') ? (
+                            <Box>
+                              <img
+                                src={api.getStorageUrl(message.attachment_path)}
+                                alt={message.attachment_name}
+                                style={{
+                                  maxWidth: '300px',
+                                  maxHeight: '200px',
+                                  borderRadius: '8px',
+                                  objectFit: 'cover',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => handlePreviewFile(message)}
+                              />
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                <AttachFile sx={{ color: '#0b87ac', fontSize: 14 }} />
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ color: '#000000', flex: 1, fontSize: '0.8rem' }}
+                                >
+                                  {message.attachment_name}
+                                </Typography>
+                                <Button
+                                  size="small"
+                                  startIcon={<Visibility />}
+                                  onClick={() => handlePreviewFile(message)}
+                                  sx={{
+                                    color: '#3498DB',
+                                    textTransform: 'none',
+                                    fontSize: '0.7rem',
+                                    mr: 1,
+                                    '&:hover': {
+                                      backgroundColor: '#3498DB',
+                                      color: '#FFFFFF'
+                                    }
+                                  }}
+                                >
+                                  Full View
+                                </Button>
+                                <Button
+                                  size="small"
+                                  startIcon={<Download />}
+                                  onClick={() => handleDownloadAttachment(message.id, message.attachment_name)}
+                                  sx={{
+                                    color: '#3498DB',
+                                    textTransform: 'none',
+                                    fontSize: '0.7rem',
+                                    '&:hover': {
+                                      backgroundColor: '#3498DB',
+                                      color: '#FFFFFF'
+                                    }
+                                  }}
+                                >
+                                  Download
+                                </Button>
+                              </Box>
+                            </Box>
+                          ) : (
+                            /* File Info for Non-Images */
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <AttachFile sx={{ color: '#0b87ac', fontSize: 16 }} />
+                              <Typography 
+                                variant="body2" 
+                                sx={{ color: '#000000', flex: 1 }}
+                              >
+                                {message.attachment_name}
+                              </Typography>
+                              <Button
+                                size="small"
+                                startIcon={<Visibility />}
+                                onClick={() => handlePreviewFile(message)}
+                                sx={{
+                                  color: '#3498DB',
+                                  textTransform: 'none',
+                                  fontSize: '0.75rem',
+                                  mr: 1,
+                                  '&:hover': {
+                                    backgroundColor: '#3498DB',
+                                    color: '#FFFFFF'
+                                  }
+                                }}
+                              >
+                                Preview
+                              </Button>
+                              <Button
+                                size="small"
+                                startIcon={<Download />}
+                                onClick={() => handleDownloadAttachment(message.id, message.attachment_name)}
+                                sx={{
+                                  color: '#3498DB',
+                                  textTransform: 'none',
+                                  fontSize: '0.75rem',
+                                  '&:hover': {
+                                    backgroundColor: '#3498DB',
+                                    color: '#FFFFFF'
+                                  }
+                                }}
+                              >
+                                Download
+                              </Button>
+                            </Box>
+                          )}
                         </Box>
                       )}
                     </ListItem>
@@ -1231,7 +2027,7 @@ const PWDMemberSupportDesk = () => {
                   Cancel
                 </Button>
                 <Button 
-                  onClick={handleSubmitReply}
+                  onClick={handleReply}
                   variant="contained"
                   disabled={!replyText.trim()}
                   startIcon={<Send />}

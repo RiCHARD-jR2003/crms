@@ -30,19 +30,7 @@ class ApplicationValidationService
             }
         }
         
-        // Check name + birth date combination (accept either key from request)
-        $incomingDob = $data['dateOfBirth'] ?? ($data['birthDate'] ?? null);
-        if (isset($data['firstName']) && isset($data['lastName']) && !empty($incomingDob)) {
-            $nameBirthDuplicate = $this->checkNameBirthDuplicate(
-                $data['firstName'], 
-                $data['lastName'], 
-                $incomingDob, 
-                $excludeApplicationId
-            );
-            if ($nameBirthDuplicate) {
-                $duplicates['name_birth'] = $nameBirthDuplicate;
-            }
-        }
+        // Note: Removed name + birth date combination check as members can have identical birth dates
         
         // Check ID number duplicates (if provided)
         if (isset($data['idNumber'])) {
@@ -134,39 +122,6 @@ class ApplicationValidationService
         return null;
     }
     
-    /**
-     * Check for name + birth date combination duplicates
-     */
-    private function checkNameBirthDuplicate($firstName, $lastName, $dateOfBirth, $excludeApplicationId = null)
-    {
-        // Database column is birthDate
-        $query = Application::where('firstName', $firstName)
-            ->where('lastName', $lastName)
-            ->where('birthDate', $dateOfBirth);
-        
-        if ($excludeApplicationId) {
-            $query->where('applicationID', '!=', $excludeApplicationId);
-        }
-        
-        $duplicate = $query->first();
-        
-        if ($duplicate) {
-            return [
-                'type' => 'name_birth',
-                'message' => 'An application with the same name and date of birth already exists.',
-                'existing_application' => [
-                    'id' => $duplicate->applicationID,
-                    'name' => $duplicate->firstName . ' ' . $duplicate->lastName,
-                    'date_of_birth' => $duplicate->dateOfBirth,
-                    'status' => $duplicate->status,
-                    'submission_date' => $duplicate->submissionDate,
-                    'created_at' => $duplicate->created_at
-                ]
-            ];
-        }
-        
-        return null;
-    }
     
     /**
      * Check for ID number duplicates
@@ -234,8 +189,8 @@ class ApplicationValidationService
             'province' => 'required|string|max:100',
             'postalCode' => 'required|string|max:10',
             'emergencyContact' => 'required|string|max:100',
-            'emergencyPhone' => 'required|string|max:20',
-            'emergencyRelationship' => 'required|string|in:Parent,Sibling,Spouse,Child,Friend,Colleague,Relative,Guardian,Other',
+            'emergencyPhone' => 'nullable|string|max:20',
+            'emergencyRelationship' => 'nullable|string|in:Parent,Sibling,Spouse,Child,Friend,Colleague,Relative,Guardian,Other',
             // Document validation rules
             'medicalCertificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
             'clinicalAbstract' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
@@ -275,8 +230,8 @@ class ApplicationValidationService
             'province.required' => 'Province is required.',
             'postalCode.required' => 'Postal code is required.',
             'emergencyContact.required' => 'Guardian name is required.',
-            'emergencyPhone.required' => 'Guardian phone is required.',
-            'emergencyRelationship.required' => 'Relationship to guardian is required.',
+            'emergencyPhone.required' => 'Guardian phone is optional.',
+            'emergencyRelationship.required' => 'Relationship to guardian is optional.',
             'emergencyRelationship.in' => 'Please select a valid relationship option.',
             'disabilityDate.before' => 'Date of disability onset must be at least 2 weeks before the current date and cannot be in the future.',
         ];

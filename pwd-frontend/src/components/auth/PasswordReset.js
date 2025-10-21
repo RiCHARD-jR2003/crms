@@ -12,6 +12,7 @@ import {
   Container,
   Paper
 } from '@mui/material';
+import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import passwordService from '../../services/passwordService';
 
@@ -105,6 +106,30 @@ function PasswordReset() {
             <Typography component="h1" variant="h4" sx={{ mb: 3, color: '#2C3E50' }}>
               Reset Password
             </Typography>
+            
+            {/* Back Button */}
+            <Button
+              variant="text"
+              startIcon={<ArrowBackIcon />}
+              onClick={() => navigate('/')}
+              sx={{
+                color: '#7F8C8D',
+                fontSize: '14px',
+                fontWeight: 500,
+                textTransform: 'none',
+                px: 2,
+                py: 1,
+                borderRadius: 2,
+                mb: 2,
+                '&:hover': {
+                  backgroundColor: 'rgba(127, 140, 141, 0.1)',
+                  color: '#2C3E50',
+                },
+                transition: 'all 0.2s ease-in-out',
+              }}
+            >
+              Back to Home
+            </Button>
             
             <Typography variant="body2" sx={{ mb: 3, textAlign: 'center', color: '#7F8C8D' }}>
               Enter your email address and new password to reset your account password.

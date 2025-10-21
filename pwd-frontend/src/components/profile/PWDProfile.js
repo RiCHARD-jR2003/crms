@@ -347,11 +347,14 @@ function PWDProfile() {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Not provided';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Not provided';
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
   };
 
   const getAge = (birthDate) => {
@@ -571,6 +574,17 @@ label={t('profile.birthDate')}
                         value={formData.birthDate}
                         onChange={handleInputChange}
                         InputLabelProps={{ shrink: true }}
+                        inputProps={{
+                          max: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Exactly 1 year ago
+                          min: new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0] // First day 120 years ago
+                        }}
+                        helperText="Must be at least 1 year old (cannot be today or future dates)"
+                        FormHelperTextProps={{
+                          sx: {
+                            color: '#B0BEC5',
+                            fontSize: '0.75rem'
+                          }
+                        }}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             bgcolor: '#FFFFFF',

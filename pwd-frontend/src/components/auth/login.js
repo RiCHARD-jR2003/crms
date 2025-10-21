@@ -21,6 +21,7 @@ import {
   Visibility,
   VisibilityOff,
   Login as LoginIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,12 +29,17 @@ import { useAuth } from '../../contexts/AuthContext';
 function Login() {
   const [formData, setFormData] = useState({
     username: '',
-    password: ''
+    password: '',
+    captcha: ''
   });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [requiresCaptcha, setRequiresCaptcha] = useState(false);
+  const [accountLocked, setAccountLocked] = useState(false);
+  const [lockoutUntil, setLockoutUntil] = useState(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -50,6 +56,7 @@ function Login() {
     const newErrors = {};
     if (!formData.username) newErrors.username = 'Username is required';
     if (!formData.password) newErrors.password = 'Password is required';
+    if (requiresCaptcha && !formData.captcha) newErrors.captcha = 'Captcha is required';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -63,13 +70,54 @@ function Login() {
       console.log('Login form submitted with:', formData);
       const user = await login(formData);
       console.log('Login successful, navigating to dashboard');
+      
+      // Reset security states on successful login
+      setRequiresCaptcha(false);
+      setAccountLocked(false);
+      setLockoutUntil(null);
+      setFailedAttempts(0);
+      
       navigate('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
-      setServerError(error.message || 'Login failed. Please try again.');
+      
+      // Handle different types of errors - check both error.response.data and error.data
+      const errorData = error.response?.data || error.data;
+      const errorStatus = error.response?.status || error.status;
+      
+      if (errorData) {
+        // Check for captcha requirement in multiple ways
+        if (errorData.account_locked) {
+          setAccountLocked(true);
+          setLockoutUntil(errorData.lockout_until);
+          setServerError(errorData.message);
+        } else if (errorData.requires_captcha || errorData.message?.includes('captcha')) {
+          setRequiresCaptcha(true);
+          setFailedAttempts(errorData.failed_attempts || 0);
+          setServerError(errorData.message);
+        } else {
+          setServerError(errorData.message || 'Login failed. Please try again.');
+          if (errorData.failed_attempts) {
+            setFailedAttempts(errorData.failed_attempts);
+          }
+          if (errorData.requires_captcha) {
+            setRequiresCaptcha(true);
+          }
+        }
+      } else if (error.message?.includes('captcha')) {
+        // Fallback: if error message contains captcha, show captcha field
+        setRequiresCaptcha(true);
+        setServerError(error.message);
+      } else {
+        setServerError(error.message || 'Login failed. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleBackClick = () => {
+    navigate('/');
   };
 
   return (
@@ -189,6 +237,31 @@ function Login() {
               }}
             >
               <CardContent sx={{ p: 4 }}>
+                {/* Back Button */}
+                <Box sx={{ mb: 3 }}>
+                  <Button
+                    variant="text"
+                    startIcon={<ArrowBackIcon />}
+                    onClick={handleBackClick}
+                    sx={{
+                      color: '#7F8C8D',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      textTransform: 'none',
+                      px: 2,
+                      py: 1,
+                      borderRadius: 2,
+                      '&:hover': {
+                        backgroundColor: 'rgba(127, 140, 141, 0.1)',
+                        color: '#2C3E50',
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                    }}
+                  >
+                    Back to Home
+                  </Button>
+                </Box>
+
                 {/* Header */}
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
                   <Typography 
@@ -330,6 +403,72 @@ function Login() {
                     />
                   </Box>
 
+                  {/* Captcha Field - Only show when required */}
+                  {requiresCaptcha && (
+                    <Box sx={{ mb: 3 }}>
+                      <TextField
+                        fullWidth
+                        placeholder="Enter captcha: PWD123"
+                        value={formData.captcha}
+                        onChange={handleInputChange('captcha')}
+                        error={!!errors.captcha}
+                        helperText={errors.captcha || `Failed attempts: ${failedAttempts}/5`}
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 3,
+                            backgroundColor: '#fff3cd',
+                            '& fieldset': {
+                              borderColor: '#ffc107',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#ff8c00',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#ff8c00',
+                              borderWidth: 2,
+                            },
+                          },
+                          '& .MuiInputBase-input': {
+                            color: '#2C3E50',
+                            py: 1.5,
+                          },
+                        }}
+                      />
+                      <Typography variant="caption" sx={{ 
+                        color: '#856404', 
+                        fontSize: '12px',
+                        mt: 1,
+                        display: 'block'
+                      }}>
+                        Please enter "PWD123" to verify you are not a robot
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {/* Account Locked Message */}
+                  {accountLocked && (
+                    <Alert 
+                      severity="warning" 
+                      sx={{ 
+                        mb: 3, 
+                        borderRadius: 2,
+                        backgroundColor: '#fff3cd',
+                        color: '#856404',
+                        border: '1px solid #ffc107'
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        Account Locked
+                      </Typography>
+                      <Typography variant="body2">
+                        {lockoutUntil && `Account will be unlocked at ${new Date(lockoutUntil).toLocaleString()}`}
+                      </Typography>
+                    </Alert>
+                  )}
+
                   {/* Forgot Password */}
                   <Box sx={{ textAlign: 'right', mb: 3 }}>
                     <Button
@@ -348,6 +487,32 @@ function Login() {
                       Forgot Password?
                     </Button>
                   </Box>
+
+                  {/* Security Status Indicator */}
+                  {requiresCaptcha && (
+                    <Box sx={{ 
+                      mb: 2, 
+                      p: 2, 
+                      backgroundColor: '#fff3cd', 
+                      border: '1px solid #ffc107',
+                      borderRadius: 2,
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="body2" sx={{ 
+                        color: '#856404', 
+                        fontWeight: 600,
+                        mb: 1
+                      }}>
+                        🔒 Security Verification Required
+                      </Typography>
+                      <Typography variant="caption" sx={{ 
+                        color: '#856404',
+                        display: 'block'
+                      }}>
+                        Please complete the captcha below to continue
+                      </Typography>
+                    </Box>
+                  )}
 
                   {/* Login Button */}
                   <Button
