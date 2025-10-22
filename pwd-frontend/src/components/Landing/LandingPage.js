@@ -18,10 +18,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { api } from '../../services/api';
+import { useReadAloud } from '../../hooks/useReadAloud';
 
 function LandingPage() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const { readElement, isReading } = useReadAloud();
 
   // Application Status Check state
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -109,6 +111,24 @@ function LandingPage() {
     const year = date.getFullYear();
     
     return `${month}/${day}/${year}`;
+  };
+
+  // Function to mask applicant name for privacy
+  const maskApplicantName = (firstName, middleName, lastName, suffix) => {
+    const maskName = (name) => {
+      if (!name || name.length <= 2) {
+        return name || '';
+      }
+      // Show first 2 characters, mask the rest with asterisks
+      return name.substring(0, 2) + '*'.repeat(name.length - 2);
+    };
+
+    const maskedFirstName = maskName(firstName);
+    const maskedMiddleName = maskName(middleName);
+    const maskedLastName = maskName(lastName);
+    const maskedSuffix = suffix || ''; // Keep suffix as is (usually short like Jr., Sr.)
+
+    return `${maskedFirstName} ${maskedMiddleName} ${maskedLastName} ${maskedSuffix}`.trim();
   };
 
   // If user is logged in as PWD Member, show loading while redirecting
@@ -246,7 +266,7 @@ function LandingPage() {
             >
               <CardContent sx={{ p: 4 }}>
                 {/* Header */}
-                <Box sx={{ textAlign: 'center', mb: 4 }}>
+                <Box sx={{ textAlign: 'center', mb: 4 }} className="welcome-content">
                   <Typography 
                     variant="h4" 
                     sx={{ 
@@ -266,6 +286,25 @@ function LandingPage() {
                   >
                     Access your PWD services and benefits
                   </Typography>
+                  
+                  {/* Read Aloud Button */}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => readElement(document.querySelector('.welcome-content'))}
+                    disabled={isReading}
+                    sx={{
+                      borderColor: '#0b87ac',
+                      color: '#0b87ac',
+                      mb: 2,
+                      '&:hover': {
+                        borderColor: '#0a6b8a',
+                        backgroundColor: '#0b87ac15'
+                      }
+                    }}
+                  >
+                    {isReading ? 'Reading...' : 'Read Welcome Text'}
+                  </Button>
                 </Box>
 
                 {/* Action Buttons */}
@@ -511,7 +550,7 @@ function LandingPage() {
                             Applicant Name:
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#2C3E50', mb: 1, fontWeight: 500 }}>
-                            {`${applicationData.firstName || ''} ${applicationData.middleName || ''} ${applicationData.lastName || ''} ${applicationData.suffix || ''}`.trim()}
+                            {maskApplicantName(applicationData.firstName, applicationData.middleName, applicationData.lastName, applicationData.suffix)}
                           </Typography>
                         </Grid>
                         

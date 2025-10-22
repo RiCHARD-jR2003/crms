@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
   Box,
   Typography,
-  Button
+  Button,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 
 const SuccessModal = ({ 
@@ -14,8 +16,34 @@ const SuccessModal = ({
   message, 
   buttonText = "Continue",
   type = "success", // success, error, warning, info
-  onButtonClick
+  onButtonClick,
+  requireCheckbox = false,
+  checkboxLabel = "I have copied the reference number",
+  checkboxChecked = false,
+  onCheckboxChange
 }) => {
+  const [isChecked, setIsChecked] = useState(checkboxChecked);
+
+  const handleCheckboxChange = (event) => {
+    const checked = event.target.checked;
+    setIsChecked(checked);
+    if (onCheckboxChange) {
+      onCheckboxChange(checked);
+    }
+  };
+
+  const handleButtonClick = () => {
+    if (requireCheckbox && !isChecked) {
+      return; // Don't proceed if checkbox is required but not checked
+    }
+    
+    if (onButtonClick) {
+      onButtonClick();
+    }
+    onClose();
+  };
+
+  const isButtonDisabled = requireCheckbox && !isChecked;
   const getTypeStyles = () => {
     switch (type) {
       case 'error':
@@ -108,16 +136,41 @@ const SuccessModal = ({
             {typeof message === 'string' ? message : message}
           </Typography>
           
+          {requireCheckbox && (
+            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isChecked}
+                    onChange={handleCheckboxChange}
+                    sx={{
+                      color: '#27AE60',
+                      '&.Mui-checked': {
+                        color: '#27AE60',
+                      },
+                    }}
+                  />
+                }
+                label={
+                  <Typography variant="body2" sx={{ 
+                    color: '#2c3e50',
+                    fontWeight: 500,
+                    fontSize: '0.9rem'
+                  }}>
+                    {checkboxLabel}
+                  </Typography>
+                }
+                sx={{ alignItems: 'flex-start' }}
+              />
+            </Box>
+          )}
+          
           <Button
-            onClick={() => {
-              if (onButtonClick) {
-                onButtonClick();
-              }
-              onClose();
-            }}
+            onClick={handleButtonClick}
             variant="contained"
+            disabled={isButtonDisabled}
             sx={{
-              bgcolor: styles.buttonColor,
+              bgcolor: isButtonDisabled ? '#BDC3C7' : styles.buttonColor,
               color: 'white',
               px: 4,
               py: 1.5,
@@ -126,7 +179,11 @@ const SuccessModal = ({
               fontWeight: 'bold',
               fontSize: '1rem',
               '&:hover': {
-                bgcolor: styles.buttonHover
+                bgcolor: isButtonDisabled ? '#BDC3C7' : styles.buttonHover
+              },
+              '&:disabled': {
+                bgcolor: '#BDC3C7',
+                color: '#7F8C8D'
               }
             }}
           >

@@ -15,11 +15,7 @@ import {
   useMediaQuery,
   useTheme,
   Container,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider
+  Chip
 } from '@mui/material';
 import {
   Dashboard,
@@ -32,13 +28,15 @@ import {
   Email,
   AccessTime,
   ErrorOutline,
-  Menu
+  Menu,
+  VolumeUp
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
+import { useReadAloud } from '../../hooks/useReadAloud';
 import announcementService from '../../services/announcementService';
 import { api } from '../../services/api';
 import { 
@@ -55,6 +53,7 @@ function PWDMemberDashboard() {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
   const { announcePageChange } = useScreenReader();
+  const { readAloud, isReading } = useReadAloud();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -96,6 +95,7 @@ function PWDMemberDashboard() {
     announcePageChange(t('support.title'));
     navigate('/pwd-support');
   };
+
 
 
 
@@ -340,161 +340,206 @@ function PWDMemberDashboard() {
                       <Typography variant="body2" sx={{ color: '#000000' }}>
                         {t('support.myTickets')}
                       </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-
-
-          {/* Dashboard Content */}
-          <Grid container spacing={{ xs: 2, sm: 3 }}>
-            {/* Latest Announcements */}
-            <Grid item xs={12} md={6}>
-              <Card sx={{ ...cardStyles, height: '100%', minHeight: 400 }}>
-                <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                    <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
-                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                      {t('dashboard.latestAnnouncements')}
-                    </Typography>
-                  </Box>
-              
-                  <Box sx={{ flex: 1 }}>
-                    {announcements.length > 0 ? (
-                      <List>
-                        {announcements.map((announcement, index) => (
-                          <React.Fragment key={announcement.id}>
-                            <ListItem sx={{ px: 0 }}>
-                              <ListItemIcon sx={{ minWidth: 36 }}>
-                                <Campaign sx={{ color: '#F39C12', fontSize: 20 }} />
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50' }}>
-                                      {announcement.title}
-                                    </Typography>
-                                    {/* Show barangay-specific badge */}
-                                    {announcement.targetAudience !== 'All' && 
-                                     announcement.targetAudience !== 'PWD Members' && 
-                                     announcement.targetAudience !== 'PWDMember' && (
-                                      <Box
-                                        sx={{
-                                          backgroundColor: '#3498DB',
-                                          color: 'white',
-                                          px: 1,
-                                          py: 0.25,
-                                          borderRadius: 1,
-                                          fontSize: '0.6rem',
-                                          fontWeight: 600
-                                        }}
-                                      >
-                                        {announcement.targetAudience}
-                                      </Box>
-                                    )}
-                                  </Box>
-                                }
-                                secondary={
-                                  <Typography variant="caption" sx={{ color: '#000000' }}>
-                                    {new Date(announcement.created_at).toLocaleDateString()}
-                                  </Typography>
-                                }
-                              />
-                            </ListItem>
-                            {index < announcements.length - 1 && <Divider key={`divider-${announcement.id}`} />}
-                          </React.Fragment>
-                        ))}
-                      </List>
-                    ) : (
-                      <Box sx={{ textAlign: 'center', py: 4, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <ErrorOutline sx={{ fontSize: 48, color: '#000000', mb: 2 }} />
-                        <Typography variant="body1" sx={{ color: '#000000', mb: 1 }}>
-                          {t('dashboard.noAnnouncements')}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#000000' }}>
-                          {t('dashboard.checkBackLater')}
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Support Desk */}
-            <Grid item xs={12} md={6}>
-              <Card sx={{ ...cardStyles, height: '100%', minHeight: 400 }}>
-                <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                    <Support sx={{ color: '#E74C3C', fontSize: 24 }} />
-                    <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                      {t('dashboard.supportDesk')}
-                    </Typography>
-                  </Box>
-              
-                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" sx={{ color: '#000000', mb: 3 }}>
-                      {t('dashboard.supportDescription')}
-                    </Typography>
-                    
-                    <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                       <Button
-                        variant="contained"
-                        onClick={handleCreateSupportTicket}
-                        sx={{ 
-                          bgcolor: '#E74C3C', 
-                          color: 'white',
-                          textTransform: 'none',
-                          fontWeight: 600,
-                          px: 3,
-                          '&:hover': { bgcolor: '#C0392B' }
-                        }}
-                      >
-{t('dashboard.createSupportTicket')}
-                      </Button>
-                      <Button
-                        variant="outlined"
+                        variant="text"
+                        size="small"
                         onClick={handleViewMyTickets}
                         sx={{ 
-                          borderColor: '#E74C3C', 
                           color: '#E74C3C',
                           textTransform: 'none',
-                          fontWeight: 600,
-                          px: 3,
-                          '&:hover': { borderColor: '#C0392B', backgroundColor: '#E74C3C15' }
+                          fontSize: '0.75rem',
+                          p: 0,
+                          mt: 0.5,
+                          '&:hover': { backgroundColor: 'transparent', textDecoration: 'underline' }
                         }}
                       >
-{t('dashboard.viewMyTickets')}
+                        View Support Tickets
                       </Button>
-                    </Box>
-                    
-                    <Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Phone sx={{ color: '#E74C3C', fontSize: 16 }} />
-                        <Typography variant="body2" sx={{ color: '#000000' }}>
-                          {t('common.phone')}: (049) 123-4567
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Email sx={{ color: '#E74C3C', fontSize: 16 }} />
-                        <Typography variant="body2" sx={{ color: '#000000' }}>
-                          {t('common.email')}: support@pdao.cabuyao.gov.ph
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <AccessTime sx={{ color: '#E74C3C', fontSize: 16 }} />
-                        <Typography variant="body2" sx={{ color: '#000000' }}>
-                          {t('dashboard.supportHours')}
-                        </Typography>
-                      </Box>
                     </Box>
                   </Box>
                 </CardContent>
               </Card>
             </Grid>
           </Grid>
+
+
+          {/* Announcements Section - Full Width */}
+          <Card sx={{ ...cardStyles, minHeight: 600 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
+                <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
+                  {t('dashboard.latestAnnouncements')}
+                </Typography>
+              </Box>
+          
+              {announcements.length > 0 ? (
+                <Box sx={{ maxWidth: '800px', mx: 'auto' }}>
+                  {announcements.map((announcement, index) => (
+                    <Paper
+                      key={announcement.id}
+                      elevation={0}
+                      sx={{
+                        p: 4,
+                        mb: 4,
+                        border: '1px solid #e0e0e0',
+                        borderRadius: 2,
+                        backgroundColor: '#ffffff',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          transition: 'box-shadow 0.3s ease'
+                        }
+                      }}
+                    >
+                      {/* Announcement Header */}
+                      <Box sx={{ mb: 3, pb: 2, borderBottom: '2px solid #f5f5f5' }}>
+                        <Typography 
+                          variant="h4" 
+                          sx={{ 
+                            fontWeight: 700, 
+                            color: '#2c3e50', 
+                            mb: 2,
+                            lineHeight: 1.3,
+                            fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' }
+                          }}
+                        >
+                          {announcement.title}
+                        </Typography>
+                        
+                        {/* Meta Information */}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
+                          <Chip
+                            label={`Type: ${announcement.type || 'General'}`}
+                            size="small"
+                            sx={{
+                              backgroundColor: '#E3F2FD',
+                              color: '#1976D2',
+                              fontWeight: 500,
+                              fontSize: '0.75rem'
+                            }}
+                          />
+                          <Chip
+                            label={`Priority: ${announcement.priority || 'Normal'}`}
+                            size="small"
+                            sx={{
+                              backgroundColor: announcement.priority === 'High' ? '#FFEBEE' : '#F3E5F5',
+                              color: announcement.priority === 'High' ? '#C62828' : '#7B1FA2',
+                              fontWeight: 500,
+                              fontSize: '0.75rem'
+                            }}
+                          />
+                          {announcement.targetAudience !== 'All' && 
+                           announcement.targetAudience !== 'PWD Members' && 
+                           announcement.targetAudience !== 'PWDMember' && (
+                            <Chip
+                              label={`Target: ${announcement.targetAudience}`}
+                              size="small"
+                              sx={{
+                                backgroundColor: '#E8F5E8',
+                                color: '#2E7D32',
+                                fontWeight: 500,
+                                fontSize: '0.75rem'
+                              }}
+                            />
+                          )}
+                          <Chip
+                            label={`Status: ${announcement.status || 'Active'}`}
+                            size="small"
+                            sx={{
+                              backgroundColor: announcement.status === 'Active' ? '#E8F5E8' : '#FFF3E0',
+                              color: announcement.status === 'Active' ? '#2E7D32' : '#F57C00',
+                              fontWeight: 500,
+                              fontSize: '0.75rem'
+                            }}
+                          />
+                        </Box>
+
+                        {/* Dates */}
+                        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                          <Typography variant="body2" sx={{ color: '#6c757d', fontWeight: 500 }}>
+                            Published: {new Date(announcement.created_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </Typography>
+                          {announcement.expiryDate && (
+                            <Typography variant="body2" sx={{ color: '#6c757d', fontWeight: 500 }}>
+                              Expires: {new Date(announcement.expiryDate).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+
+                      {/* Announcement Content */}
+                      <Box sx={{ 
+                        backgroundColor: '#fafafa', 
+                        p: 3, 
+                        borderRadius: 2, 
+                        border: '1px solid #f0f0f0',
+                        minHeight: 120
+                      }}>
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            color: '#2c3e50', 
+                            lineHeight: 1.7,
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            fontSize: '1rem',
+                            fontFamily: 'Arial, sans-serif'
+                          }}
+                        >
+                          {announcement.content || 'No content available.'}
+                        </Typography>
+                      </Box>
+
+                      {/* Read Aloud Button */}
+                      <Box sx={{ mt: 3, textAlign: 'right' }}>
+                        <Button
+                          onClick={() => {
+                            const fullText = `${announcement.title}. ${announcement.content || 'No content available.'}`;
+                            readAloud(fullText);
+                          }}
+                          variant="outlined"
+                          disabled={isReading}
+                          startIcon={<VolumeUp />}
+                          sx={{
+                            borderColor: '#F39C12',
+                            color: '#F39C12',
+                            textTransform: 'none',
+                            fontWeight: 500,
+                            px: 2,
+                            py: 1,
+                            '&:hover': {
+                              borderColor: '#E67E22',
+                              backgroundColor: '#F39C1215'
+                            }
+                          }}
+                        >
+                          {isReading ? 'Reading...' : 'Read Aloud'}
+                        </Button>
+                      </Box>
+                    </Paper>
+                  ))}
+                </Box>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 8 }}>
+                  <ErrorOutline sx={{ fontSize: 64, color: '#bdc3c7', mb: 3 }} />
+                  <Typography variant="h5" sx={{ color: '#7f8c8d', mb: 2, fontWeight: 500 }}>
+                    {t('dashboard.noAnnouncements')}
+                  </Typography>
+                  <Typography variant="body1" sx={{ color: '#95a5a6' }}>
+                    {t('dashboard.checkBackLater')}
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
         </Box>
       </Box>
       

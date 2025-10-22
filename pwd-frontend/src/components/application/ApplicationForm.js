@@ -176,9 +176,9 @@ function ApplicationForm() {
     disabilityDate: '',
     address: '',
     barangay: '',
-    city: '',
-    province: '',
-    postalCode: '',
+    city: 'Cabuyao', // Hardcoded
+    province: 'Laguna', // Hardcoded
+    postalCode: '4025', // Hardcoded
     phoneNumber: '',
     email: '',
     emergencyContact: '',
@@ -634,6 +634,8 @@ function ApplicationForm() {
             </Box>
           ),
           buttonText: 'Continue to Login',
+          requireCheckbox: true,
+          checkboxLabel: 'I have copied the reference number',
           onClose: () => {
             // Redirect to login page only after user closes the modal
             navigate('/login');
@@ -654,9 +656,9 @@ function ApplicationForm() {
           disabilityDate: '',
           address: '',
           barangay: '',
-          city: '',
-          province: '',
-          postalCode: '',
+          city: 'Cabuyao', // Hardcoded
+          province: 'Laguna', // Hardcoded
+          postalCode: '4025', // Hardcoded
           phoneNumber: '',
           email: '',
           emergencyContact: '',
@@ -1144,42 +1146,6 @@ function ApplicationForm() {
                      <MenuItem value="Barangay III Poblacion">Barangay III Poblacion</MenuItem>
                    </Select>
                  </FormControl>
-               </Grid>
-               <Grid item xs={12} sm={6}>
-                 <TextField
-                   fullWidth
-                   label="City"
-                   value={formData.city}
-                   onChange={(e) => handleInputChange('city', e.target.value)}
-                   InputLabelProps={{
-                     shrink: true,
-                   }}
-                   sx={getTextFieldStyles()}
-                 />
-               </Grid>
-               <Grid item xs={12} sm={6}>
-                 <TextField
-                   fullWidth
-                   label="Province"
-                   value={formData.province}
-                   onChange={(e) => handleInputChange('province', e.target.value)}
-                   InputLabelProps={{
-                     shrink: true,
-                   }}
-                   sx={getTextFieldStyles()}
-                 />
-               </Grid>
-               <Grid item xs={12} sm={6}>
-                 <TextField
-                   fullWidth
-                   label="Postal Code"
-                   value={formData.postalCode}
-                   onChange={(e) => handleInputChange('postalCode', e.target.value)}
-                   InputLabelProps={{
-                     shrink: true,
-                   }}
-                   sx={getTextFieldStyles()}
-                 />
                </Grid>
             </Grid>
           </Box>
@@ -1804,6 +1770,10 @@ function ApplicationForm() {
         type={modalConfig.type}
         buttonText={modalConfig.buttonText}
         onButtonClick={modalConfig.onClose}
+        requireCheckbox={modalConfig.requireCheckbox}
+        checkboxLabel={modalConfig.checkboxLabel}
+        checkboxChecked={modalConfig.checkboxChecked}
+        onCheckboxChange={modalConfig.onCheckboxChange}
       />
     </Box>
   );

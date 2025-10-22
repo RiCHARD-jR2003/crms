@@ -44,6 +44,7 @@ import {
 import { useTranslation } from '../../contexts/TranslationContext';
 import { supportedLanguages } from '../../translations';
 import { useScreenReader } from '../../hooks/useScreenReader';
+import { useReadAloud } from '../../hooks/useReadAloud';
 
 function AccessibilitySettings() {
   const { t, currentLanguage, changeLanguage } = useTranslation();
@@ -65,6 +66,14 @@ function AccessibilitySettings() {
     refreshVoices,
     getCapabilities 
   } = useScreenReader();
+  const { 
+    isReading, 
+    currentReadingElement, 
+    readAloud, 
+    stopReading, 
+    readElement, 
+    readPage 
+  } = useReadAloud();
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState({
     screenReader: false,
@@ -78,6 +87,9 @@ function AccessibilitySettings() {
     speechRate: 1.0,
     speechPitch: 1.0,
     speechVolume: 1.0,
+    readAloud: false,
+    readAloudSpeed: 1.0,
+    readAloudAutoStart: false,
   });
 
   // Load settings from localStorage on component mount
@@ -126,6 +138,33 @@ function AccessibilitySettings() {
       setTTSEnabled(false);
     }
   }, [settings.screenReader, settings.ttsEnabled, setTTSEnabled]);
+
+
+  // Auto-read content when page loads (if enabled)
+  useEffect(() => {
+    if (settings.readAloudAutoStart && settings.readAloud) {
+      const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+      if (mainContent) {
+        const textContent = mainContent.innerText || mainContent.textContent;
+        if (textContent && textContent.trim()) {
+          readAloud(textContent.substring(0, 1000) + '...'); // Limit to first 1000 characters
+        }
+      }
+    }
+  }, [settings.readAloudAutoStart, settings.readAloud]);
+
+  // Add click-to-read functionality
+  useEffect(() => {
+    if (!settings.readAloud) return;
+
+    const handleClick = (event) => {
+      const target = event.target;
+      readElement(target);
+    };
+
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [settings.readAloud, readElement]);
 
 
   // Apply accessibility settings to the document
@@ -267,11 +306,19 @@ function AccessibilitySettings() {
       language: currentLanguage,
       reducedMotion: false,
       focusIndicator: true,
-      keyboardNavigation: true
+      keyboardNavigation: true,
+      ttsEnabled: false,
+      speechRate: 1.0,
+      speechPitch: 1.0,
+      speechVolume: 1.0,
+      readAloud: false,
+      readAloudSpeed: 1.0,
+      readAloudAutoStart: false,
     };
     setSettings(defaultSettings);
     applyAccessibilitySettings(defaultSettings);
     localStorage.setItem('accessibilitySettings', JSON.stringify(defaultSettings));
+    stopReading(); // Stop any ongoing reading
     if (settings.screenReader) {
       announceToScreenReader(t('accessibility.settingsReset'));
     }
@@ -305,6 +352,36 @@ function AccessibilitySettings() {
       >
         <Accessibility />
       </Fab>
+
+      {/* Floating Read Aloud Button */}
+      {settings.readAloud && (
+        <Fab
+          color="secondary"
+          aria-label="Read Aloud"
+          onClick={readPage}
+          disabled={isReading}
+          sx={{
+            position: 'fixed',
+            bottom: 24,
+            right: 100, // Position next to the accessibility button
+            zIndex: 1400,
+            backgroundColor: isReading ? '#dc3545' : '#28a745',
+            '&:hover': {
+              backgroundColor: isReading ? '#c82333' : '#218838',
+              transform: settings.reducedMotion ? 'none' : 'scale(1.1)'
+            },
+            transition: settings.reducedMotion ? 'none' : 'all 0.3s ease',
+            boxShadow: isReading ? '0 4px 12px rgba(220, 53, 69, 0.3)' : '0 4px 12px rgba(40, 167, 69, 0.3)',
+            '&:focus': {
+              outline: settings.focusIndicator ? '3px solid #ff6b35' : 'none',
+              outlineOffset: '2px'
+            }
+          }}
+          size="medium"
+        >
+          {isReading ? <VolumeOff /> : <VolumeUp />}
+        </Fab>
+      )}
 
       {/* Accessibility Settings Dialog */}
       <Dialog
@@ -638,6 +715,186 @@ function AccessibilitySettings() {
                       )}
                     </Box>
                   )}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Read Aloud Settings */}
+          <Card sx={{ mb: 3, border: '1px solid #e9ecef' }}>
+            <CardContent sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <VolumeUp sx={{ color: '#0b87ac' }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Read Aloud
+                </Typography>
+                {isReading && (
+                  <Chip
+                    label="Reading..."
+                    size="small"
+                    color="primary"
+                    sx={{ fontSize: '0.7rem' }}
+                  />
+                )}
+              </Box>
+
+              {/* Read Aloud Enable Toggle */}
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={settings.readAloud}
+                    onChange={(e) => {
+                      const newSettings = { ...settings, readAloud: e.target.checked };
+                      setSettings(newSettings);
+                      handleSettingChange('readAloud', e.target.checked);
+                      if (!e.target.checked) {
+                        stopReading();
+                      }
+                    }}
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': {
+                        color: '#0b87ac',
+                      },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                        backgroundColor: '#0b87ac',
+                      },
+                    }}
+                  />
+                }
+                label="Enable Read Aloud"
+                sx={{ mb: 2 }}
+              />
+
+              <Typography variant="body2" sx={{ color: '#6c757d', ml: 4, mb: 2 }}>
+                Click on any text element to have it read aloud. Perfect for reading documents, forms, and other content.
+              </Typography>
+
+              {/* Read Aloud Controls */}
+              {settings.readAloud && (
+                <Box>
+                  {/* Auto Start */}
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={settings.readAloudAutoStart}
+                        onChange={(e) => {
+                          const newSettings = { ...settings, readAloudAutoStart: e.target.checked };
+                          setSettings(newSettings);
+                          handleSettingChange('readAloudAutoStart', e.target.checked);
+                        }}
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: '#0b87ac',
+                          },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            backgroundColor: '#0b87ac',
+                          },
+                        }}
+                      />
+                    }
+                    label="Auto-read page content on load"
+                    sx={{ mb: 2 }}
+                  />
+
+                  {/* Read Aloud Speed */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+                      Reading Speed: {settings.readAloudSpeed.toFixed(1)}x
+                    </Typography>
+                    <Slider
+                      value={settings.readAloudSpeed}
+                      onChange={(e, value) => {
+                        const newSettings = { ...settings, readAloudSpeed: value };
+                        setSettings(newSettings);
+                        handleSettingChange('readAloudSpeed', value);
+                      }}
+                      min={0.5}
+                      max={2.0}
+                      step={0.1}
+                      sx={{
+                        color: '#0b87ac',
+                        '& .MuiSlider-thumb': {
+                          backgroundColor: '#0b87ac',
+                        },
+                        '& .MuiSlider-track': {
+                          backgroundColor: '#0b87ac',
+                        },
+                      }}
+                    />
+                  </Box>
+
+                  {/* Control Buttons */}
+                  <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={readPage}
+                      disabled={isReading}
+                      sx={{
+                        borderColor: '#0b87ac',
+                        color: '#0b87ac',
+                        '&:hover': {
+                          borderColor: '#0a6b8a',
+                          backgroundColor: '#0b87ac15'
+                        }
+                      }}
+                    >
+                      Read Page
+                    </Button>
+                    
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={stopReading}
+                      disabled={!isReading}
+                      sx={{
+                        borderColor: '#dc3545',
+                        color: '#dc3545',
+                        '&:hover': {
+                          borderColor: '#c82333',
+                          backgroundColor: '#dc354515'
+                        }
+                      }}
+                    >
+                      Stop Reading
+                    </Button>
+                  </Box>
+
+                  {/* Instructions */}
+                  <Box sx={{ mt: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                      How to use Read Aloud:
+                    </Typography>
+                    <List dense>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemIcon>
+                          <Typography variant="body2">•</Typography>
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary="Click on any text element to read it aloud"
+                          primaryTypographyProps={{ fontSize: '0.8rem' }}
+                        />
+                      </ListItem>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemIcon>
+                          <Typography variant="body2">•</Typography>
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary="Use 'Read Page' to read the entire page content"
+                          primaryTypographyProps={{ fontSize: '0.8rem' }}
+                        />
+                      </ListItem>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemIcon>
+                          <Typography variant="body2">•</Typography>
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary="Adjust reading speed with the slider above"
+                          primaryTypographyProps={{ fontSize: '0.8rem' }}
+                        />
+                      </ListItem>
+                    </List>
+                  </Box>
                 </Box>
               )}
             </CardContent>

@@ -95,6 +95,9 @@ function BarangayPresidentPWDRecords() {
   const [correctionNotes, setCorrectionNotes] = useState('');
   const [documentTypes, setDocumentTypes] = useState([]);
   const [documentMapping, setDocumentMapping] = useState({});
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
+  const [previewFileName, setPreviewFileName] = useState('');
   
   // Toast notifications will be used instead of modals
 
@@ -109,6 +112,101 @@ function BarangayPresidentPWDRecords() {
     } catch (error) {
       console.error('Error fetching document types:', error);
     }
+  };
+
+  // Helper functions for file handling
+  const getFileUrl = (fieldName) => {
+    if (!selectedApplication || !selectedApplication[fieldName]) return null;
+    
+    const fileName = selectedApplication[fieldName];
+    
+    // Handle JSON string (for arrays stored as strings)
+    if (typeof fileName === 'string') {
+      try {
+        const parsed = JSON.parse(fileName);
+        if (Array.isArray(parsed)) {
+          return parsed.length > 0 ? `${api.getStorageUrl('')}/${parsed[0]}` : null;
+        } else {
+          return `${api.getStorageUrl('')}/${fileName}`;
+        }
+      } catch (e) {
+        // Not JSON, treat as regular string
+        return `${api.getStorageUrl('')}/${fileName}`;
+      }
+    } else if (Array.isArray(fileName)) {
+      // Handle actual array
+      return fileName.length > 0 ? `${api.getStorageUrl('')}/${fileName[0]}` : null;
+    }
+    return null;
+  };
+
+  const isImageFile = (fileName) => {
+    if (!fileName) return false;
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+    const lowerFileName = fileName.toLowerCase();
+    return imageExtensions.some(ext => lowerFileName.includes(ext));
+  };
+
+  const getFileIcon = (fileName) => {
+    if (!fileName) return '📄';
+    const lowerFileName = fileName.toLowerCase();
+    if (lowerFileName.includes('.pdf')) return '📄';
+    if (lowerFileName.includes('.doc') || lowerFileName.includes('.docx')) return '📝';
+    if (lowerFileName.includes('.txt')) return '📄';
+    return '📄';
+  };
+
+  const handleViewFile = (fileType) => {
+    if (!selectedApplication) {
+      console.error('No application selected');
+      return;
+    }
+    
+    const fileName = selectedApplication[fileType];
+    if (!fileName) {
+      console.error('No file found for field:', fileType);
+      return;
+    }
+
+    let fileUrl = null;
+    let displayFileName = '';
+    
+    if (typeof fileName === 'string') {
+      try {
+        const parsed = JSON.parse(fileName);
+        if (Array.isArray(parsed)) {
+          fileUrl = parsed.length > 0 ? `${api.getStorageUrl('')}/${parsed[0]}` : null;
+          displayFileName = parsed.length > 0 ? parsed[0] : '';
+        } else {
+          fileUrl = `${api.getStorageUrl('')}/${fileName}`;
+          displayFileName = fileName;
+        }
+      } catch (e) {
+        fileUrl = `${api.getStorageUrl('')}/${fileName}`;
+        displayFileName = fileName;
+      }
+    } else if (Array.isArray(fileName)) {
+      fileUrl = fileName.length > 0 ? `${api.getStorageUrl('')}/${fileName[0]}` : null;
+      displayFileName = fileName.length > 0 ? fileName[0] : '';
+    }
+
+    if (fileUrl && isImageFile(displayFileName)) {
+      handlePreviewImage(fileUrl, displayFileName);
+    } else {
+      filePreviewService.openPreview('application-file', selectedApplication.applicationID, fileType);
+    }
+  };
+
+  const handlePreviewImage = (imageUrl, fileName) => {
+    setPreviewImageUrl(imageUrl);
+    setPreviewFileName(fileName);
+    setPreviewModalOpen(true);
+  };
+
+  const handleClosePreviewModal = () => {
+    setPreviewModalOpen(false);
+    setPreviewImageUrl('');
+    setPreviewFileName('');
   };
 
   useEffect(() => {
@@ -495,7 +593,7 @@ function BarangayPresidentPWDRecords() {
     }
   };
 
-  const handlePrintApplication = () => {
+    const handlePrintApplication = () => {
     const printWindow = window.open('', '_blank');
     const printContent = document.getElementById('application-details');
     
@@ -1489,10 +1587,10 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Uploaded Documents */}
-              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6' }}>
+              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
-                        color: '#1976D2',
+                  color: '#0b87ac', 
                   mb: 2,
                   borderBottom: '2px solid #8E44AD',
                   pb: 1
@@ -1501,140 +1599,173 @@ function BarangayPresidentPWDRecords() {
                 </Typography>
                 
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 1 }}>
-                      ID Picture (2x2):
-                    </Typography>
-                    {selectedApplication.idPicture ? (
-                      <Box sx={{ textAlign: 'center' }}>
-                        <img 
-                          src={api.getStorageUrl(selectedApplication.idPicture)}
-                          alt="ID Picture"
-                          style={{
-                            maxWidth: '150px',
-                            maxHeight: '150px',
-                            border: '2px solid #E9ECEF',
-                            borderRadius: '8px',
-                            objectFit: 'cover'
-                          }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ 
-                          display: 'none', 
-                          color: '#7F8C8D', 
-                          fontStyle: 'italic',
-                          mt: 1
-                        }}>
-                          File not found or invalid
-                        </Typography>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(api.getStorageUrl(selectedApplication.idPicture), '_blank')}
-                        >
-                          View Full Size
-                        </Button>
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" sx={{ color: '#7F8C8D', fontStyle: 'italic' }}>
-                        No file uploaded
-                      </Typography>
-                    )}
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 1 }}>
-                      Medical Certificate:
-                    </Typography>
-                    {selectedApplication.medicalCertificate ? (
-                      <Box sx={{ textAlign: 'center' }}>
-                        <img 
-                          src={api.getStorageUrl(selectedApplication.medicalCertificate)}
-                          alt="Medical Certificate"
-                          style={{
-                            maxWidth: '150px',
-                            maxHeight: '150px',
-                            border: '2px solid #E9ECEF',
-                            borderRadius: '8px',
-                            objectFit: 'cover'
-                          }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ 
-                          display: 'none', 
-                          color: '#7F8C8D', 
-                          fontStyle: 'italic',
-                          mt: 1
-                        }}>
-                          File not found or invalid
-                        </Typography>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => window.open(api.getStorageUrl(selectedApplication.medicalCertificate), '_blank')}
-                        >
-                          View Full Size
-                        </Button>
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" sx={{ color: '#7F8C8D', fontStyle: 'italic' }}>
-                        No file uploaded
-                      </Typography>
-                    )}
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 1 }}>
-                      Barangay Clearance:
-                    </Typography>
-                    {selectedApplication.barangayClearance ? (
-                      <Box sx={{ textAlign: 'center' }}>
-                        <img 
-                          src={api.getStorageUrl(selectedApplication.barangayClearance)}
-                          alt="Barangay Clearance"
-                          style={{
-                            maxWidth: '150px',
-                            maxHeight: '150px',
-                            border: '2px solid #E9ECEF',
-                            borderRadius: '8px',
-                            objectFit: 'cover'
-                          }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ 
-                          display: 'none', 
-                          color: '#7F8C8D', 
-                          fontStyle: 'italic',
-                          mt: 1
-                        }}>
-                          File not found or invalid
-                        </Typography>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          sx={{ mt: 1, fontSize: '0.7rem' }}
-                          onClick={() => filePreviewService.openPreview('application-file', selectedApplication.applicationID, 'barangayClearance')}
-                        >
-                          View Full Size
-                        </Button>
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" sx={{ color: '#7F8C8D', fontStyle: 'italic' }}>
-                        No file uploaded
-                      </Typography>
-                    )}
-                  </Grid>
+                  {Object.keys(documentMapping).map((fieldName) => {
+                    const docInfo = documentMapping[fieldName];
+                    const hasDocument = documentService.hasDocument(selectedApplication, fieldName);
+                    
+                    return (
+                      <Grid item xs={12} sm={4} key={fieldName}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E' }}>
+                            {docInfo.name}:
+                          </Typography>
+                          {docInfo.isRequired && (
+                            <Box sx={{ mt: 0.5 }}>
+                              <Chip 
+                                label="Required" 
+                                size="small" 
+                                sx={{ 
+                                  ml: 1, 
+                                  bgcolor: '#E74C3C', 
+                                  color: '#FFFFFF',
+                                  fontSize: '0.6rem',
+                                  height: '16px'
+                                }} 
+                              />
+                            </Box>
+                          )}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, minHeight: '120px' }}>
+                          {hasDocument ? (
+                            <Box 
+                              sx={{ 
+                                cursor: 'pointer',
+                                border: '2px solid #0b87ac',
+                                borderRadius: 1,
+                                p: 0.5,
+                                bgcolor: '#f8f9fa',
+                                '&:hover': {
+                                  borderColor: '#8E44AD',
+                                  bgcolor: '#f0f0f0'
+                                }
+                              }}
+                              onClick={() => handleViewFile(fieldName)}
+                            >
+                              {(() => {
+                                const fileName = selectedApplication[fieldName];
+                                const fileUrl = getFileUrl(fieldName);
+                                
+                                // Parse fileName if it's a JSON string
+                                let parsedFiles = fileName;
+                                if (typeof fileName === 'string') {
+                                  try {
+                                    const parsed = JSON.parse(fileName);
+                                    if (Array.isArray(parsed)) {
+                                      parsedFiles = parsed;
+                                    }
+                                  } catch (e) {
+                                    // Not JSON, treat as single file
+                                    parsedFiles = fileName;
+                                  }
+                                }
+                                
+                                if (Array.isArray(parsedFiles)) {
+                                  // Handle multiple files (like idPictures)
+                                  return (
+                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                      {parsedFiles.slice(0, 2).map((file, index) => {
+                                        const singleFileUrl = `${api.getStorageUrl('')}/${file}`;
+                                        return (
+                                          <Box
+                                            key={index}
+                                            sx={{ 
+                                              width: 56, 
+                                              height: 80,
+                                              borderRadius: 1,
+                                              overflow: 'hidden',
+                                              bgcolor: isImageFile(file) ? 'transparent' : '#0b87ac',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              fontSize: '1.2rem',
+                                              color: 'white',
+                                              border: '1px solid #ddd'
+                                            }}
+                                          >
+                                            {isImageFile(file) ? (
+                                              <img 
+                                                src={singleFileUrl} 
+                                                alt="Preview" 
+                                                style={{ 
+                                                  width: '100%', 
+                                                  height: '100%', 
+                                                  objectFit: 'cover' 
+                                                }}
+                                              />
+                                            ) : (
+                                              getFileIcon(file)
+                                            )}
+                                          </Box>
+                                        );
+                                      })}
+                                      {parsedFiles.length > 2 && (
+                                        <Box sx={{ 
+                                          width: 56, 
+                                          height: 80, 
+                                          bgcolor: '#95A5A6', 
+                                          fontSize: '0.8rem',
+                                          borderRadius: 1,
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: 'white',
+                                          border: '1px solid #ddd'
+                                        }}>
+                                          +{parsedFiles.length - 2}
+                                        </Box>
+                                      )}
+                                    </Box>
+                                  );
+                                } else {
+                                  // Handle single file
+                                  return (
+                                    <Box
+                                      sx={{ 
+                                        width: 70, 
+                                        height: 100,
+                                        borderRadius: 1,
+                                        overflow: 'hidden',
+                                        bgcolor: isImageFile(fileName) ? 'transparent' : '#0b87ac',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '1.5rem',
+                                        color: 'white',
+                                        border: '1px solid #ddd'
+                                      }}
+                                    >
+                                      {isImageFile(fileName) ? (
+                                        <img 
+                                          src={fileUrl} 
+                                          alt="Preview" 
+                                          style={{ 
+                                            width: '100%', 
+                                            height: '100%', 
+                                            objectFit: 'cover' 
+                                          }}
+                                        />
+                                      ) : (
+                                        getFileIcon(fileName)
+                                      )}
+                                    </Box>
+                                  );
+                                }
+                              })()}
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" sx={{ color: '#7F8C8D', fontStyle: 'italic' }}>
+                              No file uploaded
+                            </Typography>
+                          )}
+                        </Box>
+                        {docInfo.description && (
+                          <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 0.5 }}>
+                            {docInfo.description}
+                          </Typography>
+                        )}
+                      </Grid>
+                    );
+                  })}
                 </Grid>
               </Paper>
 
@@ -1888,6 +2019,103 @@ function BarangayPresidentPWDRecords() {
             Send Correction Request
           </Button>
         </DialogActions>
+         </Dialog>
+
+         {/* Image Preview Modal - A4 Paper Shape */}
+         <Dialog
+           open={previewModalOpen}
+           onClose={handleClosePreviewModal}
+           maxWidth="sm"
+           fullWidth
+           PaperProps={{
+             sx: {
+               borderRadius: 2,
+               boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+               bgcolor: '#FFFFFF',
+               // A4 paper aspect ratio: 1:1.414
+               aspectRatio: '1/1.414',
+               maxHeight: '90vh',
+               display: 'flex',
+               flexDirection: 'column'
+             }
+           }}
+         >
+           <DialogTitle sx={{ 
+             bgcolor: '#0b87ac', 
+             color: '#FFFFFF', 
+             textAlign: 'center',
+             py: 1.5,
+             position: 'relative',
+             flexShrink: 0
+           }}>
+             <Typography variant="h2" component="div" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+               Document Preview
+             </Typography>
+             <IconButton
+               onClick={handleClosePreviewModal}
+               sx={{
+                 position: 'absolute',
+                 right: 16,
+                 top: '50%',
+                 transform: 'translateY(-50%)',
+                 color: '#FFFFFF'
+               }}
+             >
+               <CloseIcon />
+             </IconButton>
+           </DialogTitle>
+           
+           <DialogContent sx={{ 
+             p: 0, 
+             bgcolor: '#FFFFFF',
+             flex: 1,
+             display: 'flex',
+             alignItems: 'center',
+             justifyContent: 'center',
+             overflow: 'hidden'
+           }}>
+             {previewImageUrl && (
+               <Box
+                 sx={{
+                   width: '100%',
+                   height: '100%',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   bgcolor: '#f5f5f5',
+                   position: 'relative'
+                 }}
+               >
+                 <img
+                   src={previewImageUrl}
+                   alt={previewFileName}
+                   style={{
+                     maxWidth: '100%',
+                     maxHeight: '100%',
+                     objectFit: 'contain',
+                     borderRadius: '4px',
+                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                   }}
+                   onError={(e) => {
+                     console.error('Error loading image:', previewImageUrl);
+                     e.target.style.display = 'none';
+                   }}
+                 />
+               </Box>
+             )}
+           </DialogContent>
+           
+           <DialogActions sx={{ 
+             bgcolor: '#f8f9fa', 
+             px: 3, 
+             py: 2,
+             flexShrink: 0,
+             justifyContent: 'center'
+           }}>
+             <Typography variant="body2" sx={{ color: '#6c757d', fontStyle: 'italic' }}>
+               {previewFileName}
+             </Typography>
+           </DialogActions>
          </Dialog>
       </Box>
     );

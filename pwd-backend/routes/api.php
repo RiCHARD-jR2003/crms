@@ -2229,14 +2229,16 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
                 strtoupper(substr($application->lastName, 0, 2)) . 
                 str_pad($application->applicationID, 4, '0', STR_PAD_LEFT);
 
-        // Update application status
+        // Update application status (don't set pwdID as it's a foreign key to users.userID)
         $application->status = 'Approved';
-        $application->pwdID = $pwdId;
         $application->save();
 
+        // Get the next available user ID first
+        $nextUserId = \App\Models\User::max('userID') + 1;
+        
         // Create PWD Member record
         $pwdMember = new \App\Models\PWDMember();
-        $pwdMember->userID = $application->applicationID;
+        $pwdMember->userID = $nextUserId;
         $pwdMember->firstName = $application->firstName;
         $pwdMember->lastName = $application->lastName;
         $pwdMember->middleName = $application->middleName;
@@ -2252,15 +2254,15 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
         $pwdMember->save();
 
         // Create User account
-        $user = new \App\Models\User();
-        $user->userID = $application->applicationID;
-        $user->firstName = $application->firstName;
-        $user->lastName = $application->lastName;
-        $user->email = $application->email;
-        $user->password = \Illuminate\Support\Facades\Hash::make($randomPassword);
-        $user->role = 'PWD Member';
-        $user->status = 'Active';
-        $user->save();
+        $newUser = new \App\Models\User();
+        $newUser->userID = $nextUserId; // Use next available ID instead of application ID
+        $newUser->username = $application->email; // Use email as username
+        $newUser->email = $application->email;
+        $newUser->password = \Illuminate\Support\Facades\Hash::make($randomPassword);
+        $newUser->role = 'PWDMember';
+        $newUser->status = 'Active';
+        $newUser->password_change_required = true; // Require password change on first login
+        $newUser->save();
 
         // Send approval email
         $emailSent = false;

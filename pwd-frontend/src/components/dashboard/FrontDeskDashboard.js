@@ -102,8 +102,8 @@ function FrontDeskDashboard() {
         
         // Mock PWD cards data based on applications
         const cards = applications.map(app => ({
-          id: app.id,
-          status: app.status === 'approved' ? 'issued' : 'pending',
+          id: app.applicationID,
+          status: app.status === 'Approved' ? 'issued' : 'pending',
           memberName: `${app.firstName} ${app.lastName}`,
           createdAt: app.created_at
         }));

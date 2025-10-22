@@ -7,7 +7,11 @@ export const useModal = () => {
     message: '',
     type: 'success',
     buttonText: 'Continue',
-    onClose: null
+    onClose: null,
+    requireCheckbox: false,
+    checkboxLabel: 'I have copied the reference number',
+    checkboxChecked: false,
+    onCheckboxChange: null
   });
 
   const showModal = (config) => {
@@ -16,7 +20,11 @@ export const useModal = () => {
       message: config.message || '',
       type: config.type || 'success',
       buttonText: config.buttonText || 'Continue',
-      onClose: config.onClose || null
+      onClose: config.onClose || null,
+      requireCheckbox: config.requireCheckbox || false,
+      checkboxLabel: config.checkboxLabel || 'I have copied the reference number',
+      checkboxChecked: config.checkboxChecked || false,
+      onCheckboxChange: config.onCheckboxChange || null
     });
     setModalOpen(true);
   };
@@ -30,7 +38,11 @@ export const useModal = () => {
         message: '',
         type: 'success',
         buttonText: 'Continue',
-        onClose: null
+        onClose: null,
+        requireCheckbox: false,
+        checkboxLabel: 'I have copied the reference number',
+        checkboxChecked: false,
+        onCheckboxChange: null
       });
     }, 300);
   };

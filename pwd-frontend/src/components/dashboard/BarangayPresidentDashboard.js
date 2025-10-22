@@ -98,7 +98,7 @@ function BarangayPresidentDashboard() {
         
         // Fetch PWD members statistics
         const pwdResponse = await api.get('/pwd-members');
-        const pwdMembers = pwdResponse.members || [];
+        const pwdMembers = pwdResponse.data || [];
         
         // Fetch applications directly from API for recent applications
         const applicationsResponse = await api.get('/applications');

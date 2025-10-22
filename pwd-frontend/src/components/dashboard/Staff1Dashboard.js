@@ -91,7 +91,7 @@ function Staff1Dashboard() {
         
         // Fetch PWD members statistics
         const pwdResponse = await api.get('/pwd-members');
-        const pwdMembers = pwdResponse.members || [];
+        const pwdMembers = pwdResponse.data || [];
         
         // Fetch applications
         const applicationsResponse = await api.get('/applications');
@@ -99,8 +99,8 @@ function Staff1Dashboard() {
         
         // Calculate statistics
         const totalMembers = pwdMembers.length;
-        const pendingApplications = applications.filter(app => app.status === 'pending').length;
-        const approvedApplications = applications.filter(app => app.status === 'approved').length;
+        const pendingApplications = applications.filter(app => app.status === 'Pending Admin Approval').length;
+        const approvedApplications = applications.filter(app => app.status === 'Approved').length;
         const recentApplications = applications
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
           .slice(0, 5);
