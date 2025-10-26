@@ -28,6 +28,7 @@ import {
   Card,
   CardMedia,
   CardContent,
+  InputAdornment,
   Container
 } from '@mui/material';
 import {
@@ -35,13 +36,16 @@ import {
   Visibility as VisibilityIcon,
   PictureAsPdf as PdfIcon,
   Image as ImageIcon,
-  Description as DocumentIcon
+  Description as DocumentIcon,
+  ContentCopy as ContentCopyIcon,
+  CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import applicationService from '../../services/applicationService';
 import EmailVerificationModal from './EmailVerificationModal';
 import SuccessModal from '../shared/SuccessModal';
 import { useModal } from '../../hooks/useModal';
+import { saveFileToStorage, getFileFromStorage, removeFileFromStorage, clearAllFilesFromStorage } from '../../utils/fileStorage';
 
 const steps = [
   'Personal Information',
@@ -52,7 +56,6 @@ const steps = [
 
 function ApplicationForm() {
   const navigate = useNavigate();
-  const [activeStep, setActiveStep] = useState(0);
   const [requiredDocuments, setRequiredDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -76,26 +79,26 @@ function ApplicationForm() {
   // Reusable styling for form fields
   const getTextFieldStyles = (hasError = false) => ({
     '& .MuiInputLabel-root': {
-      color: hasError ? '#E74C3C' : '#2C3E50',
+      color: hasError ? '#E74C3C' : '#000000',
       fontWeight: 500,
       fontSize: '0.9rem'
     },
     '& .MuiOutlinedInput-root': {
       borderRadius: 3,
-      backgroundColor: '#f8f9fa',
+      backgroundColor: '#FFFFFF',
       '& fieldset': {
-        borderColor: hasError ? '#E74C3C' : '#e9ecef',
+        borderColor: hasError ? '#E74C3C' : '#CCCCCC',
       },
       '&:hover fieldset': {
-        borderColor: hasError ? '#E74C3C' : '#0b87ac',
+        borderColor: hasError ? '#E74C3C' : '#999999',
       },
       '&.Mui-focused fieldset': {
-        borderColor: hasError ? '#E74C3C' : '#0b87ac',
+        borderColor: hasError ? '#E74C3C' : '#000000',
         borderWidth: 2,
       },
     },
     '& .MuiInputBase-input': {
-      color: '#2C3E50',
+      color: '#000000',
       py: 1.2,
       fontSize: '0.95rem'
     },
@@ -119,50 +122,66 @@ function ApplicationForm() {
     return `${day}/${month}/${year}`;
   };
 
+
   // Reusable styling for select fields
   const getSelectStyles = (hasError = false) => ({
     '& .MuiOutlinedInput-root': {
       borderRadius: 3,
-      backgroundColor: '#f8f9fa',
+      backgroundColor: '#FFFFFF',
       '& fieldset': {
-        borderColor: hasError ? '#E74C3C' : '#e9ecef',
+        borderColor: hasError ? '#E74C3C' : '#CCCCCC',
       },
       '&:hover fieldset': {
-        borderColor: hasError ? '#E74C3C' : '#0b87ac',
+        borderColor: hasError ? '#E74C3C' : '#999999',
       },
       '&.Mui-focused fieldset': {
-        borderColor: hasError ? '#E74C3C' : '#0b87ac',
+        borderColor: hasError ? '#E74C3C' : '#000000',
         borderWidth: 2,
       },
     },
     '& .MuiSelect-select': {
-      color: '#2C3E50',
+      color: '#000000',
       py: 1.2,
       fontSize: '0.95rem'
     },
     '& .MuiPaper-root': {
       backgroundColor: '#FFFFFF',
-      border: '1px solid #e9ecef',
+      border: '1px solid #CCCCCC',
       borderRadius: 3,
       boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
       '& .MuiMenuItem-root': {
-        color: '#2C3E50',
+        color: '#000000',
         fontSize: '0.95rem',
         '&:hover': {
-          backgroundColor: '#f8f9fa',
+          backgroundColor: '#F5F5F5',
         },
         '&.Mui-selected': {
-          backgroundColor: '#0b87ac',
-          color: '#FFFFFF',
+          backgroundColor: '#E0E0E0',
+          color: '#000000',
           '&:hover': {
-            backgroundColor: '#0a6b8a',
+            backgroundColor: '#D0D0D0',
           },
         },
       },
     }
   });
 
-  const [formData, setFormData] = useState({
+  // Initialize form data from localStorage or default values
+  const getInitialFormData = () => {
+    const savedData = localStorage.getItem('pwd_application_form');
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData);
+        // Ensure documents property exists and is an object
+        if (!parsedData.documents || typeof parsedData.documents !== 'object') {
+          parsedData.documents = {};
+        }
+        return parsedData;
+      } catch (error) {
+        console.error('Error parsing saved form data:', error);
+      }
+    }
+    return {
     firstName: '',
     lastName: '',
     middleName: '',
@@ -186,9 +205,34 @@ function ApplicationForm() {
     emergencyRelationship: '',
     // Document fields - will be populated dynamically
     documents: {}
+    };
+  };
+
+  const [formData, setFormData] = useState(getInitialFormData);
+  const [savedActiveStep, setSavedActiveStep] = useState(() => {
+    const savedStep = localStorage.getItem('pwd_application_step');
+    return savedStep ? parseInt(savedStep) : 0;
   });
 
   const [errors, setErrors] = useState({});
+  const [activeStep, setActiveStep] = useState(savedActiveStep);
+
+  // Save form data to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('pwd_application_form', JSON.stringify(formData));
+  }, [formData]);
+
+  // Save active step to localStorage
+  useEffect(() => {
+    localStorage.setItem('pwd_application_step', activeStep.toString());
+  }, [activeStep]);
+
+  // Clear saved data after successful submission
+  const clearSavedFormData = async () => {
+    localStorage.removeItem('pwd_application_form');
+    localStorage.removeItem('pwd_application_step');
+    await clearAllFilesFromStorage();
+  };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -253,7 +297,7 @@ function ApplicationForm() {
     }
   };
 
-  const handleFileChange = (field, file) => {
+  const handleFileChange = async (field, file) => {
     setFormData(prev => ({ 
       ...prev, 
       documents: { 
@@ -261,11 +305,19 @@ function ApplicationForm() {
         [field]: file 
       } 
     }));
+    
+    // Save file to IndexedDB for persistence
+    if (file) {
+      await saveFileToStorage(field, file);
+    } else {
+      await removeFileFromStorage(field);
+    }
   };
 
   // Helper function to get file type
   const getFileType = (file) => {
     if (!file) return 'unknown';
+    if (!file.type) return 'document';
     const type = file.type.toLowerCase();
     if (type.startsWith('image/')) return 'image';
     if (type === 'application/pdf') return 'pdf';
@@ -287,12 +339,18 @@ function ApplicationForm() {
 
   // Helper function to create preview URL
   const createPreviewUrl = (file) => {
-    if (!file) return null;
-    return URL.createObjectURL(file);
+    if (!file || !file.type) return null;
+    try {
+      return URL.createObjectURL(file);
+    } catch (error) {
+      console.error('Error creating preview URL:', error);
+      return null;
+    }
   };
 
   // Handle file preview
   const handlePreviewFile = (file, fileName) => {
+    if (!file || !fileName) return;
     setPreviewFile(file);
     setPreviewFileName(fileName);
     setPreviewOpen(true);
@@ -304,8 +362,12 @@ function ApplicationForm() {
     setPreviewFile(null);
     setPreviewFileName('');
     // Clean up object URL to prevent memory leaks
-    if (previewFile) {
-      URL.revokeObjectURL(createPreviewUrl(previewFile));
+    if (previewFile && previewFile.type) {
+      try {
+        URL.revokeObjectURL(createPreviewUrl(previewFile));
+      } catch (error) {
+        console.error('Error revoking preview URL:', error);
+      }
     }
   };
 
@@ -327,19 +389,50 @@ function ApplicationForm() {
     };
 
     fetchRequiredDocuments();
+
+    // Restore uploaded files from IndexedDB
+    const restoreFilesFromStorage = async () => {
+      try {
+        const savedData = localStorage.getItem('pwd_application_form');
+        if (savedData) {
+          const parsedData = JSON.parse(savedData);
+          if (parsedData.documents) {
+            const restoredDocuments = {};
+            for (const [key, value] of Object.entries(parsedData.documents)) {
+              if (value && typeof value === 'object' && value.name) {
+                // File exists in memory from localStorage
+                const file = await getFileFromStorage(key);
+                if (file) {
+                  restoredDocuments[key] = file;
+                }
+              }
+            }
+            if (Object.keys(restoredDocuments).length > 0) {
+              setFormData(prev => ({ ...prev, documents: restoredDocuments }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring files from IndexedDB:', error);
+      }
+    };
+
+    restoreFilesFromStorage();
   }, []);
 
   // Cleanup effect to prevent memory leaks
   useEffect(() => {
     return () => {
       // Clean up any object URLs when component unmounts
-      Object.values(formData.documents).forEach(file => {
-        if (file && file.type) {
-          URL.revokeObjectURL(createPreviewUrl(file));
-        }
-      });
+      if (formData.documents && typeof formData.documents === 'object') {
+        Object.values(formData.documents).forEach(file => {
+          if (file && file.type) {
+            URL.revokeObjectURL(createPreviewUrl(file));
+          }
+        });
+      }
     };
-  }, []);
+  }, [formData.documents]);
 
   // Calculate age from date of birth
   const calculateAge = (dateOfBirth) => {
@@ -393,16 +486,16 @@ function ApplicationForm() {
     
     const today = new Date();
     const disabilityOnsetDate = new Date(disabilityDate);
-    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     
     // Check if date is in the future
     if (disabilityOnsetDate > today) {
       return 'Date of disability onset cannot be in the future';
     }
     
-    // Check if date is within 2 weeks of current date
-    if (disabilityOnsetDate > twoWeeksAgo) {
-      return 'Date of disability onset must be at least 2 weeks before the current date';
+    // Check if date is within 1 week of current date
+    if (disabilityOnsetDate > oneWeekAgo) {
+      return 'Date of disability onset must be at least 1 week before the current date';
     }
     
     return null; // No error
@@ -436,6 +529,8 @@ function ApplicationForm() {
            currentErrors.confirmEmail = 'Email addresses do not match';
          }
          if (!formData.emergencyContact) currentErrors.emergencyContact = 'Guardian Name is required';
+        if (!formData.emergencyPhone) currentErrors.emergencyPhone = 'Guardian Phone Number is required';
+        if (!formData.emergencyRelationship) currentErrors.emergencyRelationship = 'Relationship to Guardian is required';
          
          // Validate date of birth with comprehensive checks
          const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
@@ -625,9 +720,26 @@ function ApplicationForm() {
               <Typography variant="body1" sx={{ mb: 2 }}>
                 Your PWD application has been submitted successfully!
               </Typography>
-              <Typography variant="body1" sx={{ mb: 2 }}>
-                <strong>Reference Number: {referenceNumber}</strong>
-              </Typography>
+              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                <Typography variant="body1">
+                  <strong>Reference Number: {referenceNumber}</strong>
+                </Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    navigator.clipboard.writeText(referenceNumber);
+                    alert('Reference number copied to clipboard!');
+                  }}
+                  sx={{
+                    color: '#27AE60',
+                    '&:hover': {
+                      backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                    },
+                  }}
+                >
+                  <ContentCopyIcon fontSize="small" />
+                </IconButton>
+              </Box>
               <Typography variant="body1">
                 Please save this reference number to check your application status.
               </Typography>
@@ -637,6 +749,8 @@ function ApplicationForm() {
           requireCheckbox: true,
           checkboxLabel: 'I have copied the reference number',
           onClose: () => {
+            // Clear saved form data
+            clearSavedFormData();
             // Redirect to login page only after user closes the modal
             navigate('/login');
           }
@@ -746,15 +860,15 @@ function ApplicationForm() {
       case 0:
         return (
           <Box>
-            <Typography variant="h5" sx={{ 
-              mb: 3, 
-              color: '#2C3E50',
+            <Typography variant="h6" sx={{ 
+              mb: 1, 
+              color: '#000000',
               fontWeight: 700,
-              fontSize: '1.5rem'
+              fontSize: '1.1rem'
             }}>
               Personal Information
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={1}>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
@@ -913,7 +1027,7 @@ function ApplicationForm() {
                    <InputLabel 
                      shrink={true}
                      sx={{ 
-                       color: errors.gender ? '#E74C3C' : '#2C3E50',
+                        color: errors.gender ? '#E74C3C' : '#000000',
                        fontWeight: 500,
                        fontSize: '0.95rem',
                        backgroundColor: 'white',
@@ -970,7 +1084,7 @@ function ApplicationForm() {
                     <InputLabel 
                       shrink={true}
                       sx={{ 
-                        color: '#2C3E50',
+                        color: '#000000',
                         fontWeight: 500,
                         fontSize: '0.95rem',
                         backgroundColor: 'white',
@@ -1031,6 +1145,35 @@ function ApplicationForm() {
                     sx={getTextFieldStyles()}
                   />
                  </Grid>
+                 
+                 {/* Guardian/Emergency Contact Information Section Header */}
+                 <Grid item xs={12}>
+                   <Box sx={{ 
+                     mt: 1.5, 
+                     mb: 1,
+                     pt: 1.5,
+                     borderTop: '2px solid #E9ECEF'
+                   }}>
+                     <Typography variant="subtitle1" sx={{ 
+                       color: '#2C3E50',
+                       fontWeight: 700,
+                       fontSize: '0.95rem',
+                       mb: 0.5,
+                       display: 'flex',
+                       alignItems: 'center',
+                       gap: 0.5
+                     }}>
+                       🚨 Guardian / Emergency Contact Information
+                     </Typography>
+                     <Typography variant="caption" sx={{ 
+                       color: '#6C757D',
+                       fontSize: '0.75rem'
+                     }}>
+                       Please provide contact information for your guardian or emergency contact person
+                     </Typography>
+                   </Box>
+                 </Grid>
+                 
                  <Grid item xs={12} sm={6}>
                    <TextField
                      fullWidth
@@ -1046,6 +1189,85 @@ function ApplicationForm() {
                      sx={getTextFieldStyles(!!errors.emergencyContact)}
                    />
                  </Grid>
+                 <Grid item xs={12} sm={6}>
+                   <TextField
+                     fullWidth
+                     label="Guardian Phone Number"
+                     value={formData.emergencyPhone}
+                     onChange={(e) => handleInputChange('emergencyPhone', e.target.value)}
+                     error={!!errors.emergencyPhone}
+                     helperText={errors.emergencyPhone || "Contact number of guardian/emergency contact"}
+                     required
+                     InputLabelProps={{
+                       shrink: true,
+                     }}
+                     sx={getTextFieldStyles(!!errors.emergencyPhone)}
+                   />
+                 </Grid>
+                 <Grid item xs={12} sm={6}>
+                   <FormControl fullWidth required error={!!errors.emergencyRelationship}>
+                     <InputLabel 
+                       shrink={true}
+                       sx={{ 
+                         color: errors.emergencyRelationship ? '#E74C3C' : '#2C3E50',
+                         fontWeight: 500,
+                         fontSize: '0.95rem',
+                         backgroundColor: 'white',
+                         px: 1,
+                         transform: 'translate(14px, -9px) scale(0.75)',
+                         '&.Mui-focused': {
+                           color: errors.emergencyRelationship ? '#E74C3C' : '#0b87ac'
+                         }
+                       }}
+                     >
+                       Relationship to Guardian
+                     </InputLabel>
+                     <Select
+                       value={formData.emergencyRelationship}
+                       onChange={(e) => handleInputChange('emergencyRelationship', e.target.value)}
+                       sx={getSelectStyles(!!errors.emergencyRelationship)}
+                       MenuProps={{
+                         PaperProps: {
+                           sx: {
+                             backgroundColor: '#FFFFFF',
+                             border: '1px solid #e9ecef',
+                             borderRadius: 3,
+                             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                             '& .MuiMenuItem-root': {
+                               color: '#2C3E50',
+                               fontSize: '0.95rem',
+                               '&:hover': {
+                                 backgroundColor: '#f8f9fa',
+                               },
+                               '&.Mui-selected': {
+                                 backgroundColor: '#0b87ac',
+                                 color: '#FFFFFF',
+                                 '&:hover': {
+                                   backgroundColor: '#0a6b8a',
+                                 },
+                               },
+                             },
+                           }
+                         }
+                       }}
+                     >
+                       <MenuItem value="Parent">Parent</MenuItem>
+                       <MenuItem value="Sibling">Sibling</MenuItem>
+                       <MenuItem value="Spouse">Spouse</MenuItem>
+                       <MenuItem value="Child">Child</MenuItem>
+                       <MenuItem value="Relative">Relative</MenuItem>
+                       <MenuItem value="Friend">Friend</MenuItem>
+                       <MenuItem value="Colleague">Colleague</MenuItem>
+                       <MenuItem value="Guardian">Legal Guardian</MenuItem>
+                       <MenuItem value="Other">Other</MenuItem>
+                     </Select>
+                     {errors.emergencyRelationship && (
+                       <FormHelperText sx={{ color: '#E74C3C', fontSize: '0.8rem', fontWeight: 500 }}>
+                         {errors.emergencyRelationship}
+                       </FormHelperText>
+                     )}
+                   </FormControl>
+                 </Grid>
             </Grid>
           </Box>
         );
@@ -1053,15 +1275,15 @@ function ApplicationForm() {
       case 1:
         return (
           <Box>
-            <Typography variant="h5" sx={{ 
-              mb: 3, 
-              color: '#2C3E50',
+            <Typography variant="h6" sx={{ 
+              mb: 1, 
+              color: '#000000',
               fontWeight: 700,
-              fontSize: '1.5rem'
+              fontSize: '1.1rem'
             }}>
               Address
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={1}>
               <Grid item xs={12}>
                 <TextField
                   fullWidth
@@ -1154,15 +1376,15 @@ function ApplicationForm() {
       case 2:
         return (
           <Box>
-            <Typography variant="h5" sx={{ 
-              mb: 3, 
-              color: '#2C3E50',
+            <Typography variant="h6" sx={{ 
+              mb: 1, 
+              color: '#000000',
               fontWeight: 700,
-              fontSize: '1.5rem'
+              fontSize: '1.1rem'
             }}>
               Disability Details
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={1}>
               <Grid item xs={12}>
                 <FormControl fullWidth required error={!!errors.disabilityType}>
                   <InputLabel 
@@ -1248,27 +1470,15 @@ function ApplicationForm() {
                <Grid item xs={12} sm={6}>
                  <TextField
                    fullWidth
-                   type="text"
-                   label="Date of Disability Onset (DD/MM/YYYY)"
-                   placeholder="DD/MM/YYYY"
-                   value={formData.disabilityDate ? formatDateDDMMYYYY(formData.disabilityDate) : ''}
-                   onChange={(e) => {
-                     const value = e.target.value;
-                     // Convert DD/MM/YYYY to YYYY-MM-DD for storage
-                     if (value && value.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-                       const [day, month, year] = value.split('/');
-                       const isoDate = `${year}-${month}-${day}`;
-                       handleInputChange('disabilityDate', isoDate);
-                     } else if (value === '') {
-                       handleInputChange('disabilityDate', '');
-                     }
-                   }}
+                   type="date"
+                   label="Date of Disability Onset"
+                   value={formData.disabilityDate}
+                   onChange={(e) => handleInputChange('disabilityDate', e.target.value)}
                    InputLabelProps={{ shrink: true }}
                    error={!!errors.disabilityDate}
-                   helperText={errors.disabilityDate || "Format: DD/MM/YYYY (e.g., 15/01/2020)"}
+                   helperText={errors.disabilityDate || "Date must be at least 1 week ago (no maximum limit)"}
                    inputProps={{
-                     maxLength: 10,
-                     pattern: "\\d{2}/\\d{2}/\\d{4}"
+                     max: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 1 week ago
                    }}
                    sx={getTextFieldStyles(!!errors.disabilityDate)}
                  />
@@ -1280,22 +1490,24 @@ function ApplicationForm() {
       case 3:
         return (
           <Box>
-            <Typography variant="h5" sx={{ 
-              mb: 3, 
-              color: '#2C3E50',
+            <Typography variant="h6" sx={{ 
+              mb: 1, 
+              color: '#000000',
               fontWeight: 700,
-              fontSize: '1.5rem'
+              fontSize: '1.1rem'
             }}>
               Required Documents
             </Typography>
             
 
             <Alert severity="info" sx={{ 
-              mb: 3, 
+              mb: 0.5, 
               bgcolor: '#E3F2FD', 
               color: '#1565C0',
-              borderRadius: 3,
-              border: '1px solid #BBDEFB'
+              borderRadius: 2,
+              border: '1px solid #BBDEFB',
+              p: 0.5,
+              py: 0.75
             }}>
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
                 📄 File Requirements:
@@ -1308,30 +1520,32 @@ function ApplicationForm() {
             </Alert>
             
             {documentsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
-                <CircularProgress />
-                <Typography variant="body2" sx={{ ml: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 1 }}>
+                <CircularProgress size={24} />
+                <Typography variant="caption" sx={{ ml: 1.5, fontSize: '0.75rem' }}>
                   Loading required documents...
                 </Typography>
               </Box>
             ) : (
-              <Grid container spacing={2}>
+              <Grid container spacing={0.5}>
                 {requiredDocuments && requiredDocuments.map((document) => (
-                  <Grid item xs={12} key={document.id}>
+                  <Grid item xs={12} sm={6} md={4} key={document.id}>
                     <Box sx={{ 
-                      p: 2, 
-                      border: '1px solid #E0E0E0', 
-                      borderRadius: 3, 
-                      backgroundColor: '#FAFAFA' 
+                      p: 0.5, 
+                      border: '1px solid #CCCCCC', 
+                      borderRadius: 1, 
+                      backgroundColor: '#FAFAFA',
+                      height: '100%'
                     }}>
-                      <Typography variant="subtitle1" sx={{ 
-                        mb: 2, 
-                        color: '#34495E', 
+                      <Typography variant="subtitle2" sx={{ 
+                        mb: 0.5, 
+                        color: '#000000', 
                         fontWeight: 600, 
-                        fontSize: '1rem',
+                        fontSize: '0.8rem',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 1
+                        gap: 0.5,
+                        flexWrap: 'wrap'
                       }}>
                         {document.name}
                         {document.is_required && (
@@ -1339,31 +1553,36 @@ function ApplicationForm() {
                             label="Required" 
                             size="small" 
                             color="error" 
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{ fontSize: '0.65rem', height: '16px' }}
                           />
                         )}
+                        <Chip 
+                          label={document.file_types?.map(type => type.toUpperCase()).join(', ') || 'PDF, JPG, JPEG, PNG'}
+                          size="small" 
+                          sx={{ fontSize: '0.6rem', height: '14px', backgroundColor: '#E0E0E0', color: '#000000' }}
+                        />
                       </Typography>
                       
                       {document.description && (
-                        <Typography variant="body2" sx={{ 
-                          mb: 2, 
+                        <Typography variant="caption" sx={{ 
+                          mb: 0.5, 
                           color: '#666', 
-                          fontStyle: 'italic' 
+                          fontStyle: 'italic',
+                          fontSize: '0.7rem'
                         }}>
                           {document.description}
                         </Typography>
                       )}
                       
                       <Box sx={{ 
-                        border: '2px dashed #BDC3C7', 
-                        borderRadius: '8px', 
-                        backgroundColor: '#F8F9FA',
-                        p: 2,
+                        border: '1px dashed #CCCCCC', 
+                        borderRadius: '4px', 
+                        backgroundColor: '#FFFFFF',
+                        p: 0.75,
                         textAlign: 'center',
                         transition: 'all 0.2s ease',
                         '&:hover': {
-                          borderColor: '#0b87ac',
-                          backgroundColor: '#f0f8ff'
+                          borderColor: '#000000'
                         }
                       }}>
                         <input
@@ -1373,34 +1592,34 @@ function ApplicationForm() {
                           required={document.is_required}
                           style={{ 
                             width: '100%', 
-                            color: '#2C3E50', 
-                            fontSize: '0.95rem',
+                            color: '#000000', 
+                            fontSize: '0.8rem',
                             cursor: 'pointer'
                           }}
                         />
                       </Box>
                       
                       {formData.documents && formData.documents[`doc_${document.id}`] && (
-                        <Box sx={{ mt: 2 }}>
+                        <Box sx={{ mt: 0.75 }}>
                           <Card sx={{ 
-                            border: '1px solid #E0E0E0', 
-                            borderRadius: 3,
+                            border: '1px solid #CCCCCC', 
+                            borderRadius: 2,
                             backgroundColor: '#FAFAFA',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
                           }}>
-                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                            <CardContent sx={{ p: 0.75, '&:last-child': { pb: 0.75 } }}>
                               <Box sx={{ 
                                 display: 'flex', 
                                 alignItems: 'center', 
                                 justifyContent: 'space-between',
-                                mb: 1
+                                mb: 0.5
                               }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                   {getFileIcon(formData.documents[`doc_${document.id}`])}
-                                  <Typography variant="body2" sx={{ 
+                                  <Typography variant="caption" sx={{ 
                                     color: '#4CAF50',
                                     fontWeight: 600,
-                                    fontSize: '0.9rem'
+                                    fontSize: '0.75rem'
                                   }}>
                                     ✓ {formData.documents[`doc_${document.id}`].name}
                                   </Typography>
@@ -1414,16 +1633,16 @@ function ApplicationForm() {
                                     formData.documents[`doc_${document.id}`].name
                                   )}
                                   sx={{
-                                    borderColor: '#0b87ac',
-                                    color: '#0b87ac',
-                                    fontSize: '0.75rem',
-                                    py: 0.5,
-                                    px: 1,
-                                    borderRadius: 2,
+                                    borderColor: '#000000',
+                                    color: '#000000',
+                                    fontSize: '0.65rem',
+                                    py: 0.25,
+                                    px: 0.75,
+                                    borderRadius: 1,
                                     textTransform: 'none',
                                     '&:hover': {
-                                      borderColor: '#0a6b8a',
-                                      backgroundColor: 'rgba(11, 135, 172, 0.1)'
+                                      borderColor: '#000000',
+                                      backgroundColor: '#F5F5F5'
                                     }
                                   }}
                                 >
@@ -1432,7 +1651,7 @@ function ApplicationForm() {
                               </Box>
                               <Typography variant="caption" sx={{ 
                                 color: '#666',
-                                fontSize: '0.8rem'
+                                fontSize: '0.7rem'
                               }}>
                                 Size: {(formData.documents[`doc_${document.id}`].size / 1024 / 1024).toFixed(2)} MB
                               </Typography>
@@ -1463,37 +1682,41 @@ function ApplicationForm() {
 
   return (
     <Box sx={{ 
-      minHeight: '100vh',
-      backgroundColor: '#f8f9fa',
-      py: 4,
-      px: 2
+      height: '100vh',
+      backgroundColor: '#FFFFFF',
+      py: 1,
+      px: 2,
+      overflow: 'auto'
     }}>
       <Container maxWidth="lg">
         {/* Header */}
         <Box sx={{ 
           textAlign: 'center', 
-          mb: 4,
-          color: '#2C3E50'
+          mb: 1,
+          color: '#000000'
         }}>
-          <Typography variant="h3" sx={{ 
+          <Typography variant="h4" sx={{ 
             fontWeight: 700,
-            mb: 2,
-            color: '#2C3E50'
+            mb: 0.5,
+            color: '#000000',
+            fontSize: '1.8rem'
           }}>
             PWD Application Form
           </Typography>
           <Typography variant="h6" sx={{ 
             fontWeight: 500,
-            color: '#0b87ac',
-            mb: 1
+            color: '#000000',
+            mb: 0.5,
+            fontSize: '1rem'
           }}>
             Cabuyao City
           </Typography>
-          <Typography variant="body1" sx={{ 
-            color: '#7F8C8D',
+          <Typography variant="body2" sx={{ 
+            color: '#666666',
             maxWidth: 600,
             mx: 'auto',
-            lineHeight: 1.6
+            lineHeight: 1.4,
+            fontSize: '0.85rem'
           }}>
             Complete all required information to apply for PWD identification
           </Typography>
@@ -1506,32 +1729,33 @@ function ApplicationForm() {
             borderRadius: 4,
             boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
             border: '1px solid #E0E0E0',
-            mb: 3
+            mb: 1
           }}
         >
-          <CardContent sx={{ p: 4 }}>
+          <CardContent sx={{ p: 2 }}>
             {/* Stepper */}
-            <Box sx={{ mb: 4 }}>
+            <Box sx={{ mb: 1.5 }}>
               <Stepper activeStep={activeStep} sx={{ 
                 '& .MuiStepLabel-root .Mui-completed': {
-                  color: '#0b87ac'
+                  color: '#000000'
                 },
                 '& .MuiStepLabel-root .Mui-active': {
-                  color: '#0b87ac'
+                  color: '#000000'
                 },
                 '& .MuiStepLabel-label': {
-                  color: '#2C3E50',
+                  color: '#000000',
                   fontWeight: 600,
                   fontSize: '0.9rem'
                 },
                 '& .MuiStepIcon-root.Mui-completed': {
-                  color: '#0b87ac'
+                  color: '#000000'
                 },
                 '& .MuiStepIcon-root.Mui-active': {
-                  color: '#0b87ac'
+                  color: '#000000',
+                  borderColor: '#000000'
                 },
                 '& .MuiStepIcon-root': {
-                  color: '#BDC3C7'
+                  color: '#CCCCCC'
                 }
               }}>
                 {steps.map((label, index) => (
@@ -1543,7 +1767,7 @@ function ApplicationForm() {
             </Box>
 
             {/* Step Content */}
-            <Box sx={{ mb: 4 }}>
+            <Box sx={{ mb: 1 }}>
               {renderStepContent(activeStep)}
             </Box>
           </CardContent>
@@ -1618,21 +1842,22 @@ function ApplicationForm() {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          bgcolor: '#2C3E50',
-          color: 'white',
-          fontWeight: 'bold'
+          bgcolor: '#FFFFFF',
+          color: '#000000',
+          fontWeight: 'bold',
+          borderBottom: '1px solid #CCCCCC'
         }}>
           <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
             File Preview: {previewFileName}
           </Typography>
           <IconButton
             onClick={handleClosePreview}
-            sx={{ color: 'white' }}
+            sx={{ color: '#000000' }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 0, bgcolor: '#F5F5F5' }}>
+        <DialogContent sx={{ p: 0, bgcolor: '#FFFFFF' }}>
           {previewFile && (
             <Box sx={{ 
               display: 'flex', 

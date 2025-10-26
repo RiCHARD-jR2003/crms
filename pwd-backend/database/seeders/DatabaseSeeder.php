@@ -21,7 +21,7 @@ class DatabaseSeeder extends Seeder
         //     'email' => 'test@example.com',
         // ]);
 
-        // Seed barangay presidents for all barangays
+        // Seed all user accounts and data
         $this->call([
             AdminAnnouncementSeeder::class,
             AdminSeeder::class,
@@ -30,7 +30,10 @@ class DatabaseSeeder extends Seeder
             PWDMemberSeeder::class,
             PWDMembersFromApplicationsSeeder::class,
             RequiredDocumentSeeder::class,
-            SuperAdminSeeder::class
+            SuperAdminSeeder::class,
+            Staff1Seeder::class,
+            Staff2Seeder::class,
+            FrontDeskSeeder::class
         ]);
     }
 }

@@ -6,6 +6,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TranslationProvider } from './contexts/TranslationContext';
+import ResourcePrefetcher from './components/optimization/ResourcePrefetcher';
 import LandingPage from './components/Landing/LandingPage';
 import Login from './components/auth/login';
 import Register from './components/auth/Register';
@@ -136,7 +137,9 @@ function AppContent() {
   const { currentUser } = useAuth();
 
   return (
-    <Routes>
+    <>
+      <ResourcePrefetcher />
+      <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route 
         path="/login" 
@@ -418,6 +421,7 @@ function AppContent() {
       {/* Public Document Correction Route */}
       <Route path="/document-correction/:token" element={<DocumentCorrectionPage />} />
     </Routes>
+    </>
   );
 }
 
