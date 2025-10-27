@@ -115,3 +115,8 @@ jspm_packages/
 /.fleet
 /.idea
 /.vscode
+
+# Database files (SQLite should not be committed)
+*.sqlite
+*.db
+pwd-backend/database/database.sqlite
