@@ -383,7 +383,8 @@ function PWDRecords() {
       }
 
       if (fileUrl && isImageFile(displayFileName)) {
-        handlePreviewImage(fileUrl, displayFileName);
+        // Open image in new tab instead of modal
+        window.open(fileUrl, '_blank');
       } else {
         // For non-image files, still use the file preview service
         filePreviewService.openPreview('application-file', selectedApplication.applicationID, fileType);

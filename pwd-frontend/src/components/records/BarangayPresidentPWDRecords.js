@@ -198,9 +198,8 @@ function BarangayPresidentPWDRecords() {
   };
 
   const handlePreviewImage = (imageUrl, fileName) => {
-    setPreviewImageUrl(imageUrl);
-    setPreviewFileName(fileName);
-    setPreviewModalOpen(true);
+    // Open image in new tab instead of modal
+    window.open(imageUrl, '_blank');
   };
 
   const handleClosePreviewModal = () => {
