@@ -1365,47 +1365,47 @@ function BarangayPresidentPWDRecords() {
         
         <DialogContent sx={{ p: 0, bgcolor: '#FFFFFF' }}>
           {selectedApplication && (
-            <Box id="application-details" sx={{ p: 1.5, bgcolor: '#FFFFFF' }}>
+            <Box id="application-details" sx={{ p: 1, bgcolor: '#FFFFFF' }}>
               {/* Header Section */}
               <Paper sx={{ 
-                p: 1.5, 
-                mb: 1.5, 
+                p: 1, 
+                mb: 1, 
                 bgcolor: '#FFFFFF',
                 border: '2px solid #E9ECEF',
                 borderRadius: 2
               }}>
-                <Box sx={{ textAlign: 'center', mb: 1.5 }}>
+                <Box sx={{ textAlign: 'center', mb: 0.5 }}>
                   <Typography variant="h5" sx={{ 
                     fontWeight: 'bold', 
                         color: '#1976D2',
-                    mb: 0.5,
-                    fontSize: '1.1rem'
+                    mb: 0,
+                    fontSize: '1rem'
                   }}>
                     CABUYAO PDAO RMS
                   </Typography>
                   <Typography variant="h6" sx={{ 
                     color: '#7F8C8D',
                     fontWeight: 500,
-                    fontSize: '0.85rem'
+                    fontSize: '0.75rem'
                   }}>
                     Persons with Disabilities Application Form
                   </Typography>
                 </Box>
                 
-                <Grid container spacing={1.5} sx={{ mb: 1 }}>
+                <Grid container spacing={1} sx={{ mb: 0 }}>
                   <Grid item xs={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '0.75rem', mb: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '0.7rem', mb: 0 }}>
                       Application ID:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#1976D2', fontSize: '0.9rem', mt: 0 }}>
+                    <Typography variant="body1" sx={{ color: '#1976D2', fontSize: '0.8rem', mt: 0 }}>
                       {selectedApplication.applicationID}
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '0.75rem', mb: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '0.7rem', mb: 0 }}>
                       Submission Date:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#1976D2', fontSize: '0.9rem', mt: 0 }}>
+                    <Typography variant="body1" sx={{ color: '#1976D2', fontSize: '0.8rem', mt: 0 }}>
                       {formatDateMMDDYYYY(selectedApplication.submissionDate)}
                     </Typography>
                   </Grid>
@@ -1413,64 +1413,64 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Personal Information */}
-              <Paper sx={{ p: 1.5, mb: 1.5, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+              <Paper sx={{ p: 1, mb: 1, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                         color: '#1976D2',
-                  mb: 1,
+                  mb: 0.5,
                   borderBottom: '2px solid #3498DB',
-                  pb: 0.5,
-                  fontSize: '0.95rem'
+                  pb: 0.25,
+                  fontSize: '0.85rem'
                 }}>
                   Personal Information
                 </Typography>
                 
-                <Grid container spacing={1}>
+                <Grid container spacing={0.5}>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.75rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
                       First Name:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0.5, fontSize: '0.85rem', mt: 0 }}>
+                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
                       {selectedApplication.firstName}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.75rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
                       Last Name:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0.5, fontSize: '0.85rem', mt: 0 }}>
+                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
                       {selectedApplication.lastName}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.75rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
                       Middle Name:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0.5, fontSize: '0.85rem', mt: 0 }}>
+                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
                       {selectedApplication.middleName || 'N/A'}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.75rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
                       Birth Date:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0.5, fontSize: '0.85rem', mt: 0 }}>
+                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
                       {formatDateMMDDYYYY(selectedApplication.birthDate)}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.75rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
                       Gender:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0.5, fontSize: '0.85rem', mt: 0 }}>
+                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
                       {selectedApplication.gender}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.75rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
                       Civil Status:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0.5, fontSize: '0.85rem', mt: 0 }}>
+                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
                       {selectedApplication.civilStatus || 'N/A'}
                     </Typography>
                   </Grid>
@@ -1478,19 +1478,19 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Disability Information */}
-              <Paper sx={{ p: 1.5, mb: 1.5, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+              <Paper sx={{ p: 1, mb: 1, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                         color: '#1976D2',
-                  mb: 1,
+                  mb: 0.5,
                   borderBottom: '2px solid #E74C3C',
-                  pb: 0.5,
-                  fontSize: '0.95rem'
+                  pb: 0.25,
+                  fontSize: '0.85rem'
                 }}>
                   Disability Information
                 </Typography>
                 
-                <Grid container spacing={1}>
+                <Grid container spacing={0.5}>
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
                       Disability Type:
@@ -1519,19 +1519,19 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Contact Information */}
-              <Paper sx={{ p: 1.5, mb: 1.5, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+              <Paper sx={{ p: 1, mb: 1, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                         color: '#1976D2',
-                  mb: 1,
+                  mb: 0.5,
                   borderBottom: '2px solid #27AE60',
-                  pb: 0.5,
-                  fontSize: '0.95rem'
+                  pb: 0.25,
+                  fontSize: '0.85rem'
                 }}>
                   Contact Information
                 </Typography>
                 
-                <Grid container spacing={1}>
+                <Grid container spacing={0.5}>
                   <Grid item xs={12}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
                       Email Address:
@@ -1576,19 +1576,19 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Address Information */}
-              <Paper sx={{ p: 1.5, mb: 1.5, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+              <Paper sx={{ p: 1, mb: 1, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                         color: '#1976D2',
-                  mb: 1,
+                  mb: 0.5,
                   borderBottom: '2px solid #F39C12',
-                  pb: 0.5,
-                  fontSize: '0.95rem'
+                  pb: 0.25,
+                  fontSize: '0.85rem'
                 }}>
                   Address Information
                 </Typography>
                 
-                <Grid container spacing={1}>
+                <Grid container spacing={0.5}>
                   <Grid item xs={12}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
                       Complete Address:
