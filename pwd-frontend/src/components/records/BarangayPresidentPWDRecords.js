@@ -1358,7 +1358,7 @@ function BarangayPresidentPWDRecords() {
               <Paper sx={{ 
                 p: 3, 
                 mb: 3, 
-                bgcolor: '#F8F9FA',
+                bgcolor: '#FFFFFF',
                 border: '2px solid #E9ECEF',
                 borderRadius: 2
               }}>
