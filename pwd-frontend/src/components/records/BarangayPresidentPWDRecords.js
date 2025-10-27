@@ -731,25 +731,25 @@ function BarangayPresidentPWDRecords() {
   };
 
   const columns = tab === 0 ? [
-    { id: 'pwdID', label: 'PWD ID', minWidth: 100 },
-    { id: 'firstName', label: 'First Name', minWidth: 120 },
-    { id: 'lastName', label: 'Last Name', minWidth: 120 },
-    { id: 'barangay', label: 'Barangay', minWidth: 150 },
-    { id: 'disabilityType', label: 'Disability Type', minWidth: 150 },
-    { id: 'status', label: 'Status', minWidth: 100 },
-    { id: 'contactNumber', label: 'Contact Number', minWidth: 130 },
-    { id: 'email', label: 'Email', minWidth: 180 }
+    { id: 'pwdID', label: 'PWD ID', minWidth: 60 },
+    { id: 'firstName', label: 'First Name', minWidth: 80 },
+    { id: 'lastName', label: 'Last Name', minWidth: 80 },
+    { id: 'barangay', label: 'Barangay', minWidth: 80 },
+    { id: 'disabilityType', label: 'Disability Type', minWidth: 100 },
+    { id: 'status', label: 'Status', minWidth: 80 },
+    { id: 'contactNumber', label: 'Contact Number', minWidth: 90 },
+    { id: 'email', label: 'Email', minWidth: 120 }
   ] : [
-    { id: 'applicationID', label: 'Application ID', minWidth: 120 },
-    { id: 'firstName', label: 'First Name', minWidth: 120 },
-    { id: 'lastName', label: 'Last Name', minWidth: 120 },
-    { id: 'barangay', label: 'Barangay', minWidth: 150 },
-    { id: 'disabilityType', label: 'Disability Type', minWidth: 150 },
-    { id: 'status', label: 'Status', minWidth: 150 },
-    { id: 'submissionDate', label: 'Submission Date', minWidth: 130 },
-    { id: 'contactNumber', label: 'Contact Number', minWidth: 130 },
-    { id: 'email', label: 'Email', minWidth: 200 },
-    { id: 'actions', label: 'Actions', minWidth: 200 }
+    { id: 'applicationID', label: 'Application ID', minWidth: 60 },
+    { id: 'firstName', label: 'First Name', minWidth: 70 },
+    { id: 'lastName', label: 'Last Name', minWidth: 70 },
+    { id: 'barangay', label: 'Barangay', minWidth: 80 },
+    { id: 'disabilityType', label: 'Disability Type', minWidth: 90 },
+    { id: 'status', label: 'Status', minWidth: 100 },
+    { id: 'submissionDate', label: 'Submission Date', minWidth: 90 },
+    { id: 'contactNumber', label: 'Contact Number', minWidth: 90 },
+    { id: 'email', label: 'Email', minWidth: 110 },
+    { id: 'actions', label: 'Actions', minWidth: 150 }
   ];
 
   return (
@@ -1132,10 +1132,12 @@ function BarangayPresidentPWDRecords() {
                           backgroundColor: '#FFFFFF',
                           color: '#1976D2',
                           fontWeight: 700,
-                          fontSize: '0.95rem',
+                          fontSize: '0.75rem',
                           borderBottom: '2px solid #E0E0E0',
                           textTransform: 'uppercase',
-                          letterSpacing: '0.5px'
+                          letterSpacing: '0.5px',
+                          py: 0.75,
+                          px: 1
                         }}
                       >
                         {column.label}
@@ -1153,7 +1155,10 @@ function BarangayPresidentPWDRecords() {
                             color: '#000000',
                             borderBottom: '1px solid #E0E0E0',
                             fontWeight: 500,
-                            backgroundColor: '#FFFFFF'
+                            backgroundColor: '#FFFFFF',
+                            fontSize: '0.75rem',
+                            py: 0.75,
+                            px: 1
                           }}
                         >
                           {column.id === 'status' ? (
@@ -1164,29 +1169,35 @@ function BarangayPresidentPWDRecords() {
                                  backgroundColor: `${getStatusColor(row[column.id])}20`,
                                  color: getStatusColor(row[column.id]),
                                  fontWeight: 700,
-                                 fontSize: '0.75rem',
+                                 fontSize: '0.7rem',
                                  textTransform: 'uppercase',
                                  letterSpacing: '0.5px',
                                  border: `1px solid ${getStatusColor(row[column.id])}`,
+                                 height: 20,
+                                 '& .MuiChip-label': {
+                                   px: 1,
+                                   py: 0
+                                 },
                                  '&:hover': {
                                    backgroundColor: `${getStatusColor(row[column.id])}30`
                                  }
                                }}
                              />
                           ) : column.id === 'actions' && tab === 1 ? (
-                            <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
                               <Button
                                 variant="outlined"
                                 size="small"
-                                startIcon={<VisibilityIcon />}
+                                startIcon={<VisibilityIcon sx={{ fontSize: '0.875rem' }} />}
                                 onClick={() => handleViewDetails(row)}
                                 sx={{
                                   borderColor: '#3498DB',
                                   color: '#3498DB',
                                   textTransform: 'none',
-                                  fontSize: '0.7rem',
-                                  py: 0.5,
-                                  px: 1,
+                                  fontSize: '0.65rem',
+                                  py: 0.25,
+                                  px: 0.75,
+                                  minWidth: 'auto',
                                   '&:hover': {
                                     borderColor: '#2980B9',
                                     bgcolor: '#3498DB',
@@ -1194,7 +1205,7 @@ function BarangayPresidentPWDRecords() {
                                   }
                                 }}
                               >
-                                View Details
+                                View
                               </Button>
                               <Button
                                 variant="contained"
@@ -1203,15 +1214,16 @@ function BarangayPresidentPWDRecords() {
                                 sx={{
                                   bgcolor: '#27AE60',
                                   textTransform: 'none',
-                                  fontSize: '0.7rem',
-                                  py: 0.5,
-                                  px: 1,
+                                  fontSize: '0.65rem',
+                                  py: 0.25,
+                                  px: 0.75,
+                                  minWidth: 'auto',
                                   '&:hover': {
                                     bgcolor: '#229954'
                                   }
                                 }}
                               >
-                                Endorse to PWD Office
+                                Endorse
                               </Button>
                               <Button
                                 variant="outlined"
@@ -1221,9 +1233,10 @@ function BarangayPresidentPWDRecords() {
                                   borderColor: '#E74C3C',
                                   color: '#E74C3C',
                                   textTransform: 'none',
-                                  fontSize: '0.7rem',
-                                  py: 0.5,
-                                  px: 1,
+                                  fontSize: '0.65rem',
+                                  py: 0.25,
+                                  px: 0.75,
+                                  minWidth: 'auto',
                                   '&:hover': {
                                     borderColor: '#C0392B',
                                     bgcolor: '#FDF2F2'
@@ -1244,9 +1257,14 @@ function BarangayPresidentPWDRecords() {
                                       column.id === 'email' ? '#D35400' : '#1976D2',
                                fontWeight: column.id === 'applicationID' ? 700 : 
                                           column.id === 'firstName' || column.id === 'lastName' ? 600 : 500,
-                               fontSize: column.id === 'applicationID' ? '0.85rem' : '0.9rem'
+                               fontSize: '0.75rem',
+                               whiteSpace: 'nowrap',
+                               overflow: 'hidden',
+                               textOverflow: 'ellipsis',
+                               display: 'block',
+                               maxWidth: '100%'
                              }}>
-                               {row[column.id]}
+                               {column.id === 'submissionDate' && row[column.id] ? formatDateMMDDYYYY(row[column.id]) : row[column.id]}
                              </span>
                            )}
                         </TableCell>

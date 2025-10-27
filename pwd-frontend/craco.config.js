@@ -1,6 +1,5 @@
 const path = require('path');
 const CompressionPlugin = require('compression-webpack-plugin');
-const ImageminPlugin = require('imagemin-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 const { GenerateSW } = require('workbox-webpack-plugin');
 
@@ -82,20 +81,6 @@ module.exports = {
             threshold: 8192, // Only compress files larger than 8KB
             minRatio: 0.8,
             deleteOriginalAssets: false,
-          }),
-          // Image optimization
-          new ImageminPlugin({
-            disable: process.env.NODE_ENV !== 'production',
-            pngquant: {
-              quality: '60-80',
-            },
-            svgo: {
-              plugins: [
-                { removeViewBox: false },
-                { removeEmptyAttrs: true },
-                { removeUselessDefs: true },
-              ],
-            },
           })
         );
 
