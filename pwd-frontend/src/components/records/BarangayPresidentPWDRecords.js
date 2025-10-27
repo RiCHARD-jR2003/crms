@@ -1351,9 +1351,9 @@ function BarangayPresidentPWDRecords() {
           </IconButton>
         </DialogTitle>
         
-        <DialogContent sx={{ p: 0 }}>
+        <DialogContent sx={{ p: 0, bgcolor: '#FFFFFF' }}>
           {selectedApplication && (
-            <Box id="application-details" sx={{ p: 3 }}>
+            <Box id="application-details" sx={{ p: 3, bgcolor: '#FFFFFF' }}>
               {/* Header Section */}
               <Paper sx={{ 
                 p: 3, 
@@ -1399,7 +1399,7 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Personal Information */}
-              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6' }}>
+              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                         color: '#1976D2',
@@ -1463,7 +1463,7 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Disability Information */}
-              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6' }}>
+              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                         color: '#1976D2',
@@ -1503,7 +1503,7 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Contact Information */}
-              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6' }}>
+              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                         color: '#1976D2',
@@ -1559,7 +1559,7 @@ function BarangayPresidentPWDRecords() {
               </Paper>
 
               {/* Address Information */}
-              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6' }}>
+              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                         color: '#1976D2',
