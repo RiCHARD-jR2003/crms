@@ -8,6 +8,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import ResourcePrefetcher from './components/optimization/ResourcePrefetcher';
 import LandingPage from './components/Landing/LandingPage';
+import AboutUsPage from './components/Landing/AboutUsPage';
+import ContactUsPage from './components/Landing/ContactUsPage';
 import Login from './components/auth/login';
 import Register from './components/auth/Register';
 import PasswordReset from './components/auth/PasswordReset';
@@ -141,6 +143,8 @@ function AppContent() {
       <ResourcePrefetcher />
       <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/about" element={<AboutUsPage />} />
+      <Route path="/contact" element={<ContactUsPage />} />
       <Route 
         path="/login" 
         element={currentUser ? <Navigate to="/dashboard" /> : <Login />} 

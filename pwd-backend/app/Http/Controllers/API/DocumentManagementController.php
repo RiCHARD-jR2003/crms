@@ -39,7 +39,9 @@ class DocumentManagementController extends Controller
                           ->orWhere('expiry_date', '>=', now());
                 })
                 ->orderBy('created_at', 'desc')
-                ->get();
+                ->get()
+                ->unique('name') // Remove duplicates based on document name
+                ->values(); // Re-index array
         }
 
         return response()->json([
@@ -61,7 +63,9 @@ class DocumentManagementController extends Controller
                       ->orWhere('expiry_date', '>=', now());
             })
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->unique('name') // Remove duplicates based on document name
+            ->values(); // Re-index array
 
         return response()->json([
             'success' => true,
