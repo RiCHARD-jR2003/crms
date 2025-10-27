@@ -1136,8 +1136,9 @@ function BarangayPresidentPWDRecords() {
                           borderBottom: '2px solid #E0E0E0',
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px',
-                          py: 0.75,
-                          px: 1
+                          py: 0.5,
+                          px: 0.75,
+                          textAlign: 'center'
                         }}
                       >
                         {column.label}
@@ -1157,8 +1158,9 @@ function BarangayPresidentPWDRecords() {
                             fontWeight: 500,
                             backgroundColor: '#FFFFFF',
                             fontSize: '0.75rem',
-                            py: 0.75,
-                            px: 1
+                            py: 0.5,
+                            px: 0.75,
+                            textAlign: 'center'
                           }}
                         >
                           {column.id === 'status' ? (
@@ -1261,7 +1263,7 @@ function BarangayPresidentPWDRecords() {
                                whiteSpace: 'nowrap',
                                overflow: 'hidden',
                                textOverflow: 'ellipsis',
-                               display: 'block',
+                               display: 'inline-block',
                                maxWidth: '100%'
                              }}>
                                {column.id === 'submissionDate' && row[column.id] ? formatDateMMDDYYYY(row[column.id]) : row[column.id]}
