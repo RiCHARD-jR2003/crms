@@ -337,6 +337,19 @@ function ApplicationForm() {
     }
   };
 
+  // Helper function to check if file is an image
+  const isImageFile = (file) => {
+    if (!file) return false;
+    if (file.type) {
+      return file.type.startsWith('image/');
+    }
+    if (file.name) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+    }
+    return false;
+  };
+
   // Helper function to create preview URL
   const createPreviewUrl = (file) => {
     if (!file || !file.type) return null;
@@ -540,7 +553,7 @@ function ApplicationForm() {
          break;
         
       case 1: // Address
-        if (!formData.address) currentErrors.address = 'Complete Address is required';
+        if (!formData.address) currentErrors.address = 'Home Number/Street is required';
         break;
         
       case 2: // Disability Details
@@ -1287,7 +1300,7 @@ function ApplicationForm() {
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Complete Address"
+                  label="Home Number/Street"
                   value={formData.address}
                   onChange={(e) => handleInputChange('address', e.target.value)}
                   multiline
@@ -1601,62 +1614,75 @@ function ApplicationForm() {
                       
                       {formData.documents && formData.documents[`doc_${document.id}`] && (
                         <Box sx={{ mt: 0.75 }}>
-                          <Card sx={{ 
-                            border: '1px solid #CCCCCC', 
-                            borderRadius: 2,
-                            backgroundColor: '#FAFAFA',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                          }}>
-                            <CardContent sx={{ p: 0.75, '&:last-child': { pb: 0.75 } }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ 
+                              color: '#4CAF50',
+                              fontWeight: 600,
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5
+                            }}>
+                              {getFileIcon(formData.documents[`doc_${document.id}`])}
+                              ✓ {formData.documents[`doc_${document.id}`].name}
+                            </Typography>
+                          </Box>
+                          <Box 
+                            sx={{ 
+                              cursor: 'pointer',
+                              border: '2px solid #0b87ac',
+                              borderRadius: 1,
+                              p: 0.5,
+                              bgcolor: '#f8f9fa',
+                              width: 70,
+                              height: 100,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              '&:hover': {
+                                borderColor: '#8E44AD',
+                                bgcolor: '#f0f0f0'
+                              }
+                            }}
+                            onClick={() => handlePreviewFile(
+                              formData.documents[`doc_${document.id}`], 
+                              formData.documents[`doc_${document.id}`].name
+                            )}
+                          >
+                            {isImageFile(formData.documents[`doc_${document.id}`]) ? (
+                              <img 
+                                src={createPreviewUrl(formData.documents[`doc_${document.id}`])} 
+                                alt="Preview" 
+                                style={{ 
+                                  width: '100%', 
+                                  height: '100%', 
+                                  objectFit: 'cover' 
+                                }}
+                              />
+                            ) : (
                               <Box sx={{ 
+                                width: '100%', 
+                                height: '100%', 
                                 display: 'flex', 
                                 alignItems: 'center', 
-                                justifyContent: 'space-between',
-                                mb: 0.5
+                                justifyContent: 'center',
+                                bgcolor: '#0b87ac',
+                                color: 'white',
+                                fontSize: '1.5rem'
                               }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  {getFileIcon(formData.documents[`doc_${document.id}`])}
-                                  <Typography variant="caption" sx={{ 
-                                    color: '#4CAF50',
-                                    fontWeight: 600,
-                                    fontSize: '0.75rem'
-                                  }}>
-                                    ✓ {formData.documents[`doc_${document.id}`].name}
-                                  </Typography>
-                                </Box>
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  startIcon={<VisibilityIcon />}
-                                  onClick={() => handlePreviewFile(
-                                    formData.documents[`doc_${document.id}`], 
-                                    formData.documents[`doc_${document.id}`].name
-                                  )}
-                                  sx={{
-                                    borderColor: '#000000',
-                                    color: '#000000',
-                                    fontSize: '0.65rem',
-                                    py: 0.25,
-                                    px: 0.75,
-                                    borderRadius: 1,
-                                    textTransform: 'none',
-                                    '&:hover': {
-                                      borderColor: '#000000',
-                                      backgroundColor: '#F5F5F5'
-                                    }
-                                  }}
-                                >
-                                  Preview
-                                </Button>
+                                {getFileIcon(formData.documents[`doc_${document.id}`])}
                               </Box>
-                              <Typography variant="caption" sx={{ 
-                                color: '#666',
-                                fontSize: '0.7rem'
-                              }}>
-                                Size: {(formData.documents[`doc_${document.id}`].size / 1024 / 1024).toFixed(2)} MB
-                              </Typography>
-                            </CardContent>
-                          </Card>
+                            )}
+                          </Box>
+                          <Typography variant="caption" sx={{ 
+                            color: '#666',
+                            fontSize: '0.7rem',
+                            mt: 0.5,
+                            display: 'block'
+                          }}>
+                            Size: {(formData.documents[`doc_${document.id}`].size / 1024 / 1024).toFixed(2)} MB
+                          </Typography>
                         </Box>
                       )}
                     </Box>
@@ -1825,63 +1851,91 @@ function ApplicationForm() {
         </Box>
       </Container>
 
-      {/* File Preview Modal */}
+      {/* File Preview Modal - A4 Paper Shape */}
       <Dialog
         open={previewOpen}
         onClose={handleClosePreview}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
         PaperProps={{
           sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            bgcolor: '#FFFFFF',
+            // A4 paper aspect ratio: 1:1.414
+            aspectRatio: '1/1.414',
             maxHeight: '90vh',
-            borderRadius: 2
+            display: 'flex',
+            flexDirection: 'column'
           }
         }}
       >
         <DialogTitle sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          bgcolor: '#FFFFFF',
-          color: '#000000',
-          fontWeight: 'bold',
-          borderBottom: '1px solid #CCCCCC'
+          bgcolor: '#0b87ac', 
+          color: '#FFFFFF', 
+          textAlign: 'center',
+          py: 1.5,
+          position: 'relative',
+          flexShrink: 0
         }}>
-          <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>
-            File Preview: {previewFileName}
+          <Typography variant="h2" component="div" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+            Document Preview
           </Typography>
           <IconButton
             onClick={handleClosePreview}
-            sx={{ color: '#000000' }}
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#FFFFFF'
+            }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 0, bgcolor: '#FFFFFF' }}>
+        
+        <DialogContent sx={{ 
+          p: 0, 
+          bgcolor: '#FFFFFF',
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden'
+        }}>
           {previewFile && (
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              minHeight: '400px',
-              p: 2
-            }}>
+            <Box
+              sx={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: '#f5f5f5',
+                position: 'relative'
+              }}
+            >
               {getFileType(previewFile) === 'image' ? (
                 <img
                   src={createPreviewUrl(previewFile)}
                   alt={previewFileName}
                   style={{
                     maxWidth: '100%',
-                    maxHeight: '70vh',
+                    maxHeight: '100%',
                     objectFit: 'contain',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                    borderRadius: '4px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  }}
+                  onError={(e) => {
+                    console.error('Error loading image:', createPreviewUrl(previewFile));
+                    e.target.style.display = 'none';
                   }}
                 />
               ) : getFileType(previewFile) === 'pdf' ? (
                 <Box sx={{ 
                   width: '100%',
-                  height: '70vh',
+                  height: '100%',
                   bgcolor: 'white',
                   borderRadius: 2,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -1893,7 +1947,7 @@ function ApplicationForm() {
                       width: '100%',
                       height: '100%',
                       border: 'none',
-                      borderRadius: '8px'
+                      borderRadius: '4px'
                     }}
                     title={previewFileName}
                   />
@@ -1923,58 +1977,68 @@ function ApplicationForm() {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, bgcolor: '#F8F9FA' }}>
-          <Button
-            onClick={() => {
-              if (previewFile) {
-                const url = createPreviewUrl(previewFile);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = previewFileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-              }
-            }}
-            variant="outlined"
-            sx={{
-              color: '#0b87ac',
-              borderColor: '#0b87ac',
-              borderRadius: 3,
-              px: 3,
-              py: 1,
-              fontWeight: 500,
-              textTransform: 'none',
-              '&:hover': {
-                borderColor: '#0a6b8a',
-                backgroundColor: 'rgba(11, 135, 172, 0.1)',
-              },
-            }}
-          >
-            Download
-          </Button>
-          <Button
-            onClick={handleClosePreview}
-            variant="contained"
-            sx={{
-              backgroundColor: '#0b87ac',
-              color: 'white',
-              py: 1,
-              px: 3,
-              borderRadius: 3,
-              fontWeight: 600,
-              textTransform: 'none',
-              boxShadow: '0 4px 12px rgba(11, 135, 172, 0.3)',
-              '&:hover': {
-                backgroundColor: '#0a6b8a',
-                boxShadow: '0 6px 16px rgba(11, 135, 172, 0.4)',
-                transform: 'translateY(-1px)',
-              },
-              transition: 'all 0.2s ease-in-out',
-            }}
-          >
-            Close
-          </Button>
+        
+        <DialogActions sx={{ 
+          bgcolor: '#f8f9fa', 
+          px: 3, 
+          py: 2,
+          flexShrink: 0,
+          justifyContent: 'space-between'
+        }}>
+          <Typography variant="body2" sx={{ color: '#6c757d', fontStyle: 'italic' }}>
+            {previewFileName}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              onClick={() => {
+                if (previewFile) {
+                  const url = createPreviewUrl(previewFile);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = previewFileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                }
+              }}
+              variant="outlined"
+              sx={{
+                color: '#0b87ac',
+                borderColor: '#0b87ac',
+                borderRadius: 2,
+                px: 2,
+                py: 0.75,
+                fontWeight: 500,
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#0a6b8a',
+                  backgroundColor: 'rgba(11, 135, 172, 0.1)',
+                },
+              }}
+            >
+              Download
+            </Button>
+            <Button
+              onClick={handleClosePreview}
+              variant="contained"
+              sx={{
+                backgroundColor: '#0b87ac',
+                color: 'white',
+                py: 0.75,
+                px: 2,
+                borderRadius: 2,
+                fontWeight: 600,
+                textTransform: 'none',
+                boxShadow: '0 4px 12px rgba(11, 135, 172, 0.3)',
+                '&:hover': {
+                  backgroundColor: '#0a6b8a',
+                  boxShadow: '0 6px 16px rgba(11, 135, 172, 0.4)',
+                },
+              }}
+            >
+              Close
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 

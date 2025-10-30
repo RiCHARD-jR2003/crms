@@ -15,6 +15,8 @@ import {
   TableBody, 
   Grid, 
   Button,
+  Backdrop,
+  CircularProgress,
   FormControl,
   InputLabel,
   Select,
@@ -180,7 +182,13 @@ function PWDRecords() {
           
           // Combine both types of pending applications
           const allPendingApplications = [...adminPendingData, ...barangayPendingData];
-          setApplications(allPendingApplications);
+        // Sort most recent submissions first
+        const sorted = [...allPendingApplications].sort((a, b) => {
+          const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+          return bTime - aTime;
+        });
+        setApplications(sorted);
           
           // Also fetch all applications to get complete data for PWD members
           const allApplicationsResponse = await api.get('/applications');
@@ -248,8 +256,13 @@ function PWDRecords() {
       fetchDocumentTypes();
     }, [currentUser]);
 
+    const approveDelayRef = React.useRef(null);
+    const [approving, setApproving] = useState(false);
+
     const handleApproveApplication = async (applicationId) => {
       try {
+        // Show a backdrop only if the request takes longer than 700ms
+        approveDelayRef.current = setTimeout(() => setApproving(true), 700);
         // Use the proper admin approval endpoint that creates PWD Member record
         await api.post(`/applications/${applicationId}/approve-admin`, {
           remarks: 'Approved by Admin'
@@ -257,7 +270,12 @@ function PWDRecords() {
 
         // Refresh both applications and PWD members lists
         const applicationsData = await applicationService.getByStatus('Pending Admin Approval');
-        setApplications(applicationsData);
+        const sortedApps = [...applicationsData].sort((a, b) => {
+          const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+          return bTime - aTime;
+        });
+        setApplications(sortedApps);
         
         // Refresh PWD members using the service
         const allApplicationsResponse = await api.get('/applications');
@@ -313,6 +331,13 @@ function PWDRecords() {
         console.error('Error approving application:', err);
         toastService.error('Failed to approve application: ' + (err.message || 'Unknown error'));
       }
+      finally {
+        if (approveDelayRef.current) {
+          clearTimeout(approveDelayRef.current);
+          approveDelayRef.current = null;
+        }
+        setApproving(false);
+      }
     };
 
     const handleRejectApplication = async (applicationId) => {
@@ -327,7 +352,12 @@ function PWDRecords() {
 
         // Refresh the applications list
         const data = await applicationService.getByStatus('Pending Admin Approval');
-        setApplications(data);
+        const sortedData = [...data].sort((a, b) => {
+          const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+          return bTime - aTime;
+        });
+        setApplications(sortedData);
         toastService.success('Application rejected successfully!');
       } catch (err) {
         console.error('Error rejecting application:', err);
@@ -346,6 +376,18 @@ function PWDRecords() {
     };
 
     // File viewer functions
+    // Normalize file path: remove leading slash and encode each segment to handle spaces
+    const normalizeFilePath = (path) => {
+      if (!path) return '';
+      let normalized = path.startsWith('/') ? path.substring(1) : path;
+      const parts = normalized.split('/').map(part => encodeURIComponent(part));
+      return parts.join('/');
+    };
+    // Ensure a default folder for bare filenames
+    const ensureStorageFolder = (path) => {
+      if (!path) return '';
+      return path.includes('/') ? path : `applications/${path}`;
+    };
     const handleViewFile = (fileType) => {
       if (!selectedApplication) {
         console.error('No application selected');
@@ -366,25 +408,37 @@ function PWDRecords() {
         try {
           const parsed = JSON.parse(fileName);
           if (Array.isArray(parsed)) {
-            fileUrl = parsed.length > 0 ? `${api.getStorageUrl('')}/${parsed[0]}` : null;
+            if (parsed.length > 0) {
+              const normalizedPath = normalizeFilePath(ensureStorageFolder(parsed[0]));
+              fileUrl = api.getStorageUrl(normalizedPath);
+            } else {
+              fileUrl = null;
+            }
             displayFileName = parsed.length > 0 ? parsed[0] : '';
           } else {
-            fileUrl = `${api.getStorageUrl('')}/${fileName}`;
+            const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName));
+            fileUrl = api.getStorageUrl(normalizedPath);
             displayFileName = fileName;
           }
         } catch (e) {
           // Not JSON, treat as regular string
-          fileUrl = `${api.getStorageUrl('')}/${fileName}`;
+          const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName));
+          fileUrl = api.getStorageUrl(normalizedPath);
           displayFileName = fileName;
         }
       } else if (Array.isArray(fileName)) {
-        fileUrl = fileName.length > 0 ? `${api.getStorageUrl('')}/${fileName[0]}` : null;
+        if (fileName.length > 0) {
+          const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName[0]));
+          fileUrl = api.getStorageUrl(normalizedPath);
+        } else {
+          fileUrl = null;
+        }
         displayFileName = fileName.length > 0 ? fileName[0] : '';
       }
 
       if (fileUrl && isImageFile(displayFileName)) {
-        // Open image in new tab instead of modal
-        window.open(fileUrl, '_blank');
+        // Open image in modal (A4-style preview below)
+        handlePreviewImage(fileUrl, displayFileName);
       } else {
         // For non-image files, still use the file preview service
         filePreviewService.openPreview('application-file', selectedApplication.applicationID, fileType);
@@ -402,17 +456,23 @@ function PWDRecords() {
         try {
           const parsed = JSON.parse(fileName);
           if (Array.isArray(parsed)) {
-            return parsed.length > 0 ? `${api.getStorageUrl('')}/${parsed[0]}` : null;
+            if (parsed.length === 0) return null;
+            const normalizedPath = normalizeFilePath(ensureStorageFolder(parsed[0]));
+            return api.getStorageUrl(normalizedPath);
           } else {
-            return `${api.getStorageUrl('')}/${fileName}`;
+            const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName));
+            return api.getStorageUrl(normalizedPath);
           }
         } catch (e) {
           // Not JSON, treat as regular string
-          return `${api.getStorageUrl('')}/${fileName}`;
+          const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName));
+          return api.getStorageUrl(normalizedPath);
         }
       } else if (Array.isArray(fileName)) {
         // Handle actual array
-        return fileName.length > 0 ? `${api.getStorageUrl('')}/${fileName[0]}` : null;
+        if (fileName.length === 0) return null;
+        const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName[0]));
+        return api.getStorageUrl(normalizedPath);
       }
       return null;
     };
@@ -788,7 +848,7 @@ function PWDRecords() {
                 <div class="section-title">Address Information</div>
                 <div class="section-content">
                   <div class="field-row">
-                    <span class="field-label">Complete Address:</span>
+                    <span class="field-label">Home Number/Street:</span>
                     <span class="field-value">${(() => {
                       const addressParts = [];
                       if (app?.address) addressParts.push(app.address);
@@ -2080,7 +2140,7 @@ function PWDRecords() {
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                        Complete Address:
+                        Home Number/Street:
                       </Typography>
                       <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1, lineHeight: 1.6 }}>
                         {(() => {
@@ -2197,7 +2257,8 @@ function PWDRecords() {
                                     return (
                                       <Box sx={{ display: 'flex', gap: 0.5 }}>
                                         {parsedFiles.slice(0, 2).map((file, index) => {
-                                          const singleFileUrl = `${api.getStorageUrl('')}/${file}`;
+                                          const normalizedPath = normalizeFilePath(ensureStorageFolder(file));
+                                          const singleFileUrl = api.getStorageUrl(normalizedPath);
                                           return (
                                             <Box
                                               key={index}
@@ -2214,6 +2275,14 @@ function PWDRecords() {
                                                 color: 'white',
                                                 border: '1px solid #ddd'
                                               }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (isImageFile(file)) {
+                                                  handlePreviewImage(singleFileUrl, file);
+                                                } else {
+                                                  handleViewFile(fieldName);
+                                                }
+                                              }}
                                             >
                                               {isImageFile(file) ? (
                                                 <img 
@@ -2224,6 +2293,7 @@ function PWDRecords() {
                                                     height: '100%', 
                                                     objectFit: 'cover' 
                                                   }}
+                                                  onError={(e) => { e.target.style.display = 'none'; }}
                                                 />
                                               ) : (
                                                 getFileIcon(file)
@@ -2706,6 +2776,15 @@ function PWDRecords() {
              </Typography>
            </DialogActions>
          </Dialog>
+
+        {/* Global approval loading backdrop */}
+        <Backdrop
+          open={approving}
+          sx={{ zIndex: (theme) => theme.zIndex.modal + 1, color: '#fff', flexDirection: 'column' }}
+        >
+          <CircularProgress color="inherit" />
+          <Typography variant="body2" sx={{ mt: 2 }}>Approving application, please wait…</Typography>
+        </Backdrop>
       </Box>
     );
   }

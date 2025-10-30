@@ -106,7 +106,7 @@ class ToastService {
             open={open}
             autoHideDuration={duration}
             onClose={handleClose}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
             sx={{ pointerEvents: 'auto' }}
           >
             <Alert 

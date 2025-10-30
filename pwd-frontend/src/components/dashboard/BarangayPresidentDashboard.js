@@ -102,7 +102,11 @@ function BarangayPresidentDashboard() {
         
         // Fetch applications directly from API for recent applications
         const applicationsResponse = await api.get('/applications');
-        const applications = applicationsResponse || [];
+        const applications = (applicationsResponse || []).sort((a,b)=>{
+          const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+          return bTime - aTime;
+        });
         
         // Filter by barangay - use user's barangay or fallback
         const targetBarangay = currentUser?.barangay || 'Unknown Barangay';
@@ -414,7 +418,6 @@ function BarangayPresidentDashboard() {
                       <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Applicant</TableCell>
                       <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Status</TableCell>
                       <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Applied Date</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -450,23 +453,6 @@ function BarangayPresidentDashboard() {
                         </TableCell>
                         <TableCell sx={{ color: '#000000', fontSize: '1rem' }}>
                           {formatDateMMDDYYYY(application.created_at)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            sx={{ 
-                              borderColor: '#3498DB', 
-                              color: '#3498DB',
-                              textTransform: 'none',
-                              fontSize: '0.9rem',
-                              py: 0.75,
-                              px: 1.5,
-                              '&:hover': { borderColor: '#2980B9', backgroundColor: '#3498DB15' }
-                            }}
-                          >
-                            Review
-                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}

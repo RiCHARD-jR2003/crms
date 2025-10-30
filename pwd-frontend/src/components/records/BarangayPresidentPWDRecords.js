@@ -32,7 +32,8 @@ import {
   Avatar,
   Card,
   CardContent,
-  CircularProgress
+  CircularProgress,
+  Backdrop
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PrintIcon from '@mui/icons-material/Print';
@@ -115,6 +116,22 @@ function BarangayPresidentPWDRecords() {
   };
 
   // Helper functions for file handling
+  // Normalize file path: remove leading slash and encode each segment to handle spaces
+  const normalizeFilePath = (path) => {
+    if (!path) return '';
+    // Remove leading slash if present
+    let normalized = path.startsWith('/') ? path.substring(1) : path;
+    // Encode each path segment separately to handle spaces in filenames
+    const parts = normalized.split('/').map(part => encodeURIComponent(part));
+    return parts.join('/');
+  };
+
+  // Ensure a default folder for bare filenames (e.g., corrections saved under storage/applications)
+  const ensureStorageFolder = (path) => {
+    if (!path) return '';
+    return path.includes('/') ? path : `applications/${path}`;
+  };
+
   const getFileUrl = (fieldName) => {
     if (!selectedApplication || !selectedApplication[fieldName]) return null;
     
@@ -125,26 +142,24 @@ function BarangayPresidentPWDRecords() {
       try {
         const parsed = JSON.parse(fileName);
         if (Array.isArray(parsed)) {
-          // Remove leading slash from file path to avoid double slashes
-          const cleanPath = parsed[0].startsWith('/') ? parsed[0].substring(1) : parsed[0];
-          return parsed.length > 0 ? `${api.getStorageUrl('')}/${cleanPath}` : null;
+          if (parsed.length === 0) return null;
+          const normalizedPath = normalizeFilePath(ensureStorageFolder(parsed[0]));
+          return api.getStorageUrl(normalizedPath);
         } else {
-          // Remove leading slash from file path to avoid double slashes
-          const cleanPath = fileName.startsWith('/') ? fileName.substring(1) : fileName;
-          return `${api.getStorageUrl('')}/${cleanPath}`;
+          // Single file as string
+          const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName));
+          return api.getStorageUrl(normalizedPath);
         }
       } catch (e) {
         // Not JSON, treat as regular string
-        const cleanPath = fileName.startsWith('/') ? fileName.substring(1) : fileName;
-        return `${api.getStorageUrl('')}/${cleanPath}`;
+        const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName));
+        return api.getStorageUrl(normalizedPath);
       }
     } else if (Array.isArray(fileName)) {
       // Handle actual array
-      if (fileName.length > 0) {
-        const cleanPath = fileName[0].startsWith('/') ? fileName[0].substring(1) : fileName[0];
-        return `${api.getStorageUrl('')}/${cleanPath}`;
-      }
-      return null;
+      if (fileName.length === 0) return null;
+      const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName[0]));
+      return api.getStorageUrl(normalizedPath);
     }
     return null;
   };
@@ -165,7 +180,14 @@ function BarangayPresidentPWDRecords() {
     return '📄';
   };
 
-  const handleViewFile = (fileType) => {
+  const handlePreviewImage = (imageUrl, fileName) => {
+    // Open image in modal instead of new tab
+    setPreviewImageUrl(imageUrl);
+    setPreviewFileName(fileName || 'Preview');
+    setPreviewModalOpen(true);
+  };
+  
+  const handleViewFileBatch = (fileType, fileIndex = 0) => {
     if (!selectedApplication) {
       console.error('No application selected');
       return;
@@ -180,27 +202,31 @@ function BarangayPresidentPWDRecords() {
     let fileUrl = null;
     let displayFileName = '';
     
+    // Parse fileName if it's a JSON string or array
+    let parsedFiles = fileName;
     if (typeof fileName === 'string') {
       try {
         const parsed = JSON.parse(fileName);
         if (Array.isArray(parsed)) {
-          const cleanPath = parsed[0].startsWith('/') ? parsed[0].substring(1) : parsed[0];
-          fileUrl = parsed.length > 0 ? `${api.getStorageUrl('')}/${cleanPath}` : null;
-          displayFileName = parsed.length > 0 ? parsed[0] : '';
-        } else {
-          const cleanPath = fileName.startsWith('/') ? fileName.substring(1) : fileName;
-          fileUrl = `${api.getStorageUrl('')}/${cleanPath}`;
-          displayFileName = fileName;
+          parsedFiles = parsed;
         }
       } catch (e) {
-        const cleanPath = fileName.startsWith('/') ? fileName.substring(1) : fileName;
-        fileUrl = `${api.getStorageUrl('')}/${cleanPath}`;
-        displayFileName = fileName;
+        // Not JSON, treat as single file
+        parsedFiles = fileName;
       }
-    } else if (Array.isArray(fileName)) {
-      const cleanPath = fileName[0].startsWith('/') ? fileName[0].substring(1) : fileName[0];
-      fileUrl = fileName.length > 0 ? `${api.getStorageUrl('')}/${cleanPath}` : null;
-      displayFileName = fileName.length > 0 ? fileName[0] : '';
+    }
+    
+    // Get the specific file from array if needed
+    if (Array.isArray(parsedFiles)) {
+      const file = parsedFiles[fileIndex] || parsedFiles[0];
+      if (!file) return;
+      const normalizedPath = normalizeFilePath(ensureStorageFolder(file));
+      fileUrl = api.getStorageUrl(normalizedPath);
+      displayFileName = file;
+    } else {
+      const normalizedPath = normalizeFilePath(ensureStorageFolder(parsedFiles));
+      fileUrl = api.getStorageUrl(normalizedPath);
+      displayFileName = parsedFiles;
     }
 
     if (fileUrl && isImageFile(displayFileName)) {
@@ -210,9 +236,8 @@ function BarangayPresidentPWDRecords() {
     }
   };
 
-  const handlePreviewImage = (imageUrl, fileName) => {
-    // Open image in new tab instead of modal
-    window.open(imageUrl, '_blank');
+  const handleViewFile = (fileType) => {
+    handleViewFileBatch(fileType, 0);
   };
 
   const handleClosePreviewModal = () => {
@@ -243,7 +268,13 @@ function BarangayPresidentPWDRecords() {
           lastName: toProperCase(app.lastName),
           disabilityType: toProperCase(app.disabilityType)
         }));
-        setApplications(transformedApplications);
+        // Sort by most recent submission first
+        const sorted = [...transformedApplications].sort((a, b) => {
+          const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+          return bTime - aTime;
+        });
+        setApplications(sorted);
       } catch (err) {
         console.error('Failed to fetch applications:', err);
         setApplications([]);
@@ -283,8 +314,12 @@ function BarangayPresidentPWDRecords() {
     }
   };
 
+  const approveDelayRef = React.useRef(null);
+  const [approving, setApproving] = useState(false);
+
   const handleApproveApplication = async (applicationId) => {
     try {
+      approveDelayRef.current = setTimeout(() => setApproving(true), 700);
       await api.post(`/applications/${applicationId}/approve-barangay`, {
         remarks: 'Approved by Barangay President'
       });
@@ -295,6 +330,12 @@ function BarangayPresidentPWDRecords() {
     } catch (err) {
       console.error('Error approving application:', err);
       toastService.error('Failed to approve application: ' + (err.message || 'Unknown error'));
+    } finally {
+      if (approveDelayRef.current) {
+        clearTimeout(approveDelayRef.current);
+        approveDelayRef.current = null;
+      }
+      setApproving(false);
     }
   };
 
@@ -605,31 +646,59 @@ function BarangayPresidentPWDRecords() {
     }
   };
 
-    const handlePrintApplication = () => {
+  const handlePrintApplication = () => {
     const printWindow = window.open('', '_blank');
     const printContent = document.getElementById('application-details');
+    const dateString = formatDateMMDDYYYY(new Date().toISOString());
+    const safeInnerHtml = printContent && printContent.innerHTML ? printContent.innerHTML : `
+      <div class="section">
+        <div class="field"><span class="label">Applicant:</span> ${selectedApplication?.firstName || ''} ${selectedApplication?.lastName || ''}</div>
+        <div class="field"><span class="label">Application ID:</span> ${selectedApplication?.applicationID || 'N/A'}</div>
+      </div>
+    `;
     
     printWindow.document.write(`
       <html>
         <head>
           <title>PWD Application Details</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .section { margin-bottom: 20px; }
-            .field { margin-bottom: 10px; }
-            .label { font-weight: bold; }
-            @media print { body { margin: 0; } }
+            @page { size: A4; margin: 12mm; }
+            body { font-family: Arial, sans-serif; margin: 0; background: #fff; color: #2c3e50; }
+            .container { width: 100%; max-width: 180mm; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 12mm; }
+            .brand { font-size: 12px; letter-spacing: .1em; color: #7f8c8d; }
+            h1 { margin: 0; font-size: 20px; }
+            h2 { margin: 2mm 0 0; font-size: 16px; font-weight: 600; }
+            .meta { margin-top: 3mm; font-size: 12px; color: #555; }
+            .divider { border: 0; border-top: 2px solid #0b87ac; margin: 6mm 0; }
+            .section { margin-bottom: 6mm; }
+            .section-title { font-size: 13px; font-weight: 700; color: #0b87ac; margin-bottom: 3mm; text-transform: uppercase; }
+            .fields { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8mm; row-gap: 3mm; }
+            .field { font-size: 12px; line-height: 1.3; }
+            .label { font-weight: 600; margin-right: 2mm; color: #34495e; }
+            .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            .table th, .table td { border: 1px solid #dfe6e9; padding: 3mm; text-align: left; }
+            .table th { background: #f4f9fb; color: #0b87ac; }
+            .footer { margin-top: 10mm; font-size: 11px; color: #7f8c8d; text-align: center; }
+            .badge { display: inline-block; padding: 2px 6px; border: 1px solid #0b87ac; color: #0b87ac; border-radius: 4px; font-size: 11px; }
+            @media print { .no-print { display: none; } }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>CABUYAO PDAO RMS</h1>
-            <h2>PWD Application Details</h2>
-            <p>Application ID: ${selectedApplication?.applicationID}</p>
-            <p>Date: {formatDateMMDDYYYY(new Date().toISOString())}</p>
+          <div class="container">
+            <div class="header">
+              <div class="brand">CITY OF CABUYAO • PDAO RMS</div>
+              <h1>PWD Application</h1>
+              <h2>Application Details</h2>
+              <div class="meta">Application ID: <strong>${selectedApplication?.applicationID || ''}</strong> &nbsp;•&nbsp; Date: ${dateString} &nbsp;•&nbsp; Status: <span class="badge">${selectedApplication?.status || 'N/A'}</span></div>
+            </div>
+            <hr class="divider" />
+            <!-- Inject existing application details content -->
+            <div class="section">
+              ${safeInnerHtml}
+            </div>
+            <div class="footer">Generated by Cabuyao PDAO RMS</div>
           </div>
-          ${printContent.innerHTML}
         </body>
       </html>
     `);
@@ -1591,7 +1660,7 @@ function BarangayPresidentPWDRecords() {
                 <Grid container spacing={0.5}>
                   <Grid item xs={12}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Complete Address:
+                      Home Number/Street:
                     </Typography>
                     <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
                       {selectedApplication.address}
@@ -1702,10 +1771,15 @@ function BarangayPresidentPWDRecords() {
                                   return (
                                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                                       {parsedFiles.slice(0, 2).map((file, index) => {
-                                        const singleFileUrl = `${api.getStorageUrl('')}/${file}`;
+                                        const normalizedPath = normalizeFilePath(ensureStorageFolder(file));
+                                        const singleFileUrl = api.getStorageUrl(normalizedPath);
                                         return (
                                           <Box
                                             key={index}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleViewFileBatch(fieldName, index);
+                                            }}
                                             sx={{ 
                                               width: 56, 
                                               height: 80,
@@ -1717,13 +1791,18 @@ function BarangayPresidentPWDRecords() {
                                               justifyContent: 'center',
                                               fontSize: '1.2rem',
                                               color: 'white',
-                                              border: '1px solid #ddd'
+                                              border: '1px solid #ddd',
+                                              cursor: 'pointer'
                                             }}
                                           >
                                             {isImageFile(file) ? (
                                               <img 
                                                 src={singleFileUrl} 
                                                 alt="Preview" 
+                                                onError={(e) => {
+                                                  e.target.style.display = 'none';
+                                                  e.target.parentElement.innerHTML = '<span style="font-size: 0.8rem; color: white;">Preview</span>';
+                                                }}
                                                 style={{ 
                                                   width: '100%', 
                                                   height: '100%', 
@@ -1755,7 +1834,10 @@ function BarangayPresidentPWDRecords() {
                                     </Box>
                                   );
                                 } else {
-                                  // Handle single file
+                                  // Handle single file - ensure fileUrl is properly generated
+                                  const normalizedPath = normalizeFilePath(ensureStorageFolder(fileName || ''));
+                                  const finalFileUrl = fileUrl || api.getStorageUrl(normalizedPath);
+                                  
                                   return (
                                     <Box
                                       sx={{ 
@@ -1772,10 +1854,18 @@ function BarangayPresidentPWDRecords() {
                                         border: '1px solid #ddd'
                                       }}
                                     >
-                                      {isImageFile(fileName) ? (
+                                      {isImageFile(fileName) && finalFileUrl ? (
                                         <img 
-                                          src={fileUrl} 
+                                          src={finalFileUrl} 
                                           alt="Preview" 
+                                          onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            // Show placeholder text if image fails to load
+                                            const parent = e.target.parentElement;
+                                            if (parent && !parent.textContent.includes('Preview')) {
+                                              parent.innerHTML = '<span style="font-size: 0.7rem; color: white; text-align: center; padding: 5px;">Preview</span>';
+                                            }
+                                          }}
                                           style={{ 
                                             width: '100%', 
                                             height: '100%', 
@@ -1881,23 +1971,18 @@ function BarangayPresidentPWDRecords() {
           >
             Request Document Correction
           </Button>
-          <Button
-            onClick={handlePrintApplication}
-            variant="contained"
-            startIcon={<PrintIcon />}
-            sx={{
-              bgcolor: '#3498DB',
-              textTransform: 'none',
-              fontWeight: 600,
-              '&:hover': {
-                bgcolor: '#2980B9'
-              }
-            }}
-          >
-            Print Application
-          </Button>
+          {/* Print Application button removed per request */}
         </DialogActions>
       </Dialog>
+
+    {/* Global approval loading backdrop */}
+    <Backdrop
+      open={approving}
+      sx={{ zIndex: (theme) => theme.zIndex.modal + 1, color: '#fff', flexDirection: 'column' }}
+    >
+      <CircularProgress color="inherit" />
+      <Typography variant="body2" sx={{ mt: 2 }}>Approving application, please wait…</Typography>
+    </Backdrop>
       
       {/* Document Correction Modal */}
       <Dialog

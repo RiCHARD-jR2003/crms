@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class DocumentManagementController extends Controller
 {
@@ -21,15 +22,44 @@ class DocumentManagementController extends Controller
         // Check if this is a superadmin request (for document management page)
         $isSuperAdmin = $request->user() && $request->user()->role === 'SuperAdmin';
         
-        if ($isSuperAdmin) {
-            // SuperAdmin sees all documents for management
-            $documents = RequiredDocument::with('creator')
-                ->orderBy('created_at', 'desc')
-                ->get();
-        } else {
-            // Public/application form sees only active documents within date range
-            $documents = RequiredDocument::with('creator')
-                ->active()
+        $cacheKey = $isSuperAdmin ? 'documents.all.admin' : 'documents.all.public';
+        
+        $documents = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($isSuperAdmin) {
+            if ($isSuperAdmin) {
+                // SuperAdmin sees all documents for management
+                return RequiredDocument::with('creator')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } else {
+                // Public/application form sees only active documents within date range
+                return RequiredDocument::with('creator')
+                    ->active()
+                    ->where(function($query) {
+                        $query->whereNull('effective_date')
+                              ->orWhere('effective_date', '<=', now());
+                    })
+                    ->where(function($query) {
+                        $query->whereNull('expiry_date')
+                              ->orWhere('expiry_date', '>=', now());
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->get()
+                    ->unique('name') // Remove duplicates based on document name
+                    ->values(); // Re-index array
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'documents' => $documents
+        ]);
+    }
+
+    public function getPublicDocuments()
+    {
+        // Public endpoint for application form - returns only active documents within date range
+        $documents = Cache::remember('documents.public', now()->addMinutes(10), function () {
+            return RequiredDocument::active()
                 ->where(function($query) {
                     $query->whereNull('effective_date')
                           ->orWhere('effective_date', '<=', now());
@@ -42,30 +72,7 @@ class DocumentManagementController extends Controller
                 ->get()
                 ->unique('name') // Remove duplicates based on document name
                 ->values(); // Re-index array
-        }
-
-        return response()->json([
-            'success' => true,
-            'documents' => $documents
-        ]);
-    }
-
-    public function getPublicDocuments()
-    {
-        // Public endpoint for application form - returns only active documents within date range
-        $documents = RequiredDocument::active()
-            ->where(function($query) {
-                $query->whereNull('effective_date')
-                      ->orWhere('effective_date', '<=', now());
-            })
-            ->where(function($query) {
-                $query->whereNull('expiry_date')
-                      ->orWhere('expiry_date', '>=', now());
-            })
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->unique('name') // Remove duplicates based on document name
-            ->values(); // Re-index array
+        });
 
         return response()->json([
             'success' => true,
@@ -108,6 +115,11 @@ class DocumentManagementController extends Controller
 
             // Notify all PWD members about the new required document
             $this->notifyMembers($document);
+            
+            // Clear documents cache
+            Cache::forget('documents.all.admin');
+            Cache::forget('documents.all.public');
+            Cache::forget('documents.public');
 
             DB::commit();
 
@@ -154,6 +166,11 @@ class DocumentManagementController extends Controller
             'name', 'description', 'is_required', 'file_types', 
             'max_file_size', 'status', 'effective_date', 'expiry_date'
         ]));
+        
+        // Clear documents cache
+        Cache::forget('documents.all.admin');
+        Cache::forget('documents.all.public');
+        Cache::forget('documents.public');
 
         return response()->json([
             'success' => true,
@@ -177,6 +194,11 @@ class DocumentManagementController extends Controller
         }
 
         $document->delete();
+        
+        // Clear documents cache
+        Cache::forget('documents.all.admin');
+        Cache::forget('documents.all.public');
+        Cache::forget('documents.public');
 
         return response()->json([
             'success' => true,
@@ -189,13 +211,15 @@ class DocumentManagementController extends Controller
     {
         $memberId = $request->user()->userID;
         
-        $documents = RequiredDocument::active()
-            ->with(['memberDocuments' => function($query) use ($memberId) {
-                $query->where('member_id', $memberId);
-            }])
-            ->orderBy('is_required', 'desc')
-            ->orderBy('name')
-            ->get();
+        $documents = Cache::remember("documents.member.{$memberId}", now()->addMinutes(5), function () use ($memberId) {
+            return RequiredDocument::active()
+                ->with(['memberDocuments' => function($query) use ($memberId) {
+                    $query->where('member_id', $memberId);
+                }])
+                ->orderBy('is_required', 'desc')
+                ->orderBy('name')
+                ->get();
+        });
 
         return response()->json([
             'success' => true,
@@ -269,6 +293,10 @@ class DocumentManagementController extends Controller
             ]);
 
             DB::commit();
+            
+            // Clear member documents cache
+            Cache::forget("documents.member.{$memberId}");
+            Cache::forget('documents.pending_reviews');
 
             return response()->json([
                 'success' => true,
@@ -371,6 +399,10 @@ class DocumentManagementController extends Controller
             'reviewed_by' => $request->user()->userID,
             'reviewed_at' => now()
         ]);
+        
+        // Clear caches
+        Cache::forget("documents.member.{$memberDocument->member_id}");
+        Cache::forget('documents.pending_reviews');
 
         return response()->json([
             'success' => true,
@@ -381,10 +413,12 @@ class DocumentManagementController extends Controller
 
     public function getPendingReviews()
     {
-        $documents = MemberDocument::with(['member', 'requiredDocument', 'reviewer'])
-            ->where('status', 'pending')
-            ->orderBy('uploaded_at', 'asc')
-            ->get();
+        $documents = Cache::remember('documents.pending_reviews', now()->addMinutes(2), function () {
+            return MemberDocument::with(['member', 'requiredDocument', 'reviewer'])
+                ->where('status', 'pending')
+                ->orderBy('uploaded_at', 'asc')
+                ->get();
+        });
 
         return response()->json([
             'success' => true,

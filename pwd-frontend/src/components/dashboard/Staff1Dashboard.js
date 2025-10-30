@@ -95,7 +95,11 @@ function Staff1Dashboard() {
         
         // Fetch applications
         const applicationsResponse = await api.get('/applications');
-        const applications = applicationsResponse || [];
+        const applications = (applicationsResponse || []).sort((a,b)=>{
+          const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+          return bTime - aTime;
+        });
         
         // Calculate statistics
         const totalMembers = pwdMembers.length;

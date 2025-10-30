@@ -56,6 +56,7 @@ import {
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
+import HelpGuide from '../shared/HelpGuide';
 import { supportService } from '../../services/supportService';
 import { filePreviewService } from '../../services/filePreviewService';
 import { api } from '../../services/api';
@@ -258,7 +259,12 @@ const PWDMemberSupportDesk = () => {
       setLoading(true);
       const response = await supportService.getTickets();
       console.log('fetchTickets: Response received:', response);
-      setTickets(response);
+      const sorted = [...(response || [])].sort((a, b) => {
+        const aTime = new Date(a.updated_at || a.created_at || a.createdAt || 0).getTime() || (a.id || 0);
+        const bTime = new Date(b.updated_at || b.created_at || b.createdAt || 0).getTime() || (b.id || 0);
+        return bTime - aTime;
+      });
+      setTickets(sorted);
     } catch (error) {
       console.error('Error fetching tickets:', error);
       setError('Failed to load support tickets');
@@ -273,7 +279,12 @@ const PWDMemberSupportDesk = () => {
       setLoading(true);
       const response = await supportService.getArchivedTickets();
       console.log('fetchArchivedTickets: Response received:', response);
-      setArchivedTickets(response);
+      const sortedArchived = [...(response || [])].sort((a, b) => {
+        const aTime = new Date(a.updated_at || a.created_at || a.createdAt || 0).getTime() || (a.id || 0);
+        const bTime = new Date(b.updated_at || b.created_at || b.createdAt || 0).getTime() || (b.id || 0);
+        return bTime - aTime;
+      });
+      setArchivedTickets(sortedArchived);
     } catch (error) {
       console.error('Error fetching archived tickets:', error);
       setError('Failed to load archived tickets');
@@ -606,6 +617,38 @@ const PWDMemberSupportDesk = () => {
             Create and manage your support tickets
           </Typography>
         </Box>
+
+        {/* Help Guide for Support Desk */}
+        <HelpGuide
+          title="How to Use Support Desk"
+          type="info"
+          steps={[
+            {
+              title: "Creating a Support Ticket",
+              description: "Click 'Create New Ticket' button. Fill in the subject (brief summary of your issue), category, priority level, and a detailed description. Attach any files if needed (like documents or screenshots). Click 'Submit' to send your ticket."
+            },
+            {
+              title: "Viewing Your Tickets",
+              description: "All your tickets are listed below. Active tickets show current conversations. Click on any ticket to see the conversation history and reply to messages from staff."
+            },
+            {
+              title: "Replying to Tickets",
+              description: "Open a ticket to see all messages. Type your reply in the message box at the bottom. You can attach files if needed. Click 'Send' to reply. Staff will respond and you'll see their messages appear."
+            },
+            {
+              title: "Understanding Ticket Status",
+              description: "Status shows: 'NEW' (just created), 'WAITING FOR REPLY' (needs your response), 'IN PROGRESS' (staff is working on it), or 'RESOLVED' (completed). Resolved tickets move to archived section."
+            },
+            {
+              title: "Attaching Files",
+              description: "You can attach files like documents, photos, or PDFs to your tickets. Click the attachment icon, select your file, or drag and drop it. This helps staff understand your issue better."
+            },
+            {
+              title: "Getting Help",
+              description: "If you're having trouble using the support desk, you can contact PDAO directly by phone or visit the office. Staff are available to help with both technical issues and general questions."
+            }
+          ]}
+        />
 
         {/* Statistics Cards */}
         <Grid container spacing={3} sx={{ mb: 4 }}>

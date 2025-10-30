@@ -98,7 +98,11 @@ function FrontDeskDashboard() {
         
         // Fetch PWD cards statistics - using applications as proxy for cards
         const applicationsResponse = await api.get('/applications');
-        const applications = applicationsResponse || [];
+        const applications = (applicationsResponse || []).sort((a,b)=>{
+          const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+          return bTime - aTime;
+        });
         
         // Mock PWD cards data based on applications
         const cards = applications.map(app => ({

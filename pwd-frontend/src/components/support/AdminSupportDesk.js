@@ -146,7 +146,12 @@ const AdminSupportDesk = () => {
       try {
         setLoading(true);
         const response = await supportService.getTickets();
-        setTickets(response);
+        const sorted = [...(response || [])].sort((a, b) => {
+          const aTime = new Date(a.updated_at || a.created_at || a.createdAt || 0).getTime() || (a.id || 0);
+          const bTime = new Date(b.updated_at || b.created_at || b.createdAt || 0).getTime() || (b.id || 0);
+          return bTime - aTime;
+        });
+        setTickets(sorted);
       } catch (error) {
         console.error('Error fetching tickets:', error);
         setError('Failed to load support tickets');
@@ -223,7 +228,12 @@ const AdminSupportDesk = () => {
       try {
         setLoading(true);
         const response = await supportService.getTickets();
-        setTickets(response);
+        const sorted = [...(response || [])].sort((a, b) => {
+          const aTime = new Date(a.updated_at || a.created_at || a.createdAt || 0).getTime() || (a.id || 0);
+          const bTime = new Date(b.updated_at || b.created_at || b.createdAt || 0).getTime() || (b.id || 0);
+          return bTime - aTime;
+        });
+        setTickets(sorted);
       } catch (error) {
         console.error('Error fetching tickets:', error);
         setError('Failed to load support tickets');
@@ -263,7 +273,12 @@ const AdminSupportDesk = () => {
     try {
       setLoading(true);
       const response = await supportService.getArchivedTickets();
-      setArchivedTickets(response);
+      const sortedArchived = [...(response || [])].sort((a, b) => {
+        const aTime = new Date(a.updated_at || a.created_at || a.createdAt || 0).getTime() || (a.id || 0);
+        const bTime = new Date(b.updated_at || b.created_at || b.createdAt || 0).getTime() || (b.id || 0);
+        return bTime - aTime;
+      });
+      setArchivedTickets(sortedArchived);
     } catch (error) {
       console.error('Error fetching archived tickets:', error);
       setError('Failed to load archived tickets');
@@ -278,7 +293,12 @@ const AdminSupportDesk = () => {
       try {
         setLoading(true);
         const response = await supportService.getTickets();
-        setTickets(response);
+        const sorted = [...(response || [])].sort((a, b) => {
+          const aTime = new Date(a.updated_at || a.created_at || a.createdAt || 0).getTime() || (a.id || 0);
+          const bTime = new Date(b.updated_at || b.created_at || b.createdAt || 0).getTime() || (b.id || 0);
+          return bTime - aTime;
+        });
+        setTickets(sorted);
       } catch (error) {
         console.error('Error fetching tickets:', error);
         setError('Failed to load support tickets');

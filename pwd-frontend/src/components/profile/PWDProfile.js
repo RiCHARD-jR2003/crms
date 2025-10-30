@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
+import HelpGuide, { HelpTooltip } from '../shared/HelpGuide';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/TranslationContext';
@@ -411,6 +412,34 @@ function PWDProfile() {
             Manage your personal information and account settings
           </Typography>
         </Box>
+
+        {/* Help Guide for Profile */}
+        <HelpGuide
+          title="How to Manage Your Profile"
+          type="info"
+          steps={[
+            {
+              title: "Viewing Your Profile",
+              description: "Your profile shows your personal information, contact details, and PWD ID. The QR code can be scanned to verify your identity at PDAO offices."
+            },
+            {
+              title: "Editing Your Information",
+              description: "Click the 'Edit Profile' button to update your personal information. You can change your contact number, address, and other details. Make sure all information is accurate before saving."
+            },
+            {
+              title: "Changing Your Password",
+              description: "Click the 'Change Password' button to update your password. You'll need to enter your current password and then your new password twice to confirm it. Make sure your new password is at least 6 characters long."
+            },
+            {
+              title: "Saving Changes",
+              description: "After making changes, click 'Save' to update your profile. A success message will appear confirming your changes were saved. You can also click 'Cancel' to discard any changes you made."
+            },
+            {
+              title: "Important Notes",
+              description: "Some information like your name, birth date, and disability type may require special approval to change. If you need to update these, please contact support through the Support Desk."
+            }
+          ]}
+        />
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -1191,7 +1220,7 @@ label={t('profile.birthDate')}
                   </Grid>
                   <Grid item xs={12}>
                     <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
-                      Complete Address
+                      Home Number/Street
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
                       {(() => {

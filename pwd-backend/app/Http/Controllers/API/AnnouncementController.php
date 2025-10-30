@@ -8,23 +8,30 @@ use App\Models\Announcement;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 
 class AnnouncementController extends Controller
 {
     public function index()
     {
-        $announcements = Announcement::with('author')->get();
+        // Cache announcements for 10 minutes (infrequently changed)
+        $announcements = Cache::remember('announcements.all', now()->addMinutes(10), function () {
+            return Announcement::with('author')->get();
+        });
+        
         return response()->json($announcements);
     }
 
     public function getAdminAnnouncements()
     {
-        // Get announcements created by Admin users
-        $adminAnnouncements = Announcement::with('author')
-            ->whereHas('author', function($query) {
-                $query->where('role', 'Admin');
-            })
-            ->get();
+        // Cache admin announcements for 10 minutes
+        $adminAnnouncements = Cache::remember('announcements.admin', now()->addMinutes(10), function () {
+            return Announcement::with('author')
+                ->whereHas('author', function($query) {
+                    $query->where('role', 'Admin');
+                })
+                ->get();
+        });
         
         return response()->json($adminAnnouncements);
     }
@@ -54,6 +61,11 @@ class AnnouncementController extends Controller
         $data['publishDate'] = now()->toDateString();
 
         $announcement = Announcement::create($data);
+        
+        // Clear announcements cache
+        Cache::forget('announcements.all');
+        Cache::forget('announcements.admin');
+        Cache::forget('announcements.' . $request->targetAudience);
 
         return response()->json($announcement, 201);
     }
@@ -92,6 +104,13 @@ class AnnouncementController extends Controller
         }
 
         $announcement->update($request->all());
+        
+        // Clear announcements cache
+        Cache::forget('announcements.all');
+        Cache::forget('announcements.admin');
+        if ($announcement->targetAudience) {
+            Cache::forget('announcements.' . $announcement->targetAudience);
+        }
 
         return response()->json($announcement);
     }
@@ -104,14 +123,25 @@ class AnnouncementController extends Controller
             return response()->json(['message' => 'Announcement not found'], 404);
         }
 
+        $targetAudience = $announcement->targetAudience;
         $announcement->delete();
+        
+        // Clear announcements cache
+        Cache::forget('announcements.all');
+        Cache::forget('announcements.admin');
+        if ($targetAudience) {
+            Cache::forget('announcements.' . $targetAudience);
+        }
 
         return response()->json(['message' => 'Announcement deleted successfully']);
     }
 
     public function getByAudience($audience)
     {
-        $announcements = Announcement::with('author')->where('targetAudience', $audience)->get();
+        $announcements = Cache::remember('announcements.' . $audience, now()->addMinutes(10), function () use ($audience) {
+            return Announcement::with('author')->where('targetAudience', $audience)->get();
+        });
+        
         return response()->json($announcements);
     }
 }

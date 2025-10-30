@@ -51,6 +51,11 @@ export const tl = {
     refresh: 'I-refresh',
     tryAgain: 'Subukan Muli'
   },
+  buttons: {
+    viewSupportTickets: 'Tingnan ang Mga Support Ticket',
+    readAloud: 'Basahin Nang Malakas',
+    reading: 'Binabasa...'
+  },
 
   // Accessibility
   accessibility: {
@@ -121,6 +126,34 @@ export const tl = {
     supportHours: 'Oras: Lunes-Biyernes, 8AM-5PM',
     noAnnouncements: 'Walang mga anunsyo sa ngayon',
     checkBackLater: 'Balikan mamaya para sa mahahalagang updates'
+  },
+
+  guide: {
+    dashboard: {
+      title: 'Paano Gamitin ang Iyong Dashboard',
+      steps: {
+        understand: {
+          title: 'Pag-unawa sa Iyong Dashboard',
+          description: 'Ipinapakita ng dashboard ang iyong status, mga pinakabagong anunsyo, at mga support ticket. Makikita sa itaas ang status ng application, petsa ng pagiging kasapi, bilang ng mga anunsyo, at mga ticket.'
+        },
+        announcements: {
+          title: 'Pagtingin ng Mga Anunsyo',
+          description: "Tingnan ang seksyong 'Mga Anunsyo' para sa mahahalagang update mula sa PDAO. I-click ang 'Tingnan Lahat ng Anunsyo' para makita ang lahat para sa iyong barangay."
+        },
+        tickets: {
+          title: 'Pamamahala ng Support Tickets',
+          description: "Ipinapakita ng seksyong 'Aking Mga Ticket' ang lahat ng iyong ticket. I-click ang 'Gumawa ng Bagong Ticket' para humingi ng tulong, o i-click ang umiiral na ticket para makita at makasagot sa mga mensahe."
+        },
+        sections: {
+          title: 'Pag-access ng Ibang Seksyon',
+          description: 'Gamitin ang menu sa kaliwa (o hamburger menu sa mobile) para pumunta sa: Aking Mga Dokumento, Support Desk, at Profile.'
+        },
+        help: {
+          title: 'Karagdagang Tulong',
+          description: "Kung kailangan ng tulong, i-click ang 'Gumawa ng Bagong Ticket' o pumunta sa Support Desk. Tutulungan ka ng aming staff."
+        }
+      }
+    }
   },
 
   // Announcements

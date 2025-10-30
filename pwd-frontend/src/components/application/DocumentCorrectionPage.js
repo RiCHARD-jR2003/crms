@@ -45,6 +45,7 @@ const DocumentCorrectionPage = () => {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
+  const [validationErrors, setValidationErrors] = useState({});
 
   // Document type labels mapping
   const documentLabels = {
@@ -116,6 +117,29 @@ const DocumentCorrectionPage = () => {
       ...prev,
       [documentType]: file
     }));
+    // Clear validation errors when user uploads a file
+    if (validationErrors[documentType]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[documentType];
+        return newErrors;
+      });
+    }
+  };
+  
+  const handleMultipleFileUpload = (documentType, files) => {
+    setUploadedFiles(prev => ({
+      ...prev,
+      [documentType]: Array.from(files)
+    }));
+    // Clear validation errors when user uploads files
+    if (validationErrors[documentType]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[documentType];
+        return newErrors;
+      });
+    }
   };
 
   const handleFilePreview = (file) => {
@@ -128,6 +152,8 @@ const DocumentCorrectionPage = () => {
   const handleSubmitCorrections = async () => {
     try {
       setUploading(true);
+      setError(null);
+      setValidationErrors({});
       
       const formData = new FormData();
       formData.append('correction_token', token);
@@ -135,7 +161,18 @@ const DocumentCorrectionPage = () => {
       // Add uploaded files
       Object.entries(uploadedFiles).forEach(([docType, file]) => {
         if (file) {
-          formData.append(docType, file);
+          // Handle idPictures as array (multiple files)
+          if (docType === 'idPictures' && Array.isArray(file)) {
+            file.forEach((singleFile, index) => {
+              formData.append(`idPictures[${index}]`, singleFile);
+            });
+          } else if (docType === 'idPictures' && !Array.isArray(file)) {
+            // If idPictures is a single file, convert to array
+            formData.append('idPictures[0]', file);
+          } else {
+            // Single file for other document types
+            formData.append(docType, file);
+          }
         }
       });
 
@@ -157,7 +194,17 @@ const DocumentCorrectionPage = () => {
       console.error('Error details:', err.message);
       console.error('Error status:', err.status);
       console.error('Error data:', err.data);
-      setError('Failed to submit corrections. Please try again.');
+      
+      // Handle validation errors
+      if (err.status === 422 && err.data?.errors) {
+        setValidationErrors(err.data.errors);
+        const errorMessages = Object.entries(err.data.errors)
+          .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+          .join('\n');
+        setError(`Validation errors:\n${errorMessages}`);
+      } else {
+        setError(err.data?.message || err.message || 'Failed to submit corrections. Please try again.');
+      }
     } finally {
       setUploading(false);
     }
@@ -170,13 +217,23 @@ const DocumentCorrectionPage = () => {
       ? JSON.parse(correctionRequest.documents_to_correct)
       : correctionRequest.documents_to_correct;
     
-    return Array.isArray(documentsToCorrect) && documentsToCorrect.every(docType => uploadedFiles[docType]);
+    return Array.isArray(documentsToCorrect) && documentsToCorrect.every(docType => {
+      const file = uploadedFiles[docType];
+      if (docType === 'idPictures') {
+        // For idPictures, check if it's an array with at least one file
+        return Array.isArray(file) && file.length > 0;
+      }
+      return file !== null && file !== undefined;
+    });
   };
 
-  const getFileIcon = (file) => {
-    if (!file) return <DocumentIcon />;
-    
-    const fileType = file.type;
+  const getFileIcon = (fileOrFiles) => {
+    if (!fileOrFiles) return <DocumentIcon />;
+    // Support both a single File and an array of Files (e.g., idPictures)
+    const candidate = Array.isArray(fileOrFiles) ? fileOrFiles[0] : fileOrFiles;
+    if (!candidate) return <DocumentIcon />;
+
+    const fileType = candidate.type || '';
     if (fileType.includes('pdf')) return <PdfIcon />;
     if (fileType.includes('image')) return <ImageIcon />;
     return <DocumentIcon />;
@@ -341,41 +398,155 @@ const DocumentCorrectionPage = () => {
                     {uploadedFiles[docType] ? (
                       <Box>
                         <Typography variant="body2" sx={{ color: '#27ae60', fontWeight: 'bold' }}>
-                          ✓ File Uploaded
+                          {Array.isArray(uploadedFiles[docType]) 
+                            ? `✓ ${uploadedFiles[docType].length} File(s) Uploaded`
+                            : '✓ File Uploaded'}
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#7f8c8d' }}>
-                          {uploadedFiles[docType].name} ({formatFileSize(uploadedFiles[docType].size)})
-                        </Typography>
+                        {/* A4-aspect thumbnails */}
+                        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
+                          {Array.isArray(uploadedFiles[docType]) ? (
+                            uploadedFiles[docType].map((file, idx) => (
+                              <Box
+                                key={idx}
+                                onClick={() => handleFilePreview(file)}
+                                sx={{
+                                  width: 120, // A4 aspect ratio: 210x297 → height ≈ width * 1.414
+                                  height: 170,
+                                  border: '1px solid #dee2e6',
+                                  borderRadius: 1,
+                                  bgcolor: '#fafafa',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  overflow: 'hidden',
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                  '&:hover': { boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }
+                                }}
+                                title={`Preview ${file.name}`}
+                              >
+                                {file.type?.includes('image') ? (
+                                  <img
+                                    src={URL.createObjectURL(file)}
+                                    alt={file.name}
+                                    style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                  />
+                                ) : (
+                                  <PdfIcon sx={{ fontSize: 36, color: '#7f8c8d' }} />
+                                )}
+                              </Box>
+                            ))
+                          ) : (
+                            <Box
+                              onClick={() => handleFilePreview(uploadedFiles[docType])}
+                              sx={{
+                                width: 120,
+                                height: 170,
+                                border: '1px solid #dee2e6',
+                                borderRadius: 1,
+                                bgcolor: '#fafafa',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                overflow: 'hidden',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                '&:hover': { boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }
+                              }}
+                              title={`Preview ${uploadedFiles[docType].name}`}
+                            >
+                              {uploadedFiles[docType].type?.includes('image') ? (
+                                <img
+                                  src={URL.createObjectURL(uploadedFiles[docType])}
+                                  alt={uploadedFiles[docType].name}
+                                  style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                />
+                              ) : (
+                                <PdfIcon sx={{ fontSize: 36, color: '#7f8c8d' }} />
+                              )}
+                            </Box>
+                          )}
+                        </Box>
+                        {Array.isArray(uploadedFiles[docType]) ? (
+                          <Box>
+                            {uploadedFiles[docType].map((file, idx) => (
+                              <Typography key={idx} variant="body2" sx={{ color: '#7f8c8d' }}>
+                                • {file.name} ({formatFileSize(file.size)})
+                              </Typography>
+                            ))}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" sx={{ color: '#7f8c8d' }}>
+                            {uploadedFiles[docType].name} ({formatFileSize(uploadedFiles[docType].size)})
+                          </Typography>
+                        )}
                         <Box sx={{ mt: 1 }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => handleFilePreview(uploadedFiles[docType])}
-                            sx={{ mr: 1 }}
-                          >
-                            Preview
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            onClick={() => handleFileUpload(docType, null)}
-                          >
-                            Remove
-                          </Button>
+                          {Array.isArray(uploadedFiles[docType]) ? (
+                            <>
+                              {uploadedFiles[docType].map((file, idx) => (
+                                <Button
+                                  key={idx}
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => handleFilePreview(file)}
+                                  sx={{ mr: 1, mb: 1 }}
+                                >
+                                  Preview {idx + 1}
+                                </Button>
+                              ))}
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                onClick={() => handleFileUpload(docType, null)}
+                                sx={{ mb: 1 }}
+                              >
+                                Remove All
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => handleFilePreview(uploadedFiles[docType])}
+                                sx={{ mr: 1 }}
+                              >
+                                Preview
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                onClick={() => handleFileUpload(docType, null)}
+                              >
+                                Remove
+                              </Button>
+                            </>
+                          )}
                         </Box>
                       </Box>
                     ) : (
                       <Box>
                         <input
-                          accept=".pdf,.jpg,.jpeg,.png"
+                          accept={docType === 'idPictures' ? ".jpg,.jpeg,.png" : ".pdf,.jpg,.jpeg,.png"}
                           style={{ display: 'none' }}
                           id={`file-upload-${docType}`}
                           type="file"
+                          multiple={docType === 'idPictures'}
                           onChange={(e) => {
-                            const file = e.target.files[0];
-                            if (file) {
-                              handleFileUpload(docType, file);
+                            if (docType === 'idPictures') {
+                              // Handle multiple files for ID pictures
+                              const files = Array.from(e.target.files).slice(0, 2); // Max 2 files
+                              if (files.length > 0) {
+                                handleMultipleFileUpload(docType, files);
+                              }
+                            } else {
+                              // Single file for other document types
+                              const file = e.target.files[0];
+                              if (file) {
+                                handleFileUpload(docType, file);
+                              }
                             }
                           }}
                         />
@@ -385,20 +556,29 @@ const DocumentCorrectionPage = () => {
                             component="span"
                             startIcon={<UploadIcon />}
                             sx={{ 
-                              borderColor: '#0b87ac',
-                              color: '#0b87ac',
+                              borderColor: validationErrors[docType] ? '#e74c3c' : '#0b87ac',
+                              color: validationErrors[docType] ? '#e74c3c' : '#0b87ac',
                               '&:hover': {
-                                borderColor: '#0a6b8a',
+                                borderColor: validationErrors[docType] ? '#c0392b' : '#0a6b8a',
                                 bgcolor: '#f0f8ff'
                               }
                             }}
                           >
-                            Choose File
+                            {docType === 'idPictures' ? 'Choose Files (2 max)' : 'Choose File'}
                           </Button>
                         </label>
-                        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#7f8c8d' }}>
-                          Accepted formats: PDF, JPG, JPEG, PNG (Max 2MB)
+                        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: validationErrors[docType] ? '#e74c3c' : '#7f8c8d' }}>
+                          {docType === 'idPictures' 
+                            ? 'Accepted formats: JPG, JPEG, PNG (Max 2 files, 2MB each)'
+                            : 'Accepted formats: PDF, JPG, JPEG, PNG (Max 2MB)'}
                         </Typography>
+                        {validationErrors[docType] && (
+                          <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: '#e74c3c' }}>
+                            {Array.isArray(validationErrors[docType]) 
+                              ? validationErrors[docType].join(', ') 
+                              : validationErrors[docType]}
+                          </Typography>
+                        )}
                       </Box>
                     )}
                   </CardContent>

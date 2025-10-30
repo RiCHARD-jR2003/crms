@@ -29,6 +29,7 @@ import {
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
+import HelpGuide from '../shared/HelpGuide';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
@@ -146,6 +147,34 @@ function PWDMemberAnnouncement() {
             Stay updated with the latest news and important information from PDAO.
           </Typography>
         </Box>
+
+        {/* Help Guide for Announcements */}
+        <HelpGuide
+          title="How to Read Announcements"
+          type="info"
+          steps={[
+            {
+              title: "Understanding Announcements",
+              description: "Announcements show important news, updates, and information from PDAO that are relevant to your barangay. They appear in order from newest to oldest, with the most recent at the top."
+            },
+            {
+              title: "Reading an Announcement",
+              description: "Click on any announcement card to see the full details. Each announcement shows the title, date posted, priority level, and full message. Urgent announcements are shown in red, while regular ones are in blue."
+            },
+            {
+              title: "Priority Levels",
+              description: "Announcements have different priority levels: URGENT (red - immediate attention needed), HIGH (orange - important), MEDIUM (yellow - general info), and LOW (green - informational). Pay special attention to urgent announcements."
+            },
+            {
+              title: "Barangay-Specific Announcements",
+              description: "You will only see announcements that are relevant to your barangay or general announcements for all members. This ensures you only see information that applies to you."
+            },
+            {
+              title: "Staying Updated",
+              description: "Check announcements regularly for updates about benefits, events, deadlines, or changes to services. Important information like application deadlines or benefit distributions will be posted here."
+            }
+          ]}
+        />
 
         {/* Error Alert */}
         {error && (

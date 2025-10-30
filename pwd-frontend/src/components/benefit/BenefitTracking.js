@@ -427,6 +427,8 @@ const BenefitTracking = () => {
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     const printContent = document.getElementById('benefit-tracking-table');
+    const generatedOn = formatDateMMDDYYYY(new Date().toISOString());
+    const safeInnerHtml = printContent && printContent.innerHTML ? printContent.innerHTML : '<p>No table content available.</p>';
     
     printWindow.document.write(`
       <html>
@@ -446,7 +448,7 @@ const BenefitTracking = () => {
           <div class="header">
             <h1>CABUYAO PDAO RMS</h1>
             <h2>PWD Members Master List</h2>
-            <p>Generated on: ${formatDateMMDDYYYY(new Date().toISOString())}</p>
+            <p>Generated on: ${generatedOn}</p>
           </div>
           <div class="filters">
             <strong>Applied Filters:</strong>
@@ -457,7 +459,7 @@ const BenefitTracking = () => {
             ${filters.disability ? `Disability: ${filters.disability} | ` : ''}
             Total Records: ${filteredMembers.length}
           </div>
-          ${printContent.innerHTML}
+          ${safeInnerHtml}
         </body>
       </html>
     `);

@@ -14,7 +14,17 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
-        return cache.addAll(urlsToCache);
+        // Use cache.addAll with error handling - it will skip failed items
+        return cache.addAll(urlsToCache).catch((error) => {
+          console.warn('Some resources failed to cache during install:', error);
+          // Return empty promise to allow install to complete
+          return Promise.resolve();
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to open cache during install:', error);
+        // Allow install to complete even if cache fails
+        return Promise.resolve();
       })
   );
   // Force the waiting service worker to become the active service worker
@@ -33,12 +43,20 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Cache the fresh response
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseClone);
-            });
+          // Only cache successful responses (status 200) that are cacheable
+          if (response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                // Handle cache.put errors gracefully
+                cache.put(event.request, responseClone).catch((error) => {
+                  console.warn('Failed to cache resource:', event.request.url, error);
+                });
+              })
+              .catch((error) => {
+                console.warn('Failed to open cache:', error);
+              });
+          }
           return response;
         })
         .catch(() => {
@@ -55,12 +73,20 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Cache the fresh response
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseClone);
-            });
+          // Only cache successful responses (status 200) that are cacheable
+          if (response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                // Handle cache.put errors gracefully
+                cache.put(event.request, responseClone).catch((error) => {
+                  console.warn('Failed to cache resource:', event.request.url, error);
+                });
+              })
+              .catch((error) => {
+                console.warn('Failed to open cache:', error);
+              });
+          }
           return response;
         })
         .catch(() => {

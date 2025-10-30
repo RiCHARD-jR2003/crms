@@ -51,6 +51,11 @@ export const en = {
     refresh: 'Refresh',
     tryAgain: 'Try Again'
   },
+  buttons: {
+    viewSupportTickets: 'View Support Tickets',
+    readAloud: 'Read Aloud',
+    reading: 'Reading...'
+  },
 
   // Accessibility
   accessibility: {
@@ -121,6 +126,34 @@ export const en = {
     supportHours: 'Hours: Mon-Fri, 8AM-5PM',
     noAnnouncements: 'No announcements at the moment',
     checkBackLater: 'Check back later for important updates'
+  },
+
+  guide: {
+    dashboard: {
+      title: 'How to Use Your Dashboard',
+      steps: {
+        understand: {
+          title: 'Understanding Your Dashboard',
+          description: 'Your dashboard shows your status, recent announcements, and support tickets. The status cards at the top show your application status, member since date, number of announcements, and support tickets.'
+        },
+        announcements: {
+          title: 'Viewing Announcements',
+          description: "Check the 'Announcements' section to see important updates from PDAO. Click 'View All Announcements' to see all available announcements for your barangay."
+        },
+        tickets: {
+          title: 'Managing Support Tickets',
+          description: "The 'My Support Tickets' section shows all your tickets. Click 'Create New Ticket' to ask for help, or click on an existing ticket to view and reply to messages."
+        },
+        sections: {
+          title: 'Accessing Other Sections',
+          description: 'Use the menu on the left (or hamburger menu on mobile) to navigate to: My Documents (upload required documents), Support Desk (create and manage tickets), and Profile (update your information).'
+        },
+        help: {
+          title: 'Getting More Help',
+          description: "If you need assistance, click the 'Create New Ticket' button or go to Support Desk from the menu. Our staff will help you with any questions or issues."
+        }
+      }
+    }
   },
 
   // Announcements

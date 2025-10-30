@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
+import HelpGuide, { InfoCard } from '../shared/HelpGuide';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
@@ -265,6 +266,34 @@ function PWDMemberDashboard() {
             </Typography>
           </Box>
 
+          {/* Help Guide for Dashboard */}
+          <HelpGuide
+            title={t('guide.dashboard.title')}
+            type="info"
+            steps={[
+              {
+                title: t('guide.dashboard.steps.understand.title'),
+                description: t('guide.dashboard.steps.understand.description')
+              },
+              {
+                title: t('guide.dashboard.steps.announcements.title'),
+                description: t('guide.dashboard.steps.announcements.description')
+              },
+              {
+                title: t('guide.dashboard.steps.tickets.title'),
+                description: t('guide.dashboard.steps.tickets.description')
+              },
+              {
+                title: t('guide.dashboard.steps.sections.title'),
+                description: t('guide.dashboard.steps.sections.description')
+              },
+              {
+                title: t('guide.dashboard.steps.help.title'),
+                description: t('guide.dashboard.steps.help.description')
+              }
+            ]}
+          />
+
         {/* Error Alert */}
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} icon={<ErrorOutline />}>
@@ -353,7 +382,7 @@ function PWDMemberDashboard() {
                           '&:hover': { backgroundColor: 'transparent', textDecoration: 'underline' }
                         }}
                       >
-                        View Support Tickets
+                        {t('buttons.viewSupportTickets')}
                       </Button>
                     </Box>
                   </Box>
@@ -521,7 +550,7 @@ function PWDMemberDashboard() {
                             }
                           }}
                         >
-                          {isReading ? 'Reading...' : 'Read Aloud'}
+                          {isReading ? t('buttons.reading') : t('buttons.readAloud')}
                         </Button>
                       </Box>
                     </Paper>

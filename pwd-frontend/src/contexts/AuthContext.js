@@ -1,6 +1,7 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
+import { enableAccessibilityForVisualImpairment } from '../utils/accessibilityHelper';
 
 const AuthContext = createContext(null);
 
@@ -17,6 +18,10 @@ export function AuthProvider({ children }) {
         const token = rawToken ? JSON.parse(rawToken) : null;
         if (user && token) {
           setCurrentUser(user);
+          // Automatically enable accessibility features for visually impaired users on page load
+          enableAccessibilityForVisualImpairment(user).catch(error => {
+            console.error('Error enabling accessibility features:', error);
+          });
         } else {
           localStorage.removeItem('auth.currentUser');
           localStorage.removeItem('auth.token');
@@ -69,6 +74,12 @@ export function AuthProvider({ children }) {
     localStorage.setItem('auth.token', JSON.stringify(accessToken));
     await api.setToken(accessToken);
     console.log('Login successful, user set:', user);
+    
+    // Automatically enable TTS and Read Aloud for visually impaired users
+    enableAccessibilityForVisualImpairment(user).catch(error => {
+      console.error('Error enabling accessibility features:', error);
+    });
+    
     return user;
   };
 
@@ -79,6 +90,12 @@ export function AuthProvider({ children }) {
     localStorage.setItem('auth.currentUser', JSON.stringify(user));
     localStorage.setItem('auth.token', JSON.stringify(accessToken));
     await api.setToken(accessToken);
+    
+    // Automatically enable TTS and Read Aloud for visually impaired users
+    enableAccessibilityForVisualImpairment(user).catch(error => {
+      console.error('Error enabling accessibility features:', error);
+    });
+    
     return user;
   };
 

@@ -1,2 +1,9 @@
 # Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
 
+# Explicitly allow .env files to be indexed by Cursor AI
+!.env
+!.env.*
+!pwd-backend/.env
+!pwd-backend/.env.*
+!pwd-frontend/.env
+!pwd-frontend/.env.*

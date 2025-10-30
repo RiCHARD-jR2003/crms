@@ -662,7 +662,7 @@ function BarangayPresidentPWDCard() {
                         fullWidth 
                         size="small" 
                         value={selectedPWD.address || 'Not provided'} 
-                        placeholder="Complete Address"
+                        placeholder="Home Number/Street"
                         InputProps={{ 
                           readOnly: true, 
                           sx: {
