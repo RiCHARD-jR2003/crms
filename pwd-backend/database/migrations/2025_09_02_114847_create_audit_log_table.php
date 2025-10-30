@@ -14,8 +14,13 @@ return new class extends Migration
     public function up()
     {
         Schema::create('audit_log', function (Blueprint $table) {
-            $table->id();
+            $table->bigIncrements('logID');
+            $table->unsignedBigInteger('userID');
+            $table->string('action', 255);
+            $table->timestamp('timestamp')->useCurrent();
             $table->timestamps();
+
+            $table->index('userID');
         });
     }
 

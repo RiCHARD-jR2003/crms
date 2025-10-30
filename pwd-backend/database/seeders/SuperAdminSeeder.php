@@ -2,6 +2,38 @@
 
 namespace Database\Seeders;
 
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+
+class SuperAdminSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $existing = User::where('role', 'SuperAdmin')->first();
+        if ($existing) {
+            return;
+        }
+
+        $user = User::create([
+            'username' => 'superadmin',
+            'email' => 'superadmin@example.com',
+            'password' => Hash::make('SuperAdmin@123'),
+            'role' => 'SuperAdmin',
+            'status' => 'active',
+        ]);
+
+        // Create related role record if relation/model exists
+        if (method_exists($user, 'superAdmin')) {
+            $user->superAdmin()->create();
+        }
+    }
+}
+
+<?php
+
+namespace Database\Seeders;
+
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\User;

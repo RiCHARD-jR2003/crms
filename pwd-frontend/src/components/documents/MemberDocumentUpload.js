@@ -39,10 +39,14 @@ import {
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
 import MobileHeader from '../shared/MobileHeader';
+import HelpGuide from '../shared/HelpGuide';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
+import { documentService } from '../../services/documentService';
+import CloseIcon from '@mui/icons-material/Close';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { 
   mainContainerStyles, 
   contentAreaStyles, 
@@ -64,6 +68,10 @@ function MemberDocumentUpload() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  // Preview modal state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewName, setPreviewName] = useState('');
 
   // Format date as MM/DD/YYYY
   const formatDateMMDDYYYY = (dateString) => {
@@ -82,6 +90,7 @@ function MemberDocumentUpload() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [reflecting, setReflecting] = useState(false);
 
   const handleSidebarToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -91,13 +100,84 @@ function MemberDocumentUpload() {
     setIsMobileMenuOpen(isOpen);
   };
 
+  // Reflection cache for faster reloads
+  const getCacheKey = () => {
+    const uid = currentUser?.id || 'anon';
+    return `memberDocReflections:${uid}`;
+  };
+
+  const loadReflectionCache = () => {
+    try {
+      const raw = localStorage.getItem(getCacheKey());
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) { return {}; }
+  };
+
+  const saveReflectionCache = (mapping) => {
+    try { localStorage.setItem(getCacheKey(), JSON.stringify(mapping || {})); } catch (_) {}
+  };
+
+  // Merge active document types with member's current documents so new types appear
+  const mergeActiveTypes = (memberDocs, activeTypes) => {
+    const byName = new Map();
+    (memberDocs || []).forEach(d => byName.set((d.name || '').toLowerCase(), d));
+    const merged = [...(memberDocs || [])];
+    (activeTypes || []).forEach(t => {
+      const key = (t.name || '').toLowerCase();
+      if (!byName.has(key)) {
+        merged.push({
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          is_required: t.is_required,
+          file_types: t.file_types,
+          max_file_size: t.max_file_size,
+          member_documents: [] // none uploaded yet
+        });
+      }
+    });
+    return merged;
+  };
+
   // Fetch data
   const fetchDocuments = async () => {
     try {
-      const response = await api.get('/documents/my-documents');
-      if (response.success) {
-        setDocuments(response.documents);
+      const [memberResp, activeTypes] = await Promise.all([
+        api.get('/documents/my-documents'),
+        documentService.getActiveDocumentTypes()
+      ]);
+
+      let initial;
+      if (memberResp && memberResp.success) {
+        initial = mergeActiveTypes(memberResp.documents || [], activeTypes);
+      } else {
+        // Fallback: show all active types even if member endpoint fails
+        initial = (activeTypes || []).map(t => ({ ...t, member_documents: [] }));
       }
+
+      // Apply cached reflections for instant thumbnails on reload
+      const cached = loadReflectionCache();
+      if (cached && Object.keys(cached).length > 0) {
+        initial = initial.map(doc => {
+          if (!doc.member_documents || doc.member_documents.length === 0) {
+            const cachedPath = cached[doc.name];
+            if (cachedPath) {
+              return {
+                ...doc,
+                member_documents: [{
+                  id: null,
+                  status: 'pending',
+                  uploaded_at: cached.__uploaded_at || null,
+                  notes: 'Reflected from your application upload (cached)',
+                  filePath: cachedPath
+                }]
+              };
+            }
+          }
+          return doc;
+        });
+      }
+      setDocuments(initial);
     } catch (error) {
       console.error('Error fetching documents:', error);
       setError('Failed to fetch documents');
@@ -125,6 +205,81 @@ function MemberDocumentUpload() {
         fetchDocuments(),
         fetchNotifications()
       ]);
+
+      // After loading member documents, attempt to reflect any files from the
+      // most recent application submission as a fallback baseline
+      try {
+        setReflecting(true);
+        const allApplications = await api.get('/applications');
+        const id = currentUser?.id;
+        const email = currentUser?.pwd_member?.email || currentUser?.email || null;
+        const username = currentUser?.username || null;
+        if (Array.isArray(allApplications)) {
+          // Pick most recent application for this user by multiple identifiers
+          const userApps = allApplications.filter(a => {
+            return (
+              (id && (a.userID === id || a.userId === id)) ||
+              (email && a.email === email) ||
+              (username && (a.username === username || a.userName === username))
+            );
+          });
+          const latestApp = userApps.sort((a,b)=>{
+            const at = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+            const bt = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+            return bt - at;
+          })[0];
+
+          if (latestApp) {
+            const docTypes = await documentService.getActiveDocumentTypes();
+            // Enhance each required document with an application file if member copy is missing
+            const reflectionMap = {};
+            setDocuments(prevDocs => prevDocs.map(doc => {
+              const fieldName = documentService.getFieldNameFromDocumentName(doc.name);
+              const fieldValue = latestApp ? latestApp[fieldName] : null;
+              const hasMemberDoc = doc.member_documents && doc.member_documents.length > 0;
+
+              if (!hasMemberDoc && fieldValue) {
+                // Normalize to a single file path string
+                let filePath = null;
+                if (Array.isArray(fieldValue)) {
+                  filePath = fieldValue[0] || null;
+                } else if (typeof fieldValue === 'string') {
+                  try {
+                    const parsed = JSON.parse(fieldValue);
+                    filePath = Array.isArray(parsed) ? (parsed[0] || null) : fieldValue;
+                  } catch (_) {
+                    filePath = fieldValue;
+                  }
+                }
+
+                if (filePath) {
+                  reflectionMap[doc.name] = filePath;
+                  // Attach a pseudo member_document with filePath so it can be viewed
+                  return {
+                    ...doc,
+                    member_documents: [
+                      {
+                        id: null,
+                        status: 'pending',
+                        uploaded_at: latestApp.submissionDate || latestApp.created_at,
+                        notes: 'Reflected from your application upload',
+                        filePath
+                      }
+                    ]
+                  };
+                }
+              }
+              return doc;
+            }));
+            if (Object.keys(reflectionMap).length > 0) {
+              reflectionMap.__uploaded_at = latestApp.submissionDate || latestApp.created_at;
+              saveReflectionCache(reflectionMap);
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Skipping application file reflection:', e?.message || e);
+      } finally { setReflecting(false); }
       setLoading(false);
     };
     
@@ -226,6 +381,40 @@ function MemberDocumentUpload() {
 
   const unreadNotifications = notifications.filter(n => !n.is_read);
 
+  const isImageFile = (fileNameOrUrl) => {
+    if (!fileNameOrUrl) return false;
+    const name = String(fileNameOrUrl).toLowerCase();
+    return ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].some(ext => name.includes(ext));
+  };
+
+  // Normalize storage path and build full URL safely
+  const buildStorageUrl = (path) => {
+    if (!path) return null;
+    if (/^https?:\/\//i.test(path)) return path; // already absolute
+    // Remove any leading '/'
+    let normalized = path.startsWith('/') ? path.substring(1) : path;
+    // If the string doesn't contain a folder, assume applications/
+    if (!normalized.includes('/')) normalized = `applications/${normalized}`;
+    // Encode each segment to handle spaces/special chars
+    const encoded = normalized.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    return api.getStorageUrl(encoded);
+  };
+
+  const buildFileUrl = (memberDoc) => {
+    if (!memberDoc) return null;
+    if (memberDoc.id) return `http://192.168.18.25:8000/api/documents/file/${memberDoc.id}`;
+    if (memberDoc.filePath) return buildStorageUrl(memberDoc.filePath);
+    return null;
+  };
+
+  const openPreview = (memberDoc, documentName) => {
+    const url = buildFileUrl(memberDoc);
+    if (!url) return;
+    setPreviewUrl(url);
+    setPreviewName(documentName || 'Preview');
+    setPreviewOpen(true);
+  };
+
   if (loading) {
     return (
       <Box sx={mainContainerStyles}>
@@ -288,6 +477,34 @@ function MemberDocumentUpload() {
               {t('documents.uploadDocument')}
             </Typography>
           </Box>
+
+          {/* Help Guide for Documents */}
+          <HelpGuide
+            title="How to Upload Documents"
+            type="info"
+            steps={[
+              {
+                title: "Understanding Document Requirements",
+                description: "Each document card shows the document name, whether it's required or optional, accepted file types (PDF, JPG, PNG), and maximum file size. Required documents must be uploaded for your application to be processed."
+              },
+              {
+                title: "Uploading a Document",
+                description: "Click the 'Upload Document' button on a document card. Select the file from your device. Make sure the file matches the required format and size. Wait for the upload to complete - you'll see a success message."
+              },
+              {
+                title: "Checking Document Status",
+                description: "After uploading, documents will show status: 'Pending' (waiting for review), 'Approved' (accepted), or 'Rejected' (needs correction). You'll receive notifications about document status changes."
+              },
+              {
+                title: "Viewing or Replacing Documents",
+                description: "Click 'View' to see your uploaded document. Click 'Replace' to upload a new version if needed. You can also check upload date and any notes from reviewers."
+              },
+              {
+                title: "If Your Document is Rejected",
+                description: "If a document is rejected, check the notes section for details about what needs to be corrected. Upload a corrected version by clicking 'Replace'. You can also contact support for help."
+              }
+            ]}
+          />
 
           {error && (
             <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
@@ -422,14 +639,36 @@ function MemberDocumentUpload() {
                       }}>
                         {memberDoc ? (
                           <>
-                            <Button
-                              size="small"
-                              startIcon={<VisibilityIcon />}
-                              onClick={() => window.open(`http://192.168.18.25:8000/api/documents/file/${memberDoc.id}`, '_blank')}
-                              variant="outlined"
+                            {/* A4-aspect thumbnail */}
+                            <Box
+                              onClick={() => openPreview(memberDoc, document.name)}
+                              sx={{
+                                width: 120,
+                                height: 170,
+                                border: '1px solid #dee2e6',
+                                borderRadius: 1,
+                                bgcolor: '#fafafa',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                overflow: 'hidden',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                                '&:hover': { boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }
+                              }}
+                              title={`Preview ${document.name}`}
                             >
-                              {t('common.view')}
-                            </Button>
+                              {isImageFile(buildFileUrl(memberDoc)) ? (
+                                <img
+                                  src={buildFileUrl(memberDoc)}
+                                  alt={document.name}
+                                  style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <PictureAsPdfIcon sx={{ fontSize: 36, color: '#7f8c8d' }} />
+                              )}
+                            </Box>
                             <Button
                               size="small"
                               startIcon={<CloudUploadIcon />}
@@ -439,7 +678,19 @@ function MemberDocumentUpload() {
                               Replace
                             </Button>
                           </>
-                        ) : (
+                        ) : reflecting ? (
+                        // Skeleton placeholder while reflecting
+                            <Box
+                              sx={{
+                                width: 120,
+                                height: 170,
+                                borderRadius: 1,
+                                bgcolor: '#F0F3F5',
+                                border: '1px dashed #d0d7de'
+                              }}
+                              title="Loading preview..."
+                            />
+                          ) : (
                           <Button
                             size="small"
                             startIcon={<CloudUploadIcon />}
@@ -450,7 +701,7 @@ function MemberDocumentUpload() {
                           >
 {t('documents.uploadDocument')}
                           </Button>
-                        )}
+                          )}
                       </Box>
                     </CardContent>
                   </Card>
@@ -599,6 +850,87 @@ function MemberDocumentUpload() {
 {t('common.upload')}
           </Button>
         </DialogActions>
+      </Dialog>
+      {/* A4-style Document Preview Modal */}
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            bgcolor: '#FFFFFF',
+            aspectRatio: '1/1.414',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#2C3E50', 
+          color: '#FFFFFF', 
+          textAlign: 'center',
+          py: 1.5,
+          position: 'relative',
+          flexShrink: 0
+        }}>
+          <Typography variant="h2" component="div" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+            {previewName}
+          </Typography>
+          <IconButton
+            onClick={() => setPreviewOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#FFFFFF'
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ 
+          p: 0, 
+          bgcolor: '#FFFFFF',
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden'
+        }}>
+          {previewUrl && (
+            <Box
+              sx={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: '#f5f5f5',
+                position: 'relative'
+              }}
+            >
+              {isImageFile(previewUrl) ? (
+                <img
+                  src={previewUrl}
+                  alt={previewName}
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }}
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              ) : (
+                <iframe
+                  title="preview"
+                  src={previewUrl}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                />
+              )}
+            </Box>
+          )}
+        </DialogContent>
       </Dialog>
       
       {/* Accessibility Settings Floating Button */}

@@ -1731,10 +1731,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('reports/all-barangays', [ReportController::class, 'getAllBarangays']);
     Route::get('reports/{id}/download', [ReportController::class, 'downloadReport']);
     
-    // Audit Log routes
-    Route::get('audit-logs', [AuditLogController::class, 'index']);
-    Route::get('audit-logs/user/{userId}', [AuditLogController::class, 'getByUser']);
-    Route::get('audit-logs/action/{action}', [AuditLogController::class, 'getByAction']);
+    // Audit Log routes (SuperAdmin only)
+    Route::middleware('superadmin')->group(function () {
+        Route::get('audit-logs', [AuditLogController::class, 'index']);
+        Route::get('audit-logs/user/{userId}', [AuditLogController::class, 'getByUser']);
+        Route::get('audit-logs/action/{action}', [AuditLogController::class, 'getByAction']);
+    });
     
     // Support Ticket routes
     Route::get('support-tickets/archived', [SupportTicketController::class, 'archived']);

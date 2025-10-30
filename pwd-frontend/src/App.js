@@ -55,6 +55,7 @@ import DocumentCorrectionPage from './components/application/DocumentCorrectionP
 
 // Document Management components
 import DocumentManagement from './components/documents/DocumentManagement';
+import AuditLogs from './components/audit/AuditLogs';
 
 const theme = createTheme({
   palette: {
@@ -145,6 +146,15 @@ function AppContent() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/about" element={<AboutUsPage />} />
       <Route path="/contact" element={<ContactUsPage />} />
+      <Route 
+        path="/audit-logs" 
+        element={
+          <ProtectedRoute allowedRoles={['SuperAdmin']}>
+            <AuditLogs />
+          </ProtectedRoute>
+        } 
+      />
+
       <Route 
         path="/login" 
         element={currentUser ? <Navigate to="/dashboard" /> : <Login />} 

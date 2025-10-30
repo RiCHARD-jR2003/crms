@@ -221,6 +221,14 @@ function AdminSidebar({ isOpen, onToggle }) {
           path="/document-management"
           active={isActive('/document-management')}
         />
+        {currentUser?.role === 'SuperAdmin' && (
+          <SidebarItem 
+            icon={<TrackChangesIcon />} 
+            label="Audit Logs" 
+            path="/audit-logs"
+            active={isActive('/audit-logs')}
+          />
+        )}
       </Box>
 
       {/* Password Management */}
