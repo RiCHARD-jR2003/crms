@@ -47,7 +47,7 @@ const MobileHeader = ({ onMenuToggle, isMenuOpen }) => {
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin-dashboard' },
     { text: 'PWD Records', icon: <PeopleIcon />, path: '/pwd-records' },
     { text: 'PWD Card', icon: <CreditCardIcon />, path: '/pwd-card' },
-    { text: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
+    { text: 'Analytics', icon: <AssessmentIcon />, path: '/analytics' },
     { text: 'Ayuda', icon: <FavoriteIcon />, path: '/ayuda' },
     { text: 'Benefit Tracking', icon: <TrackChangesIcon />, path: '/benefit-tracking' },
     { text: 'Announcement', icon: <AnnouncementIcon />, path: '/announcement' },

@@ -53,7 +53,7 @@ const ResourcePrefetcher = () => {
     // Get user role from localStorage or context
     const userRole = localStorage.getItem('userRole');
     const rolePages = {
-      'Admin': ['/pwd-masterlist', '/pwd-cards', '/reports', '/admin-announcements'],
+      'Admin': ['/pwd-masterlist', '/pwd-cards', '/analytics', '/admin-announcements'],
       'Staff1': ['/pwd-masterlist', '/pwd-records'],
       'Staff2': ['/staff2-ayuda', '/staff2-benefit-tracking'],
       'FrontDesk': ['/frontdesk-pwd-card', '/frontdesk-support'],
@@ -117,9 +117,9 @@ const ResourcePrefetcher = () => {
     const routeMap = {
       '/login': '/dashboard',
       '/register': '/login',
-      '/dashboard': ['/pwd-masterlist', '/pwd-cards', '/reports'],
+      '/dashboard': ['/pwd-masterlist', '/pwd-cards', '/analytics'],
       '/pwd-masterlist': ['/pwd-records', '/pwd-cards'],
-      '/pwd-records': ['/pwd-masterlist', '/reports'],
+      '/pwd-records': ['/pwd-masterlist', '/analytics'],
     };
 
     const predictedRoutes = routeMap[currentPath];

@@ -209,11 +209,49 @@ function AdminSidebar({ isOpen, onToggle }) {
           path="/admin-dashboard"
           active={isActive('/admin-dashboard') || isActive('/dashboard')}
         />
+        {/* Full SuperAdmin/Admin navigation */}
+        <SidebarItem 
+          icon={<PeopleIcon />} 
+          label="PWD Masterlist" 
+          path="/pwd-records"
+          active={isActive('/pwd-records')}
+        />
+        <SidebarItem 
+          icon={<CreditCardIcon />} 
+          label="PWD Card" 
+          path="/pwd-card"
+          active={isActive('/pwd-card')}
+        />
         <SidebarItem 
           icon={<BarChartIcon />} 
-          label="Reports" 
-          path="/reports"
-          active={isActive('/reports')}
+          label="Analytics" 
+          path="/analytics"
+          active={isActive('/analytics')}
+        />
+        <SidebarItem 
+          icon={<FavoriteIcon />} 
+          label="Ayuda" 
+          path="/ayuda"
+          active={isActive('/ayuda')}
+        />
+        <SidebarItem 
+          icon={<TrackChangesIcon />} 
+          label="Benefit Tracking" 
+          path="/benefit-tracking"
+          active={isActive('/benefit-tracking')}
+        />
+        <SidebarItem 
+          icon={<AnnouncementIcon />} 
+          label="Announcement" 
+          path="/announcement"
+          active={isActive('/announcement')}
+        />
+        <SidebarItem 
+          icon={<SupportAgentIcon />} 
+          label="Support Desk" 
+          path="/admin-support"
+          active={isActive('/admin-support')}
+          badgeCount={supportNotifications}
         />
         <SidebarItem 
           icon={<DescriptionIcon />} 

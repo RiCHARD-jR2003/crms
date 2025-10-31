@@ -24,7 +24,7 @@ import FrontDeskDashboard from './components/dashboard/FrontDeskDashboard';
 // Admin components
 import PWDRecords from './components/records/PWDRecords';
 import PWDCard from './components/cards/PWDCard';
-import Reports from './components/reports/Reports';
+import Analytics from './components/analytics/Analytics';
 import Ayuda from './components/ayuda/Ayuda';
 import BenefitTracking from './components/benefit/BenefitTracking';
 import Announcement from './components/announcement/Announcement';
@@ -71,7 +71,7 @@ const theme = createTheme({
     },
     background: {
       default: '#FFFFFF',
-      paper: '#1976D2',
+      paper: '#FFFFFF',
     },
     text: {
       primary: '#000000',
@@ -235,12 +235,17 @@ function AppContent() {
         } 
       />
       <Route 
-        path="/reports" 
+        path="/analytics" 
         element={
           <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
-            <Reports />
+            <Analytics />
           </ProtectedRoute>
         } 
+      />
+      {/* Redirect old /reports route to /analytics */}
+      <Route 
+        path="/reports" 
+        element={<Navigate to="/analytics" replace />}
       />
       <Route 
         path="/ayuda" 
