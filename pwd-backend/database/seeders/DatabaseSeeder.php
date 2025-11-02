@@ -35,5 +35,8 @@ class DatabaseSeeder extends Seeder
             Staff2Seeder::class,
             FrontDeskSeeder::class
         ]);
+
+        // Uncomment the line below to generate 1000 sample PWD members
+        // $this->call([SamplePWDMemberSeeder::class]);
     }
 }
