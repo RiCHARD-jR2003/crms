@@ -57,6 +57,9 @@ import { filePreviewService } from '../../services/filePreviewService';
 import { api } from '../../services/api';
 import websocketService from '../../services/websocketService';
 
+// Maximum file size: 2MB
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+
 const AdminSupportDesk = () => {
   const { currentUser } = useAuth();
 
@@ -340,8 +343,18 @@ const AdminSupportDesk = () => {
     setSelectedReplyFile(null); // Clear reply file when closing dialog
   };
 
+  const [sendingMessage, setSendingMessage] = useState(false);
+
   const handleReply = async () => {
     if (replyText.trim() || selectedFile) {
+      // Validate file size before sending
+      if (selectedFile && selectedFile.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
+        setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
+        return;
+      }
+
+      setSendingMessage(true);
       try {
         setLoading(true);
         
@@ -389,33 +402,53 @@ const AdminSupportDesk = () => {
       } catch (error) {
         console.error('Error sending reply:', error);
         setError('Failed to send reply. Please try again.');
+        updateMessageStatus(tempMessageId, 'failed');
       } finally {
         setLoading(false);
+        setSendingMessage(false);
       }
+    } else {
+      setSendingMessage(false);
     }
   };
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
-    if (file) {
-      // Check file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
-        return;
-      }
-      
-      // Check file type
-      const allowedTypes = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif'];
-      const fileExtension = file.name.split('.').pop().toLowerCase();
-      
-      if (!allowedTypes.includes(fileExtension)) {
-        setError('File type not supported. Allowed types: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF');
-        return;
-      }
-      
-      setSelectedFile(file);
+    if (!file) {
+      setSelectedFile(null);
       setError(null);
+      return;
     }
+
+    // Check file size (2MB limit)
+    if (file.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
+      setSelectedFile(null);
+      return;
+    }
+    
+    // Check file type
+    const allowedTypes = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif'];
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+      setError('File type not supported. Allowed types: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF');
+      return;
+    }
+    
+    setSelectedFile(file);
+    setPreviewFile(file);
+    
+    // Create preview URL for images
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl(null);
+    }
+    
+    setError(null);
   };
 
   const handleRemoveFile = () => {
@@ -441,9 +474,10 @@ const AdminSupportDesk = () => {
     if (files.length > 0) {
       const file = files[0];
       
-      // Check file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
+      // Check file size (2MB limit)
+      if (file.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
         return;
       }
       
@@ -827,7 +861,14 @@ const AdminSupportDesk = () => {
         </Box>
 
         {/* Main Content - Two Column Layout */}
-        <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 300px)' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 2, 
+          height: 'calc(100vh - 380px)',
+          minHeight: '500px',
+          maxHeight: 'calc(100vh - 380px)',
+          overflow: 'hidden'
+        }}>
           {/* Left Column - Tickets List */}
         <Paper elevation={0} sx={{
             flex: selectedTicketId ? '0 0 35%' : '1',
@@ -836,9 +877,11 @@ const AdminSupportDesk = () => {
           borderRadius: 4,
           bgcolor: '#FFFFFF',
           height: '100%',
+          maxHeight: '100%',
           display: 'flex',
             flexDirection: 'column',
-            transition: 'flex 0.3s ease'
+            transition: 'flex 0.3s ease',
+            overflow: 'hidden'
         }}>
           <Typography sx={{ 
             fontWeight: 700, 
@@ -854,50 +897,24 @@ const AdminSupportDesk = () => {
               <CircularProgress />
             </Box>
           ) : (
-            <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table>
+            <TableContainer sx={{ 
+              overflowX: 'auto',
+              overflowY: 'auto',
+              flex: 1,
+              minHeight: 0,
+              maxHeight: '100%'
+            }}>
+            <Table size="small">
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ 
-                    fontWeight: 600, 
-                    color: '#2C3E50',
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                  }}>Ticket #</TableCell>
-                  <TableCell sx={{ 
-                    fontWeight: 600, 
-                    color: '#2C3E50',
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                  }}>Subject</TableCell>
-                  <TableCell sx={{ 
-                    fontWeight: 600, 
-                    color: '#2C3E50',
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                  }}>Requester</TableCell>
-                  <TableCell sx={{ 
-                    fontWeight: 600, 
-                    color: '#2C3E50',
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                  }}>Category</TableCell>
-                  <TableCell sx={{ 
-                    fontWeight: 600, 
-                    color: '#2C3E50',
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                  }}>Priority</TableCell>
-                  <TableCell sx={{ 
-                    fontWeight: 600, 
-                    color: '#2C3E50',
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                  }}>Status</TableCell>
-                  <TableCell sx={{ 
-                    fontWeight: 600, 
-                    color: '#2C3E50',
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                  }}>Created</TableCell>
-                  <TableCell sx={{ 
-                    fontWeight: 600, 
-                    color: '#2C3E50',
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                  }}>Actions</TableCell>
+                <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Ticket #</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Subject</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Requester</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Category</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Priority</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Status</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Created</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -916,36 +933,48 @@ const AdminSupportDesk = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  (showArchive ? archivedTickets : tickets).map((ticket) => (
+                  (showArchive ? archivedTickets : tickets).map((ticket, idx) => (
                     <TableRow 
                       key={ticket.id} 
                       hover 
                       onClick={() => handleViewTicket(ticket)}
                       sx={{ 
                         cursor: 'pointer',
-                        backgroundColor: selectedTicketId === ticket.id ? '#E3F2FD' : 'transparent',
+                        bgcolor: idx % 2 ? '#F7FBFF' : 'white',
+                        backgroundColor: selectedTicketId === ticket.id ? '#E3F2FD' : (idx % 2 ? '#F7FBFF' : 'white'),
                         '&:hover': {
                           backgroundColor: selectedTicketId === ticket.id ? '#E3F2FD' : '#F5F5F5'
                         }
                       }}
                     >
                     <TableCell sx={{ 
-                      fontWeight: 600, 
-                      color: '#3498DB',
-                      fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
+                      color: '#000000',
+                      fontWeight: 500,
+                      fontSize: '0.8rem',
+                      borderBottom: '1px solid #E0E0E0',
+                      py: 2,
+                      px: 2
                     }}>
                       {ticket.ticket_number}
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ 
-                        fontWeight: 500, 
-                        color: '#2C3E50',
-                        fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
-                      }}>
-                        {ticket.subject}
-                      </Typography>
+                    <TableCell sx={{ 
+                      color: '#000000',
+                      fontWeight: 500,
+                      fontSize: '0.8rem',
+                      borderBottom: '1px solid #E0E0E0',
+                      py: 2,
+                      px: 2
+                    }}>
+                      {ticket.subject}
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ 
+                      color: '#000000',
+                      fontWeight: 500,
+                      fontSize: '0.8rem',
+                      borderBottom: '1px solid #E0E0E0',
+                      py: 2,
+                      px: 2
+                    }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Avatar sx={{ 
                           width: { xs: 20, sm: 24 }, 
@@ -963,7 +992,7 @@ const AdminSupportDesk = () => {
                         </Typography>
                       </Box>
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                       <Chip
                         label={ticket.category || 'General'}
                         size="small"
@@ -971,15 +1000,15 @@ const AdminSupportDesk = () => {
                           backgroundColor: '#E8F4FD',
                           color: '#3498DB',
                           fontWeight: 600,
-                          fontSize: { xs: '0.6rem', sm: '0.7rem' },
-                          height: { xs: '20px', sm: '24px' },
+                          fontSize: '0.7rem',
+                          height: 22,
                           '& .MuiChip-label': {
                             color: '#3498DB'
                           }
                         }}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                       <Chip
                         label={ticket.priority.toUpperCase()}
                         size="small"
@@ -987,15 +1016,15 @@ const AdminSupportDesk = () => {
                           backgroundColor: '#FFF3E0',
                           color: '#F39C12',
                           fontWeight: 600,
-                          fontSize: { xs: '0.6rem', sm: '0.7rem' },
-                          height: { xs: '20px', sm: '24px' },
+                          fontSize: '0.7rem',
+                          height: 22,
                           '& .MuiChip-label': {
                             color: '#F39C12'
                           }
                         }}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                       <Chip
                         label={formatStatus(ticket.status)}
                         size="small"
@@ -1003,8 +1032,8 @@ const AdminSupportDesk = () => {
                           backgroundColor: '#E8F5E8',
                           color: '#27AE60',
                           fontWeight: 600,
-                          fontSize: { xs: '0.6rem', sm: '0.7rem' },
-                          height: { xs: '20px', sm: '24px' },
+                          fontSize: '0.7rem',
+                          height: 22,
                           '& .MuiChip-label': {
                             color: '#27AE60'
                           }
@@ -1012,12 +1041,16 @@ const AdminSupportDesk = () => {
                       />
                     </TableCell>
                     <TableCell sx={{ 
-                      color: '#7F8C8D', 
-                      fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.9rem' }
+                      color: '#000000',
+                      fontWeight: 500,
+                      fontSize: '0.8rem',
+                      borderBottom: '1px solid #E0E0E0',
+                      py: 2,
+                      px: 2
                     }}>
                       {formatDateMMDDYYYY(ticket.created_at)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                       <Chip
                         label={selectedTicketId === ticket.id ? 'Selected' : 'Click to view'}
                         size="small"
@@ -1025,8 +1058,8 @@ const AdminSupportDesk = () => {
                           backgroundColor: selectedTicketId === ticket.id ? '#3498DB' : '#F5F5F5',
                           color: selectedTicketId === ticket.id ? '#FFFFFF' : '#7F8C8D',
                           fontWeight: 600,
-                          fontSize: { xs: '0.6rem', sm: '0.7rem' },
-                          height: { xs: '20px', sm: '24px' }
+                          fontSize: '0.7rem',
+                          height: 22
                         }}
                       />
                     </TableCell>
@@ -1048,9 +1081,11 @@ const AdminSupportDesk = () => {
               borderRadius: 4,
               bgcolor: '#FFFFFF',
               height: '100%',
+              maxHeight: '100%',
               display: 'flex',
               flexDirection: 'column',
-              transition: 'flex 0.3s ease'
+              transition: 'flex 0.3s ease',
+              overflow: 'hidden'
             }}>
               {/* Chat Header */}
               <Box sx={{ 
@@ -1105,8 +1140,11 @@ const AdminSupportDesk = () => {
                 sx={{ 
                   flex: 1, 
                   overflowY: 'auto', 
+                  overflowX: 'hidden',
                   mb: 2,
                   pr: 1,
+                  minHeight: 0,
+                  maxHeight: '100%',
                   '&::-webkit-scrollbar': { width: '6px' },
                   '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
                   '&::-webkit-scrollbar-thumb': { background: '#c1c1c1', borderRadius: '3px' }
@@ -1479,53 +1517,22 @@ const AdminSupportDesk = () => {
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                     <Button
                       variant="contained"
-                      startIcon={<Reply />}
+                      startIcon={sendingMessage ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <Reply />}
                       onClick={handleReply}
-                      disabled={!replyText.trim() && !selectedFile}
+                      disabled={(!replyText.trim() && !selectedFile) || sendingMessage}
                       sx={{
-                        bgcolor: '#3498DB',
-                        '&:hover': { bgcolor: '#2980B9' }
+                        bgcolor: sendingMessage ? '#95a5a6' : '#3498DB',
+                        '&:hover': { bgcolor: sendingMessage ? '#95a5a6' : '#2980B9' }
                       }}
                     >
-                      Reply
+                      {sendingMessage ? 'Sending...' : 'Reply'}
                     </Button>
                     
                     <input
                       type="file"
                       id="file-upload"
                       style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          // Check file size (10MB limit)
-                          if (file.size > 10 * 1024 * 1024) {
-                            setError('File size must be less than 10MB');
-                            return;
-                          }
-                          
-                          // Check file type
-                          const allowedTypes = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif'];
-                          const fileExtension = file.name.split('.').pop().toLowerCase();
-                          
-                          if (!allowedTypes.includes(fileExtension)) {
-                            setError('File type not supported. Allowed types: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG, GIF');
-                            return;
-                          }
-                          
-                          setSelectedFile(file);
-                          setPreviewFile(file);
-                          
-                          // Create preview URL for images
-                          if (file.type.startsWith('image/')) {
-                            const url = URL.createObjectURL(file);
-                            setPreviewUrl(url);
-                          } else {
-                            setPreviewUrl(null);
-                          }
-                          
-                          setError(null);
-                        }
-                      }}
+                      onChange={(e) => handleFileSelect(e)}
                     />
                     <Button
                       variant="outlined"

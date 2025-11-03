@@ -32,6 +32,9 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 
+// Maximum file size: 2MB
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+
 const DocumentCorrectionPage = () => {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -46,6 +49,7 @@ const DocumentCorrectionPage = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
+  const [fileErrors, setFileErrors] = useState({});
 
   // Document type labels mapping
   const documentLabels = {
@@ -113,6 +117,40 @@ const DocumentCorrectionPage = () => {
   };
 
   const handleFileUpload = (documentType, file) => {
+    // Clear previous error for this field
+    setFileErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[documentType];
+      return newErrors;
+    });
+
+    if (!file) {
+      setUploadedFiles(prev => ({
+        ...prev,
+        [documentType]: null
+      }));
+      // Clear validation errors when user removes a file
+      if (validationErrors[documentType]) {
+        setValidationErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[documentType];
+          return newErrors;
+        });
+      }
+      return;
+    }
+
+    // Validate file size (2MB limit)
+    if (file.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      setFileErrors(prev => ({
+        ...prev,
+        [documentType]: `File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`
+      }));
+      setError(`File "${file.name}" is too large. Maximum file size is 2MB.`);
+      return;
+    }
+
     setUploadedFiles(prev => ({
       ...prev,
       [documentType]: file
@@ -125,12 +163,49 @@ const DocumentCorrectionPage = () => {
         return newErrors;
       });
     }
+    setError(null);
   };
   
   const handleMultipleFileUpload = (documentType, files) => {
+    // Clear previous error for this field
+    setFileErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[documentType];
+      return newErrors;
+    });
+
+    if (!files || files.length === 0) {
+      setUploadedFiles(prev => ({
+        ...prev,
+        [documentType]: null
+      }));
+      // Clear validation errors when user removes files
+      if (validationErrors[documentType]) {
+        setValidationErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[documentType];
+          return newErrors;
+        });
+      }
+      return;
+    }
+
+    const filesArray = Array.from(files);
+    // Validate all files for size
+    const oversizedFiles = filesArray.filter(file => file.size > MAX_FILE_SIZE);
+    if (oversizedFiles.length > 0) {
+      const fileSizeMB = (oversizedFiles[0].size / (1024 * 1024)).toFixed(2);
+      setFileErrors(prev => ({
+        ...prev,
+        [documentType]: `${oversizedFiles.length} file(s) exceed the 2MB limit. Largest file: ${fileSizeMB}MB. Please select smaller files.`
+      }));
+      setError(`One or more files are too large. Maximum file size is 2MB per file.`);
+      return;
+    }
+
     setUploadedFiles(prev => ({
       ...prev,
-      [documentType]: Array.from(files)
+      [documentType]: filesArray
     }));
     // Clear validation errors when user uploads files
     if (validationErrors[documentType]) {
@@ -140,6 +215,7 @@ const DocumentCorrectionPage = () => {
         return newErrors;
       });
     }
+    setError(null);
   };
 
   const handleFilePreview = (file) => {
@@ -150,6 +226,30 @@ const DocumentCorrectionPage = () => {
   };
 
   const handleSubmitCorrections = async () => {
+    // Validate all files before submission
+    const fileSizeErrors = {};
+    Object.entries(uploadedFiles).forEach(([docType, file]) => {
+      if (file) {
+        if (Array.isArray(file)) {
+          file.forEach((f, index) => {
+            if (f && f.size > MAX_FILE_SIZE) {
+              const fileSizeMB = (f.size / (1024 * 1024)).toFixed(2);
+              fileSizeErrors[`${docType}_${index}`] = `File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB.`;
+            }
+          });
+        } else if (file.size > MAX_FILE_SIZE) {
+          const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+          fileSizeErrors[docType] = `File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB.`;
+        }
+      }
+    });
+
+    if (Object.keys(fileSizeErrors).length > 0) {
+      setFileErrors(fileSizeErrors);
+      setError('One or more files exceed the 2MB size limit. Please compress or select smaller files.');
+      return;
+    }
+
     try {
       setUploading(true);
       setError(null);
@@ -567,11 +667,18 @@ const DocumentCorrectionPage = () => {
                             {docType === 'idPictures' ? 'Choose Files (2 max)' : 'Choose File'}
                           </Button>
                         </label>
-                        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: validationErrors[docType] ? '#e74c3c' : '#7f8c8d' }}>
+                        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: (validationErrors[docType] || fileErrors[docType]) ? '#e74c3c' : '#7f8c8d' }}>
                           {docType === 'idPictures' 
                             ? 'Accepted formats: JPG, JPEG, PNG (Max 2 files, 2MB each)'
                             : 'Accepted formats: PDF, JPG, JPEG, PNG (Max 2MB)'}
                         </Typography>
+                        {fileErrors[docType] && (
+                          <Alert severity="error" sx={{ mt: 0.5, py: 0.5 }}>
+                            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                              {fileErrors[docType]}
+                            </Typography>
+                          </Alert>
+                        )}
                         {validationErrors[docType] && (
                           <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: '#e74c3c' }}>
                             {Array.isArray(validationErrors[docType]) 
@@ -605,8 +712,8 @@ const DocumentCorrectionPage = () => {
             variant="contained"
             size="large"
             onClick={handleSubmitCorrections}
-            disabled={!isAllDocumentsUploaded() || uploading}
-            startIcon={uploading ? <CircularProgress size={20} /> : <CheckIcon />}
+            disabled={!isAllDocumentsUploaded() || uploading || Object.keys(fileErrors).length > 0}
+            startIcon={uploading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <CheckIcon />}
             sx={{
               bgcolor: isAllDocumentsUploaded() ? '#27ae60' : '#95a5a6',
               px: 4,

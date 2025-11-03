@@ -426,6 +426,26 @@ class DocumentManagementController extends Controller
         ]);
     }
 
+    public function getAllMemberDocuments()
+    {
+        // Get all members with their submitted documents for admin management
+        $members = Cache::remember('documents.all_members', now()->addMinutes(5), function () {
+            return PWDMember::with(['memberDocuments' => function($query) {
+                $query->with(['requiredDocument', 'reviewer'])
+                      ->orderBy('uploaded_at', 'desc');
+            }])
+            ->whereHas('memberDocuments') // Only members who have submitted documents
+            ->orderBy('lastName')
+            ->orderBy('firstName')
+            ->get();
+        });
+
+        return response()->json([
+            'success' => true,
+            'members' => $members
+        ]);
+    }
+
     // Notification functions
     public function getNotifications(Request $request)
     {

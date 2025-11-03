@@ -145,7 +145,14 @@ const PWDIDCard = ({ member, open, onClose }) => {
               <div class="left-section">
                 <div class="pdao-button">CABUYAO PDAO</div>
                 <br>
-                <strong>NAME:</strong> ${member.firstName} ${member.middleName || ''} ${member.lastName} ${member.suffix || ''}<br>
+                <strong>NAME:</strong> ${(() => {
+                  const parts = [];
+                  if (member.firstName) parts.push(member.firstName);
+                  if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                  if (member.lastName) parts.push(member.lastName);
+                  if (member.suffix) parts.push(member.suffix);
+                  return parts.join(' ');
+                })()}<br>
                 <strong>ID NO.:</strong> ${member.pwd_id || `PWD-${member.userID}`}<br>
                 <strong>TYPE OF DISABILITY:</strong> ${member.disabilityType || 'NOT SPECIFIED'}<br>
                 <strong>SIGNATURE:</strong> _________
@@ -209,7 +216,15 @@ const PWDIDCard = ({ member, open, onClose }) => {
     ctx.fillStyle = '#000000';
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText(`NAME: ${member.firstName} ${member.middleName || ''} ${member.lastName} ${member.suffix || ''}`, 20, 120);
+    const memberName = (() => {
+      const parts = [];
+      if (member.firstName) parts.push(member.firstName);
+      if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+      if (member.lastName) parts.push(member.lastName);
+      if (member.suffix) parts.push(member.suffix);
+      return parts.join(' ');
+    })();
+    ctx.fillText(`NAME: ${memberName}`, 20, 120);
     ctx.fillText(`ID NO.: ${member.pwd_id || `PWD-${member.userID}`}`, 20, 140);
     ctx.fillText(`TYPE OF DISABILITY: ${member.disabilityType || 'NOT SPECIFIED'}`, 20, 160);
     ctx.fillText('SIGNATURE: _________', 20, 180);
@@ -339,7 +354,14 @@ const PWDIDCard = ({ member, open, onClose }) => {
                     }} 
                   />
                   <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.4, mt: 1.5 }}>
-                    <strong>NAME:</strong> {member.firstName} {member.middleName || ''} {member.lastName} {member.suffix || ''}<br/><br/>
+                    <strong>NAME:</strong> {(() => {
+                      const parts = [];
+                      if (member.firstName) parts.push(member.firstName);
+                      if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                      if (member.lastName) parts.push(member.lastName);
+                      if (member.suffix) parts.push(member.suffix);
+                      return parts.join(' ');
+                    })()}<br/><br/>
                     <strong>ID NO.:</strong> {member.pwd_id || `PWD-${member.userID}`}<br/><br/>
                     <strong>TYPE OF DISABILITY:</strong> {member.disabilityType || 'NOT SPECIFIED'}<br/><br/>
                   </Typography>

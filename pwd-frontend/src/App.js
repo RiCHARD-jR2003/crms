@@ -7,6 +7,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import ResourcePrefetcher from './components/optimization/ResourcePrefetcher';
+import { usePageTitle } from './hooks/usePageTitle';
 import LandingPage from './components/Landing/LandingPage';
 import AboutUsPage from './components/Landing/AboutUsPage';
 import ContactUsPage from './components/Landing/ContactUsPage';
@@ -56,6 +57,7 @@ import DocumentCorrectionPage from './components/application/DocumentCorrectionP
 // Document Management components
 import DocumentManagement from './components/documents/DocumentManagement';
 import AuditLogs from './components/audit/AuditLogs';
+import SecurityMonitoring from './components/security/SecurityMonitoring';
 
 const theme = createTheme({
   palette: {
@@ -138,12 +140,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
 function AppContent() {
   const { currentUser } = useAuth();
+  
+  // Update page title based on current route
+  usePageTitle();
 
   return (
     <>
       <ResourcePrefetcher />
       <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/check-status/:referenceNumber" element={<LandingPage />} />
       <Route path="/about" element={<AboutUsPage />} />
       <Route path="/contact" element={<ContactUsPage />} />
       <Route 
@@ -151,6 +157,14 @@ function AppContent() {
         element={
           <ProtectedRoute allowedRoles={['SuperAdmin']}>
             <AuditLogs />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/security-monitoring" 
+        element={
+          <ProtectedRoute allowedRoles={['SuperAdmin']}>
+            <SecurityMonitoring />
           </ProtectedRoute>
         } 
       />

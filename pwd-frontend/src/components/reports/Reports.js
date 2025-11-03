@@ -1623,20 +1623,20 @@ const Reports = () => {
             Monthly Registration Data
           </Typography>
           <TableContainer>
-            <Table>
+            <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: '#F8FAFC' }}>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Month</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Registrations</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Percentage</TableCell>
+                <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Month</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Registrations</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Percentage</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {monthlyTrends.map((trend, index) => (
-                  <TableRow key={index}>
-                    <TableCell sx={{ fontWeight: 500, color: '#2C3E50' }}>{trend.month}</TableCell>
-                    <TableCell sx={{ color: '#2C3E50' }}>{trend.registrations}</TableCell>
-                    <TableCell sx={{ color: '#2C3E50' }}>
+                  <TableRow key={index} sx={{ bgcolor: index % 2 ? '#F7FBFF' : 'white' }}>
+                    <TableCell sx={{ fontWeight: 500, color: '#2C3E50', fontSize: '0.8rem', py: 2, px: 2 }}>{trend.month}</TableCell>
+                    <TableCell sx={{ color: '#34495E', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>{trend.registrations}</TableCell>
+                    <TableCell sx={{ color: '#34495E', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>
                       {totalRegistrations > 0 ? ((trend.registrations / totalRegistrations) * 100).toFixed(1) : 0}%
                     </TableCell>
                   </TableRow>
@@ -1774,7 +1774,14 @@ const Reports = () => {
                       {member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned')}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>
-                      {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Name not provided'}
+                      {(() => {
+                        const parts = [];
+                        if (member.firstName) parts.push(member.firstName);
+                        if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                        if (member.lastName) parts.push(member.lastName);
+                        if (member.suffix) parts.push(member.suffix);
+                        return parts.join(' ').trim() || 'Name not provided';
+                      })()}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.barangay || 'Not specified'}</TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.disabilityType || 'Not specified'}</TableCell>
@@ -2084,7 +2091,14 @@ const Reports = () => {
                       {member.pwd_id || 'Not assigned'}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>
-                      {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Name not provided'}
+                      {(() => {
+                        const parts = [];
+                        if (member.firstName) parts.push(member.firstName);
+                        if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                        if (member.lastName) parts.push(member.lastName);
+                        if (member.suffix) parts.push(member.suffix);
+                        return parts.join(' ').trim() || 'Name not provided';
+                      })()}
                     </TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.barangay || 'Not specified'}</TableCell>
                     <TableCell sx={{ color: '#2C3E50' }}>{member.disabilityType || 'Not specified'}</TableCell>

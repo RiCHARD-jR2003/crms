@@ -1,5 +1,5 @@
 // src/components/application/ApplicationForm.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -29,7 +29,10 @@ import {
   CardMedia,
   CardContent,
   InputAdornment,
-  Container
+  Container,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -38,7 +41,10 @@ import {
   Image as ImageIcon,
   Description as DocumentIcon,
   ContentCopy as ContentCopyIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
+  AttachFile as AttachFileIcon
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import applicationService from '../../services/applicationService';
@@ -54,10 +60,15 @@ const steps = [
   'Documents'
 ];
 
+// Maximum file size: 2MB
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+
 function ApplicationForm() {
   const navigate = useNavigate();
   const [requiredDocuments, setRequiredDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(true);
+  const [fileErrors, setFileErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [previewFileName, setPreviewFileName] = useState('');
@@ -298,6 +309,35 @@ function ApplicationForm() {
   };
 
   const handleFileChange = async (field, file) => {
+    // Clear previous error for this field
+    setFileErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[field];
+      return newErrors;
+    });
+
+    if (!file) {
+      setFormData(prev => ({ 
+        ...prev, 
+        documents: { 
+          ...prev.documents, 
+          [field]: null 
+        } 
+      }));
+      await removeFileFromStorage(field);
+      return;
+    }
+
+    // Validate file size (2MB limit)
+    if (file.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      setFileErrors(prev => ({
+        ...prev,
+        [field]: `File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`
+      }));
+      return;
+    }
+
     setFormData(prev => ({ 
       ...prev, 
       documents: { 
@@ -307,11 +347,7 @@ function ApplicationForm() {
     }));
     
     // Save file to IndexedDB for persistence
-    if (file) {
-      await saveFileToStorage(field, file);
-    } else {
-      await removeFileFromStorage(field);
-    }
+    await saveFileToStorage(field, file);
   };
 
   // Helper function to get file type
@@ -533,7 +569,9 @@ function ApplicationForm() {
     switch (activeStep) {
        case 0: // Personal Information
          if (!formData.firstName) currentErrors.firstName = 'First Name is required';
-         if (!formData.middleName) currentErrors.middleName = 'Middle Name is required';
+         if (!formData.middleName || formData.middleName.trim() === '') {
+           currentErrors.middleName = 'Middle Name is required (enter "N/A" if not applicable)';
+         }
          if (!formData.lastName) currentErrors.lastName = 'Last Name is required';
          if (!formData.phoneNumber) currentErrors.phoneNumber = 'Phone Number is required';
          if (!formData.email) currentErrors.email = 'Email is required';
@@ -614,6 +652,32 @@ function ApplicationForm() {
 
   const submitApplication = async (code) => {
     try {
+      setSubmitting(true);
+      
+      // Validate all files before submission
+      if (formData.documents) {
+        const fileSizeErrors = {};
+        Object.keys(formData.documents).forEach(key => {
+          const file = formData.documents[key];
+          if (file && file.size > MAX_FILE_SIZE) {
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            fileSizeErrors[key] = `File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB.`;
+          }
+        });
+        
+        if (Object.keys(fileSizeErrors).length > 0) {
+          setFileErrors(fileSizeErrors);
+          showModal({
+            type: 'error',
+            title: 'File Size Error',
+            message: 'One or more files exceed the 2MB size limit. Please compress or select smaller files.',
+            buttonText: 'OK'
+          });
+          setSubmitting(false);
+          return;
+        }
+      }
+
       const formDataToSend = new FormData();
       
       // Map frontend fields to backend expected fields
@@ -663,6 +727,7 @@ function ApplicationForm() {
           message: `Please fill in all required fields: ${missingFields.join(', ')}`,
           buttonText: 'OK'
         });
+        setSubmitting(false);
         return;
       }
 
@@ -739,9 +804,48 @@ function ApplicationForm() {
                 </Typography>
                 <IconButton
                   size="small"
-                  onClick={() => {
-                    navigator.clipboard.writeText(referenceNumber);
-                    alert('Reference number copied to clipboard!');
+                  onClick={async () => {
+                    try {
+                      // Try modern Clipboard API first
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(referenceNumber);
+                        alert('Reference number copied to clipboard!');
+                      } else {
+                        // Fallback for browsers without Clipboard API (HTTP, older browsers)
+                        const textArea = document.createElement('textarea');
+                        textArea.value = referenceNumber;
+                        textArea.style.position = 'fixed';
+                        textArea.style.left = '-999999px';
+                        textArea.style.top = '-999999px';
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        try {
+                          const successful = document.execCommand('copy');
+                          if (successful) {
+                            alert('Reference number copied to clipboard!');
+                          } else {
+                            // Final fallback: select the text for manual copy
+                            const selection = window.getSelection();
+                            const range = document.createRange();
+                            const textNode = document.createTextNode(referenceNumber);
+                            document.body.appendChild(textNode);
+                            range.selectNodeContents(textNode);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            alert('Please manually copy the reference number (Ctrl+C or Cmd+C)');
+                            document.body.removeChild(textNode);
+                          }
+                        } catch (err) {
+                          // Final fallback: show in alert for manual copy
+                          alert(`Please copy this reference number manually: ${referenceNumber}`);
+                        }
+                        document.body.removeChild(textArea);
+                      }
+                    } catch (err) {
+                      // If all methods fail, show the reference number in an alert
+                      alert(`Please copy this reference number manually: ${referenceNumber}`);
+                    }
                   }}
                   sx={{
                     color: '#27AE60',
@@ -805,6 +909,7 @@ function ApplicationForm() {
       }
     } catch (error) {
       console.error('Error submitting application:', error);
+      setSubmitting(false);
       const data = error.data || {};
       console.log('Error data:', data);
       
@@ -966,7 +1071,8 @@ function ApplicationForm() {
                    }}
                    required
                    error={!!errors.middleName}
-                   helperText={errors.middleName}
+                   helperText={errors.middleName || 'Enter your middle name or "N/A" if not applicable'}
+                   placeholder="Enter middle name or N/A"
                    sx={getTextFieldStyles(!!errors.middleName)}
                  />
                </Grid>
@@ -1540,9 +1646,52 @@ function ApplicationForm() {
                 </Typography>
               </Box>
             ) : (
-              <Grid container spacing={0.5}>
-                {requiredDocuments && requiredDocuments.map((document) => (
-                  <Grid item xs={12} sm={6} md={4} key={document.id}>
+              <Paper
+                sx={{
+                  p: 2,
+                  border: '1px solid #DEE2E6',
+                  borderRadius: 2,
+                  bgcolor: '#FFFFFF',
+                  maxHeight: '500px',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <AttachFileIcon sx={{ color: '#0b87ac', fontSize: '1.5rem' }} />
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#0b87ac', flex: 1 }}>
+                    Required Documents
+                  </Typography>
+                  <Chip 
+                    label={`${requiredDocuments.length} Document${requiredDocuments.length !== 1 ? 's' : ''}`}
+                    size="small"
+                    sx={{ bgcolor: '#0b87ac', color: '#FFFFFF' }}
+                  />
+                </Box>
+                <Box sx={{ 
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  flex: 1,
+                  pr: 1,
+                  '&::-webkit-scrollbar': {
+                    width: '8px',
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: '#f1f1f1',
+                    borderRadius: '4px',
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    background: '#c1c1c1',
+                    borderRadius: '4px',
+                  },
+                  '&::-webkit-scrollbar-thumb:hover': {
+                    background: '#a8a8a8',
+                  }
+                }}>
+                  <Grid container spacing={1.5}>
+                    {requiredDocuments && requiredDocuments.map((document) => (
+                      <Grid item xs={12} sm={6} key={document.id}>
                     <Box sx={{ 
                       p: 0.5, 
                       border: '1px solid #CCCCCC', 
@@ -1588,14 +1737,14 @@ function ApplicationForm() {
                       )}
                       
                       <Box sx={{ 
-                        border: '1px dashed #CCCCCC', 
+                        border: fileErrors[`doc_${document.id}`] ? '1px dashed #E74C3C' : '1px dashed #CCCCCC', 
                         borderRadius: '4px', 
                         backgroundColor: '#FFFFFF',
                         p: 0.75,
                         textAlign: 'center',
                         transition: 'all 0.2s ease',
                         '&:hover': {
-                          borderColor: '#000000'
+                          borderColor: fileErrors[`doc_${document.id}`] ? '#E74C3C' : '#000000'
                         }
                       }}>
                         <input
@@ -1603,29 +1752,61 @@ function ApplicationForm() {
                           accept={document.file_types?.map(type => `.${type}`).join(',') || '.pdf,image/*'}
                           onChange={(e) => handleFileChange(`doc_${document.id}`, e.target.files[0])}
                           required={document.is_required}
+                          disabled={submitting}
                           style={{ 
                             width: '100%', 
                             color: '#000000', 
                             fontSize: '0.8rem',
-                            cursor: 'pointer'
+                            cursor: submitting ? 'not-allowed' : 'pointer',
+                            opacity: submitting ? 0.6 : 1
                           }}
                         />
                       </Box>
                       
+                      {fileErrors[`doc_${document.id}`] && (
+                        <Alert severity="error" sx={{ mt: 0.5, py: 0.5 }}>
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                            {fileErrors[`doc_${document.id}`]}
+                          </Typography>
+                        </Alert>
+                      )}
+                      
                       {formData.documents && formData.documents[`doc_${document.id}`] && (
                         <Box sx={{ mt: 0.75 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
                             <Typography variant="caption" sx={{ 
                               color: '#4CAF50',
                               fontWeight: 600,
                               fontSize: '0.75rem',
                               display: 'flex',
                               alignItems: 'center',
-                              gap: 0.5
+                              gap: 0.5,
+                              flex: 1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
                             }}>
                               {getFileIcon(formData.documents[`doc_${document.id}`])}
                               ✓ {formData.documents[`doc_${document.id}`].name}
                             </Typography>
+                            <IconButton
+                              size="small"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await handleFileChange(`doc_${document.id}`, null);
+                              }}
+                              sx={{
+                                color: '#E74C3C',
+                                padding: '4px',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                                  color: '#C0392B'
+                                }
+                              }}
+                              disabled={submitting}
+                              title="Remove file"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
                           </Box>
                           <Box 
                             sx={{ 
@@ -1689,14 +1870,16 @@ function ApplicationForm() {
                   </Grid>
                 ))}
                 
-                {requiredDocuments.length === 0 && (
-                  <Grid item xs={12}>
-                    <Alert severity="info" sx={{ textAlign: 'center' }}>
-                      No required documents are currently configured. Please contact the administrator.
-                    </Alert>
+                    {requiredDocuments.length === 0 && (
+                      <Grid item xs={12}>
+                        <Alert severity="info" sx={{ textAlign: 'center' }}>
+                          No required documents are currently configured. Please contact the administrator.
+                        </Alert>
+                      </Grid>
+                    )}
                   </Grid>
-                )}
-              </Grid>
+                </Box>
+              </Paper>
             )}
           </Box>
         );
@@ -1805,49 +1988,93 @@ function ApplicationForm() {
           justifyContent: 'space-between', 
           gap: 2
         }}>
-          <Button
-            onClick={handleBack}
-            variant="outlined"
-            sx={{
-              color: '#0b87ac',
-              borderColor: '#0b87ac',
-              borderRadius: 3,
-              px: 4,
-              py: 1.5,
-              fontWeight: 600,
-              fontSize: '16px',
-              textTransform: 'none',
-              '&:hover': {
-                borderColor: '#0a6b8a',
-                backgroundColor: 'rgba(11, 135, 172, 0.1)',
-              },
-            }}
-          >
-            Back
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleNext}
-            sx={{
-              backgroundColor: '#0b87ac',
-              color: 'white',
-              py: 1.5,
-              px: 4,
-              borderRadius: 3,
-              fontWeight: 600,
-              fontSize: '16px',
-              textTransform: 'none',
-              boxShadow: '0 4px 12px rgba(11, 135, 172, 0.3)',
-              '&:hover': {
-                backgroundColor: '#0a6b8a',
-                boxShadow: '0 6px 16px rgba(11, 135, 172, 0.4)',
-                transform: 'translateY(-1px)',
-              },
-              transition: 'all 0.2s ease-in-out',
-            }}
-          >
-            {activeStep === steps.length - 1 ? 'Submit Application' : 'Next'}
-          </Button>
+          {(() => {
+            // Compute canProceed without setting errors
+            const canProceed = (() => {
+              switch (activeStep) {
+                case 0: // Personal Information
+                  if (!formData.firstName) return false;
+                  if (!formData.middleName || formData.middleName.trim() === '') return false;
+                  if (!formData.lastName) return false;
+                  if (!formData.phoneNumber) return false;
+                  if (!formData.email) return false;
+                  if (!formData.confirmEmail) return false;
+                  if (formData.email && formData.confirmEmail && formData.email !== formData.confirmEmail) return false;
+                  if (!formData.emergencyContact) return false;
+                  if (!formData.emergencyPhone) return false;
+                  if (!formData.emergencyRelationship) return false;
+                  if (validateDateOfBirth(formData.dateOfBirth)) return false;
+                  if (!formData.gender) return false;
+                  break;
+                case 1: // Address
+                  if (!formData.address) return false;
+                  break;
+                case 2: // Disability Details
+                  if (!formData.disabilityType) return false;
+                  break;
+                case 3: // Documents
+                  if (requiredDocuments) {
+                    for (const doc of requiredDocuments) {
+                      if (doc.is_required && (!formData.documents || !formData.documents[`doc_${doc.id}`])) {
+                        return false;
+                      }
+                    }
+                  }
+                  break;
+              }
+              return true;
+            })();
+
+            return (
+              <>
+                <Button
+                  onClick={handleBack}
+                  variant="outlined"
+                  sx={{
+                    color: '#0b87ac',
+                    borderColor: '#0b87ac',
+                    borderRadius: 3,
+                    px: 4,
+                    py: 1.5,
+                    fontWeight: 600,
+                    fontSize: '16px',
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: '#0a6b8a',
+                      backgroundColor: 'rgba(11, 135, 172, 0.1)',
+                    },
+                  }}
+                >
+                  Back
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleNext}
+                  disabled={submitting || !canProceed}
+                  startIcon={submitting ? <CircularProgress size={20} sx={{ color: 'white' }} /> : null}
+                  sx={{
+                    backgroundColor: submitting ? '#95a5a6' : '#0b87ac',
+                    color: 'white',
+                    py: 1.5,
+                    px: 4,
+                    borderRadius: 3,
+                    fontWeight: 600,
+                    fontSize: '16px',
+                    textTransform: 'none',
+                    boxShadow: submitting ? 'none' : '0 4px 12px rgba(11, 135, 172, 0.3)',
+                    '&:hover': {
+                      backgroundColor: submitting ? '#95a5a6' : '#0a6b8a',
+                      boxShadow: submitting ? 'none' : '0 6px 16px rgba(11, 135, 172, 0.4)',
+                      transform: submitting ? 'none' : 'translateY(-1px)',
+                    },
+                    transition: 'all 0.2s ease-in-out',
+                  }}
+                >
+                  {submitting ? 'Submitting...' : (activeStep === steps.length - 1 ? 'Submit Application' : 'Next')}
+                </Button>
+              </>
+            );
+          })()}
         </Box>
       </Container>
 

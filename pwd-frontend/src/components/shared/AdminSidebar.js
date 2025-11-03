@@ -8,6 +8,7 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import AnnouncementIcon from '@mui/icons-material/Announcement';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
+import SecurityIcon from '@mui/icons-material/Security';
 import DescriptionIcon from '@mui/icons-material/Description';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
@@ -260,12 +261,20 @@ function AdminSidebar({ isOpen, onToggle }) {
           active={isActive('/document-management')}
         />
         {currentUser?.role === 'SuperAdmin' && (
-          <SidebarItem 
-            icon={<TrackChangesIcon />} 
-            label="Audit Logs" 
-            path="/audit-logs"
-            active={isActive('/audit-logs')}
-          />
+          <>
+            <SidebarItem 
+              icon={<TrackChangesIcon />} 
+              label="Audit Logs" 
+              path="/audit-logs"
+              active={isActive('/audit-logs')}
+            />
+            <SidebarItem 
+              icon={<SecurityIcon />} 
+              label="Security Monitoring" 
+              path="/security-monitoring"
+              active={isActive('/security-monitoring')}
+            />
+          </>
         )}
       </Box>
 

@@ -23,7 +23,7 @@ import {
   ListItemButton,
   Divider,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   Search as SearchIcon,
@@ -38,13 +38,224 @@ import {
 import { api } from '../../services/api';
 import { useReadAloud } from '../../hooks/useReadAloud';
 
+// Maximum file size: 2MB
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+
+// Reupload Documents Section Component for Rejected Applications
+function ReuploadDocumentsSection({ referenceNumber, onUploadSuccess }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [fileErrors, setFileErrors] = useState({});
+  const [documents, setDocuments] = useState({
+    medicalCertificate: null,
+    clinicalAbstract: null,
+    voterCertificate: null,
+    idPicture_0: null,
+    idPicture_1: null,
+    birthCertificate: null,
+    wholeBodyPicture: null,
+    affidavit: null,
+    barangayCertificate: null
+  });
+
+  const handleFileChange = (field, file) => {
+    // Clear previous error for this field
+    setFileErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[field];
+      return newErrors;
+    });
+
+    if (!file) {
+      setDocuments(prev => ({ ...prev, [field]: null }));
+      setUploadError('');
+      setUploadMessage('');
+      return;
+    }
+
+    // Validate file size (2MB limit)
+    if (file.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      setFileErrors(prev => ({
+        ...prev,
+        [field]: `File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`
+      }));
+      setUploadError(`File "${file.name}" is too large. Maximum file size is 2MB.`);
+      return;
+    }
+
+    setDocuments(prev => ({ ...prev, [field]: file }));
+    setUploadError('');
+    setUploadMessage('');
+  };
+
+  const handleReupload = async () => {
+    // Validate all files before upload
+    const fileSizeErrors = {};
+    Object.keys(documents).forEach(key => {
+      const file = documents[key];
+      if (file && file.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        fileSizeErrors[key] = `File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB.`;
+      }
+    });
+
+    if (Object.keys(fileSizeErrors).length > 0) {
+      setFileErrors(fileSizeErrors);
+      setUploadError('One or more files exceed the 2MB size limit. Please compress or select smaller files.');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadError('');
+      setUploadMessage('');
+
+      const formData = new FormData();
+      formData.append('referenceNumber', referenceNumber);
+
+      // Add all files to FormData
+      Object.keys(documents).forEach(key => {
+        if (documents[key]) {
+          if (key.startsWith('idPicture_')) {
+            formData.append(key, documents[key]);
+          } else {
+            formData.append(key, documents[key]);
+          }
+        }
+      });
+
+      const response = await api.post(`/application-status/${referenceNumber}/reupload-documents`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.success || response.data?.success) {
+        setUploadMessage(response.data?.message || 'Documents uploaded successfully! Your application has been resubmitted for review.');
+        setDocuments({
+          medicalCertificate: null,
+          clinicalAbstract: null,
+          voterCertificate: null,
+          idPicture_0: null,
+          idPicture_1: null,
+          birthCertificate: null,
+          wholeBodyPicture: null,
+          affidavit: null,
+          barangayCertificate: null
+        });
+        if (onUploadSuccess) {
+          setTimeout(() => {
+            onUploadSuccess();
+          }, 2000);
+        }
+      }
+    } catch (err) {
+      console.error('Error uploading documents:', err);
+      setUploadError(err.response?.data?.message || 'Failed to upload documents. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const documentFields = [
+    { key: 'medicalCertificate', label: 'Medical Certificate' },
+    { key: 'clinicalAbstract', label: 'Clinical Abstract' },
+    { key: 'voterCertificate', label: 'Voter Certificate' },
+    { key: 'idPicture_0', label: 'ID Picture 1 (1"x1")' },
+    { key: 'idPicture_1', label: 'ID Picture 2 (1"x1")' },
+    { key: 'birthCertificate', label: 'Birth Certificate' },
+    { key: 'wholeBodyPicture', label: 'Whole Body Picture' },
+    { key: 'affidavit', label: 'Affidavit' },
+    { key: 'barangayCertificate', label: 'Barangay Certificate' }
+  ];
+
+  return (
+    <Box sx={{ mt: 3, p: 3, bgcolor: 'white', borderRadius: 2, border: '2px solid #E74C3C' }}>
+      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#E74C3C' }}>
+        📄 Re-upload Documents
+      </Typography>
+      <Typography variant="body2" sx={{ mb: 3, color: '#7F8C8D' }}>
+        Your application was rejected. You can re-upload the documents that need correction. After uploading, your application will be resubmitted for review.
+      </Typography>
+      
+      <Grid container spacing={2}>
+        {documentFields.map(({ key, label }) => (
+          <Grid item xs={12} sm={6} key={key}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: '#2C3E50', display: 'block', mb: 1 }}>
+              {label}
+            </Typography>
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => handleFileChange(key, e.target.files[0])}
+              disabled={uploading}
+              style={{ 
+                width: '100%', 
+                padding: '8px', 
+                border: fileErrors[key] ? '1px solid #E74C3C' : '1px solid #ddd', 
+                borderRadius: '4px',
+                cursor: uploading ? 'not-allowed' : 'pointer',
+                opacity: uploading ? 0.6 : 1
+              }}
+            />
+            {fileErrors[key] && (
+              <Alert severity="error" sx={{ mt: 0.5, py: 0.5 }}>
+                <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                  {fileErrors[key]}
+                </Typography>
+              </Alert>
+            )}
+            {documents[key] && !fileErrors[key] && (
+              <Typography variant="caption" sx={{ color: '#27AE60', display: 'block', mt: 0.5 }}>
+                ✓ {documents[key].name}
+              </Typography>
+            )}
+          </Grid>
+        ))}
+      </Grid>
+
+      {uploadMessage && (
+        <Alert severity="success" sx={{ mt: 2 }}>
+          {uploadMessage}
+        </Alert>
+      )}
+
+      {uploadError && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {uploadError}
+        </Alert>
+      )}
+
+      <Button
+        fullWidth
+        variant="contained"
+        onClick={handleReupload}
+        disabled={uploading || !Object.values(documents).some(file => file !== null)}
+        startIcon={uploading ? <CircularProgress size={20} /> : null}
+        sx={{
+          mt: 3,
+          bgcolor: '#27AE60',
+          py: 1.5,
+          '&:hover': { bgcolor: '#229954' },
+          '&:disabled': { bgcolor: '#BDC3C7' }
+        }}
+      >
+        {uploading ? 'Uploading...' : 'Upload Documents & Resubmit Application'}
+      </Button>
+    </Box>
+  );
+}
+
 function LandingPage() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const { readElement, isReading } = useReadAloud();
+  const { referenceNumber: urlReferenceNumber } = useParams();
 
   // Application Status Check state
-  const [referenceNumber, setReferenceNumber] = useState('');
+  const [referenceNumber, setReferenceNumber] = useState(urlReferenceNumber || '');
   const [applicationData, setApplicationData] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState('');
@@ -64,6 +275,45 @@ function LandingPage() {
   useEffect(() => {
     console.log('LandingPage render - currentUser:', currentUser);
   }, [currentUser]);
+
+  // Auto-search if reference number is in URL
+  useEffect(() => {
+    if (urlReferenceNumber && urlReferenceNumber.trim()) {
+      setReferenceNumber(urlReferenceNumber.trim());
+      // Auto-search after a short delay to ensure component is mounted
+      const timer = setTimeout(async () => {
+        const refNum = urlReferenceNumber.trim();
+        if (!refNum) {
+          setStatusError('Please enter a reference number');
+          return;
+        }
+
+        setStatusLoading(true);
+        setStatusError('');
+        setApplicationData(null);
+
+        try {
+          const response = await api.get(`/application-status/${refNum}`);
+          
+          if (response && response.application) {
+            setApplicationData(response.application);
+          } else {
+            setStatusError('Application not found. Please check your reference number.');
+          }
+        } catch (err) {
+          console.error('Error fetching application status:', err);
+          if (err.response?.status === 404) {
+            setStatusError('Application not found. Please check your reference number.');
+          } else {
+            setStatusError('Error checking application status. Please try again.');
+          }
+        } finally {
+          setStatusLoading(false);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [urlReferenceNumber]);
 
   const handleApplyClick = () => {
     navigate('/register');
@@ -313,7 +563,7 @@ function LandingPage() {
               </Typography>
 
               {/* Action Buttons */}
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2, justifyContent: 'center' }}>
                 <Button
                   variant="contained"
                   size="large"
@@ -446,7 +696,30 @@ function LandingPage() {
                             }}
                           />
                         </Grid>
+                        {applicationData.status === 'Rejected' && applicationData.remarks && (
+                          <Grid item xs={12}>
+                            <Alert severity="error" sx={{ mt: 2 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                                Rejection Reason:
+                              </Typography>
+                              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                                {applicationData.remarks}
+                              </Typography>
+                            </Alert>
+                          </Grid>
+                        )}
                       </Grid>
+                      
+                      {/* Document Re-upload Section for Rejected Applications */}
+                      {applicationData.status === 'Rejected' && applicationData.canReuploadDocuments && (
+                        <ReuploadDocumentsSection 
+                          referenceNumber={applicationData.referenceNumber}
+                          onUploadSuccess={() => {
+                            // Refresh application status after successful upload
+                            handleStatusSearch();
+                          }}
+                        />
+                      )}
                     </Box>
                   )}
                 </CardContent>

@@ -162,7 +162,7 @@ class ApplicationValidationService
         return [
             'firstName' => 'required|string|max:50',
             'lastName' => 'required|string|max:50',
-            'middleName' => 'nullable|string|max:50',
+            'middleName' => 'required|string|max:50',
             'suffix' => 'nullable|string|in:,Jr.,Sr.,I,II,III',
             'email' => [
                 'required',

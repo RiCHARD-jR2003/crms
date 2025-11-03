@@ -153,11 +153,13 @@ const GaugeChart = ({ value, min = 0, max = 100, title, color = '#3498DB' }) => 
         <Box
           sx={{
             position: 'absolute',
-            top: '75px',
+            top: '85px',
             left: '50%',
             transform: 'translateX(-50%)',
             textAlign: 'center',
-            width: '100%'
+            width: '100%',
+            pointerEvents: 'none',
+            zIndex: 1
           }}
         >
           <Typography variant="h4" sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '2rem' }}>
@@ -183,6 +185,8 @@ const Analytics = () => {
     pendingApplications: 0, // Pending applications
     approvedApplications: 0, // Approved applications
     cardsIssued: 0, // Total cards issued/renewed
+    claimedIDs: 0, // IDs that have been claimed
+    renewedIDs: 0, // IDs that have been renewed
     benefitsDistributed: 0, // Total benefits distributed
     ticketsResolved: 0 // Support tickets resolved
   });
@@ -298,10 +302,48 @@ const Analytics = () => {
       
       // Calculate cards issued (assuming members with card numbers or card status)
       let cardsIssued = 0;
+      let claimedIDs = 0;
+      let renewedIDs = 0;
       if (Array.isArray(members)) {
+        // Debug: Log first member to see structure
+        if (members.length > 0) {
+          console.log('Sample member data:', {
+            pwd_id: members[0].pwd_id,
+            pwd_id_generated_at: members[0].pwd_id_generated_at,
+            created_at: members[0].created_at,
+            has_pwd_id: !!members[0].pwd_id
+          });
+        }
+        
+        // Cards issued = members with pwd_id (card generated)
         cardsIssued = members.filter(member => 
-          member?.pwd_card_number || member?.card_number || member?.card_status === 'issued' || member?.card_status === 'active'
+          member?.pwd_id || member?.pwd_card_number || member?.card_number || member?.card_status === 'issued' || member?.card_status === 'active'
         ).length;
+        
+        console.log('Cards Issued calculation:', {
+          totalMembers: members.length,
+          cardsIssued: cardsIssued,
+          membersWithPwdId: members.filter(m => m?.pwd_id).length
+        });
+        
+        // Calculate claimed IDs (members with pwd_id generated - same as cards issued)
+        claimedIDs = members.filter(member => 
+          member?.pwd_id || member?.pwd_card_number || member?.card_number
+        ).length;
+        
+        // Calculate renewed IDs (members with multiple approved applications)
+        // This indicates they applied more than once (renewal scenario)
+        const memberApplicationCounts = {};
+        if (Array.isArray(applications)) {
+          applications.forEach(app => {
+            if ((app?.status === 'Approved' || app?.status === 'approved') && app?.pwdID) {
+              memberApplicationCounts[app.pwdID] = (memberApplicationCounts[app.pwdID] || 0) + 1;
+            }
+          });
+        }
+        
+        // Members with more than 1 approved application are considered renewals
+        renewedIDs = Object.values(memberApplicationCounts).filter(count => count > 1).length;
       }
       
       // Expose raw data for filtering
@@ -317,6 +359,8 @@ const Analytics = () => {
         pendingApplications: pendingApplications,
         approvedApplications: approvedApplications,
         cardsIssued: cardsIssued || totalMembers,
+        claimedIDs: claimedIDs,
+        renewedIDs: renewedIDs,
         benefitsDistributed: totalBenefits,
         ticketsResolved: resolvedTickets
       }));
@@ -364,13 +408,20 @@ const Analytics = () => {
         let count = 0;
         if (Array.isArray(members)) {
           members.forEach(member => {
-            if (member && typeof member === 'object' && (member.pwd_card_number || member.card_number)) {
-              const cardDate = member.card_issued_date || member.card_date || member.created_at || member.createdAt;
+            if (member && typeof member === 'object' && (member.pwd_id || member.pwd_card_number || member.card_number)) {
+              // Use pwd_id_generated_at if available, otherwise use created_at
+              const cardDate = member.pwd_id_generated_at || member.card_issued_date || member.card_date || member.created_at || member.createdAt;
               if (cardDate) {
-                const cardDateObj = new Date(cardDate);
-                const monthStr = cardDateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                if (monthStr === month) {
-                  count++;
+                try {
+                  const cardDateObj = new Date(cardDate);
+                  if (!isNaN(cardDateObj.getTime())) {
+                    const monthStr = cardDateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    if (monthStr === month) {
+                      count++;
+                    }
+                  }
+                } catch (e) {
+                  console.warn('Invalid card date:', cardDate, e);
                 }
               }
             }
@@ -378,6 +429,7 @@ const Analytics = () => {
         }
         return { month, cards: count || 0 };
       });
+      console.log('Monthly card issuance data:', monthlyCardData);
       setMonthlyCardIssuance(monthlyCardData);
       
       // Top 5 Barangays by registrations
@@ -545,7 +597,24 @@ const Analytics = () => {
     const totalMembers = filteredMembers.length;
     const pendingApps = filteredApps.filter(a => a?.status?.toLowerCase() === 'pending').length;
     const approvedApps = filteredApps.filter(a => a?.status?.toLowerCase() === 'approved').length;
-    const cardsIssued = filteredMembers.filter(m => m?.pwd_card_number || m?.card_number || m?.card_status === 'issued' || m?.card_status === 'active').length;
+    const cardsIssued = filteredMembers.filter(m => 
+      m?.pwd_id || m?.pwd_card_number || m?.card_number || m?.card_status === 'issued' || m?.card_status === 'active'
+    ).length;
+    
+    // Calculate claimed IDs from filtered members (members with pwd_id)
+    const claimedIDs = filteredMembers.filter(m => 
+      m?.pwd_id || m?.pwd_card_number || m?.card_number
+    ).length;
+    
+    // Calculate renewed IDs from filtered applications
+    const memberApplicationCounts = {};
+    filteredApps.forEach(app => {
+      if ((app?.status === 'Approved' || app?.status === 'approved') && app?.pwdID) {
+        memberApplicationCounts[app.pwdID] = (memberApplicationCounts[app.pwdID] || 0) + 1;
+      }
+    });
+    const renewedIDs = Object.values(memberApplicationCounts).filter(count => count > 1).length;
+    
     const resolvedTickets = filteredTickets.filter(t => ['resolved', 'closed'].includes((t?.status || '').toLowerCase())).length;
 
     setKpiData(prev => ({
@@ -554,6 +623,8 @@ const Analytics = () => {
       pendingApplications: pendingApps,
       approvedApplications: approvedApps,
       cardsIssued: cardsIssued,
+      claimedIDs: claimedIDs,
+      renewedIDs: renewedIDs,
       benefitsDistributed: filteredBenefits.length,
       ticketsResolved: resolvedTickets
     }));
@@ -581,10 +652,14 @@ const Analytics = () => {
     // Monthly card issuance
     setMonthlyCardIssuance(months.map(month => {
       const count = filteredMembers.reduce((acc, m) => {
-        const d = m?.card_issued_date || m?.card_date || m?.created_at || m?.createdAt;
-        if ((m?.pwd_card_number || m?.card_number) && d) {
-          const ds = new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          if (ds === month) return acc + 1;
+        // Check if member has a card (pwd_id)
+        if (m?.pwd_id || m?.pwd_card_number || m?.card_number) {
+          // Use pwd_id_generated_at if available, otherwise use created_at
+          const d = m?.pwd_id_generated_at || m?.card_issued_date || m?.card_date || m?.created_at || m?.createdAt;
+          if (d) {
+            const ds = new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            if (ds === month) return acc + 1;
+          }
         }
         return acc;
       }, 0);
@@ -635,7 +710,14 @@ const Analytics = () => {
       boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
       borderRadius: 2,
       bgcolor: '#FFFFFF',
-      border: '1px solid #E0E0E0'
+      border: '1px solid #E0E0E0',
+      cursor: 'pointer',
+      transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease',
+      '&:hover': {
+        boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
+        transform: 'translateY(-2px)',
+        borderColor: '#0b87ac'
+      }
     }}>
       <CardContent sx={{ position: 'relative', pb: '16px !important' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
@@ -865,6 +947,16 @@ const Analytics = () => {
             </div>
           </Grid>
           <Grid item xs={12} sm={6} md={4} lg={2}>
+            <div onClick={()=>{ setDetailType('claimed'); setDetailsOpen(true); }}>
+              <KPICard title="Claimed IDs" value={kpiData.claimedIDs} />
+            </div>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={2}>
+            <div onClick={()=>{ setDetailType('renewed'); setDetailsOpen(true); }}>
+              <KPICard title="Renewed IDs" value={kpiData.renewedIDs} />
+            </div>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4} lg={2}>
             <div onClick={()=>{ setDetailType('benefits'); setDetailsOpen(true); }}>
               <KPICard title="Benefits Distributed" value={kpiData.benefitsDistributed} />
             </div>
@@ -950,6 +1042,12 @@ const Analytics = () => {
             )}
             {detailType === 'cards' && (
               <Typography variant="body2">Cards issued/renewed: {kpiData.cardsIssued.toLocaleString()}.</Typography>
+            )}
+            {detailType === 'claimed' && (
+              <Typography variant="body2">Claimed IDs: {kpiData.claimedIDs.toLocaleString()}.</Typography>
+            )}
+            {detailType === 'renewed' && (
+              <Typography variant="body2">Renewed IDs: {kpiData.renewedIDs.toLocaleString()}.</Typography>
             )}
             {detailType === 'benefits' && (
               <Typography variant="body2">Benefits distributed entries: {kpiData.benefitsDistributed.toLocaleString()}.</Typography>

@@ -419,16 +419,31 @@ const Ayuda = () => {
     }
   };
 
+  // Maximum file size: 2MB
+  const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
-    if (file) {
-      // Check if it's an image or PDF
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-      if (allowedTypes.includes(file.type)) {
-        setApprovalFile(file);
-      } else {
-        toastService.warning('Please upload only image files (JPG, PNG) or PDF files.');
-      }
+    if (!file) {
+      setApprovalFile(null);
+      return;
+    }
+
+    // Validate file size (2MB limit)
+    if (file.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      toastService.error(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
+      setApprovalFile(null);
+      return;
+    }
+
+    // Check if it's an image or PDF
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (allowedTypes.includes(file.type)) {
+      setApprovalFile(file);
+    } else {
+      toastService.warning('Please upload only image files (JPG, PNG) or PDF files.');
+      setApprovalFile(null);
     }
   };
 
@@ -485,7 +500,13 @@ const Ayuda = () => {
        const tableData = eligibleMembers.map((member, index) => [
          index + 1,
          member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned'),
-         `${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || 'Name not provided',
+         (() => {
+           const parts = [];
+           if (member.firstName) parts.push(member.firstName);
+           if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+           if (member.lastName) parts.push(member.lastName);
+           return parts.join(' ').trim() || 'Name not provided';
+         })(),
          getMonthName(new Date(member.birthDate).getMonth() + 1),
          getAge(member.birthDate),
          member.barangay || 'Not specified',
@@ -1286,36 +1307,36 @@ const Ayuda = () => {
             </Box>
           ) : (
             <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E0E0E0', borderRadius: 2 }}>
-              <Table>
+              <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: '#F8FAFC' }}>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>Benefit</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>Recipient</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>Amount</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>Barangay</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>Actions</TableCell>
+                  <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Benefit</TableCell>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Recipient</TableCell>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Amount</TableCell>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Date</TableCell>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Status</TableCell>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Barangay</TableCell>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {distributionHistory.map((row, index) => (
-                    <TableRow key={row.id} sx={{ bgcolor: index % 2 ? '#F8FAFC' : '#FFFFFF' }}>
-                      <TableCell sx={{ fontWeight: 500, color: '#2C3E50' }}>{row.benefitName}</TableCell>
-                      <TableCell sx={{ color: '#2C3E50' }}>{row.recipient}</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#27AE60' }}>{row.amount}</TableCell>
-                      <TableCell sx={{ color: '#2C3E50' }}>{row.date}</TableCell>
-                      <TableCell>
+                    <TableRow key={row.id} sx={{ bgcolor: index % 2 ? '#F7FBFF' : 'white', borderBottom: '1px solid #E0E0E0' }}>
+                      <TableCell sx={{ fontWeight: 500, color: '#2C3E50', fontSize: '0.8rem', py: 2, px: 2 }}>{row.benefitName}</TableCell>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 500, fontSize: '0.8rem', py: 2, px: 2 }}>{row.recipient}</TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#27AE60', fontSize: '0.8rem', py: 2, px: 2 }}>{row.amount}</TableCell>
+                      <TableCell sx={{ color: '#34495E', fontSize: '0.8rem', py: 2, px: 2 }}>{row.date}</TableCell>
+                      <TableCell sx={{ py: 2, px: 2 }}>
                         <Chip 
                           icon={getStatusIcon(row.status)}
                           label={row.status} 
                           color={getStatusColor(row.status)} 
                           size="small" 
-                          sx={{ fontWeight: 600 }}
+                          sx={{ fontWeight: 600, fontSize: '0.7rem' }}
                         />
                       </TableCell>
-                      <TableCell sx={{ color: '#2C3E50' }}>{row.barangay}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 500, fontSize: '0.8rem', py: 2, px: 2 }}>{row.barangay}</TableCell>
+                      <TableCell sx={{ py: 2, px: 2 }}>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
                           <IconButton 
                             size="small" 
@@ -2138,7 +2159,14 @@ const Ayuda = () => {
                               {member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned')}
                             </TableCell>
                             <TableCell sx={{ color: '#2C3E50', fontSize: '0.8rem' }}>
-                              {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Name not provided'}
+                              {(() => {
+                                const parts = [];
+                                if (member.firstName) parts.push(member.firstName);
+                                if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                                if (member.lastName) parts.push(member.lastName);
+                                if (member.suffix) parts.push(member.suffix);
+                                return parts.join(' ').trim() || 'Name not provided';
+                              })()}
                             </TableCell>
                             <TableCell sx={{ color: '#2C3E50', fontSize: '0.8rem' }}>
                               {getMonthName(new Date(member.birthDate).getMonth() + 1)}

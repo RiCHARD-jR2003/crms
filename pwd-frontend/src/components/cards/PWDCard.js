@@ -1,5 +1,5 @@
 // src/components/cards/PWDCard.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -38,7 +38,9 @@ import {
   Person as PersonIcon,
   Edit as EditIcon,
   FilterList as FilterListIcon,
-  Clear as ClearIcon
+  Clear as ClearIcon,
+  ArrowUpward as ArrowUpwardIcon,
+  ArrowDownward as ArrowDownwardIcon
 } from '@mui/icons-material';
 import AdminSidebar from '../shared/AdminSidebar';
 import FrontDeskSidebar from '../shared/FrontDeskSidebar';
@@ -67,6 +69,40 @@ function PWDCard() {
     ageRange: '',
     status: ''
   });
+  const [orderBy, setOrderBy] = useState('');
+  const [order, setOrder] = useState('asc');
+
+  // Calculate card status based on claimed status and expiration date
+  const calculateCardStatus = (cardClaimed, cardExpirationDate) => {
+    // If card is not claimed, return "to claim"
+    if (!cardClaimed) {
+      return 'to claim';
+    }
+    
+    // If card is claimed, check expiration date
+    if (!cardExpirationDate) {
+      // If no expiration date available but card is claimed, assume it's claimed
+      return 'claimed';
+    }
+    
+    const today = new Date();
+    const expirationDate = new Date(cardExpirationDate);
+    const oneMonthFromNow = new Date(today);
+    oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
+    
+    // Reset time for accurate comparison
+    today.setHours(0, 0, 0, 0);
+    expirationDate.setHours(0, 0, 0, 0);
+    oneMonthFromNow.setHours(0, 0, 0, 0);
+    
+    // If card is expiring within 1 month (from today to 1 month from now)
+    if (expirationDate >= today && expirationDate <= oneMonthFromNow) {
+      return 'for renewal';
+    }
+    
+    // If card is claimed and not yet in renewal window
+    return 'claimed';
+  };
 
   // Fetch PWD members from API
   const fetchPwdMembers = async () => {
@@ -83,24 +119,46 @@ function PWDCard() {
       console.log('First member with ID pictures:', members.find(m => m.idPictures));
       
       // Transform the data to match our expected format
-      const transformedMembers = members.map((member, index) => ({
-        id: member.pwd_id || `PWD-2025-${String(index + 1).padStart(6, '0')}`,
-        name: `${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Unknown Member',
-        age: member.birthDate ? new Date().getFullYear() - new Date(member.birthDate).getFullYear() : 'N/A',
-        barangay: member.barangay || 'N/A',
-        status: 'Active',
-        disabilityType: member.disabilityType || 'Not specified',
-        birthDate: member.birthDate,
-        firstName: member.firstName,
-        lastName: member.lastName,
-        middleName: member.middleName,
-        suffix: member.suffix,
-        address: member.address,
-        contactNumber: member.contactNumber || member.phone,
-        gender: member.gender || member.sex,
-        bloodType: member.bloodType,
-        idPictures: member.idPictures // Add ID pictures to the transformation
-      }));
+      const transformedMembers = members.map((member, index) => {
+        // Calculate card status
+        const cardClaimed = member.cardClaimed || member.card_claimed || false;
+        const cardIssueDate = member.cardIssueDate || member.card_issue_date || member.pwd_id_generated_at || null;
+        // Assume 3 years validity if expiration date not provided
+        const cardExpirationDate = member.cardExpirationDate || member.card_expiration_date || 
+          (cardIssueDate ? new Date(new Date(cardIssueDate).setFullYear(new Date(cardIssueDate).getFullYear() + 3)) : null);
+        
+        const cardStatus = calculateCardStatus(cardClaimed, cardExpirationDate);
+        
+        return {
+          id: member.pwd_id || `PWD-2025-${String(index + 1).padStart(6, '0')}`,
+          name: (() => {
+          const parts = [];
+          if (member.firstName) parts.push(member.firstName);
+          if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+          if (member.lastName) parts.push(member.lastName);
+          if (member.suffix) parts.push(member.suffix);
+          return parts.join(' ').trim() || 'Unknown Member';
+        })(),
+          age: member.birthDate ? new Date().getFullYear() - new Date(member.birthDate).getFullYear() : 'N/A',
+          barangay: member.barangay || 'N/A',
+          status: 'Active',
+          disabilityType: member.disabilityType || 'Not specified',
+          birthDate: member.birthDate,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          middleName: member.middleName,
+          suffix: member.suffix,
+          address: member.address,
+          contactNumber: member.contactNumber || member.phone,
+          gender: member.gender || member.sex,
+          bloodType: member.bloodType,
+          idPictures: member.idPictures, // Add ID pictures to the transformation
+          cardClaimed: cardClaimed,
+          cardIssueDate: cardIssueDate,
+          cardExpirationDate: cardExpirationDate,
+          cardStatus: cardStatus
+        };
+      });
       
       // Set the members from API (no fallback to mock data)
       setPwdMembers(transformedMembers);
@@ -384,41 +442,81 @@ function PWDCard() {
 
   const hasActiveFilters = Object.values(filters).some(value => value !== '');
 
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
   // Filter the members based on current filters
-  const filteredMembers = pwdMembers.filter(member => {
-    // Search filter
-    const matchesSearch = !filters.search || 
-      (member.name && member.name.toLowerCase().includes(filters.search.toLowerCase())) ||
-      (member.id && member.id.toLowerCase().includes(filters.search.toLowerCase()));
+  const filteredMembers = useMemo(() => {
+    const filtered = pwdMembers.filter(member => {
+      // Search filter
+      const matchesSearch = !filters.search || 
+        (member.name && member.name.toLowerCase().includes(filters.search.toLowerCase())) ||
+        (member.id && member.id.toLowerCase().includes(filters.search.toLowerCase()));
 
-    // Barangay filter
-    const matchesBarangay = !filters.barangay || 
-      (member.barangay && member.barangay === filters.barangay);
+      // Barangay filter
+      const matchesBarangay = !filters.barangay || 
+        (member.barangay && member.barangay === filters.barangay);
 
-    // Disability filter
-    const matchesDisability = !filters.disability || 
-      (member.disabilityType && member.disabilityType === filters.disability);
+      // Disability filter
+      const matchesDisability = !filters.disability || 
+        (member.disabilityType && member.disabilityType === filters.disability);
 
-    // Status filter
-    const matchesStatus = !filters.status || 
-      (member.status && member.status === filters.status);
+      // Status filter
+      const matchesStatus = !filters.status || 
+        (member.status && member.status === filters.status);
 
-    // Age range filter
-    let matchesAgeRange = true;
-    if (filters.ageRange && member.age !== 'N/A') {
-      const age = parseInt(member.age);
-      if (filters.ageRange === 'Under 18') {
-        matchesAgeRange = age < 18;
-      } else if (filters.ageRange === 'Over 65') {
-        matchesAgeRange = age > 65;
-      } else {
-        const [min, max] = filters.ageRange.split('-').map(Number);
-        matchesAgeRange = age >= min && age <= max;
+      // Age range filter
+      let matchesAgeRange = true;
+      if (filters.ageRange && member.age !== 'N/A') {
+        const age = parseInt(member.age);
+        if (filters.ageRange === 'Under 18') {
+          matchesAgeRange = age < 18;
+        } else if (filters.ageRange === 'Over 65') {
+          matchesAgeRange = age > 65;
+        } else {
+          const [min, max] = filters.ageRange.split('-').map(Number);
+          matchesAgeRange = age >= min && age <= max;
+        }
       }
-    }
 
-    return matchesSearch && matchesBarangay && matchesDisability && matchesAgeRange && matchesStatus;
-  });
+      return matchesSearch && matchesBarangay && matchesDisability && matchesAgeRange && matchesStatus;
+    });
+
+    // Apply sorting
+    if (orderBy) {
+      filtered.sort((a, b) => {
+        let aValue = a[orderBy];
+        let bValue = b[orderBy];
+        
+        if (orderBy === 'name') {
+          aValue = a.name || '';
+          bValue = b.name || '';
+        } else if (orderBy === 'age') {
+          aValue = parseInt(a.age) || 0;
+          bValue = parseInt(b.age) || 0;
+        }
+        
+        // Handle string comparison
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          aValue = aValue.toLowerCase();
+          bValue = bValue.toLowerCase();
+        }
+        
+        if (aValue < bValue) {
+          return order === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return order === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    
+    return filtered;
+  }, [pwdMembers, filters, orderBy, order]);
 
   const selectedMemberData = pwdMembers.find(member => member.id === selectedMember) || pwdMembers[0];
   
@@ -870,14 +968,15 @@ function PWDCard() {
                       overflowX: 'auto'
                     }}
                   >
-                    <Table stickyHeader id="pwd-card-masterlist">
+                    <Table size="small" stickyHeader id="pwd-card-masterlist">
                       <TableHead>
-                        <TableRow sx={{ backgroundColor: '#0b87ac' }}>
-                          <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>PWD ID NO.</TableCell>
-                          <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>NAME</TableCell>
-                          <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>AGE</TableCell>
-                          <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>BARANGAY</TableCell>
-                          <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>STATUS</TableCell>
+                        <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>PWD ID NO.</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>NAME</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>AGE</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>BARANGAY</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>STATUS</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>CARD STATUS</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -885,7 +984,7 @@ function PWDCard() {
                           <TableRow 
                             key={member.id}
                             sx={{ 
-                              backgroundColor: selectedMember === member.id ? '#E8F4FD' : (index % 2 === 0 ? 'white' : '#F8FAFC'),
+                              bgcolor: selectedMember === member.id ? '#E8F4FD' : (index % 2 ? '#F7FBFF' : 'white'),
                               cursor: 'pointer',
                               borderLeft: selectedMember === member.id ? '4px solid #0b87ac' : 'none',
                               borderBottom: '1px solid #E0E0E0',
@@ -899,13 +998,15 @@ function PWDCard() {
                             onClick={() => setSelectedMember(member.id)}
                           >
                             <TableCell sx={{ 
-                              fontSize: '13px', 
-                              py: 2
+                              fontSize: '0.8rem', 
+                              py: 2,
+                              px: 2
                             }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Radio
                                   checked={selectedMember === member.id}
                                   onChange={() => setSelectedMember(member.id)}
+                                  size="small"
                                   sx={{ 
                                     color: '#0b87ac',
                                     '&.Mui-checked': {
@@ -914,31 +1015,38 @@ function PWDCard() {
                                   }}
                                 />
                                 <Typography variant="body2" sx={{ 
-                                  fontWeight: 'bold',
-                                  color: selectedMember === member.id ? '#0b87ac' : '#2C3E50'
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  color: selectedMember === member.id ? '#0b87ac' : '#1976D2'
                                 }}>
                                 {member.id}
                                 </Typography>
                               </Box>
                             </TableCell>
                             <TableCell sx={{ 
-                              fontWeight: 'bold', 
-                              fontSize: '13px',
+                              fontWeight: 500, 
+                              fontSize: '0.8rem',
                               py: 2,
-                              color: selectedMember === member.id ? '#0b87ac' : '#2C3E50'
+                              px: 2,
+                              color: selectedMember === member.id ? '#0b87ac' : '#0b87ac'
                             }}>{member.name}</TableCell>
                             <TableCell sx={{ 
-                              fontSize: '13px',
+                              fontSize: '0.8rem',
                               py: 2,
-                              color: selectedMember === member.id ? '#0b87ac' : '#2C3E50'
+                              px: 2,
+                              color: selectedMember === member.id ? '#0b87ac' : '#34495E',
+                              fontWeight: 600
                             }}>{member.age}</TableCell>
                             <TableCell sx={{ 
-                              fontSize: '13px',
+                              fontSize: '0.8rem',
                               py: 2,
-                              color: selectedMember === member.id ? '#0b87ac' : '#2C3E50'
+                              px: 2,
+                              color: selectedMember === member.id ? '#0b87ac' : '#0b87ac',
+                              fontWeight: 500
                             }}>{member.barangay}</TableCell>
                             <TableCell sx={{ 
-                              py: 2
+                              py: 2,
+                              px: 2
                             }}>
                               <Chip 
                                 label={member.status} 
@@ -955,6 +1063,54 @@ function PWDCard() {
                                   }
                                 }}
                               />
+                            </TableCell>
+                            <TableCell sx={{ 
+                              py: 2
+                            }}>
+                              {(() => {
+                                const status = member.cardStatus || 'to claim';
+                                const statusConfig = {
+                                  'to claim': {
+                                    label: 'To Claim',
+                                    color: '#F39C12',
+                                    bgColor: '#FEF5E7',
+                                    textColor: '#B7791F'
+                                  },
+                                  'for renewal': {
+                                    label: 'For Renewal',
+                                    color: '#E74C3C',
+                                    bgColor: '#FDEDEC',
+                                    textColor: '#C0392B'
+                                  },
+                                  'claimed': {
+                                    label: 'Claimed',
+                                    color: '#27AE60',
+                                    bgColor: '#EAFAF1',
+                                    textColor: '#196F3D'
+                                  }
+                                };
+                                
+                                const config = statusConfig[status] || statusConfig['to claim'];
+                                
+                                return (
+                                  <Chip 
+                                    label={config.label} 
+                                    size="small"
+                                    sx={{ 
+                                      fontWeight: 'bold',
+                                      fontSize: '11px',
+                                      height: '24px',
+                                      backgroundColor: config.bgColor,
+                                      color: config.textColor,
+                                      border: `1px solid ${config.color}`,
+                                      '&:hover': {
+                                        backgroundColor: config.bgColor,
+                                        opacity: 0.9
+                                      }
+                                    }}
+                                  />
+                                );
+                              })()}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1346,9 +1502,11 @@ function PWDCard() {
                           <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold' }}>
                             {selectedMemberData.firstName || ''},
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold' }}>
-                            {selectedMemberData.middleName || ''},
-                          </Typography>
+                          {selectedMemberData.middleName && selectedMemberData.middleName.trim().toUpperCase() !== 'N/A' && (
+                            <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold' }}>
+                              {selectedMemberData.middleName},
+                            </Typography>
+                          )}
                           <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold' }}>
                             {selectedMemberData.suffix || ''}
                           </Typography>

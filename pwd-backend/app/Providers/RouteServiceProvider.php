@@ -188,6 +188,8 @@ class RouteServiceProvider extends ServiceProvider
                     
                     $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
                         'remarks' => 'required|string|max:500',
+                        'rejectionReason' => 'required|string',
+                        'customReason' => 'nullable|string|max:200',
                     ]);
 
                     if ($validator->fails()) {
@@ -197,10 +199,44 @@ class RouteServiceProvider extends ServiceProvider
                         ], 422);
                     }
 
+                    // Build rejection reason text
+                    $rejectionReasonText = '';
+                    $reasonMap = [
+                        'incomplete_information' => 'Incomplete Information',
+                        'incorrect_information' => 'Incorrect Information',
+                        'document_resubmission' => 'Document Resubmission/Correction Required',
+                        'does_not_meet_criteria' => 'Does Not Meet Criteria',
+                        'other' => $request->customReason ?? 'Other'
+                    ];
+                    $rejectionReasonText = $reasonMap[$request->rejectionReason] ?? $request->rejectionReason;
+
+                    // Combine rejection reason and remarks for the remarks field
+                    $fullRemarks = "Rejection Reason: {$rejectionReasonText}\n\nRemarks:\n{$request->remarks}";
+
+                    // Update application status to Rejected (do not delete - retain all data)
                     $application->update([
                         'status' => 'Rejected',
-                        'remarks' => $request->remarks
+                        'remarks' => $fullRemarks
                     ]);
+
+                    // Send rejection email notification
+                    try {
+                        $emailService = new \App\Services\EmailService();
+                        $emailService->sendApplicationRejectionEmail([
+                            'email' => $application->email,
+                            'firstName' => $application->firstName,
+                            'lastName' => $application->lastName,
+                            'referenceNumber' => $application->referenceNumber ?? 'N/A',
+                            'rejectionReason' => $rejectionReasonText,
+                            'remarks' => $request->remarks
+                        ]);
+                    } catch (\Exception $emailException) {
+                        \Illuminate\Support\Facades\Log::error('Failed to send rejection email', [
+                            'application_id' => $application->applicationID,
+                            'error' => $emailException->getMessage()
+                        ]);
+                        // Don't fail the rejection if email fails
+                    }
 
                     return response()->json([
                         'message' => 'Application rejected successfully',

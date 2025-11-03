@@ -56,6 +56,9 @@ import {
   buttonStyles
 } from '../../utils/themeStyles';
 
+// Maximum file size: 2MB
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+
 function MemberDocumentUpload() {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
@@ -302,13 +305,33 @@ function MemberDocumentUpload() {
   // File upload handler
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
-    if (file) {
-      setSelectedFile(file);
+    if (!file) {
+      setSelectedFile(null);
+      setError(null);
+      return;
     }
+
+    // Validate file size (2MB limit)
+    if (file.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
+      setSelectedFile(null);
+      return;
+    }
+
+    setSelectedFile(file);
+    setError(null);
   };
 
   const handleUpload = async () => {
     if (!selectedFile || !selectedDocument) return;
+
+    // Validate file size before upload
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
+      setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
+      return;
+    }
 
     setUploading(true);
     setError(null);
@@ -847,7 +870,7 @@ function MemberDocumentUpload() {
               }
             }}
           >
-{t('common.upload')}
+            {uploading ? t('common.uploading') || 'Uploading...' : t('common.upload')}
           </Button>
         </DialogActions>
       </Dialog>

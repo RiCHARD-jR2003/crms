@@ -64,6 +64,9 @@ import websocketService from '../../services/websocketService';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
 
+// Maximum file size: 2MB
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+
 const PWDMemberSupportDesk = () => {
   console.log('PWDMemberSupportDesk component is rendering');
   
@@ -332,9 +335,11 @@ const PWDMemberSupportDesk = () => {
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // Check file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
+      // Check file size (2MB limit)
+      if (file.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
+        setSelectedFile(null);
         return;
       }
       
@@ -355,9 +360,11 @@ const PWDMemberSupportDesk = () => {
   const handleReplyFileSelect = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // Check file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
+      // Check file size (2MB limit)
+      if (file.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
+        setSelectedFile(null);
         return;
       }
       
@@ -518,9 +525,11 @@ const PWDMemberSupportDesk = () => {
     if (files.length > 0) {
       const file = files[0];
       
-      // Check file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
+      // Check file size (2MB limit)
+      if (file.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
+        setSelectedFile(null);
         return;
       }
       
@@ -784,7 +793,14 @@ const PWDMemberSupportDesk = () => {
         )}
 
         {/* Main Content - Two Column Layout */}
-        <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 300px)' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 2, 
+          height: 'calc(100vh - 380px)',
+          minHeight: '500px',
+          maxHeight: 'calc(100vh - 380px)',
+          overflow: 'hidden'
+        }}>
           {/* Left Column - Tickets List */}
           <Paper sx={{ 
             flex: selectedTicketId ? '0 0 35%' : '1',
@@ -792,19 +808,29 @@ const PWDMemberSupportDesk = () => {
             overflow: 'hidden', 
             boxShadow: '0 4px 20px rgba(0,0,0,0.1)', 
             bgcolor: '#FFFFFF',
-            transition: 'flex 0.3s ease'
+            transition: 'flex 0.3s ease',
+            height: '100%',
+            maxHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column'
           }}>
-          <TableContainer>
-            <Table>
-              <TableHead sx={{ backgroundColor: '#FFFFFF' }}>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.ticketNumber')}</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.subject')}</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.status')}</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.priority')}</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.category')}</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('support.createdAt')}</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#000000' }}>{t('documents.actions')}</TableCell>
+          <TableContainer sx={{
+            flex: 1,
+            minHeight: 0,
+            maxHeight: '100%',
+            overflowX: 'auto',
+            overflowY: 'auto'
+          }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.ticketNumber')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.subject')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.status')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.priority')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.category')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.createdAt')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('documents.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -829,28 +855,27 @@ const PWDMemberSupportDesk = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  (showArchive ? archivedTickets : tickets).map((ticket) => (
+                  (showArchive ? archivedTickets : tickets).map((ticket, idx) => (
                     <TableRow 
                       key={ticket.id} 
                       hover 
                       onClick={() => handleViewTicket(ticket)}
                       sx={{ 
                         cursor: 'pointer',
-                        backgroundColor: selectedTicketId === ticket.id ? '#E3F2FD' : 'transparent',
+                        bgcolor: idx % 2 ? '#F7FBFF' : 'white',
+                        backgroundColor: selectedTicketId === ticket.id ? '#E3F2FD' : (idx % 2 ? '#F7FBFF' : 'white'),
                         '&:hover': {
                           backgroundColor: selectedTicketId === ticket.id ? '#E3F2FD' : '#F5F5F5'
                         }
                       }}
                     >
-                      <TableCell sx={{ fontWeight: 600, color: '#3498DB' }}>
+                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                         {ticket.ticket_number}
                       </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#000000' }}>
-                          {ticket.subject}
-                        </Typography>
+                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
+                        {ticket.subject}
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                         <Chip
                           label={formatStatus(ticket.status)}
                           size="small"
@@ -859,13 +884,14 @@ const PWDMemberSupportDesk = () => {
                             color: '#27AE60',
                             fontWeight: 600,
                             fontSize: '0.7rem',
+                            height: 22,
                             '& .MuiChip-label': {
                               color: '#27AE60'
                             }
                           }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                         <Chip
                           label={ticket.priority.toUpperCase()}
                           size="small"
@@ -874,13 +900,14 @@ const PWDMemberSupportDesk = () => {
                             color: '#F39C12',
                             fontWeight: 600,
                             fontSize: '0.7rem',
+                            height: 22,
                             '& .MuiChip-label': {
                               color: '#F39C12'
                             }
                           }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                         <Chip
                           label={ticket.category || 'General'}
                           size="small"
@@ -889,16 +916,17 @@ const PWDMemberSupportDesk = () => {
                             color: '#3498DB',
                             fontWeight: 600,
                             fontSize: '0.7rem',
+                            height: 22,
                             '& .MuiChip-label': {
                               color: '#3498DB'
                             }
                           }}
                         />
                       </TableCell>
-                      <TableCell sx={{ color: '#000000', fontSize: '0.9rem' }}>
+                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                         {formatDateMMDDYYYY(ticket.created_at)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                           <Chip
                             label={selectedTicketId === ticket.id ? 'Selected' : 'Click to view'}
@@ -908,7 +936,7 @@ const PWDMemberSupportDesk = () => {
                               color: selectedTicketId === ticket.id ? '#FFFFFF' : '#7F8C8D',
                               fontWeight: 600,
                               fontSize: '0.7rem',
-                              height: '24px'
+                              height: 22
                             }}
                           />
                           {!showArchive && ticket.status !== 'resolved' && (
@@ -955,7 +983,9 @@ const PWDMemberSupportDesk = () => {
               bgcolor: '#FFFFFF',
               transition: 'flex 0.3s ease',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              height: '100%',
+              maxHeight: '100%'
             }}>
               {/* Chat Header */}
               <Box sx={{ 
@@ -1009,7 +1039,10 @@ const PWDMemberSupportDesk = () => {
                 ref={chatContainerRef}
                 sx={{ 
                   flex: 1, 
-                  overflowY: 'auto', 
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  minHeight: 0,
+                  maxHeight: '100%', 
                   p: 2,
                   '&::-webkit-scrollbar': { width: '6px' },
                   '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
@@ -1400,7 +1433,9 @@ const PWDMemberSupportDesk = () => {
                         const file = e.target.files[0];
                         if (file) {
                           // Check file size (10MB limit)
-                          if (file.size > 10 * 1024 * 1024) {
+                          if (file.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        setError(`File size (${fileSizeMB}MB) exceeds the maximum limit of 2MB. Please select a smaller file.`);
                             setError('File size must be less than 10MB');
                             return;
                           }

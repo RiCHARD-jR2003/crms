@@ -12,6 +12,7 @@ use App\Http\Controllers\API\BenefitClaimController;
 use App\Http\Controllers\API\AnnouncementController;
 use App\Http\Controllers\API\ReportController;
 use App\Http\Controllers\API\AuditLogController;
+use App\Http\Controllers\API\SecurityMonitoringController;
 use App\Http\Controllers\API\SupportTicketController;
 use App\Http\Controllers\API\DashboardController;
 use App\Http\Controllers\API\GmailController;
@@ -58,20 +59,124 @@ Route::get('/application-status/{referenceNumber}', function ($referenceNumber) 
         return response()->json([
             'success' => true,
             'application' => [
+                'applicationID' => $application->applicationID,
                 'referenceNumber' => $application->referenceNumber,
                 'firstName' => $application->firstName,
                 'middleName' => $application->middleName,
                 'lastName' => $application->lastName,
                 'suffix' => $application->suffix,
+                'email' => $application->email,
                 'status' => $application->status,
                 'submissionDate' => $application->submissionDate,
-                'remarks' => $application->remarks
+                'remarks' => $application->remarks,
+                // Include document paths for rejected applications (allowing re-upload)
+                'canReuploadDocuments' => $application->status === 'Rejected',
+                'documentFields' => [
+                    'medicalCertificate' => $application->medicalCertificate,
+                    'clinicalAbstract' => $application->clinicalAbstract,
+                    'voterCertificate' => $application->voterCertificate,
+                    'idPictures' => $application->idPictures,
+                    'birthCertificate' => $application->birthCertificate,
+                    'wholeBodyPicture' => $application->wholeBodyPicture,
+                    'affidavit' => $application->affidavit,
+                    'barangayCertificate' => $application->barangayCertificate
+                ]
             ]
         ]);
     } catch (\Exception $e) {
         return response()->json([
             'success' => false,
             'message' => 'Error checking application status: ' . $e->getMessage()
+        ], 500);
+    }
+});
+
+// Route to re-upload documents for rejected applications
+Route::post('/application-status/{referenceNumber}/reupload-documents', function (Request $request, $referenceNumber) {
+    try {
+        $application = \App\Models\Application::where('referenceNumber', $referenceNumber)->first();
+        
+        if (!$application) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+        
+        // Only allow re-upload for rejected applications
+        if ($application->status !== 'Rejected') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Documents can only be re-uploaded for rejected applications'
+            ], 400);
+        }
+        
+        // Handle file uploads
+        $uploadPath = 'uploads/applications/' . date('Y/m/d');
+        \Illuminate\Support\Facades\Storage::makeDirectory($uploadPath);
+        
+        $updatedFields = [];
+        
+        // Handle each document type
+        $documentTypes = [
+            'medicalCertificate', 'clinicalAbstract', 'voterCertificate', 
+            'birthCertificate', 'wholeBodyPicture', 'affidavit', 'barangayCertificate'
+        ];
+        
+        foreach ($documentTypes as $docType) {
+            if ($request->hasFile($docType)) {
+                $file = $request->file($docType);
+                $fileName = $docType . '_' . time() . '.' . $file->getClientOriginalExtension();
+                $filePath = $file->storeAs($uploadPath, $fileName, 'public');
+                $updatedFields[$docType] = $filePath;
+            }
+        }
+        
+        // Handle ID pictures separately (multiple files)
+        $idPictures = [];
+        for ($i = 0; $i < 2; $i++) {
+            if ($request->hasFile("idPicture_$i")) {
+                $idPictureFile = $request->file("idPicture_$i");
+                $idPictureName = "id_picture_{$i}_" . time() . '.' . $idPictureFile->getClientOriginalExtension();
+                $idPicturePath = $idPictureFile->storeAs($uploadPath, $idPictureName, 'public');
+                $idPictures[] = $idPicturePath;
+            }
+        }
+        if (!empty($idPictures)) {
+            $updatedFields['idPictures'] = json_encode($idPictures);
+        }
+        
+        // Update application with new documents
+        if (!empty($updatedFields)) {
+            // Update status back to pending after re-upload
+            $updatedFields['status'] = 'Pending Barangay Approval';
+            $updatedFields['remarks'] = null; // Clear rejection remarks
+            $updatedFields['submissionDate'] = now(); // Update submission date
+            
+            $application->update($updatedFields);
+            
+            \Illuminate\Support\Facades\Log::info('Documents re-uploaded for rejected application', [
+                'application_id' => $application->applicationID,
+                'reference_number' => $referenceNumber,
+                'updated_fields' => array_keys($updatedFields)
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Documents uploaded successfully. Your application has been resubmitted for review.',
+            'application' => $application->fresh()
+        ]);
+        
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Error re-uploading documents', [
+            'reference_number' => $referenceNumber,
+            'error' => $e->getMessage()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Error uploading documents: ' . $e->getMessage()
         ], 500);
     }
 });
@@ -1327,6 +1432,13 @@ Route::post('/applications', function (Request $request) {
         $data = $request->all();
         $data['status'] = 'Pending Barangay Approval';
         $data['submissionDate'] = now();
+        
+        // Normalize middleName: if empty or whitespace, set to "N/A"
+        if (empty($data['middleName']) || trim($data['middleName']) === '') {
+            $data['middleName'] = 'N/A';
+        } else {
+            $data['middleName'] = trim($data['middleName']);
+        }
 
         // Handle file uploads
         $uploadPath = 'uploads/applications/' . date('Y/m/d');
@@ -1408,6 +1520,24 @@ Route::post('/applications', function (Request $request) {
             'application_id' => $application->applicationID,
             'application' => $application->toArray()
         ]);
+
+        // Send submission confirmation email with reference number
+        try {
+            $emailService = new \App\Services\EmailService();
+            $emailService->sendApplicationSubmissionEmail([
+                'email' => $application->email,
+                'firstName' => $application->firstName,
+                'lastName' => $application->lastName,
+                'referenceNumber' => $application->referenceNumber ?? 'N/A',
+                'submissionDate' => $application->submissionDate ?? now()->toDateString()
+            ]);
+        } catch (\Exception $emailException) {
+            \Illuminate\Support\Facades\Log::error('Failed to send submission email', [
+                'application_id' => $application->applicationID,
+                'error' => $emailException->getMessage()
+            ]);
+            // Don't fail the submission if email fails
+        }
 
         return response()->json([
             'message' => 'Application submitted successfully',
@@ -1736,6 +1866,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('audit-logs', [AuditLogController::class, 'index']);
         Route::get('audit-logs/user/{userId}', [AuditLogController::class, 'getByUser']);
         Route::get('audit-logs/action/{action}', [AuditLogController::class, 'getByAction']);
+        
+        // Security Monitoring routes (SuperAdmin only)
+        Route::prefix('security-monitoring')->group(function () {
+            Route::get('/', [SecurityMonitoringController::class, 'index']);
+            Route::get('/statistics', [SecurityMonitoringController::class, 'getStatistics']);
+            Route::get('/{eventId}', [SecurityMonitoringController::class, 'show']);
+            Route::put('/{eventId}/status', [SecurityMonitoringController::class, 'updateStatus']);
+            Route::post('/bulk-update-status', [SecurityMonitoringController::class, 'bulkUpdateStatus']);
+            Route::delete('/delete-events', [SecurityMonitoringController::class, 'deleteEvents']);
+        });
     });
     
     // Support Ticket routes
@@ -1772,6 +1912,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [DocumentManagementController::class, 'update']);
         Route::delete('/{id}', [DocumentManagementController::class, 'destroy']);
         Route::get('/pending-reviews', [DocumentManagementController::class, 'getPendingReviews']);
+        Route::get('/all-members', [DocumentManagementController::class, 'getAllMemberDocuments']);
         Route::post('/{id}/review', [DocumentManagementController::class, 'reviewDocument']);
         
         // Member routes

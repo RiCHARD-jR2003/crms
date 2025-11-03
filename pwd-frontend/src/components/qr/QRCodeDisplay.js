@@ -161,7 +161,14 @@ const QRCodeDisplay = ({ open, onClose, member, onScan }) => {
                       Full Name
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {`${member.firstName} ${member.middleName || ''} ${member.lastName} ${member.suffix || ''}`.trim()}
+                      {(() => {
+                        const parts = [];
+                        if (member.firstName) parts.push(member.firstName);
+                        if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                        if (member.lastName) parts.push(member.lastName);
+                        if (member.suffix) parts.push(member.suffix);
+                        return parts.join(' ').trim();
+                      })()}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>

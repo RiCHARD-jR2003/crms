@@ -41,6 +41,10 @@ import ClearIcon from '@mui/icons-material/Clear';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import AdminSidebar from '../shared/AdminSidebar';
 import Staff1Sidebar from '../shared/Staff1Sidebar';
 import { useAuth } from '../../contexts/AuthContext';
@@ -83,12 +87,15 @@ function PWDRecords() {
       ageRange: '',
       status: ''
     });
+    const [orderBy, setOrderBy] = useState('');
+    const [order, setOrder] = useState('asc');
     const [applications, setApplications] = useState([]);
     const [pwdMembers, setPwdMembers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
     const [selectedApplication, setSelectedApplication] = useState(null);
+    const [currentDetailPage, setCurrentDetailPage] = useState(1); // Page 0 = header (always visible), Page 1-6 = sections
     
     // File viewer modal state
     const [fileViewerOpen, setFileViewerOpen] = useState(false);
@@ -370,10 +377,11 @@ function PWDRecords() {
       setViewDetailsOpen(true);
     };
 
-    const handleCloseDetails = () => {
-      setViewDetailsOpen(false);
-      setSelectedApplication(null);
-    };
+  const handleCloseDetails = () => {
+    setViewDetailsOpen(false);
+    setSelectedApplication(null);
+    setCurrentDetailPage(1); // Reset to first page
+  };
 
     // File viewer functions
     // Normalize file path: remove leading slash and encode each segment to handle spaces
@@ -817,7 +825,14 @@ function PWDRecords() {
                   <div class="grid-2">
                     <div class="field-row">
                       <span class="field-label">Full Name:</span>
-                      <span class="field-value">${app?.firstName || ''} ${app?.middleName || ''} ${app?.lastName || ''} ${app?.suffix || ''}</span>
+                      <span class="field-value">${(() => {
+                        const parts = [];
+                        if (app?.firstName) parts.push(app.firstName);
+                        if (app?.middleName && app.middleName.trim().toUpperCase() !== 'N/A') parts.push(app.middleName);
+                        if (app?.lastName) parts.push(app.lastName);
+                        if (app?.suffix) parts.push(app.suffix);
+                        return parts.join(' ');
+                      })()}</span>
                     </div>
                     <div class="field-row">
                       <span class="field-label">Date of Birth:</span>
@@ -986,13 +1001,11 @@ function PWDRecords() {
       // Use different data based on selected tab
       const dataToFilter = tab === 0 ? rows : applications;
       
-      // If no filters are active, return all data
+      // Check if any filters are active
       const hasAnyFilters = Object.values(filters).some(value => value !== '');
-      if (!hasAnyFilters) {
-        return dataToFilter;
-      }
       
-      const filtered = dataToFilter.filter(row => {
+      // Filter the data if filters are active
+      const filtered = hasAnyFilters ? dataToFilter.filter(row => {
         // Search filter
         const matchesSearch = !filters.search || 
           (row.name && row.name.toLowerCase().includes(filters.search.toLowerCase())) ||
@@ -1059,13 +1072,62 @@ function PWDRecords() {
         }
 
         return matchesSearch && matchesBarangay && matchesDisability && matchesAgeRange && matchesStatus;
+      }) : [...dataToFilter];
+    
+    // Apply sorting
+    if (orderBy) {
+      filtered.sort((a, b) => {
+        let aValue = a[orderBy];
+        let bValue = b[orderBy];
+        
+        // Handle nested properties
+        if (orderBy === 'pwdId' && tab === 0) {
+          aValue = a.pwdId || '';
+          bValue = b.pwdId || '';
+        } else if (orderBy === 'name' && tab === 0) {
+          aValue = a.name || '';
+          bValue = b.name || '';
+        } else if (orderBy === 'firstName' && tab === 1) {
+          aValue = `${a.firstName || ''} ${a.lastName || ''}`.trim();
+          bValue = `${b.firstName || ''} ${b.lastName || ''}`.trim();
+        } else if (orderBy === 'submissionDate' && tab === 1) {
+          aValue = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          bValue = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+        }
+        
+        // Handle string comparison
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          aValue = aValue.toLowerCase();
+          bValue = bValue.toLowerCase();
+        }
+        
+        // Handle number comparison for age
+        if (orderBy === 'age') {
+          aValue = parseInt(aValue) || 0;
+          bValue = parseInt(bValue) || 0;
+        }
+        
+        if (aValue < bValue) {
+          return order === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return order === 'asc' ? 1 : -1;
+        }
+        return 0;
       });
-      
-      return filtered;
-    }, [rows, applications, filters, tab]);
+    }
+    
+    return filtered;
+    }, [rows, applications, filters, tab, orderBy, order]);
 
     const handleFilterChange = (field, value) => {
       setFilters(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleRequestSort = (property) => {
+      const isAsc = orderBy === property && order === 'asc';
+      setOrder(isAsc ? 'desc' : 'asc');
+      setOrderBy(property);
     };
 
     const clearFilters = () => {
@@ -1677,55 +1739,118 @@ function PWDRecords() {
                       <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
                           {tab === 0 ? (
                             <>
-                              <TableCell width={60} sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '90px', minWidth: '90px', textAlign: 'center' }}>
                                 PWD ID NO.
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '180px', minWidth: '180px', textAlign: 'center' }}>
                                 Name
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '65px', minWidth: '65px', textAlign: 'center' }}>
                                 Age
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '160px', minWidth: '160px', textAlign: 'center' }}>
                                 Barangay
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '180px', minWidth: '180px', textAlign: 'center' }}>
                                 Disability
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '150px', minWidth: '150px', textAlign: 'center' }}>
                                 Guardian Name
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '130px', minWidth: '130px', textAlign: 'center' }}>
                                 Contact No.
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '100px', minWidth: '100px', textAlign: 'center' }}>
                                 Status
                               </TableCell>
                             </>
                           ) : (
                             <>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
-                                Application ID
+                              <TableCell 
+                                sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '100px', minWidth: '100px', cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' } }}
+                                onClick={() => handleRequestSort('applicationID')}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                  Application ID
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
+                                    <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'applicationID' && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'applicationID' && order === 'asc' ? 1 : 0.3 }} />
+                                    <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'applicationID' && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'applicationID' && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
+                                  </Box>
+                                </Box>
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
-                                Name
+                              <TableCell 
+                                sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '180px', minWidth: '180px', cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' } }}
+                                onClick={() => handleRequestSort('firstName')}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                  Name
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
+                                    <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'firstName' && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'firstName' && order === 'asc' ? 1 : 0.3 }} />
+                                    <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'firstName' && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'firstName' && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
+                                  </Box>
+                                </Box>
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
-                                Email
+                              <TableCell 
+                                sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '200px', minWidth: '200px', cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' } }}
+                                onClick={() => handleRequestSort('email')}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                  Email
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
+                                    <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'email' && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'email' && order === 'asc' ? 1 : 0.3 }} />
+                                    <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'email' && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'email' && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
+                                  </Box>
+                                </Box>
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
-                                Disability Type
+                              <TableCell 
+                                sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '170px', minWidth: '170px', cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' } }}
+                                onClick={() => handleRequestSort('disabilityType')}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                  Disability Type
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
+                                    <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'disabilityType' && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'disabilityType' && order === 'asc' ? 1 : 0.3 }} />
+                                    <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'disabilityType' && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'disabilityType' && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
+                                  </Box>
+                                </Box>
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
-                                Contact Number
+                              <TableCell 
+                                sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '130px', minWidth: '130px', cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' } }}
+                                onClick={() => handleRequestSort('contactNumber')}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                  Contact Number
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
+                                    <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'contactNumber' && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'contactNumber' && order === 'asc' ? 1 : 0.3 }} />
+                                    <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'contactNumber' && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'contactNumber' && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
+                                  </Box>
+                                </Box>
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
-                                Submission Date
+                              <TableCell 
+                                sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '130px', minWidth: '130px', cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' } }}
+                                onClick={() => handleRequestSort('submissionDate')}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                  Submission Date
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
+                                    <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'submissionDate' && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'submissionDate' && order === 'asc' ? 1 : 0.3 }} />
+                                    <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'submissionDate' && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'submissionDate' && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
+                                  </Box>
+                                </Box>
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
-                                Status
+                              <TableCell 
+                                sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '100px', minWidth: '100px', cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' } }}
+                                onClick={() => handleRequestSort('status')}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                  Status
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
+                                    <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'status' && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'status' && order === 'asc' ? 1 : 0.3 }} />
+                                    <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'status' && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'status' && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
+                                  </Box>
+                                </Box>
                               </TableCell>
-                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>
+                              <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '150px', minWidth: '150px' }}>
                                 Actions
                               </TableCell>
                             </>
@@ -1737,28 +1862,28 @@ function PWDRecords() {
                           <TableRow key={row.applicationID || row.id} sx={{ bgcolor: idx % 2 ? '#F7FBFF' : 'white' }}>
                             {tab === 0 ? (
                               <>
-                                <TableCell sx={{ color: '#1976D2', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '90px', minWidth: '90px', textAlign: 'center' }}>
                                   {row.pwdId}
                                 </TableCell>
-                                <TableCell sx={{ color: '#0b87ac', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '180px', minWidth: '180px', textAlign: 'center' }}>
                                   {row.name}
                                 </TableCell>
-                                <TableCell sx={{ color: '#34495E', fontWeight: 600, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '65px', minWidth: '65px', textAlign: 'center' }}>
                                   {row.age}
                                 </TableCell>
-                                <TableCell sx={{ color: '#0b87ac', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '160px', minWidth: '160px', textAlign: 'center' }}>
                                   {row.barangay}
                                 </TableCell>
-                                <TableCell sx={{ color: '#0b87ac', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '180px', minWidth: '180px', textAlign: 'center' }}>
                                   {row.disability}
                                 </TableCell>
-                                <TableCell sx={{ color: '#0b87ac', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '150px', minWidth: '150px', textAlign: 'center' }}>
                                   {row.guardian}
                                 </TableCell>
-                                <TableCell sx={{ color: '#34495E', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '130px', minWidth: '130px', textAlign: 'center' }}>
                                   {row.contact}
                                 </TableCell>
-                                <TableCell sx={{ py: 2, px: 2 }}>
+                                <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '100px', minWidth: '100px', textAlign: 'center' }}>
                                   <Chip 
                                     label={row.status} 
                                     size="small"
@@ -1768,32 +1893,33 @@ function PWDRecords() {
                                             row.status === 'Suspended' ? '#E74C3C' : '#95A5A6',
                                       color: '#FFFFFF',
                                       fontSize: '0.7rem',
-                                      fontWeight: 600
+                                      fontWeight: 600,
+                                      height: 22
                                     }}
                                   />
                                 </TableCell>
                               </>
                             ) : (
                               <>
-                                <TableCell sx={{ color: '#1976D2', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '100px', minWidth: '100px' }}>
                                   {row.applicationID}
                                 </TableCell>
-                                <TableCell sx={{ color: '#0b87ac', fontWeight: 600, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '180px', minWidth: '180px' }}>
                                   {`${row.firstName} ${row.lastName} ${row.suffix || ''}`.trim()}
                                 </TableCell>
-                                <TableCell sx={{ color: '#D35400', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '200px', minWidth: '200px' }}>
                                   {row.email}
                                 </TableCell>
-                                <TableCell sx={{ color: '#8E44AD', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '170px', minWidth: '170px' }}>
                                   {row.disabilityType}
                                 </TableCell>
-                                <TableCell sx={{ color: '#16A085', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '130px', minWidth: '130px' }}>
                                   {row.contactNumber}
                                 </TableCell>
-                                <TableCell sx={{ color: '#E67E22', fontWeight: 500, py: 2, px: 2 }}>
+                                <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '130px', minWidth: '130px' }}>
                                   {formatDateMMDDYYYY(row.submissionDate)}
                               </TableCell>
-                                <TableCell sx={{ py: 2, px: 2 }}>
+                                <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '100px', minWidth: '100px' }}>
                                   <Chip 
                                     label={row.status || 'Pending'} 
                                     size="small"
@@ -1806,11 +1932,11 @@ function PWDRecords() {
                                       fontWeight: 700,
                                       textTransform: 'uppercase',
                                       letterSpacing: '0.5px',
-                                      border: '1px solid rgba(255,255,255,0.3)'
+                                      height: 22
                                     }}
                                   />
                                 </TableCell>
-                              <TableCell sx={{ py: 2, px: 2, whiteSpace: 'nowrap' }}>
+                              <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '150px', minWidth: '150px', whiteSpace: 'nowrap' }}>
                                 {(() => {
                                   const isBarangayApproved = (row.status || '').toString().toLowerCase() === 'pending admin approval';
                                   const disabledReason = isBarangayApproved ? '' : 'Disabled until Barangay approves the application';
@@ -1918,231 +2044,264 @@ function PWDRecords() {
             </IconButton>
           </DialogTitle>
           
-          <DialogContent sx={{ p: 2, bgcolor: '#FFFFFF', color: '#000000' }}>
+          <DialogContent sx={{ 
+            p: 2, 
+            bgcolor: '#FFFFFF', 
+            color: '#000000',
+            height: '500px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
             {selectedApplication && (
-              <Box id="application-details" sx={{ p: 4 }}>
-                {/* Header Section */}
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                height: '100%',
+                overflow: 'hidden'
+              }}>
+                {/* Header Section - Always Visible */}
                 <Paper sx={{ 
-                  p: 3, 
-                  mb: 3, 
+                  p: 2, 
+                  mb: 2, 
                   bgcolor: '#FFFFFF',
                   border: '2px solid #E9ECEF',
-                  borderRadius: 2
+                  borderRadius: 2,
+                  flexShrink: 0
                 }}>
-                  <Box sx={{ textAlign: 'center', mb: 3 }}>
+                  <Box sx={{ textAlign: 'center', mb: 2 }}>
                     <Typography variant="h5" sx={{ 
                       fontWeight: 'bold', 
                       color: '#0b87ac',
-                      mb: 1
+                      mb: 1,
+                      fontSize: '1.25rem'
                     }}>
                       CABUYAO PDAO RMS
                     </Typography>
                     <Typography variant="h6" sx={{ 
                       color: '#7F8C8D',
-                      fontWeight: 500
+                      fontWeight: 500,
+                      fontSize: '0.875rem'
                     }}>
                       Persons with Disabilities Application Form
                     </Typography>
                   </Box>
                   
-                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid container spacing={2}>
                     <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '0.75rem' }}>
                         Application ID:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac' }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', fontSize: '0.875rem' }}>
                         {selectedApplication.applicationID}
                       </Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '0.75rem' }}>
                         Submission Date:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac' }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', fontSize: '0.875rem' }}>
                         {formatDateMMDDYYYY(selectedApplication.submissionDate)}
                       </Typography>
                     </Grid>
                   </Grid>
                 </Paper>
 
-                {/* Personal Information */}
-                <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+                {/* Page Content - Scrollable */}
+                <Box sx={{ 
+                  flex: 1, 
+                  overflow: 'auto',
+                  pr: 1
+                }}>
+                  {/* Page 1: Personal Information */}
+                  {currentDetailPage === 1 && (
+                <Paper sx={{ p: 1.5, mb: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF', height: '100%', overflow: 'hidden' }}>
                   <Typography variant="h6" sx={{ 
                     fontWeight: 'bold', 
                     color: '#0b87ac', 
-                    mb: 2,
+                    mb: 1,
                     borderBottom: '2px solid #0b87ac',
-                    pb: 1
+                    pb: 0.5,
+                    fontSize: '1rem'
                   }}>
                     Personal Information
                   </Typography>
                   
-                  <Grid container spacing={2}>
+                  <Grid container spacing={1.5}>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         First Name:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.firstName}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Last Name:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.lastName}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Middle Name:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.middleName || 'N/A'}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Birth Date:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {formatDateMMDDYYYY(selectedApplication.birthDate)}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Gender:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.gender}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Civil Status:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.civilStatus || 'N/A'}
                       </Typography>
                     </Grid>
                   </Grid>
                 </Paper>
+                  )}
 
-                {/* Disability Information */}
-                <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+                  {/* Page 2: Disability Information */}
+                  {currentDetailPage === 2 && (
+                <Paper sx={{ p: 1.5, mb: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF', height: '100%', overflow: 'hidden' }}>
                   <Typography variant="h6" sx={{ 
                     fontWeight: 'bold', 
                     color: '#0b87ac', 
-                    mb: 2,
+                    mb: 1,
                     borderBottom: '2px solid #E74C3C',
-                    pb: 1
+                    pb: 0.5,
+                    fontSize: '1rem'
                   }}>
                     Disability Information
                   </Typography>
                   
-                  <Grid container spacing={2}>
+                  <Grid container spacing={1.5}>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Disability Type:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.disabilityType}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Disability Cause:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.disabilityCause || 'N/A'}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Disability Date:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.disabilityDate ? formatDateMMDDYYYY(selectedApplication.disabilityDate) : 'N/A'}
                       </Typography>
                     </Grid>
                   </Grid>
                 </Paper>
+                  )}
 
-                {/* Contact Information */}
-                <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+                  {/* Page 3: Contact Information */}
+                  {currentDetailPage === 3 && (
+                <Paper sx={{ p: 1.5, mb: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF', height: '100%', overflow: 'hidden' }}>
                   <Typography variant="h6" sx={{ 
                     fontWeight: 'bold', 
                     color: '#0b87ac', 
-                    mb: 2,
+                    mb: 1,
                     borderBottom: '2px solid #27AE60',
-                    pb: 1
+                    pb: 0.5,
+                    fontSize: '1rem'
                   }}>
                     Contact Information
                   </Typography>
                   
-                  <Grid container spacing={2}>
+                  <Grid container spacing={1.5}>
                     <Grid item xs={12}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Email Address:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.email}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Contact Number:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.contactNumber || 'N/A'}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Emergency Contact:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.emergencyContact || 'N/A'}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Emergency Phone:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.emergencyPhone || 'N/A'}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Emergency Relationship:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.emergencyRelationship || 'N/A'}
                       </Typography>
                     </Grid>
                   </Grid>
                 </Paper>
+                  )}
 
-                {/* Address Information */}
-                <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+                  {/* Page 4: Address Information */}
+                  {currentDetailPage === 4 && (
+                <Paper sx={{ p: 1.5, mb: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF', height: '100%', overflow: 'hidden' }}>
                   <Typography variant="h6" sx={{ 
                     fontWeight: 'bold', 
                     color: '#0b87ac', 
-                    mb: 2,
+                    mb: 1,
                     borderBottom: '2px solid #F39C12',
-                    pb: 1
+                    pb: 0.5,
+                    fontSize: '1rem'
                   }}>
                     Address Information
                   </Typography>
                   
-                  <Grid container spacing={2}>
+                  <Grid container spacing={1.5}>
                     <Grid item xs={12}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                         Home Number/Street:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 1, lineHeight: 1.6 }}>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem', lineHeight: 1.5 }}>
                         {(() => {
                           const addressParts = [];
                           
@@ -2180,28 +2339,31 @@ function PWDRecords() {
                     </Grid>
                   </Grid>
                 </Paper>
+                  )}
 
-                {/* Uploaded Documents */}
-                <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+                  {/* Page 5: Uploaded Documents */}
+                  {currentDetailPage === 5 && (
+                <Paper sx={{ p: 2, mb: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF', height: '100%', overflow: 'auto' }}>
                   <Typography variant="h6" sx={{ 
                     fontWeight: 'bold', 
                     color: '#0b87ac', 
-                    mb: 2,
+                    mb: 1.5,
                     borderBottom: '2px solid #8E44AD',
-                    pb: 1
+                    pb: 0.75,
+                    fontSize: '1rem'
                   }}>
                     Uploaded Documents
                   </Typography>
                   
-                  <Grid container spacing={2}>
+                  <Grid container spacing={1.5}>
                     {Object.keys(documentMapping).map((fieldName) => {
                       const docInfo = documentMapping[fieldName];
                       const hasDocument = documentService.hasDocument(selectedApplication, fieldName);
                       
                       return (
                         <Grid item xs={12} sm={4} key={fieldName}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', fontSize: '0.75rem' }}>
                               {docInfo.name}:
                             </Typography>
                             {docInfo.isRequired && (
@@ -2209,16 +2371,19 @@ function PWDRecords() {
                                 label="Required" 
                                 size="small" 
                                 sx={{ 
-                                  ml: 1, 
+                                  ml: 0.5, 
                                   bgcolor: '#E74C3C', 
                                   color: '#FFFFFF',
-                                  fontSize: '0.6rem',
-                                  height: '16px'
+                                  fontSize: '0.55rem',
+                                  height: '14px',
+                                  '& .MuiChip-label': {
+                                    px: 0.5
+                                  }
                                 }} 
                               />
                             )}
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, minHeight: '120px' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.5, minHeight: '80px' }}>
                             {hasDocument ? (
                               <Box 
                                 sx={{ 
@@ -2263,15 +2428,15 @@ function PWDRecords() {
                                             <Box
                                               key={index}
                                               sx={{ 
-                                                width: 56, 
-                                                height: 80,
+                                                width: 48, 
+                                                height: 64,
                                                 borderRadius: 1,
                                                 overflow: 'hidden',
                                                 bgcolor: isImageFile(file) ? 'transparent' : '#0b87ac',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
-                                                fontSize: '1.2rem',
+                                                fontSize: '1rem',
                                                 color: 'white',
                                                 border: '1px solid #ddd'
                                               }}
@@ -2303,10 +2468,10 @@ function PWDRecords() {
                                         })}
                                         {parsedFiles.length > 2 && (
                                           <Box sx={{ 
-                                            width: 56, 
-                                            height: 80, 
+                                            width: 48, 
+                                            height: 64, 
                                             bgcolor: '#95A5A6', 
-                                            fontSize: '0.8rem',
+                                            fontSize: '0.7rem',
                                             borderRadius: 1,
                                             display: 'flex',
                                             alignItems: 'center',
@@ -2324,15 +2489,15 @@ function PWDRecords() {
                                     return (
                                       <Box
                                         sx={{ 
-                                          width: 70, 
-                                          height: 100,
+                                          width: 56, 
+                                          height: 80,
                                           borderRadius: 1,
                                           overflow: 'hidden',
                                           bgcolor: isImageFile(fileName) ? 'transparent' : '#0b87ac',
                                           display: 'flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
-                                          fontSize: '1.5rem',
+                                          fontSize: '1.2rem',
                                           color: 'white',
                                           border: '1px solid #ddd'
                                         }}
@@ -2355,14 +2520,14 @@ function PWDRecords() {
                                   }
                                 })()}
                               </Box>
-                            ) : (
-                              <Typography variant="body2" sx={{ color: '#7F8C8D', fontStyle: 'italic' }}>
-                                No file uploaded
-                              </Typography>
-                            )}
-                          </Box>
-                          {docInfo.description && (
-                            <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 0.5 }}>
+                          ) : (
+                            <Typography variant="body2" sx={{ color: '#7F8C8D', fontStyle: 'italic', fontSize: '0.75rem' }}>
+                              No file uploaded
+                            </Typography>
+                          )}
+                        </Box>
+                        {docInfo.description && (
+                          <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 0.25, fontSize: '0.7rem' }}>
                               {docInfo.description}
                             </Typography>
                           )}
@@ -2371,35 +2536,102 @@ function PWDRecords() {
                     })}
                   </Grid>
                 </Paper>
+                  )}
 
-                {/* Status Information */}
-                <Paper sx={{ p: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+                  {/* Page 6: Status Information */}
+                  {currentDetailPage === 6 && (
+                <Paper sx={{ p: 1.5, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF', height: '100%', overflow: 'hidden' }}>
                   <Typography variant="h6" sx={{ 
                     fontWeight: 'bold', 
                     color: '#0b87ac', 
-                    mb: 2,
+                    mb: 1,
                     borderBottom: '2px solid #9B59B6',
-                    pb: 1
+                    pb: 0.5,
+                    fontSize: '1rem'
                   }}>
                     Application Status
                   </Typography>
                   
                   <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                        Current Status:
-                      </Typography>
-                      <Chip 
-                        label={selectedApplication.status || 'Pending'} 
-                        sx={{ 
-                          bgcolor: (selectedApplication.status || 'Pending') === 'Approved' ? '#27AE60' : 
-                                (selectedApplication.status || 'Pending') === 'Pending' ? '#F39C12' : 
-                                (selectedApplication.status || 'Pending') === 'Rejected' ? '#E74C3C' : '#95A5A6',
-                          color: '#FFFFFF',
-                          fontWeight: 'bold'
-                        }}
-                      />
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5, fontSize: '0.75rem' }}>
+                      Current Status:
+                    </Typography>
+                    <Chip 
+                      label={selectedApplication.status || 'Pending'} 
+                      size="small"
+                      sx={{ 
+                        bgcolor: (selectedApplication.status || 'Pending') === 'Approved' ? '#27AE60' : 
+                               (selectedApplication.status || 'Pending') === 'Pending' ? '#F39C12' : 
+                               (selectedApplication.status || 'Pending') === 'Rejected' ? '#E74C3C' : '#95A5A6',
+                        color: '#FFFFFF',
+                        fontWeight: 'bold',
+                        fontSize: '0.75rem'
+                      }}
+                    />
                   </Box>
                 </Paper>
+                  )}
+                </Box>
+
+                {/* Pagination Navigation */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  mt: 2,
+                  pt: 2,
+                  borderTop: '1px solid #E0E0E0',
+                  flexShrink: 0
+                }}>
+                  <Button
+                    onClick={() => setCurrentDetailPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentDetailPage === 1}
+                    startIcon={<ChevronLeftIcon />}
+                    sx={{
+                      textTransform: 'none',
+                      color: currentDetailPage === 1 ? '#ccc' : '#0b87ac',
+                      '&:hover': {
+                        bgcolor: 'rgba(11, 135, 172, 0.1)'
+                      }
+                    }}
+                  >
+                    Previous
+                  </Button>
+
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    {[1, 2, 3, 4, 5, 6].map((page) => (
+                      <Chip
+                        key={page}
+                        label={page}
+                        onClick={() => setCurrentDetailPage(page)}
+                        sx={{
+                          cursor: 'pointer',
+                          bgcolor: currentDetailPage === page ? '#0b87ac' : 'transparent',
+                          color: currentDetailPage === page ? '#fff' : '#0b87ac',
+                          border: '1px solid #0b87ac',
+                          '&:hover': {
+                            bgcolor: currentDetailPage === page ? '#0b87ac' : 'rgba(11, 135, 172, 0.1)'
+                          }
+                        }}
+                      />
+                    ))}
+                  </Box>
+
+                  <Button
+                    onClick={() => setCurrentDetailPage(prev => Math.min(6, prev + 1))}
+                    disabled={currentDetailPage === 6}
+                    endIcon={<ChevronRightIcon />}
+                    sx={{
+                      textTransform: 'none',
+                      color: currentDetailPage === 6 ? '#ccc' : '#0b87ac',
+                      '&:hover': {
+                        bgcolor: 'rgba(11, 135, 172, 0.1)'
+                      }
+                    }}
+                  >
+                    Next
+                  </Button>
+                </Box>
               </Box>
             )}
           </DialogContent>

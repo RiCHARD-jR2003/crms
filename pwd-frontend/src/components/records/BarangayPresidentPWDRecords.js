@@ -33,7 +33,9 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Backdrop
+  Backdrop,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PrintIcon from '@mui/icons-material/Print';
@@ -42,12 +44,17 @@ import ClearIcon from '@mui/icons-material/Clear';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import BarangayPresidentSidebar from '../shared/BarangayPresidentSidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/api';
 import { filePreviewService } from '../../services/filePreviewService';
 import toastService from '../../services/toastService';
 import { documentService } from '../../services/documentService';
+import { formatName } from '../../utils/nameFormatter';
 
 // Helper function to convert text to proper case
 const toProperCase = (text) => {
@@ -67,6 +74,8 @@ function BarangayPresidentPWDRecords() {
     disability: '',
     status: ''
   });
+  const [orderBy, setOrderBy] = useState('');
+  const [order, setOrder] = useState('asc');
 
   // Format date as MM/DD/YYYY
   const formatDateMMDDYYYY = (dateString) => {
@@ -96,9 +105,17 @@ function BarangayPresidentPWDRecords() {
   const [correctionNotes, setCorrectionNotes] = useState('');
   const [documentTypes, setDocumentTypes] = useState([]);
   const [documentMapping, setDocumentMapping] = useState({});
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [previewImageUrl, setPreviewImageUrl] = useState('');
-  const [previewFileName, setPreviewFileName] = useState('');
+  
+  // Rejection modal state
+  const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [rejectionRemarks, setRejectionRemarks] = useState('');
+  const [rejectionConfirmationOpen, setRejectionConfirmationOpen] = useState(false);
+  
+  // Approval confirmation state
+  const [approvalConfirmationOpen, setApprovalConfirmationOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // 'approve' or 'reject'
   
   // Toast notifications will be used instead of modals
 
@@ -180,71 +197,119 @@ function BarangayPresidentPWDRecords() {
     return '📄';
   };
 
-  const handlePreviewImage = (imageUrl, fileName) => {
-    // Open image in modal instead of new tab
-    setPreviewImageUrl(imageUrl);
-    setPreviewFileName(fileName || 'Preview');
-    setPreviewModalOpen(true);
+  // Map frontend field names to backend document type names that API accepts
+  const mapFieldNameToDocumentType = (fieldName) => {
+    const mapping = {
+      'medicalCertificate': 'medicalCertificate',
+      'clinicalAbstract': 'clinicalAbstract',
+      'voterCertificate': 'voterCertificate',
+      'birthCertificate': 'birthCertificate',
+      'wholeBodyPicture': 'wholeBodyPicture',
+      'affidavit': 'affidavit',
+      'barangayCertificate': 'barangayCertificate'
+    };
+    
+    // Return mapped name if exists, otherwise return null (for unsupported types)
+    return mapping[fieldName] || null;
   };
-  
+
   const handleViewFileBatch = (fileType, fileIndex = 0) => {
     if (!selectedApplication) {
       console.error('No application selected');
       return;
     }
     
-    const fileName = selectedApplication[fileType];
-    if (!fileName) {
-      console.error('No file found for field:', fileType);
+    // Handle idPictures specially - use storage URL directly since API doesn't support it
+    if (fileType === 'idPictures' || fileType.includes('idPicture')) {
+      const fileName = selectedApplication[fileType];
+      if (!fileName) {
+        console.error('No file found for field:', fileType);
+        return;
+      }
+      
+      let parsedFiles = fileName;
+      if (typeof fileName === 'string') {
+        try {
+          const parsed = JSON.parse(fileName);
+          if (Array.isArray(parsed)) {
+            parsedFiles = parsed;
+          }
+        } catch (e) {
+          parsedFiles = fileName;
+        }
+      }
+      
+      // Get the file path
+      let filePath = '';
+      if (Array.isArray(parsedFiles)) {
+        const file = parsedFiles[fileIndex] || parsedFiles[0];
+        if (!file) return;
+        filePath = file;
+      } else {
+        filePath = parsedFiles;
+      }
+      
+      if (!filePath) return;
+      
+      // Build storage URL properly
+      // Remove any leading slashes
+      let cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+      
+      // Determine normalized path based on what we have
+      let normalizedPath = '';
+      
+      // Check different path formats that might be stored in the database
+      if (cleanPath.startsWith('uploads/applications/')) {
+        // Path already includes full structure: uploads/applications/YYYY/MM/DD/file.jpg
+        // Keep it as is - Laravel storage link handles this
+        normalizedPath = cleanPath;
+      } else if (cleanPath.startsWith('applications/')) {
+        // Path has applications/ but not uploads/
+        // Add uploads/ prefix for Laravel storage structure
+        normalizedPath = `uploads/${cleanPath}`;
+      } else if (cleanPath.includes('/') && /^\d{4}\/\d{2}\/\d{2}\//.test(cleanPath.split('/').slice(-4).join('/'))) {
+        // Path is date-based (YYYY/MM/DD/filename) but missing prefix folders
+        normalizedPath = `uploads/applications/${cleanPath}`;
+      } else if (!cleanPath.includes('/')) {
+        // Just a filename
+        normalizedPath = `uploads/applications/${cleanPath}`;
+      } else {
+        // Has some directory structure - try to add uploads/applications/
+        normalizedPath = `uploads/applications/${cleanPath}`;
+      }
+      
+      // Normalize path segments for encoding
+      normalizedPath = normalizeFilePath(normalizedPath);
+      
+      // Construct storage URL - api.getStorageUrl adds '/storage/' prefix
+      // Laravel storage link maps public/storage to storage/app/public
+      // So files in storage/app/public/uploads/applications/... are at /storage/uploads/applications/...
+      const fileUrl = api.getStorageUrl(normalizedPath);
+      
+      console.log('ID Picture preview URL:', { originalPath: filePath, cleanPath, normalizedPath, fileUrl });
+      if (fileUrl) {
+        window.open(fileUrl, '_blank', 'noopener,noreferrer');
+      }
       return;
     }
-
-    let fileUrl = null;
-    let displayFileName = '';
     
-    // Parse fileName if it's a JSON string or array
-    let parsedFiles = fileName;
-    if (typeof fileName === 'string') {
-      try {
-        const parsed = JSON.parse(fileName);
-        if (Array.isArray(parsed)) {
-          parsedFiles = parsed;
-        }
-      } catch (e) {
-        // Not JSON, treat as single file
-        parsedFiles = fileName;
-      }
+    // Map field name to backend document type name
+    const documentType = mapFieldNameToDocumentType(fileType);
+    
+    if (!documentType) {
+      console.error(`Document type not supported for field: ${fileType}`);
+      toastService.error(`File preview not available for this document type`);
+      return;
     }
     
-    // Get the specific file from array if needed
-    if (Array.isArray(parsedFiles)) {
-      const file = parsedFiles[fileIndex] || parsedFiles[0];
-      if (!file) return;
-      const normalizedPath = normalizeFilePath(ensureStorageFolder(file));
-      fileUrl = api.getStorageUrl(normalizedPath);
-      displayFileName = file;
-    } else {
-      const normalizedPath = normalizeFilePath(ensureStorageFolder(parsedFiles));
-      fileUrl = api.getStorageUrl(normalizedPath);
-      displayFileName = parsedFiles;
-    }
-
-    if (fileUrl && isImageFile(displayFileName)) {
-      handlePreviewImage(fileUrl, displayFileName);
-    } else {
-      filePreviewService.openPreview('application-file', selectedApplication.applicationID, fileType);
-    }
+    // Use the filePreviewService which handles authentication and proper API endpoints
+    filePreviewService.openPreview('application-file', selectedApplication.applicationID, documentType);
   };
 
   const handleViewFile = (fileType) => {
     handleViewFileBatch(fileType, 0);
   };
 
-  const handleClosePreviewModal = () => {
-    setPreviewModalOpen(false);
-    setPreviewImageUrl('');
-    setPreviewFileName('');
-  };
 
   useEffect(() => {
     fetchData();
@@ -317,16 +382,49 @@ function BarangayPresidentPWDRecords() {
   const approveDelayRef = React.useRef(null);
   const [approving, setApproving] = useState(false);
 
-  const handleApproveApplication = async (applicationId) => {
+  const handleApproveClick = (application) => {
+    // Show application details modal
+    setSelectedApplication(application);
+    setViewDetailsOpen(true);
+    setPendingAction('approve');
+    
+    // Show toast notification
+    toastService.info('Please review once more the application before proceeding.');
+  };
+
+  const handleRejectClick = (application) => {
+    // Show application details modal
+    setSelectedApplication(application);
+    setViewDetailsOpen(true);
+    setPendingAction('reject');
+    
+    // Show toast notification
+    toastService.info('Please review once more the application before proceeding.');
+  };
+
+  const handleApproveFromModal = () => {
+    setApprovalConfirmationOpen(true);
+  };
+
+  const handleApproveConfirm = async () => {
+    if (!selectedApplication) return;
+    
+    setApprovalConfirmationOpen(false);
+    
     try {
       approveDelayRef.current = setTimeout(() => setApproving(true), 700);
-      await api.post(`/applications/${applicationId}/approve-barangay`, {
+      await api.post(`/applications/${selectedApplication.applicationID}/approve-barangay`, {
         remarks: 'Approved by Barangay President'
       });
 
       // Refresh the applications list
       await fetchData();
       toastService.success('Application approved successfully!');
+      
+      // Close modal
+      setViewDetailsOpen(false);
+      setSelectedApplication(null);
+      setPendingAction(null);
     } catch (err) {
       console.error('Error approving application:', err);
       toastService.error('Failed to approve application: ' + (err.message || 'Unknown error'));
@@ -336,6 +434,112 @@ function BarangayPresidentPWDRecords() {
         approveDelayRef.current = null;
       }
       setApproving(false);
+    }
+  };
+
+  const handleRejectFromModal = () => {
+    // Open rejection reason dialog (keep application details modal open)
+    setRejectionModalOpen(true);
+    setRejectionReason('');
+    setCustomReason('');
+    setRejectionRemarks('');
+  };
+
+  const handleRejectSubmit = () => {
+    if (!rejectionReason) {
+      toastService.error('Please select a rejection reason.');
+      return;
+    }
+    
+    if (rejectionReason === 'other' && !customReason.trim()) {
+      toastService.error('Please provide a custom rejection reason.');
+      return;
+    }
+    
+    if (!rejectionRemarks.trim()) {
+      toastService.error('Please provide remarks for the rejection.');
+      return;
+    }
+    
+    // Close rejection modal and show confirmation
+    setRejectionModalOpen(false);
+    setRejectionConfirmationOpen(true);
+  };
+  
+  // Get formatted rejection reason for display
+  const getFormattedRejectionReason = () => {
+    if (!rejectionReason) return '';
+    
+    const reasonMap = {
+      'incomplete_information': 'Incomplete Information',
+      'incorrect_information': 'Incorrect Information',
+      'document_resubmission': 'Document Resubmission/Correction Required',
+      'does_not_meet_criteria': 'Does Not Meet Criteria',
+      'other': customReason || 'Other'
+    };
+    
+    return reasonMap[rejectionReason] || rejectionReason;
+  };
+  
+  // Generate preview message (same as email)
+  const getPreviewMessage = () => {
+    if (!selectedApplication || !rejectionReason) return '';
+    
+    const formattedReason = getFormattedRejectionReason();
+    const refNumber = selectedApplication.referenceNumber || 'N/A';
+    const frontendUrl = window.location.origin;
+    
+    return `Dear ${selectedApplication.firstName} ${selectedApplication.lastName},
+
+We regret to inform you that your PWD (Persons with Disabilities) application has been reviewed and rejected by the Cabuyao PDAO (Persons with Disabilities Affairs Office).
+
+Your Application Reference Number: ${refNumber}
+
+Rejection Reason: ${formattedReason}
+
+Remarks/Instructions:
+${rejectionRemarks || '(No additional remarks provided)'}
+
+Your application data and submitted documents have been retained. You do not need to re-apply from scratch.
+
+You can check your application status and re-upload documents at:
+${frontendUrl}/check-status/${refNumber}
+
+Thank you for your interest in Cabuyao PDAO RMS.`;
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!selectedApplication) return;
+    
+    setRejectionConfirmationOpen(false);
+    
+    try {
+      const rejectionData = {
+        remarks: rejectionRemarks,
+        rejectionReason: rejectionReason
+      };
+      
+      // If "Other" is selected, include custom reason
+      if (rejectionReason === 'other' && customReason.trim()) {
+        rejectionData.customReason = customReason.trim();
+      }
+      
+      await api.post(`/applications/${selectedApplication.applicationID}/reject`, rejectionData);
+
+      // Refresh the applications list
+      await fetchData();
+      toastService.success('Application rejected successfully!');
+      
+      // Close modals
+      setViewDetailsOpen(false);
+      setSelectedApplication(null);
+      setPendingAction(null);
+      setRejectionReason('');
+      setCustomReason('');
+      setRejectionRemarks('');
+    } catch (err) {
+      console.error('Error rejecting application:', err);
+      toastService.error('Failed to reject application: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -549,23 +753,6 @@ function BarangayPresidentPWDRecords() {
     };
   };
 
-  const handleRejectApplication = async (applicationId) => {
-    const remarks = prompt('Please provide a reason for rejection:');
-    if (!remarks) return;
-
-    try {
-      await api.post(`/applications/${applicationId}/reject`, {
-        remarks: remarks
-      });
-
-      // Refresh the applications list
-      await fetchData();
-      toastService.success('Application rejected successfully!');
-    } catch (err) {
-      console.error('Error rejecting application:', err);
-      toastService.error('Failed to reject application: ' + (err.message || 'Unknown error'));
-    }
-  };
 
   const handleViewDetails = (application) => {
     setSelectedApplication(application);
@@ -726,6 +913,13 @@ function BarangayPresidentPWDRecords() {
     setPage(0);
   };
 
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+    setPage(0);
+  };
+
   const clearFilters = () => {
     setFilters({
       barangay: '',
@@ -741,11 +935,7 @@ function BarangayPresidentPWDRecords() {
     const dataToFilter = tab === 0 ? rows : applications;
     
     const hasAnyFilters = Object.values(filters).some(value => value !== '');
-    if (!hasAnyFilters && !searchTerm) {
-      return dataToFilter;
-    }
-
-    return dataToFilter.filter(row => {
+    const filtered = (!hasAnyFilters && !searchTerm) ? [...dataToFilter] : dataToFilter.filter(row => {
       // Search term filter
       const matchesSearch = !searchTerm || 
         (row.firstName && row.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -787,7 +977,48 @@ function BarangayPresidentPWDRecords() {
 
       return matchesSearch && matchesBarangay && matchesDisability && matchesStatus;
     });
-  }, [tab, rows, applications, filters, searchTerm]);
+    
+    // Apply sorting
+    if (orderBy) {
+      filtered.sort((a, b) => {
+        let aValue = a[orderBy];
+        let bValue = b[orderBy];
+        
+        // Handle nested properties
+        if (orderBy === 'pwdID' || orderBy === 'applicationID') {
+          aValue = a[orderBy] || '';
+          bValue = b[orderBy] || '';
+        } else if ((orderBy === 'firstName' || orderBy === 'lastName') && tab === 1) {
+          if (orderBy === 'firstName') {
+            aValue = `${a.firstName || ''} ${a.lastName || ''}`.trim();
+            bValue = `${b.firstName || ''} ${b.lastName || ''}`.trim();
+          } else {
+            aValue = `${a.lastName || ''} ${a.firstName || ''}`.trim();
+            bValue = `${b.lastName || ''} ${b.firstName || ''}`.trim();
+          }
+        } else if (orderBy === 'submissionDate' && tab === 1) {
+          aValue = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+          bValue = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+        }
+        
+        // Handle string comparison
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          aValue = aValue.toLowerCase();
+          bValue = bValue.toLowerCase();
+        }
+        
+        if (aValue < bValue) {
+          return order === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return order === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    
+    return filtered;
+  }, [tab, rows, applications, filters, searchTerm, orderBy, order]);
 
   const paginatedRows = useMemo(() => {
     const startIndex = page * rowsPerPage;
@@ -1203,33 +1434,44 @@ function BarangayPresidentPWDRecords() {
               maxHeight: 'calc(100vh - 400px)',
               backgroundColor: '#FFFFFF'
             }}>
-              <Table stickyHeader>
+              <Table size="small" stickyHeader>
                 <TableHead>
-                  <TableRow>
+                  <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
                     {columns.map((column) => (
                       <TableCell
                         key={column.id}
                         sx={{
                           backgroundColor: '#FFFFFF',
-                          color: '#1976D2',
+                          color: '#0b87ac',
                           fontWeight: 700,
-                          fontSize: '0.75rem',
+                          fontSize: '0.85rem',
                           borderBottom: '2px solid #E0E0E0',
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px',
-                          py: 0.5,
-                          px: 0.75,
-                          textAlign: 'center'
+                          py: 2,
+                          px: 2,
+                          textAlign: 'center',
+                          cursor: column.id === 'actions' ? 'default' : 'pointer',
+                          '&:hover': column.id === 'actions' ? {} : { bgcolor: '#F0F0F0' }
                         }}
+                        onClick={() => column.id !== 'actions' && handleRequestSort(column.id)}
                       >
-                        {column.label}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                          {column.label}
+                          {column.id !== 'actions' && (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
+                              <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === column.id && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === column.id && order === 'asc' ? 1 : 0.3 }} />
+                              <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === column.id && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === column.id && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
+                            </Box>
+                          )}
+                        </Box>
                       </TableCell>
                     ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedRows.map((row) => (
-                    <TableRow hover key={row.applicationID || row.id}>
+                  {paginatedRows.map((row, idx) => (
+                    <TableRow key={row.applicationID || row.id} sx={{ bgcolor: idx % 2 ? '#F7FBFF' : 'white' }}>
                       {columns.map((column) => (
                         <TableCell 
                           key={column.id}
@@ -1237,10 +1479,9 @@ function BarangayPresidentPWDRecords() {
                             color: '#000000',
                             borderBottom: '1px solid #E0E0E0',
                             fontWeight: 500,
-                            backgroundColor: '#FFFFFF',
-                            fontSize: '0.75rem',
-                            py: 0.5,
-                            px: 0.75,
+                            fontSize: '0.8rem',
+                            py: 2,
+                            px: 2,
                             textAlign: 'center'
                           }}
                         >
@@ -1267,7 +1508,7 @@ function BarangayPresidentPWDRecords() {
                                }}
                              />
                           ) : column.id === 'actions' && tab === 1 ? (
-                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                               <Button
                                 variant="outlined"
                                 size="small"
@@ -1290,44 +1531,48 @@ function BarangayPresidentPWDRecords() {
                               >
                                 View
                               </Button>
-                              <Button
-                                variant="contained"
-                                size="small"
-                                onClick={() => handleApproveApplication(row.applicationID)}
-                                sx={{
-                                  bgcolor: '#27AE60',
-                                  textTransform: 'none',
-                                  fontSize: '0.65rem',
-                                  py: 0.25,
-                                  px: 0.75,
-                                  minWidth: 'auto',
-                                  '&:hover': {
-                                    bgcolor: '#229954'
-                                  }
-                                }}
-                              >
-                                Endorse
-                              </Button>
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                onClick={() => handleRejectApplication(row.applicationID)}
-                                sx={{
-                                  borderColor: '#E74C3C',
-                                  color: '#E74C3C',
-                                  textTransform: 'none',
-                                  fontSize: '0.65rem',
-                                  py: 0.25,
-                                  px: 0.75,
-                                  minWidth: 'auto',
-                                  '&:hover': {
-                                    borderColor: '#C0392B',
-                                    bgcolor: '#FDF2F2'
-                                  }
-                                }}
-                              >
-                                Reject
-                              </Button>
+                              {(row.status === 'Pending Barangay Approval' || row.status === 'Pending') && (
+                                <>
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => handleApproveClick(row)}
+                                    sx={{
+                                      bgcolor: '#27AE60',
+                                      textTransform: 'none',
+                                      fontSize: '0.65rem',
+                                      py: 0.25,
+                                      px: 0.75,
+                                      minWidth: 'auto',
+                                      '&:hover': {
+                                        bgcolor: '#229954'
+                                      }
+                                    }}
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => handleRejectClick(row)}
+                                    sx={{
+                                      borderColor: '#E74C3C',
+                                      color: '#E74C3C',
+                                      textTransform: 'none',
+                                      fontSize: '0.65rem',
+                                      py: 0.25,
+                                      px: 0.75,
+                                      minWidth: 'auto',
+                                      '&:hover': {
+                                        borderColor: '#C0392B',
+                                        bgcolor: '#FDF2F2'
+                                      }
+                                    }}
+                                  >
+                                    Reject
+                                  </Button>
+                                </>
+                              )}
                             </Box>
                                                      ) : (
                              <span style={{
@@ -1397,27 +1642,51 @@ function BarangayPresidentPWDRecords() {
       <Dialog
         open={viewDetailsOpen}
         onClose={handleCloseDetails}
-        maxWidth="xl"
+        maxWidth="lg"
         fullWidth
-        fullScreen={false}
         PaperProps={{
           sx: {
             borderRadius: 3,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            p: 0,
+            m: 2,
+            bgcolor: '#FFFFFF',
+            color: '#000000',
+            zIndex: 1300 // Lower than rejection modal (1400)
           }
         }}
       >
         <DialogTitle sx={{ 
           bgcolor: '#FFFFFF', 
           color: '#000000', 
-          textAlign: 'center',
           py: 2,
-          position: 'relative',
-          borderBottom: '1px solid #E0E0E0'
+          px: 3,
+          borderBottom: '1px solid #E0E0E0',
+          position: 'relative'
         }}>
-          <Typography component="div" variant="h6" sx={{ fontWeight: 'bold' }}>
-            PWD Application Details
-          </Typography>
+          {selectedApplication && (
+            <Box>
+              <Typography variant="h6" sx={{ 
+                fontWeight: 'bold', 
+                color: '#000000',
+                fontSize: '1.25rem',
+                mb: 0.5
+              }}>
+                {formatName(
+                  selectedApplication.firstName,
+                  selectedApplication.middleName,
+                  selectedApplication.lastName,
+                  selectedApplication.suffix
+                )}
+              </Typography>
+              <Typography variant="body2" sx={{ 
+                color: '#7F8C8D',
+                fontSize: '0.875rem'
+              }}>
+                Reference Number: {selectedApplication.referenceNumber || selectedApplication.applicationID}
+              </Typography>
+            </Box>
+          )}
           <IconButton
             onClick={handleCloseDetails}
             sx={{
@@ -1432,322 +1701,267 @@ function BarangayPresidentPWDRecords() {
           </IconButton>
         </DialogTitle>
         
-        <DialogContent sx={{ p: 0, bgcolor: '#FFFFFF' }}>
+        <DialogContent sx={{ 
+          p: 3, 
+          bgcolor: '#FFFFFF', 
+          color: '#000000',
+          maxHeight: '70vh',
+          overflow: 'auto'
+        }}>
           {selectedApplication && (
-            <Box id="application-details" sx={{ p: 1, bgcolor: '#FFFFFF' }}>
-              {/* Header Section */}
-              <Paper sx={{ 
-                p: 1, 
-                mb: 1, 
-                bgcolor: '#FFFFFF',
-                border: '2px solid #E9ECEF',
-                borderRadius: 2
-              }}>
-                <Box sx={{ textAlign: 'center', mb: 0.5 }}>
-                  <Typography variant="h5" sx={{ 
-                    fontWeight: 'bold', 
-                        color: '#1976D2',
-                    mb: 0,
-                    fontSize: '1rem'
-                  }}>
-                    CABUYAO PDAO RMS
-                  </Typography>
-                  <Typography variant="h6" sx={{ 
-                    color: '#7F8C8D',
-                    fontWeight: 500,
-                    fontSize: '0.75rem'
-                  }}>
-                    Persons with Disabilities Application Form
-                  </Typography>
-                </Box>
-                
-                <Grid container spacing={1} sx={{ mb: 0 }}>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '0.7rem', mb: 0 }}>
-                      Application ID:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#1976D2', fontSize: '0.8rem', mt: 0 }}>
-                      {selectedApplication.applicationID}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1976D2', fontSize: '0.7rem', mb: 0 }}>
-                      Submission Date:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#1976D2', fontSize: '0.8rem', mt: 0 }}>
-                      {formatDateMMDDYYYY(selectedApplication.submissionDate)}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {/* Personal Information */}
-              <Paper sx={{ p: 1, mb: 1, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+              <Paper sx={{ p: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
-                        color: '#1976D2',
-                  mb: 0.5,
-                  borderBottom: '2px solid #3498DB',
-                  pb: 0.25,
-                  fontSize: '0.85rem'
+                  color: '#0b87ac', 
+                  mb: 1.5,
+                  borderBottom: '2px solid #0b87ac',
+                  pb: 0.75,
+                  fontSize: '1rem'
                 }}>
                   Personal Information
                 </Typography>
                 
-                <Grid container spacing={0.5}>
+                <Grid container spacing={1.5}>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       First Name:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {selectedApplication.firstName}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       Last Name:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {selectedApplication.lastName}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       Middle Name:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {selectedApplication.middleName || 'N/A'}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       Birth Date:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {formatDateMMDDYYYY(selectedApplication.birthDate)}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       Gender:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {selectedApplication.gender}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0, fontSize: '0.7rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       Civil Status:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 0, fontSize: '0.75rem', mt: 0, lineHeight: 1.2 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {selectedApplication.civilStatus || 'N/A'}
+                    </Typography>
+                  </Grid>
+                </Grid>
+                
+                {/* Contact Information - Grouped with Personal Info */}
+                <Grid container spacing={1.5} sx={{ mt: 1 }}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
+                        Email Address:
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
+                        {selectedApplication.email}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
+                        Contact Number:
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
+                        {selectedApplication.contactNumber || 'N/A'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
+                        Emergency Contact:
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
+                        {selectedApplication.emergencyContact || 'N/A'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
+                        Emergency Phone:
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
+                        {selectedApplication.emergencyPhone || 'N/A'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+              </Paper>
+
+              {/* Address Information */}
+              <Paper sx={{ p: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 'bold', 
+                  color: '#0b87ac', 
+                  mb: 1.5,
+                  borderBottom: '2px solid #F39C12',
+                  pb: 0.75,
+                  fontSize: '1rem'
+                }}>
+                  Address Information
+                </Typography>
+                
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
+                      Complete Address:
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem', lineHeight: 1.5 }}>
+                      {(() => {
+                        const addressParts = [];
+                        
+                        if (selectedApplication.address) {
+                          addressParts.push(selectedApplication.address);
+                        }
+                        
+                        if (selectedApplication.barangay && selectedApplication.barangay !== 'N/A') {
+                          addressParts.push(selectedApplication.barangay);
+                        }
+                        
+                        const city = selectedApplication.city && selectedApplication.city !== 'N/A' 
+                          ? selectedApplication.city 
+                          : 'Cabuyao';
+                        addressParts.push(city);
+                        
+                        const province = selectedApplication.province && selectedApplication.province !== 'N/A' 
+                          ? selectedApplication.province 
+                          : 'Laguna';
+                        addressParts.push(province);
+                        
+                        if (selectedApplication.postalCode && selectedApplication.postalCode !== 'N/A') {
+                          addressParts.push(selectedApplication.postalCode);
+                        }
+                        
+                        return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
+                      })()}
                     </Typography>
                   </Grid>
                 </Grid>
               </Paper>
 
-              {/* Disability Information */}
-              <Paper sx={{ p: 1, mb: 1, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+              {/* Disability Details */}
+              <Paper sx={{ p: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
-                        color: '#1976D2',
-                  mb: 0.5,
+                  color: '#0b87ac', 
+                  mb: 1.5,
                   borderBottom: '2px solid #E74C3C',
-                  pb: 0.25,
-                  fontSize: '0.85rem'
+                  pb: 0.75,
+                  fontSize: '1rem'
                 }}>
-                  Disability Information
+                  Disability Details
                 </Typography>
                 
-                <Grid container spacing={0.5}>
+                <Grid container spacing={1.5}>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       Disability Type:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {selectedApplication.disabilityType}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       Disability Cause:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {selectedApplication.disabilityCause || 'N/A'}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
                       Disability Date:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
+                    <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                       {selectedApplication.disabilityDate ? formatDateMMDDYYYY(selectedApplication.disabilityDate) : 'N/A'}
                     </Typography>
                   </Grid>
                 </Grid>
               </Paper>
 
-              {/* Contact Information */}
-              <Paper sx={{ p: 1, mb: 1, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
-                <Typography variant="h6" sx={{ 
-                  fontWeight: 'bold', 
-                        color: '#1976D2',
-                  mb: 0.5,
-                  borderBottom: '2px solid #27AE60',
-                  pb: 0.25,
-                  fontSize: '0.85rem'
-                }}>
-                  Contact Information
-                </Typography>
-                
-                <Grid container spacing={0.5}>
-                  <Grid item xs={12}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Email Address:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.email}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Contact Number:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.contactNumber || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Emergency Contact:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.emergencyContact || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Emergency Phone:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.emergencyPhone || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Emergency Relationship:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.emergencyRelationship || 'N/A'}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              {/* Address Information */}
-              <Paper sx={{ p: 1, mb: 1, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
-                <Typography variant="h6" sx={{ 
-                  fontWeight: 'bold', 
-                        color: '#1976D2',
-                  mb: 0.5,
-                  borderBottom: '2px solid #F39C12',
-                  pb: 0.25,
-                  fontSize: '0.85rem'
-                }}>
-                  Address Information
-                </Typography>
-                
-                <Grid container spacing={0.5}>
-                  <Grid item xs={12}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Home Number/Street:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.address}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Barangay:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.barangay || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      City:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.city || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Postal Code:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.postalCode || 'N/A'}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              {/* Uploaded Documents */}
-              <Paper sx={{ p: 3, mb: 3, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
+              {/* Uploaded Documents + Remarks */}
+              <Paper sx={{ p: 2, border: '1px solid #DEE2E6', bgcolor: '#FFFFFF' }}>
                 <Typography variant="h6" sx={{ 
                   fontWeight: 'bold', 
                   color: '#0b87ac', 
-                  mb: 2,
+                  mb: 1.5,
                   borderBottom: '2px solid #8E44AD',
-                  pb: 1
+                  pb: 0.75,
+                  fontSize: '1rem'
                 }}>
                   Uploaded Documents
                 </Typography>
                 
-                <Grid container spacing={2}>
+                <Grid container spacing={1.5}>
                   {Object.keys(documentMapping).map((fieldName) => {
                     const docInfo = documentMapping[fieldName];
                     const hasDocument = documentService.hasDocument(selectedApplication, fieldName);
                     
                     return (
-                      <Grid item xs={12} sm={4} key={fieldName}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E' }}>
-                            {docInfo.name}:
-                          </Typography>
-                          {docInfo.isRequired && (
-                            <Box sx={{ mt: 0.5 }}>
+                      <Grid item xs={12} sm={6} key={fieldName}>
+                        <Paper sx={{ p: 1.5, border: '1px solid #DEE2E6', bgcolor: '#FAFAFA', borderRadius: 1 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', fontSize: '0.75rem' }}>
+                              {docInfo.name}:
+                            </Typography>
+                            {docInfo.isRequired && (
                               <Chip 
                                 label="Required" 
                                 size="small" 
                                 sx={{ 
-                                  ml: 1, 
+                                  ml: 0.5, 
                                   bgcolor: '#E74C3C', 
                                   color: '#FFFFFF',
-                                  fontSize: '0.6rem',
-                                  height: '16px'
+                                  fontSize: '0.55rem',
+                                  height: '14px',
+                                  '& .MuiChip-label': {
+                                    px: 0.5
+                                  }
                                 }} 
                               />
-                            </Box>
-                          )}
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, minHeight: '120px' }}>
-                          {hasDocument ? (
-                            <Box 
-                              sx={{ 
-                                cursor: 'pointer',
-                                border: '2px solid #0b87ac',
-                                borderRadius: 1,
-                                p: 0.5,
-                                bgcolor: '#f8f9fa',
-                                '&:hover': {
-                                  borderColor: '#8E44AD',
-                                  bgcolor: '#f0f0f0'
-                                }
-                              }}
-                              onClick={() => handleViewFile(fieldName)}
-                            >
+                            )}
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minHeight: '80px', flex: '0 0 auto' }}>
+                              {hasDocument ? (
+                                <Box 
+                                  sx={{ 
+                                    cursor: 'pointer',
+                                    border: '2px solid #0b87ac',
+                                    borderRadius: 1,
+                                    p: 0.5,
+                                    bgcolor: '#f8f9fa',
+                                    '&:hover': {
+                                      borderColor: '#8E44AD',
+                                      bgcolor: '#f0f0f0'
+                                    }
+                                  }}
+                                  onClick={() => handleViewFile(fieldName)}
+                                >
                               {(() => {
                                 const fileName = selectedApplication[fieldName];
                                 const fileUrl = getFileUrl(fieldName);
@@ -1781,15 +1995,15 @@ function BarangayPresidentPWDRecords() {
                                               handleViewFileBatch(fieldName, index);
                                             }}
                                             sx={{ 
-                                              width: 56, 
-                                              height: 80,
+                                              width: 48, 
+                                              height: 64,
                                               borderRadius: 1,
                                               overflow: 'hidden',
                                               bgcolor: isImageFile(file) ? 'transparent' : '#0b87ac',
                                               display: 'flex',
                                               alignItems: 'center',
                                               justifyContent: 'center',
-                                              fontSize: '1.2rem',
+                                              fontSize: '1rem',
                                               color: 'white',
                                               border: '1px solid #ddd',
                                               cursor: 'pointer'
@@ -1817,10 +2031,10 @@ function BarangayPresidentPWDRecords() {
                                       })}
                                       {parsedFiles.length > 2 && (
                                         <Box sx={{ 
-                                          width: 56, 
-                                          height: 80, 
+                                          width: 48, 
+                                          height: 64, 
                                           bgcolor: '#95A5A6', 
-                                          fontSize: '0.8rem',
+                                          fontSize: '0.7rem',
                                           borderRadius: 1,
                                           display: 'flex',
                                           alignItems: 'center',
@@ -1841,15 +2055,15 @@ function BarangayPresidentPWDRecords() {
                                   return (
                                     <Box
                                       sx={{ 
-                                        width: 70, 
-                                        height: 100,
+                                        width: 56, 
+                                        height: 80,
                                         borderRadius: 1,
                                         overflow: 'hidden',
                                         bgcolor: isImageFile(fileName) ? 'transparent' : '#0b87ac',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        fontSize: '1.5rem',
+                                        fontSize: '1.2rem',
                                         color: 'white',
                                         border: '1px solid #ddd'
                                       }}
@@ -1879,60 +2093,72 @@ function BarangayPresidentPWDRecords() {
                                   );
                                 }
                               })()}
+                                </Box>
+                              ) : (
+                                <Typography variant="body2" sx={{ color: '#7F8C8D', fontStyle: 'italic', fontSize: '0.75rem' }}>
+                                  No file uploaded
+                                </Typography>
+                              )}
                             </Box>
-                          ) : (
-                            <Typography variant="body2" sx={{ color: '#7F8C8D', fontStyle: 'italic' }}>
-                              No file uploaded
+                            {/* Remarks Column */}
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 600, color: '#34495E', display: 'block', mb: 0.5, fontSize: '0.7rem' }}>
+                                Remarks:
+                              </Typography>
+                              <TextField
+                                fullWidth
+                                multiline
+                                minRows={2}
+                                maxRows={4}
+                                size="small"
+                                value={(() => {
+                                  // Parse remarks to find document-specific remarks
+                                  if (!selectedApplication.remarks) return '';
+                                  
+                                  // Check if remarks contain document-specific feedback
+                                  const remarks = selectedApplication.remarks || '';
+                                  const docName = docInfo.name.toLowerCase();
+                                  
+                                  // Try to extract document-specific remarks from the rejection data
+                                  // Format: "Rejection Reason: ...\n\nRemarks:\n..."
+                                  if (remarks.includes('Document Resubmission') || remarks.includes(docName)) {
+                                    // If document is mentioned in remarks, show it
+                                    const lines = remarks.split('\n');
+                                    const relevantLines = lines.filter(line => 
+                                      line.toLowerCase().includes(docName) || 
+                                      line.toLowerCase().includes(docInfo.name.toLowerCase())
+                                    );
+                                    return relevantLines.length > 0 ? relevantLines.join('\n') : remarks;
+                                  }
+                                  
+                                  return remarks;
+                                })()}
+                                variant="outlined"
+                                sx={{
+                                  '& .MuiOutlinedInput-root': {
+                                    fontSize: '0.7rem',
+                                    bgcolor: '#FFFFFF',
+                                    '& fieldset': {
+                                      borderColor: '#DEE2E6'
+                                    }
+                                  }
+                                }}
+                                InputProps={{
+                                  readOnly: true
+                                }}
+                                placeholder="No remarks for this document"
+                              />
+                            </Box>
+                          </Box>
+                          {docInfo.description && (
+                            <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 0.75, fontSize: '0.7rem' }}>
+                              {docInfo.description}
                             </Typography>
                           )}
-                        </Box>
-                        {docInfo.description && (
-                          <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 0.5 }}>
-                            {docInfo.description}
-                          </Typography>
-                        )}
+                        </Paper>
                       </Grid>
                     );
-                  })}
-                </Grid>
-              </Paper>
-
-              {/* Status Information */}
-              <Paper sx={{ p: 3, border: '1px solid #DEE2E6' }}>
-                <Typography variant="h6" sx={{ 
-                  fontWeight: 'bold', 
-                        color: '#1976D2',
-                  mb: 2,
-                  borderBottom: '2px solid #9B59B6',
-                  pb: 1
-                }}>
-                  Application Status
-                </Typography>
-                
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Current Status:
-                    </Typography>
-                    <Chip 
-                      label={selectedApplication.status || 'Pending'} 
-                      sx={{ 
-                        bgcolor: (selectedApplication.status || 'Pending') === 'Approved' ? '#27AE60' : 
-                               (selectedApplication.status || 'Pending') === 'Pending' ? '#F39C12' : 
-                               (selectedApplication.status || 'Pending') === 'Rejected' ? '#E74C3C' : '#95A5A6',
-                        color: '#FFFFFF',
-                        fontWeight: 'bold'
-                      }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.5 }}>
-                      Remarks:
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', mb: 1 }}>
-                      {selectedApplication.remarks || 'No remarks provided'}
-                    </Typography>
-                  </Grid>
+                  }                  )}
                 </Grid>
               </Paper>
             </Box>
@@ -1942,11 +2168,14 @@ function BarangayPresidentPWDRecords() {
         <DialogActions sx={{ 
           p: 2, 
           bgcolor: '#F8F9FA',
-          borderTop: '1px solid #DEE2E6'
+          borderTop: '1px solid #DEE2E6',
+          gap: 1,
+          justifyContent: 'flex-end'
         }}>
           <Button
             onClick={handleCloseDetails}
             variant="outlined"
+            size="medium"
             sx={{
               borderColor: '#6C757D',
               color: '#6C757D',
@@ -1956,22 +2185,76 @@ function BarangayPresidentPWDRecords() {
           >
             Close
           </Button>
-          <Button
-            onClick={handleRequestCorrection}
-            variant="contained"
-            startIcon={<EditIcon />}
-            sx={{
-              bgcolor: '#F39C12',
-              textTransform: 'none',
-              fontWeight: 600,
-              '&:hover': {
-                bgcolor: '#E67E22'
-              }
-            }}
-          >
-            Request Document Correction
-          </Button>
-          {/* Print Application button removed per request */}
+          {selectedApplication && (selectedApplication.status === 'Pending Barangay Approval' || selectedApplication.status === 'Pending') && (
+            <>
+              {pendingAction === 'reject' ? (
+                <Button
+                  onClick={handleRejectFromModal}
+                  variant="contained"
+                  size="medium"
+                  sx={{
+                    bgcolor: '#E74C3C',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    '&:hover': {
+                      bgcolor: '#C0392B'
+                    }
+                  }}
+                >
+                  Reject
+                </Button>
+              ) : pendingAction === 'approve' ? (
+                <Button
+                  onClick={handleApproveFromModal}
+                  variant="contained"
+                  size="medium"
+                  sx={{
+                    bgcolor: '#27AE60',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    '&:hover': {
+                      bgcolor: '#229954'
+                    }
+                  }}
+                >
+                  Approve
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleRejectFromModal}
+                    variant="contained"
+                    size="medium"
+                    sx={{
+                      bgcolor: '#E74C3C',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      '&:hover': {
+                        bgcolor: '#C0392B'
+                      }
+                    }}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    onClick={handleApproveFromModal}
+                    variant="contained"
+                    size="medium"
+                    sx={{
+                      bgcolor: '#27AE60',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      '&:hover': {
+                        bgcolor: '#229954'
+                      }
+                    }}
+                  >
+                    Approve
+                  </Button>
+                </>
+              )}
+            </>
+          )}
         </DialogActions>
       </Dialog>
 
@@ -2144,102 +2427,237 @@ function BarangayPresidentPWDRecords() {
         </DialogActions>
          </Dialog>
 
-         {/* Image Preview Modal - A4 Paper Shape */}
-         <Dialog
-           open={previewModalOpen}
-           onClose={handleClosePreviewModal}
-           maxWidth="sm"
-           fullWidth
-           PaperProps={{
-             sx: {
-               borderRadius: 2,
-               boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-               bgcolor: '#FFFFFF',
-               // A4 paper aspect ratio: 1:1.414
-               aspectRatio: '1/1.414',
-               maxHeight: '90vh',
-               display: 'flex',
-               flexDirection: 'column'
-             }
-           }}
-         >
-           <DialogTitle sx={{ 
-             bgcolor: '#0b87ac', 
-             color: '#FFFFFF', 
-             textAlign: 'center',
-             py: 1.5,
-             position: 'relative',
-             flexShrink: 0
-           }}>
-             <Typography variant="h2" component="div" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-               Document Preview
-             </Typography>
-             <IconButton
-               onClick={handleClosePreviewModal}
-               sx={{
-                 position: 'absolute',
-                 right: 16,
-                 top: '50%',
-                 transform: 'translateY(-50%)',
-                 color: '#FFFFFF'
-               }}
-             >
-               <CloseIcon />
-             </IconButton>
-           </DialogTitle>
-           
-           <DialogContent sx={{ 
-             p: 0, 
-             bgcolor: '#FFFFFF',
-             flex: 1,
-             display: 'flex',
-             alignItems: 'center',
-             justifyContent: 'center',
-             overflow: 'hidden'
-           }}>
-             {previewImageUrl && (
-               <Box
-                 sx={{
-                   width: '100%',
-                   height: '100%',
-                   display: 'flex',
-                   alignItems: 'center',
-                   justifyContent: 'center',
-                   bgcolor: '#f5f5f5',
-                   position: 'relative'
-                 }}
-               >
-                 <img
-                   src={previewImageUrl}
-                   alt={previewFileName}
-                   style={{
-                     maxWidth: '100%',
-                     maxHeight: '100%',
-                     objectFit: 'contain',
-                     borderRadius: '4px',
-                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                   }}
-                   onError={(e) => {
-                     console.error('Error loading image:', previewImageUrl);
-                     e.target.style.display = 'none';
-                   }}
-                 />
-               </Box>
-             )}
-           </DialogContent>
-           
-           <DialogActions sx={{ 
-             bgcolor: '#f8f9fa', 
-             px: 3, 
-             py: 2,
-             flexShrink: 0,
-             justifyContent: 'center'
-           }}>
-             <Typography variant="body2" sx={{ color: '#6c757d', fontStyle: 'italic' }}>
-               {previewFileName}
-             </Typography>
-           </DialogActions>
-         </Dialog>
+      {/* Approval Confirmation Dialog */}
+      <Dialog
+        open={approvalConfirmationOpen}
+        onClose={() => setApprovalConfirmationOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: '#27AE60', color: '#FFFFFF', fontWeight: 'bold' }}>
+          Confirm Approval
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <Typography variant="body1">
+            Are you sure you want to approve this application? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setApprovalConfirmationOpen(false)}
+            variant="outlined"
+            sx={{
+              borderColor: '#6C757D',
+              color: '#6C757D',
+              textTransform: 'none'
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleApproveConfirm}
+            variant="contained"
+            sx={{
+              bgcolor: '#27AE60',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                bgcolor: '#229954'
+              }
+            }}
+          >
+            Confirm Approval
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Rejection Reason Dialog */}
+      <Dialog
+        open={rejectionModalOpen}
+        onClose={() => setRejectionModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            zIndex: 1400 // Higher than application details modal
+          }
+        }}
+      >
+        <DialogTitle sx={{ bgcolor: '#E74C3C', color: '#FFFFFF', fontWeight: 'bold' }}>
+          Rejection Details
+        </DialogTitle>
+        <DialogContent 
+          sx={{ 
+            mt: 2,
+            maxHeight: '60vh',
+            overflowY: 'auto',
+            overflowX: 'hidden'
+          }}
+        >
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <InputLabel>Rejection Reason *</InputLabel>
+            <Select
+              value={rejectionReason}
+              onChange={(e) => {
+                setRejectionReason(e.target.value);
+                setCustomReason(''); // Reset custom reason when reason changes
+              }}
+              label="Rejection Reason *"
+            >
+              <MenuItem value="incomplete_information">Incomplete Information</MenuItem>
+              <MenuItem value="incorrect_information">Incorrect Information</MenuItem>
+              <MenuItem value="document_resubmission">Document Resubmission/Correction Required</MenuItem>
+              <MenuItem value="does_not_meet_criteria">Does Not Meet Criteria</MenuItem>
+              <MenuItem value="other">Other</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Custom Reason Input (only for "Other") */}
+          {rejectionReason === 'other' && (
+            <TextField
+              fullWidth
+              label="Custom Reason"
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              required
+              sx={{ mb: 3 }}
+              InputLabelProps={{
+                shrink: true
+              }}
+              placeholder="Please specify the rejection reason..."
+            />
+          )}
+
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="Remarks"
+            value={rejectionRemarks}
+            onChange={(e) => setRejectionRemarks(e.target.value)}
+            required
+            sx={{ mb: 3 }}
+            InputLabelProps={{
+              shrink: true
+            }}
+            placeholder="Please provide detailed remarks for the rejection..."
+          />
+
+          {/* Preview Message */}
+          {rejectionReason && rejectionRemarks.trim() && (
+            <Box sx={{ 
+              mt: 3, 
+              p: 2, 
+              bgcolor: '#F8F9FA', 
+              borderRadius: 1, 
+              border: '1px solid #DEE2E6' 
+            }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                📧 Email Preview (This is what will be sent to the applicant):
+              </Typography>
+              <Box sx={{
+                p: 2,
+                bgcolor: '#FFFFFF',
+                borderRadius: 1,
+                border: '1px solid #E0E0E0',
+                maxHeight: '300px',
+                overflowY: 'auto',
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'monospace',
+                fontSize: '0.875rem',
+                lineHeight: 1.6
+              }}>
+                {getPreviewMessage()}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setRejectionModalOpen(false)}
+            variant="outlined"
+            sx={{
+              borderColor: '#6C757D',
+              color: '#6C757D',
+              textTransform: 'none'
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRejectSubmit}
+            variant="contained"
+            sx={{
+              bgcolor: '#E74C3C',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                bgcolor: '#C0392B'
+              }
+            }}
+          >
+            Continue to Confirmation
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Rejection Confirmation Dialog */}
+      <Dialog
+        open={rejectionConfirmationOpen}
+        onClose={() => setRejectionConfirmationOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: '#E74C3C', color: '#FFFFFF', fontWeight: 'bold' }}>
+          Confirm Rejection
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Are you sure you want to reject this application? This action cannot be undone.
+          </Typography>
+          <Box sx={{ p: 2, bgcolor: '#F8F9FA', borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+              Rejection Reason:
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              {getFormattedRejectionReason()}
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+              Remarks:
+            </Typography>
+            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+              {rejectionRemarks}
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setRejectionConfirmationOpen(false)}
+            variant="outlined"
+            sx={{
+              borderColor: '#6C757D',
+              color: '#6C757D',
+              textTransform: 'none'
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRejectConfirm}
+            variant="contained"
+            sx={{
+              bgcolor: '#E74C3C',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                bgcolor: '#C0392B'
+              }
+            }}
+          >
+            Confirm Rejection
+          </Button>
+        </DialogActions>
+      </Dialog>
       </Box>
     );
   }

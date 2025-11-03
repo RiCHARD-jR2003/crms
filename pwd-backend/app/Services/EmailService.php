@@ -246,6 +246,166 @@ class EmailService
     }
 
     /**
+     * Send application rejection email with reason and reference number
+     *
+     * @param array $data
+     * @return bool
+     */
+    public function sendApplicationRejectionEmail($data)
+    {
+        $referenceNumber = $data['referenceNumber'] ?? 'N/A';
+        $frontendUrl = config('app.frontend_url', 'http://localhost:3000');
+        $statusCheckUrl = "{$frontendUrl}/check-status/{$referenceNumber}";
+        
+        // Build rejection message combining reason and remarks
+        $rejectionMessage = "Rejection Reason: " . ($data['rejectionReason'] ?? 'Not specified');
+        if (!empty($data['remarks'])) {
+            $rejectionMessage .= "\n\nRemarks/Instructions:\n" . $data['remarks'];
+        }
+        
+        $emailData = [
+            'firstName' => $data['firstName'],
+            'lastName' => $data['lastName'],
+            'referenceNumber' => $referenceNumber,
+            'rejectionReason' => $rejectionMessage,
+            'statusCheckUrl' => $statusCheckUrl
+        ];
+
+        $subject = 'PWD Application Status Update - Rejected';
+        $to = $data['email'];
+
+        Log::info('Attempting to send rejection email', [
+            'to' => $to,
+            'referenceNumber' => $data['referenceNumber']
+        ]);
+
+        // Try SMTP first
+        try {
+            Mail::send('emails.application-rejected', $emailData, function ($message) use ($to, $subject) {
+                $message->to($to)
+                       ->subject($subject)
+                       ->from('sarinonhoelivan29@gmail.com', 'Cabuyao PDAO RMS');
+            });
+
+            Log::info('Application rejection email sent via SMTP', [
+                'to' => $to,
+                'referenceNumber' => $data['referenceNumber']
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('SMTP failed for rejection email, trying Gmail API', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+
+        // Fallback to Gmail API if SMTP fails
+        if ($this->gmailService && $this->gmailService->isConfigured()) {
+            try {
+                $htmlBody = View::make('emails.application-rejected', $emailData)->render();
+                
+                if ($this->gmailService->sendEmail($to, $subject, $htmlBody)) {
+                    Log::info('Application rejection email sent via Gmail API', [
+                        'to' => $to,
+                        'referenceNumber' => $data['referenceNumber']
+                    ]);
+                    return true;
+                }
+            } catch (\Exception $e) {
+                Log::error('Gmail API failed for rejection email', [
+                    'error' => $e->getMessage(),
+                    'to' => $to
+                ]);
+            }
+        }
+
+        Log::error('Failed to send application rejection email via both SMTP and Gmail API', [
+            'to' => $to,
+            'referenceNumber' => $data['referenceNumber']
+        ]);
+
+        return false;
+    }
+
+    /**
+     * Send application submission confirmation email with reference number
+     *
+     * @param array $data
+     * @return bool
+     */
+    public function sendApplicationSubmissionEmail($data)
+    {
+        $emailData = [
+            'firstName' => $data['firstName'],
+            'lastName' => $data['lastName'],
+            'referenceNumber' => $data['referenceNumber'],
+            'submissionDate' => $data['submissionDate'],
+            'statusCheckUrl' => config('app.frontend_url', 'http://localhost:3000') . '/check-application-status'
+        ];
+
+        $subject = 'PWD Application Submitted Successfully';
+        $to = $data['email'];
+
+        Log::info('Attempting to send submission confirmation email', [
+            'to' => $to,
+            'referenceNumber' => $data['referenceNumber']
+        ]);
+
+        // Try SMTP first
+        try {
+            Mail::send('emails.application-submitted', $emailData, function ($message) use ($to, $subject) {
+                $message->to($to)
+                       ->subject($subject)
+                       ->from('sarinonhoelivan29@gmail.com', 'Cabuyao PDAO RMS');
+            });
+
+            Log::info('Application submission email sent via SMTP', [
+                'to' => $to,
+                'referenceNumber' => $data['referenceNumber']
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('SMTP failed for submission email, trying Gmail API', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+
+        // Fallback to Gmail API if SMTP fails
+        if ($this->gmailService && $this->gmailService->isConfigured()) {
+            try {
+                $htmlBody = View::make('emails.application-submitted', $emailData)->render();
+                
+                if ($this->gmailService->sendEmail($to, $subject, $htmlBody)) {
+                    Log::info('Application submission email sent via Gmail API', [
+                        'to' => $to,
+                        'referenceNumber' => $data['referenceNumber']
+                    ]);
+                    return true;
+                }
+            } catch (\Exception $e) {
+                Log::error('Gmail API failed for submission email', [
+                    'error' => $e->getMessage(),
+                    'to' => $to
+                ]);
+            }
+        }
+
+        Log::error('Failed to send application submission email via both SMTP and Gmail API', [
+            'to' => $to,
+            'referenceNumber' => $data['referenceNumber']
+        ]);
+
+        return false;
+    }
+
+    /**
      * Get Gmail service instance for OAuth operations
      *
      * @return GmailService

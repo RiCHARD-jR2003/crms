@@ -55,6 +55,11 @@ class PWDMember extends Model
         return $this->hasMany(BenefitClaim::class, 'pwdID', 'userID');
     }
 
+    public function memberDocuments()
+    {
+        return $this->hasMany(MemberDocument::class, 'member_id', 'userID');
+    }
+
     protected $casts = [
         'birthDate' => 'date'
     ];

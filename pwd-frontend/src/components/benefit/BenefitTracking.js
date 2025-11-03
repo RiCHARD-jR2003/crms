@@ -1410,25 +1410,16 @@ const BenefitTracking = () => {
                 bgcolor: 'white'
               }}
             >
-              <Table sx={{ minWidth: 650 }} aria-label="PWD members table">
+              <Table size="small" aria-label="PWD members table">
                 <TableHead>
-                  <TableRow sx={{ 
-                    bgcolor: 'white',
-                    '& .MuiTableCell-head': {
-                      fontWeight: 'bold',
-                      color: '#2C3E50',
-                      fontSize: { xs: '0.75rem', sm: '0.875rem', md: '0.95rem' },
-                      borderBottom: '2px solid #dee2e6',
-                      whiteSpace: 'nowrap'
-                    }
-                  }}>
-                    <TableCell>PWD ID</TableCell>
-                    <TableCell>Full Name</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Age</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Birth Date</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Disability Type</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>Registration Date</TableCell>
+                  <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>PWD ID</TableCell>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Full Name</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' }, color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Age</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Birth Date</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Disability Type</TableCell>
+                    <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Status</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Registration Date</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1448,57 +1439,62 @@ const BenefitTracking = () => {
                   ) : (
                     filteredMembers.map((member, index) => (
                       <TableRow 
-                        key={member.id} 
-                        hover
+                        key={member.id}
                         sx={{ 
-                          '&:hover': {
-                            bgcolor: '#f5f5f5',
-                          },
+                          bgcolor: index % 2 ? '#F7FBFF' : 'white',
                           '& .MuiTableCell-root': {
-                            borderBottom: '1px solid #e9ecef',
-                            py: { xs: 1, md: 2 },
-                            fontSize: { xs: '0.75rem', sm: '0.875rem', md: '0.875rem' }
+                            borderBottom: '1px solid #E0E0E0'
                           }
                         }}
                       >
-                        <TableCell sx={{ fontWeight: 'medium', color: '#2C3E50' }}>
+                        <TableCell sx={{ fontWeight: 600, color: '#1976D2', fontSize: '0.8rem', py: 2, px: 2 }}>
                           {member.pwd_id || (member.userID ? `PWD-${member.userID}` : (
-                            <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>
+                            <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic', fontSize: '0.8rem' }}>
                               Not assigned
                             </Typography>
                           ))}
                         </TableCell>
-                        <TableCell sx={{ color: '#2C3E50' }}>
-                          {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''}`.trim() || (
-                            <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>
-                              Name not provided
-                            </Typography>
-                          )}
+                        <TableCell sx={{ color: '#0b87ac', fontWeight: 500, fontSize: '0.8rem', py: 2, px: 2 }}>
+                          {(() => {
+                            const parts = [];
+                            if (member.firstName) parts.push(member.firstName);
+                            if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                            if (member.lastName) parts.push(member.lastName);
+                            const formattedName = parts.join(' ').trim();
+                            if (!formattedName) {
+                              return (
+                                <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic', fontSize: '0.8rem' }}>
+                                  Name not provided
+                                </Typography>
+                              );
+                            }
+                            return formattedName;
+                          })()}
                         </TableCell>
-                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' }, color: '#2C3E50' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#2C3E50' }}>
+                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' }, color: '#34495E', fontWeight: 600, fontSize: '0.8rem', py: 2, px: 2 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#34495E', fontSize: '0.8rem' }}>
                             {getAge(member.birthDate)}
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: '#2C3E50' }}>
+                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: '#34495E', fontSize: '0.8rem', py: 2, px: 2 }}>
                           {member.birthDate ? (
-                            <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+                            <Typography variant="body2" sx={{ color: '#34495E', fontSize: '0.8rem' }}>
                               {formatDateMMDDYYYY(member.birthDate)}
                             </Typography>
                           ) : (
-                            <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>
+                            <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic', fontSize: '0.8rem' }}>
                               Not provided
                             </Typography>
                           )}
                         </TableCell>
-                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: '#2C3E50' }}>
+                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: '#0b87ac', fontWeight: 500, fontSize: '0.8rem', py: 2, px: 2 }}>
                           {member.disabilityType || (
-                            <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic' }}>
+                            <Typography variant="body2" sx={{ color: '#2C3E50', fontStyle: 'italic', fontSize: '0.8rem' }}>
                               Not specified
                             </Typography>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ py: 2, px: 2 }}>
                           <Chip
                             label="Active"
                             color="success"
@@ -1846,7 +1842,14 @@ const BenefitTracking = () => {
                               {member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned')}
                             </TableCell>
                                 <TableCell sx={{ color: '#2C3E50' }}>
-                                  {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Name not provided'}
+                                  {(() => {
+                                    const parts = [];
+                                    if (member.firstName) parts.push(member.firstName);
+                                    if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                                    if (member.lastName) parts.push(member.lastName);
+                                    if (member.suffix) parts.push(member.suffix);
+                                    return parts.join(' ').trim() || 'Name not provided';
+                                  })()}
                                 </TableCell>
                                 <TableCell sx={{ color: '#2C3E50' }}>
                                   <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#2C3E50' }}>
@@ -2220,7 +2223,14 @@ const BenefitTracking = () => {
                               {member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned')}
                             </TableCell>
                                 <TableCell sx={{ color: '#2C3E50' }}>
-                                  {`${member.firstName || ''} ${member.middleName || ''} ${member.lastName || ''} ${member.suffix || ''}`.trim() || 'Name not provided'}
+                                  {(() => {
+                                    const parts = [];
+                                    if (member.firstName) parts.push(member.firstName);
+                                    if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                                    if (member.lastName) parts.push(member.lastName);
+                                    if (member.suffix) parts.push(member.suffix);
+                                    return parts.join(' ').trim() || 'Name not provided';
+                                  })()}
                                 </TableCell>
                                 <TableCell sx={{ color: '#2C3E50' }}>
                                   <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#2C3E50' }}>

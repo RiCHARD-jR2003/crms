@@ -69,20 +69,20 @@ function AuditLogs() {
               <CardContent>
                 <Table size="small">
                   <TableHead>
-                    <TableRow>
-                      <TableCell>User</TableCell>
-                      <TableCell>Role</TableCell>
-                      <TableCell>Action</TableCell>
-                      <TableCell>Timestamp</TableCell>
+                    <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>User</TableCell>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Role</TableCell>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Action</TableCell>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Timestamp</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filtered.map((log) => (
-                      <TableRow key={`${log.logID || log.id}-${log.timestamp}`}>
-                        <TableCell>{log?.user?.username || log?.userID}</TableCell>
-                        <TableCell>{log?.user?.role || ''}</TableCell>
-                        <TableCell>{log?.action}</TableCell>
-                        <TableCell>{new Date(log?.timestamp || log?.created_at).toLocaleString()}</TableCell>
+                    {filtered.map((log, idx) => (
+                      <TableRow key={`${log.logID || log.id}-${log.timestamp}`} sx={{ bgcolor: idx % 2 ? '#F7FBFF' : 'white' }}>
+                        <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>{log?.user?.username || log?.userID}</TableCell>
+                        <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>{log?.user?.role || ''}</TableCell>
+                        <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>{log?.action}</TableCell>
+                        <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>{new Date(log?.timestamp || log?.created_at).toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
                     {filtered.length === 0 && (

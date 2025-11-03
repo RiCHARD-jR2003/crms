@@ -412,33 +412,33 @@ function BarangayPresidentDashboard() {
                 </Box>
               
               <TableContainer>
-                <Table>
+                <Table size="small">
                   <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Applicant</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Status</TableCell>
-                      <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>Applied Date</TableCell>
+                    <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Applicant</TableCell>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Status</TableCell>
+                      <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Applied Date</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {recentApplications.map((application, index) => (
-                      <TableRow key={`application-${index}`} hover sx={{ '& .MuiTableCell-root': { py: 1.5 } }}>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Avatar sx={{ width: 40, height: 40, bgcolor: '#3498DB', fontSize: '1rem' }}>
+                      <TableRow key={`application-${index}`} sx={{ bgcolor: index % 2 ? '#F7FBFF' : 'white' }}>
+                        <TableCell sx={{ py: 2, px: 2, fontSize: '0.8rem' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Avatar sx={{ width: 32, height: 32, bgcolor: '#3498DB', fontSize: '0.75rem' }}>
                               {application.firstName?.charAt(0) || 'A'}
                             </Avatar>
                             <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50', fontSize: '1rem' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#0b87ac', fontSize: '0.8rem' }}>
                                 {application.firstName} {application.lastName} {application.suffix || ''}
                               </Typography>
-                              <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.9rem' }}>
+                              <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.7rem' }}>
                                 {application.email}
                               </Typography>
                             </Box>
                           </Box>
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ py: 2, px: 2 }}>
                           <Chip
                             label={application.status?.toUpperCase()}
                             size="small"
@@ -446,12 +446,12 @@ function BarangayPresidentDashboard() {
                               backgroundColor: `${getStatusColor(application.status)}15`,
                               color: getStatusColor(application.status),
                               fontWeight: 600,
-                              fontSize: '0.8rem',
-                              height: 28
+                              fontSize: '0.7rem',
+                              height: 24
                             }}
                           />
                         </TableCell>
-                        <TableCell sx={{ color: '#000000', fontSize: '1rem' }}>
+                        <TableCell sx={{ color: '#000000', fontSize: '0.8rem', py: 2, px: 2 }}>
                           {formatDateMMDDYYYY(application.created_at)}
                         </TableCell>
                       </TableRow>

@@ -722,7 +722,14 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
                       Full Name
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {`${memberInfo.firstName} ${memberInfo.middleName || ''} ${memberInfo.lastName} ${memberInfo.suffix || ''}`.trim()}
+                      {(() => {
+                        const parts = [];
+                        if (memberInfo.firstName) parts.push(memberInfo.firstName);
+                        if (memberInfo.middleName && memberInfo.middleName.trim().toUpperCase() !== 'N/A') parts.push(memberInfo.middleName);
+                        if (memberInfo.lastName) parts.push(memberInfo.lastName);
+                        if (memberInfo.suffix) parts.push(memberInfo.suffix);
+                        return parts.join(' ').trim();
+                      })()}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>

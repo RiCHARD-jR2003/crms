@@ -24,6 +24,11 @@ import {
   Divider,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
 } from '@mui/material';
 import toastService from '../../services/toastService';
 import {
@@ -52,6 +57,7 @@ import {
   Email as EmailIcon,
   Home as HomeIcon,
   OpenInNew,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -99,6 +105,8 @@ function AdminDashboard() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState(null);
   const [migrating, setMigrating] = useState(false);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const handleSidebarToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -106,6 +114,168 @@ function AdminDashboard() {
 
   const handleMobileMenuToggle = (isOpen) => {
     setIsMobileMenuOpen(isOpen);
+  };
+
+  const handleCardClick = (cardType) => {
+    setSelectedCard(cardType);
+    setModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setSelectedCard(null);
+  };
+
+  const getCardDetails = (cardType) => {
+    switch (cardType) {
+      case 'totalPWDs':
+        return {
+          title: 'Total Registered PWDs',
+          icon: <CheckCircleIcon sx={{ fontSize: 48, color: '#27AE60' }} />,
+          value: stats.totalPWDMembers,
+          description: 'This represents the total number of Persons with Disabilities (PWDs) who have successfully registered in the system.',
+          details: [
+            `Current Count: ${stats.totalPWDMembers} registered PWD members`,
+            `All registered members have completed their application process`,
+            `These members are eligible for PWD card benefits and services`,
+            `Registration includes verification and approval by administrators`
+          ]
+        };
+      case 'pendingApproval':
+        return {
+          title: 'Pending Admin Approval',
+          icon: <ScheduleIcon sx={{ fontSize: 48, color: '#F39C12' }} />,
+          value: stats.pendingApplications,
+          description: 'Applications that are currently awaiting administrative review and approval.',
+          details: [
+            `Pending Applications: ${stats.pendingApplications} applications`,
+            `These applications have passed initial barangay review`,
+            `Awaiting final administrative verification and approval`,
+            `Administrators can review and process these applications`
+          ]
+        };
+      case 'newlyRegistered':
+        return {
+          title: 'Newly Registered PWD',
+          icon: <PersonAddIcon sx={{ fontSize: 48, color: '#3498DB' }} />,
+          value: 0,
+          description: 'PWD members who have registered within a recent time period (typically the last 24-48 hours).',
+          details: [
+            `Recent Registrations: 0 new registrations`,
+            `This metric tracks registrations from the last 24-48 hours`,
+            `Helps monitor daily registration activity`,
+            `Newly registered members are highlighted for priority processing`
+          ]
+        };
+      case 'unclaimedCard':
+        return {
+          title: 'Unclaimed PWD Card',
+          icon: <CreditCardIcon sx={{ fontSize: 48, color: '#9B59B6' }} />,
+          value: stats.totalPWDMembers,
+          description: 'PWD identification cards that have been issued but not yet claimed by the registered members.',
+          details: [
+            `Unclaimed Cards: ${stats.totalPWDMembers} cards`,
+            `These cards are ready for distribution to registered PWD members`,
+            `Members need to collect their physical PWD identification cards`,
+            `Cards provide access to various benefits and services`
+          ]
+        };
+      case 'supportTickets':
+        return {
+          title: 'Support Tickets',
+          icon: <ReportIcon sx={{ fontSize: 48, color: '#E74C3C' }} />,
+          value: stats.supportTickets,
+          description: 'Active support tickets and help requests from PWD members and system users.',
+          details: [
+            `Active Tickets: ${stats.supportTickets} support tickets`,
+            `Tickets include inquiries, issues, and assistance requests`,
+            `Requires administrative attention and response`,
+            `Tickets are categorized by priority and type`
+          ]
+        };
+      default:
+        return null;
+    }
+  };
+
+  const renderModal = () => {
+    if (!selectedCard) return null;
+    
+    const cardDetails = getCardDetails(selectedCard);
+    if (!cardDetails) return null;
+
+    return (
+      <Dialog
+        open={modalOpen}
+        onClose={handleCloseModal}
+        maxWidth="sm"
+        fullWidth
+        sx={dialogStyles}
+      >
+        <DialogTitle sx={dialogTitleStyles}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {cardDetails.icon}
+            <Typography variant="h6" sx={{ color: '#000000', fontWeight: 'bold' }}>
+              {cardDetails.title}
+            </Typography>
+          </Box>
+          <IconButton
+            aria-label="close"
+            onClick={handleCloseModal}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              color: '#000000',
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={dialogContentStyles}>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#000000', mb: 2 }}>
+              {cardDetails.value}
+            </Typography>
+            <Typography variant="body1" sx={{ color: '#000000', mb: 3 }}>
+              {cardDetails.description}
+            </Typography>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#000000', mb: 2 }}>
+              Details:
+            </Typography>
+            <List>
+              {cardDetails.details.map((detail, index) => (
+                <ListItem key={index} sx={{ px: 0 }}>
+                  <ListItemIcon sx={{ minWidth: 32 }}>
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: '#3498DB'
+                      }}
+                    />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" sx={{ color: '#000000' }}>
+                        {detail}
+                      </Typography>
+                    }
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={dialogActionsStyles}>
+          <Button onClick={handleCloseModal} sx={{ color: '#000000' }}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
   };
 
   // Document migration functions
@@ -502,7 +672,20 @@ function AdminDashboard() {
       <Grid item xs={12}>
         <Grid container spacing={{ xs: 1, sm: 2 }}>
           <Grid item xs={6} sm={4} md={2.4}>
-            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+            <Card 
+              onClick={() => handleCardClick('totalPWDs')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#27AE60'
+                }
+              }}
+            >
               <CardContent sx={{ 
                 textAlign: 'center', 
                 py: { xs: 1.5, sm: 2, md: 3 },
@@ -544,7 +727,20 @@ function AdminDashboard() {
           </Grid>
           
           <Grid item xs={6} sm={4} md={2.4}>
-            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+            <Card 
+              onClick={() => handleCardClick('pendingApproval')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#F39C12'
+                }
+              }}
+            >
               <CardContent sx={{ 
                 textAlign: 'center', 
                 py: { xs: 1.5, sm: 2, md: 3 },
@@ -586,7 +782,20 @@ function AdminDashboard() {
           </Grid>
           
           <Grid item xs={6} sm={4} md={2.4}>
-            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+            <Card 
+              onClick={() => handleCardClick('newlyRegistered')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#3498DB'
+                }
+              }}
+            >
               <CardContent sx={{ 
                 textAlign: 'center', 
                 py: { xs: 1.5, sm: 2, md: 3 },
@@ -628,7 +837,20 @@ function AdminDashboard() {
           </Grid>
           
           <Grid item xs={6} sm={4} md={2.4}>
-            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+            <Card 
+              onClick={() => handleCardClick('unclaimedCard')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#9B59B6'
+                }
+              }}
+            >
               <CardContent sx={{ 
                 textAlign: 'center', 
                 py: { xs: 1.5, sm: 2, md: 3 },
@@ -670,7 +892,20 @@ function AdminDashboard() {
           </Grid>
           
           <Grid item xs={6} sm={4} md={2.4}>
-            <Card sx={{ ...cardStyles, height: { xs: '120px', sm: '140px', md: '160px' } }}>
+            <Card 
+              onClick={() => handleCardClick('supportTickets')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#E74C3C'
+                }
+              }}
+            >
               <CardContent sx={{ 
                 textAlign: 'center', 
                 py: { xs: 1.5, sm: 2, md: 3 },
@@ -847,53 +1082,53 @@ function AdminDashboard() {
                 <TableContainer>
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: '#F8F9FA' }}>
-                        <TableCell sx={{ fontWeight: 600, color: '#000000', fontSize: '0.75rem' }}>Barangay</TableCell>
-                        <TableCell sx={{ fontWeight: 600, color: '#000000', fontSize: '0.75rem' }}>President</TableCell>
-                        <TableCell sx={{ fontWeight: 600, color: '#000000', fontSize: '0.75rem' }}>Contact</TableCell>
-                        <TableCell sx={{ fontWeight: 600, color: '#000000', fontSize: '0.75rem' }}>PWD Count</TableCell>
-                        <TableCell sx={{ fontWeight: 600, color: '#000000', fontSize: '0.75rem' }}>Status</TableCell>
+                      <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Barangay</TableCell>
+                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>President</TableCell>
+                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Contact</TableCell>
+                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>PWD Count</TableCell>
+                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Status</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {barangayContacts.map((contact) => (
-                        <TableRow key={contact.barangay} hover>
-                          <TableCell sx={{ fontSize: '0.75rem', color: '#000000' }}>
+                      {barangayContacts.map((contact, index) => (
+                        <TableRow key={contact.barangay} sx={{ bgcolor: index % 2 ? '#F7FBFF' : 'white' }}>
+                          <TableCell sx={{ fontSize: '0.8rem', color: '#000000', py: 2, px: 2 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <HomeIcon sx={{ fontSize: 16, color: '#3498DB' }} />
+                              <HomeIcon sx={{ fontSize: 14, color: '#3498DB' }} />
                               {contact.barangay}
                             </Box>
                           </TableCell>
-                          <TableCell sx={{ fontSize: '0.75rem', color: '#000000' }}>
+                          <TableCell sx={{ fontSize: '0.8rem', color: '#000000', py: 2, px: 2 }}>
                             {contact.president_name}
                           </TableCell>
-                          <TableCell sx={{ fontSize: '0.75rem' }}>
+                          <TableCell sx={{ fontSize: '0.8rem', py: 2, px: 2 }}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <PhoneIcon sx={{ fontSize: 12, color: '#27AE60' }} />
-                                <Typography variant="caption" sx={{ color: '#000000' }}>
+                                <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.7rem' }}>
                                   {contact.phone}
                                 </Typography>
                               </Box>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <EmailIcon sx={{ fontSize: 12, color: '#3498DB' }} />
-                                <Typography variant="caption" sx={{ color: '#000000' }}>
+                                <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.7rem' }}>
                                   {contact.email}
                                 </Typography>
                               </Box>
                             </Box>
                           </TableCell>
-                          <TableCell sx={{ fontSize: '0.75rem', color: '#000000' }}>
+                          <TableCell sx={{ fontSize: '0.8rem', color: '#000000', py: 2, px: 2 }}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              <Typography variant="caption" sx={{ color: '#000000' }}>
+                              <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.7rem' }}>
                                 {contact.pwd_count} PWDs
                               </Typography>
-                              <Typography variant="caption" sx={{ color: '#F39C12' }}>
+                              <Typography variant="caption" sx={{ color: '#F39C12', fontSize: '0.7rem' }}>
                                 {contact.pending_applications} pending
                               </Typography>
                             </Box>
                           </TableCell>
-                          <TableCell>
+                          <TableCell sx={{ py: 2, px: 2 }}>
                             <Chip 
                               label={contact.status} 
                               size="small"
@@ -901,7 +1136,8 @@ function AdminDashboard() {
                                 backgroundColor: contact.status === 'active' ? '#27AE60' : '#E74C3C',
                                 color: '#FFFFFF',
                                 fontSize: '0.7rem',
-                                height: 20
+                                fontWeight: 600,
+                                height: 22
                               }}
                             />
                           </TableCell>
@@ -1041,6 +1277,9 @@ function AdminDashboard() {
           {renderOverview()}
         </Container>
       </Box>
+      
+      {/* Card Details Modal */}
+      {renderModal()}
     </Box>
   );
 }
