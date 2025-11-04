@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SecurityEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Carbon\Carbon;
 
 class SecurityMonitoringController extends Controller
 {
@@ -85,26 +86,114 @@ class SecurityMonitoringController extends Controller
     public function getStatistics()
     {
         $stats = Cache::remember('security_statistics', now()->addMinutes(5), function () {
+            $totalEvents = SecurityEvent::count();
+            
+            // Severity breakdown
+            $criticalEvents = SecurityEvent::where('severity', 'critical')->count();
+            $highEvents = SecurityEvent::where('severity', 'high')->count();
+            $mediumEvents = SecurityEvent::where('severity', 'medium')->count();
+            $lowEvents = SecurityEvent::where('severity', 'low')->count();
+            
+            // Status breakdown
+            $pendingEvents = SecurityEvent::where('status', 'pending')->count();
+            $investigatedEvents = SecurityEvent::where('status', 'investigated')->count();
+            $resolvedEvents = SecurityEvent::where('status', 'resolved')->count();
+            $falsePositiveEvents = SecurityEvent::where('status', 'false_positive')->count();
+            
+            // Events by type
+            $eventsByType = SecurityEvent::selectRaw('event_type, COUNT(*) as count')
+                ->groupBy('event_type')
+                ->orderBy('count', 'desc')
+                ->get()
+                ->map(function($item) {
+                    return [
+                        'name' => str_replace('_', ' ', $item->event_type),
+                        'value' => $item->count
+                    ];
+                });
+            
+            // Monthly events (last 6 months)
+            $monthlyEvents = [];
+            for ($i = 5; $i >= 0; $i--) {
+                $date = now()->subMonths($i);
+                $startOfMonth = $date->copy()->startOfMonth();
+                $endOfMonth = $date->copy()->endOfMonth();
+                
+                $count = SecurityEvent::whereBetween('detected_at', [$startOfMonth, $endOfMonth])->count();
+                $monthlyEvents[] = [
+                    'month' => $date->format('M Y'),
+                    'events' => $count
+                ];
+            }
+            
+            // Events by severity (for pie chart)
+            $eventsBySeverity = [
+                ['name' => 'Critical', 'value' => $criticalEvents],
+                ['name' => 'High', 'value' => $highEvents],
+                ['name' => 'Medium', 'value' => $mediumEvents],
+                ['name' => 'Low', 'value' => $lowEvents],
+            ];
+            
+            // Events by status (for pie chart)
+            $eventsByStatus = [
+                ['name' => 'Pending', 'value' => $pendingEvents],
+                ['name' => 'Investigated', 'value' => $investigatedEvents],
+                ['name' => 'Resolved', 'value' => $resolvedEvents],
+                ['name' => 'False Positive', 'value' => $falsePositiveEvents],
+            ];
+            
+            // Top IPs
+            $topIps = SecurityEvent::selectRaw('ip_address, COUNT(*) as count')
+                ->whereNotNull('ip_address')
+                ->groupBy('ip_address')
+                ->orderBy('count', 'desc')
+                ->limit(10)
+                ->get()
+                ->map(function($item) {
+                    return [
+                        'name' => $item->ip_address,
+                        'value' => $item->count
+                    ];
+                });
+            
+            // Calculate security rating (0-100 scale)
+            // Rating decreases with more critical/high events and unresolved events
+            $securityRating = 100;
+            if ($totalEvents > 0) {
+                // Deduct points for critical events (more weight)
+                $criticalPenalty = min(($criticalEvents / max($totalEvents, 1)) * 50, 50);
+                // Deduct points for high events
+                $highPenalty = min(($highEvents / max($totalEvents, 1)) * 30, 30);
+                // Deduct points for pending events
+                $pendingPenalty = min(($pendingEvents / max($totalEvents, 1)) * 20, 20);
+                
+                $securityRating = max(0, 100 - $criticalPenalty - $highPenalty - $pendingPenalty);
+            }
+            
+            // Resolution rate
+            $resolvedTotal = $resolvedEvents + $falsePositiveEvents;
+            $resolutionRate = $totalEvents > 0 ? ($resolvedTotal / $totalEvents) * 100 : 0;
+            
             return [
-                'total_events' => SecurityEvent::count(),
-                'critical_events' => SecurityEvent::where('severity', 'critical')->count(),
-                'high_events' => SecurityEvent::where('severity', 'high')->count(),
-                'medium_events' => SecurityEvent::where('severity', 'medium')->count(),
-                'low_events' => SecurityEvent::where('severity', 'low')->count(),
-                'pending_events' => SecurityEvent::where('status', 'pending')->count(),
-                'events_by_type' => SecurityEvent::selectRaw('event_type, COUNT(*) as count')
-                    ->groupBy('event_type')
-                    ->get()
-                    ->pluck('count', 'event_type'),
+                'total_events' => $totalEvents,
+                'critical_events' => $criticalEvents,
+                'high_events' => $highEvents,
+                'medium_events' => $mediumEvents,
+                'low_events' => $lowEvents,
+                'pending_events' => $pendingEvents,
+                'investigated_events' => $investigatedEvents,
+                'resolved_events' => $resolvedEvents,
+                'false_positive_events' => $falsePositiveEvents,
+                'events_by_type' => $eventsByType,
+                'events_by_severity' => $eventsBySeverity,
+                'events_by_status' => $eventsByStatus,
+                'monthly_events' => $monthlyEvents,
+                'top_ips' => $topIps,
                 'events_last_24h' => SecurityEvent::where('detected_at', '>=', now()->subDay())->count(),
                 'events_last_7d' => SecurityEvent::where('detected_at', '>=', now()->subDays(7))->count(),
                 'events_last_30d' => SecurityEvent::where('detected_at', '>=', now()->subDays(30))->count(),
-                'top_ips' => SecurityEvent::selectRaw('ip_address, COUNT(*) as count')
-                    ->whereNotNull('ip_address')
-                    ->groupBy('ip_address')
-                    ->orderBy('count', 'desc')
-                    ->limit(10)
-                    ->get(),
+                'security_rating' => round($securityRating, 1),
+                'resolution_rate' => round($resolutionRate, 1),
             ];
         });
 

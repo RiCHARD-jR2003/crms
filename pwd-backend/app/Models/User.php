@@ -37,6 +37,8 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password_change_required' => 'boolean',
+        'last_failed_login' => 'datetime',
+        'account_locked_until' => 'datetime',
     ];
 
     // Relationships
@@ -118,31 +120,61 @@ class User extends Authenticatable
     // Login security helper methods
     public function isAccountLocked()
     {
-        return $this->account_locked_until && now()->isBefore($this->account_locked_until);
+        if (!$this->account_locked_until) {
+            return false;
+        }
+        try {
+            return now()->isBefore($this->account_locked_until);
+        } catch (\Exception $e) {
+            \Log::warning('Error checking account lock status: ' . $e->getMessage());
+            return false;
+        }
     }
 
     public function requiresCaptcha()
     {
-        return $this->failed_login_attempts >= 3;
+        return ($this->failed_login_attempts ?? 0) >= 3;
     }
 
     public function incrementFailedAttempts()
     {
-        $this->increment('failed_login_attempts');
-        $this->update(['last_failed_login' => now()]);
-        
-        // Lock account after 5 failed attempts
-        if ($this->failed_login_attempts >= 5) {
-            $this->update(['account_locked_until' => now()->addMinutes(5)]);
+        try {
+            // Check if column exists before incrementing
+            if (!isset($this->failed_login_attempts)) {
+                $this->failed_login_attempts = 0;
+            }
+            
+            $this->increment('failed_login_attempts');
+            $this->update(['last_failed_login' => now()]);
+            
+            // Refresh to get updated value
+            $this->refresh();
+            
+            // Lock account after 5 failed attempts
+            if (($this->failed_login_attempts ?? 0) >= 5) {
+                $this->update(['account_locked_until' => now()->addMinutes(5)]);
+            }
+        } catch (\Exception $e) {
+            // If column doesn't exist, set default values
+            \Log::warning('Failed to increment login attempts: ' . $e->getMessage());
+            $this->update([
+                'failed_login_attempts' => ($this->failed_login_attempts ?? 0) + 1,
+                'last_failed_login' => now()
+            ]);
         }
     }
 
     public function resetFailedAttempts()
     {
-        $this->update([
-            'failed_login_attempts' => 0,
-            'last_failed_login' => null,
-            'account_locked_until' => null
-        ]);
+        try {
+            $this->update([
+                'failed_login_attempts' => 0,
+                'last_failed_login' => null,
+                'account_locked_until' => null
+            ]);
+        } catch (\Exception $e) {
+            // If columns don't exist, just log and continue
+            \Log::warning('Failed to reset login attempts: ' . $e->getMessage());
+        }
     }
 }

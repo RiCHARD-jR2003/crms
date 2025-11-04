@@ -27,6 +27,7 @@ import {
   Tabs
 } from '@mui/material';
 import jsPDF from 'jspdf';
+// Import autoTable plugin - it extends jsPDF prototype
 import 'jspdf-autotable';
 import {
   Refresh as RefreshIcon,
@@ -807,14 +808,84 @@ const Analytics = () => {
 
       case 'benefitTypeDistribution':
         const totalBenefits = data.reduce((sum, d) => sum + (d.value || 0), 0);
-        const topBenefit = data[0];
-        const topBenefitPercent = ((topBenefit.value / totalBenefits) * 100).toFixed(1);
-        analysis.push(`Total benefits distributed: ${totalBenefits.toLocaleString()}`);
-        analysis.push(`Most common benefit type: ${topBenefit.name} (${topBenefitPercent}%)`);
+        const sortedData = [...data].sort((a, b) => (b.value || 0) - (a.value || 0));
+        const topBenefit = sortedData[0];
+        const topBenefitPercent = totalBenefits > 0 ? ((topBenefit.value / totalBenefits) * 100).toFixed(1) : 0;
+        const top3Benefits = sortedData.slice(0, 3);
+        const top3Total = top3Benefits.reduce((sum, d) => sum + (d.value || 0), 0);
+        const top3Percent = totalBenefits > 0 ? ((top3Total / totalBenefits) * 100).toFixed(1) : 0;
+        const uniqueTypes = data.filter(d => (d.value || 0) > 0).length;
         
-        if (data.length > 1) {
-          insights.push(`Top 2 benefit types account for ${((data.slice(0, 2).reduce((s, d) => s + d.value, 0) / totalBenefits) * 100).toFixed(1)}% of all benefits`);
+        // Analysis metrics
+        analysis.push(`Total benefits distributed: ${totalBenefits.toLocaleString()}`);
+        analysis.push(`Unique benefit types: ${uniqueTypes}`);
+        analysis.push(`Most common benefit type: ${topBenefit.name} with ${topBenefit.value} benefits (${topBenefitPercent}%)`);
+        
+        if (sortedData.length > 1) {
+          const secondBenefit = sortedData[1];
+          const secondPercent = totalBenefits > 0 ? ((secondBenefit.value / totalBenefits) * 100).toFixed(1) : 0;
+          analysis.push(`Second most common: ${secondBenefit.name} with ${secondBenefit.value} benefits (${secondPercent}%)`);
         }
+        
+        if (sortedData.length > 2) {
+          analysis.push(`Top 3 benefit types account for ${top3Total} benefits (${top3Percent}%)`);
+          top3Benefits.forEach((benefit, idx) => {
+            const percent = totalBenefits > 0 ? ((benefit.value / totalBenefits) * 100).toFixed(1) : 0;
+            analysis.push(`  ${idx + 1}. ${benefit.name}: ${benefit.value} benefits (${percent}%)`);
+          });
+        }
+        
+        // Distribution evenness analysis
+        if (sortedData.length > 1) {
+          const avgPerType = totalBenefits / uniqueTypes;
+          const distributionVariance = sortedData.reduce((sum, d) => {
+            const deviation = Math.abs((d.value || 0) - avgPerType);
+            return sum + Math.pow(deviation, 2);
+          }, 0) / uniqueTypes;
+          const distributionStdDev = Math.sqrt(distributionVariance).toFixed(1);
+          
+          if (distributionStdDev < avgPerType * 0.3) {
+            insights.push(`Well-distributed benefit types: Benefits are evenly spread across types (std dev: ${distributionStdDev}).`);
+          } else if (distributionStdDev < avgPerType * 0.6) {
+            insights.push(`Moderate distribution: Some benefit types are more popular than others (std dev: ${distributionStdDev}).`);
+          } else {
+            insights.push(`Highly concentrated distribution: Benefits are concentrated in specific types (std dev: ${distributionStdDev}).`);
+          }
+        }
+        
+        // Insights
+        if (sortedData.length > 1) {
+          const top2Total = sortedData.slice(0, 2).reduce((s, d) => s + (d.value || 0), 0);
+          const top2Percent = totalBenefits > 0 ? ((top2Total / totalBenefits) * 100).toFixed(1) : 0;
+          insights.push(`Top 2 benefit types account for ${top2Percent}% of all benefits`);
+          
+          if (topBenefitPercent > 50) {
+            insights.push(`High concentration: ${topBenefit.name} represents over half of all benefits (${topBenefitPercent}%)`);
+            trends.push(`Consider diversifying benefit offerings to better serve diverse needs`);
+          } else if (topBenefitPercent > 30) {
+            insights.push(`Moderate concentration: ${topBenefit.name} is the dominant benefit type but others are well-represented`);
+          }
+        }
+        
+        // Trends and recommendations
+        if (sortedData.length > 3) {
+          const bottomTypes = sortedData.slice(-3).filter(d => (d.value || 0) > 0);
+          if (bottomTypes.length > 0) {
+            trends.push(`Least common benefit types: ${bottomTypes.map(b => b.name).join(', ')}`);
+            insights.push(`These types may need more promotion or consideration for expansion`);
+          }
+        }
+        
+        if (totalBenefits > 0 && uniqueTypes < 3) {
+          trends.push(`Limited benefit variety: Only ${uniqueTypes} benefit type(s) available`);
+          insights.push(`Consider expanding benefit offerings to provide more options for members`);
+        }
+        
+        if (topBenefitPercent > 60) {
+          trends.push(`Focus area: ${topBenefit.name} benefits are highly demanded`);
+          insights.push(`Ensure adequate resources and inventory for ${topBenefit.name} benefits`);
+        }
+        
         break;
 
       case 'disabilityDistribution':
@@ -1120,11 +1191,44 @@ END OF REPORT
     
     setGeneratingPDF(true);
     try {
-      // Dynamically import jsPDF and autoTable to ensure proper loading
-      const { jsPDF } = await import('jspdf');
-      await import('jspdf-autotable');
+      // Use the statically imported jsPDF - jspdf-autotable should have extended it
+      // If autoTable is not available, dynamically import the plugin
+      if (typeof jsPDF.prototype.autoTable !== 'function') {
+        // Force import the plugin
+        await import('jspdf-autotable');
+      }
       
       const doc = new jsPDF('portrait', 'mm', 'a4');
+      
+      // Verify autoTable is available
+      if (typeof doc.autoTable !== 'function') {
+        // Try manual attach as fallback
+        try {
+          const autoTableModule = await import('jspdf-autotable');
+          // The plugin should extend prototype, but if not, try to attach manually
+          if (autoTableModule.default && typeof autoTableModule.default === 'function') {
+            // Call it once to attach to prototype
+            const testDoc = new jsPDF();
+            autoTableModule.default(testDoc, { head: [['test']], body: [['test']] });
+            if (typeof testDoc.autoTable === 'function') {
+              // Success - now use it
+              doc.autoTable = testDoc.autoTable.bind(doc);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load jspdf-autotable:', e);
+        }
+        
+        if (typeof doc.autoTable !== 'function') {
+          throw new Error('jspdf-autotable plugin failed to load. Please refresh the page and try again.');
+        }
+      }
+      
+      // Create wrapper function for consistent usage
+      const autoTableFn = (options) => {
+        doc.autoTable(options);
+        return doc.lastAutoTable;
+      };
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       let yPosition = 20;
@@ -1178,7 +1282,7 @@ END OF REPORT
           ['Resolution Rate', `${reportData.summary.resolutionRate}%`]
         ];
         
-        doc.autoTable({
+        autoTableFn({
           startY: yPosition,
           head: [summaryData[0]],
           body: summaryData.slice(1),
@@ -1192,7 +1296,7 @@ END OF REPORT
           margin: { left: 20, right: 20 }
         });
         
-        yPosition = doc.lastAutoTable.finalY + 15;
+        yPosition = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPosition + 50;
       }
       
       // Key Insights Section
@@ -1248,7 +1352,7 @@ END OF REPORT
           ...reportData.breakdowns.monthlyRegistrations.map(m => [m.month, m.registrations.toString()])
         ];
         
-        doc.autoTable({
+        autoTableFn({
           startY: yPosition,
           head: [monthlyData[0]],
           body: monthlyData.slice(1),
@@ -1262,7 +1366,7 @@ END OF REPORT
           margin: { left: 20, right: 20 }
         });
         
-        yPosition = doc.lastAutoTable.finalY + 15;
+        yPosition = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPosition + 50;
       }
       
       // Top Barangays Breakdown
@@ -1288,7 +1392,7 @@ END OF REPORT
           ])
         ];
         
-        doc.autoTable({
+        autoTableFn({
           startY: yPosition,
           head: [barangayData[0]],
           body: barangayData.slice(1),
@@ -1303,7 +1407,7 @@ END OF REPORT
           margin: { left: 20, right: 20 }
         });
         
-        yPosition = doc.lastAutoTable.finalY + 15;
+        yPosition = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPosition + 50;
       }
       
       // Disability Distribution
@@ -1325,7 +1429,7 @@ END OF REPORT
           ...reportData.breakdowns.disabilityDistribution.map(d => [d.name, d.value.toString()])
         ];
         
-        doc.autoTable({
+        autoTableFn({
           startY: yPosition,
           head: [disabilityData[0]],
           body: disabilityData.slice(1),
@@ -1339,7 +1443,7 @@ END OF REPORT
           margin: { left: 20, right: 20 }
         });
         
-        yPosition = doc.lastAutoTable.finalY + 15;
+        yPosition = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPosition + 50;
       }
       
       // Benefit Type Distribution
@@ -1361,7 +1465,7 @@ END OF REPORT
           ...reportData.breakdowns.benefitTypeDistribution.map(b => [b.name, b.value.toString()])
         ];
         
-        doc.autoTable({
+        autoTableFn({
           startY: yPosition,
           head: [benefitData[0]],
           body: benefitData.slice(1),
@@ -1375,7 +1479,7 @@ END OF REPORT
           margin: { left: 20, right: 20 }
         });
         
-        yPosition = doc.lastAutoTable.finalY + 15;
+        yPosition = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPosition + 50;
       }
       
       // Ticket Status Breakdown
@@ -1400,7 +1504,7 @@ END OF REPORT
           ])
         ];
         
-        doc.autoTable({
+        autoTableFn({
           startY: yPosition,
           head: [ticketData[0]],
           body: ticketData.slice(1),

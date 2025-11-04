@@ -29,6 +29,8 @@ import {
   DialogContent,
   DialogActions,
   IconButton,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
 import toastService from '../../services/toastService';
 import {
@@ -61,6 +63,7 @@ import {
   Home as HomeIcon,
   OpenInNew,
   Close as CloseIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -125,6 +128,9 @@ function AdminDashboard() {
   const [migrating, setMigrating] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [cardDetailsData, setCardDetailsData] = useState([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [barangaySearchQuery, setBarangaySearchQuery] = useState('');
 
   const handleSidebarToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -134,14 +140,68 @@ function AdminDashboard() {
     setIsMobileMenuOpen(isOpen);
   };
 
-  const handleCardClick = (cardType) => {
+  const handleCardClick = async (cardType) => {
     setSelectedCard(cardType);
     setModalOpen(true);
+    setDetailsLoading(true);
+    setCardDetailsData([]);
+    
+    // Fetch detailed data based on card type
+    try {
+      switch (cardType) {
+        case 'resolvedTickets':
+          const tickets = await supportService.getTickets();
+          const resolvedTickets = Array.isArray(tickets) 
+            ? tickets.filter(t => ['resolved', 'closed'].includes((t?.status || '').toLowerCase()))
+            : [];
+          setCardDetailsData(resolvedTickets);
+          break;
+          
+        case 'claimedIDs':
+          const members = await pwdMemberService.getAll();
+          const claimedMembers = Array.isArray(members)
+            ? members.filter(m => m?.cardClaimed || m?.pwd_id || m?.pwd_card_number || m?.card_number)
+            : [];
+          setCardDetailsData(claimedMembers);
+          break;
+          
+        case 'renewedIDs':
+          const allMembers = await pwdMemberService.getAll();
+          const renewedMembers = Array.isArray(allMembers)
+            ? allMembers.filter(m => {
+                if (!m?.cardClaimed || !m?.cardIssueDate || !m?.cardExpirationDate) return false;
+                const issueDate = new Date(m.cardIssueDate);
+                const expDate = new Date(m.cardExpirationDate);
+                return expDate > issueDate;
+              })
+            : [];
+          setCardDetailsData(renewedMembers);
+          break;
+          
+        case 'claimedBenefits':
+          const benefits = await api.get('/benefit-claims');
+          const claimedBenefits = Array.isArray(benefits)
+            ? benefits.filter(b => b?.status === 'Claimed')
+            : (benefits?.data || []).filter(b => b?.status === 'Claimed');
+          setCardDetailsData(claimedBenefits);
+          break;
+          
+        default:
+          setCardDetailsData([]);
+      }
+    } catch (error) {
+      console.error('Error fetching card details:', error);
+      setCardDetailsData([]);
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
   const handleCloseModal = () => {
     setModalOpen(false);
     setSelectedCard(null);
+    setCardDetailsData([]);
+    setDetailsLoading(false);
   };
 
   const getCardDetails = (cardType) => {
@@ -211,6 +271,95 @@ function AdminDashboard() {
             `Tickets are categorized by priority and type`
           ]
         };
+      case 'resolvedTickets':
+        return {
+          title: 'Resolved Tickets',
+          icon: <DoneAllIcon sx={{ fontSize: 48, color: '#27AE60' }} />,
+          value: stats.resolvedTickets || 0,
+          description: 'Support tickets that have been successfully resolved or closed.',
+          details: [
+            `Resolved Tickets: ${stats.resolvedTickets || 0} tickets`,
+            `These tickets have been completed and closed`,
+            `Includes both resolved and closed status tickets`,
+            `Reflects successful resolution of member inquiries and issues`
+          ],
+          hasTable: true,
+          tableHeaders: ['Ticket ID', 'Subject', 'Status', 'Created At', 'Resolved At'],
+          getTableRows: (data) => data.map(ticket => ({
+            id: ticket.ticketID || ticket.id,
+            subject: ticket.subject || 'N/A',
+            status: ticket.status || 'N/A',
+            createdAt: ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : 'N/A',
+            resolvedAt: ticket.updated_at ? new Date(ticket.updated_at).toLocaleDateString() : 'N/A'
+          }))
+        };
+      case 'claimedIDs':
+        return {
+          title: 'Claimed IDs',
+          icon: <CardMembershipIcon sx={{ fontSize: 48, color: '#3498DB' }} />,
+          value: stats.claimedIDs || 0,
+          description: 'PWD identification cards that have been claimed by registered members.',
+          details: [
+            `Claimed IDs: ${stats.claimedIDs || 0} cards`,
+            `Members have collected their physical PWD identification cards`,
+            `Cards provide access to various benefits and services`,
+            `Each claimed card is assigned a unique PWD ID number`
+          ],
+          hasTable: true,
+          tableHeaders: ['PWD ID', 'Name', 'Barangay', 'Issue Date', 'Status'],
+          getTableRows: (data) => data.map(member => ({
+            id: member.pwd_id || member.pwd_card_number || member.card_number || 'N/A',
+            name: `${member.firstName || ''} ${member.lastName || ''}`.trim() || 'N/A',
+            barangay: member.barangay || 'N/A',
+            issueDate: member.cardIssueDate ? new Date(member.cardIssueDate).toLocaleDateString() : 'N/A',
+            status: member.cardClaimed ? 'Claimed' : 'Pending'
+          }))
+        };
+      case 'renewedIDs':
+        return {
+          title: 'Renewed IDs',
+          icon: <VerifiedUserIcon sx={{ fontSize: 48, color: '#9B59B6' }} />,
+          value: stats.renewedIDs || 0,
+          description: 'PWD identification cards that have been renewed by members.',
+          details: [
+            `Renewed IDs: ${stats.renewedIDs || 0} cards`,
+            `These cards have been renewed after their initial expiration`,
+            `Renewal process ensures continued access to benefits`,
+            `Members must renew their cards before expiration date`
+          ],
+          hasTable: true,
+          tableHeaders: ['PWD ID', 'Name', 'Issue Date', 'Expiration Date', 'Status'],
+          getTableRows: (data) => data.map(member => ({
+            id: member.pwd_id || member.pwd_card_number || member.card_number || 'N/A',
+            name: `${member.firstName || ''} ${member.lastName || ''}`.trim() || 'N/A',
+            issueDate: member.cardIssueDate ? new Date(member.cardIssueDate).toLocaleDateString() : 'N/A',
+            expirationDate: member.cardExpirationDate ? new Date(member.cardExpirationDate).toLocaleDateString() : 'N/A',
+            status: member.cardExpirationDate && new Date(member.cardExpirationDate) > new Date() ? 'Active' : 'Expired'
+          }))
+        };
+      case 'claimedBenefits':
+        return {
+          title: 'Claimed Benefits',
+          icon: <CardGiftcardIcon sx={{ fontSize: 48, color: '#F39C12' }} />,
+          value: stats.claimedBenefits || 0,
+          description: 'Benefits that have been successfully claimed by PWD members.',
+          details: [
+            `Claimed Benefits: ${stats.claimedBenefits || 0} claims`,
+            `Benefits have been distributed to eligible PWD members`,
+            `Each claim represents a benefit successfully received`,
+            `Tracking helps monitor benefit distribution effectiveness`
+          ],
+          hasTable: true,
+          tableHeaders: ['Claim ID', 'Benefit Type', 'Member', 'Claim Date', 'Status'],
+          getTableRows: (data) => data.map(claim => ({
+            id: claim.claimID || claim.id || 'N/A',
+            benefitType: claim.benefit?.benefit_type || claim.benefit_type || 'N/A',
+            member: claim.pwd_member ? `${claim.pwd_member.firstName || ''} ${claim.pwd_member.lastName || ''}`.trim() : 'N/A',
+            claimDate: claim.claimed_at ? new Date(claim.claimed_at).toLocaleDateString() : 
+                      (claim.created_at ? new Date(claim.created_at).toLocaleDateString() : 'N/A'),
+            status: claim.status || 'N/A'
+          }))
+        };
       default:
         return null;
     }
@@ -226,7 +375,7 @@ function AdminDashboard() {
       <Dialog
         open={modalOpen}
         onClose={handleCloseModal}
-        maxWidth="sm"
+        maxWidth={cardDetails.hasTable ? "lg" : "sm"}
         fullWidth
         sx={dialogStyles}
       >
@@ -259,32 +408,84 @@ function AdminDashboard() {
               {cardDetails.description}
             </Typography>
             <Divider sx={{ my: 2 }} />
-            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#000000', mb: 2 }}>
-              Details:
-            </Typography>
-            <List>
-              {cardDetails.details.map((detail, index) => (
-                <ListItem key={index} sx={{ px: 0 }}>
-                  <ListItemIcon sx={{ minWidth: 32 }}>
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: '#3498DB'
-                      }}
-                    />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Typography variant="body2" sx={{ color: '#000000' }}>
-                        {detail}
-                      </Typography>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
+            
+            {cardDetails.hasTable ? (
+              <>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#000000', mb: 2 }}>
+                  Detailed List:
+                </Typography>
+                {detailsLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : cardDetailsData.length > 0 ? (
+                  <TableContainer component={Paper} sx={{ maxHeight: 400, mt: 2 }}>
+                    <Table stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          {cardDetails.tableHeaders.map((header, index) => (
+                            <TableCell 
+                              key={index}
+                              sx={{ 
+                                fontWeight: 'bold', 
+                                backgroundColor: '#F5F5F5',
+                                color: '#000000'
+                              }}
+                            >
+                              {header}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {cardDetails.getTableRows(cardDetailsData).map((row, index) => (
+                          <TableRow key={index} hover>
+                            {Object.values(row).map((cell, cellIndex) => (
+                              <TableCell key={cellIndex} sx={{ color: '#000000' }}>
+                                {cell}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Typography variant="body2" sx={{ color: '#7F8C8D', textAlign: 'center', py: 4 }}>
+                    No data available
+                  </Typography>
+                )}
+              </>
+            ) : (
+              <>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#000000', mb: 2 }}>
+                  Details:
+                </Typography>
+                <List>
+                  {cardDetails.details.map((detail, index) => (
+                    <ListItem key={index} sx={{ px: 0 }}>
+                      <ListItemIcon sx={{ minWidth: 32 }}>
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            backgroundColor: '#3498DB'
+                          }}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Typography variant="body2" sx={{ color: '#000000' }}>
+                            {detail}
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </>
+            )}
           </Box>
         </DialogContent>
         <DialogActions sx={dialogActionsStyles}>
@@ -1404,20 +1605,50 @@ function AdminDashboard() {
       <Grid item xs={12} lg={6}>
         <Card sx={{ ...cardStyles, height: { xs: '400px', sm: '450px' } }}>
           <CardContent sx={{ height: '100%', p: { xs: 1, sm: 2 } }}>
-            <Typography 
-              variant="h6" 
-              gutterBottom 
-              sx={{ 
-                fontWeight: 'bold', 
-                color: '#000000',
-                fontSize: { xs: '0.9rem', sm: '1rem', md: '1.25rem' },
-                mb: { xs: 1, sm: 2 }
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 1, sm: 2 } }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 'bold', 
+                  color: '#000000',
+                  fontSize: { xs: '0.9rem', sm: '1rem', md: '1.25rem' }
+                }}
+              >
+                BARANGAY COORDINATION TABLE
+              </Typography>
+            </Box>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Search by barangay, president, contact..."
+              value={barangaySearchQuery}
+              onChange={(e) => setBarangaySearchQuery(e.target.value)}
+              sx={{
+                mb: 2,
+                '& .MuiOutlinedInput-root': {
+                  fontSize: '0.85rem',
+                  backgroundColor: '#FFFFFF',
+                  '& fieldset': {
+                    borderColor: '#E0E0E0',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: '#0b87ac',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#0b87ac',
+                  },
+                },
               }}
-            >
-              BARANGAY COORDINATION TABLE
-            </Typography>
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: '#7F8C8D' }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
             <Box sx={{ 
-              height: { xs: '320px', sm: '370px' }, 
+              height: { xs: '280px', sm: '330px' }, 
               overflow: 'auto',
               border: '1px solid #E0E0E0',
               borderRadius: 1,
@@ -1427,20 +1658,34 @@ function AdminDashboard() {
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                   <CircularProgress size={40} />
                 </Box>
-              ) : barangayContacts.length > 0 ? (
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
-                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Barangay</TableCell>
-                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>President</TableCell>
-                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Contact</TableCell>
-                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>PWD Count</TableCell>
-                        <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Status</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {barangayContacts.map((contact, index) => (
+              ) : (() => {
+                const filteredContacts = barangayContacts.filter(contact => {
+                  if (!barangaySearchQuery.trim()) {
+                    return true; // Show all if search is empty
+                  }
+                  const query = barangaySearchQuery.toLowerCase();
+                  return (
+                    contact.barangay?.toLowerCase().includes(query) ||
+                    contact.president_name?.toLowerCase().includes(query) ||
+                    contact.email?.toLowerCase().includes(query) ||
+                    contact.phone?.toLowerCase().includes(query) ||
+                    contact.status?.toLowerCase().includes(query)
+                  );
+                });
+                return filteredContacts.length > 0 ? (
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Barangay</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>President</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Contact</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>PWD Count</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredContacts.map((contact, index) => (
                         <TableRow key={contact.barangay} sx={{ bgcolor: index % 2 ? '#F7FBFF' : 'white' }}>
                           <TableCell sx={{ fontSize: '0.8rem', color: '#000000', py: 2, px: 2 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1491,24 +1736,38 @@ function AdminDashboard() {
                             />
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  height: '100%',
-                  flexDirection: 'column'
-                }}>
-                  <LocationIcon sx={{ fontSize: 48, color: '#BDC3C7', mb: 1 }} />
-                  <Typography variant="body2" sx={{ color: '#7F8C8D', textAlign: 'center' }}>
-                    No barangay contacts available
-                  </Typography>
-                </Box>
-              )}
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : barangayContacts.length > 0 ? (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    height: '100%',
+                    flexDirection: 'column'
+                  }}>
+                    <SearchIcon sx={{ fontSize: 48, color: '#BDC3C7', mb: 1 }} />
+                    <Typography variant="body2" sx={{ color: '#7F8C8D', textAlign: 'center' }}>
+                      No results found for "{barangaySearchQuery}"
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    height: '100%',
+                    flexDirection: 'column'
+                  }}>
+                    <LocationIcon sx={{ fontSize: 48, color: '#BDC3C7', mb: 1 }} />
+                    <Typography variant="body2" sx={{ color: '#7F8C8D', textAlign: 'center' }}>
+                      No barangay contacts available
+                    </Typography>
+                  </Box>
+                );
+              })()}
             </Box>
           </CardContent>
         </Card>

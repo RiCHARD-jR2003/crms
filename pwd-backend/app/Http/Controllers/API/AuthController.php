@@ -69,223 +69,294 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'username' => 'required|string',
-            'password' => 'required|string',
-            'captcha' => 'nullable|string', // Captcha will be required for PWDMember after 3 failed attempts
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'username' => 'required|string',
+                'password' => 'required|string',
+                'captcha' => 'nullable|string', // Captcha will be required for PWDMember after 3 failed attempts
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 400);
-        }
-
-        // Find user by username first, then by email if not found
-        $user = User::where('username', $request->username)->first();
-        if (!$user) {
-            $user = User::where('email', $request->username)->first();
-        }
-
-        // If user not found, return generic error (don't reveal if user exists)
-        if (!$user) {
-            return response()->json([
-                'message' => 'Invalid login credentials',
-                'requires_captcha' => false
-            ], 401);
-        }
-
-        // Check if account is locked (only for PWDMember)
-        if ($user->role === 'PWDMember' && $user->isAccountLocked()) {
-            $lockoutMinutes = now()->diffInMinutes($user->account_locked_until, false);
-            return response()->json([
-                'message' => "Account is locked due to too many failed attempts. Please try again in {$lockoutMinutes} minutes.",
-                'requires_captcha' => false,
-                'account_locked' => true,
-                'lockout_until' => $user->account_locked_until
-            ], 423);
-        }
-
-        // Check if captcha is required for PWDMember
-        if ($user->role === 'PWDMember' && $user->requiresCaptcha()) {
-            if (!$request->captcha) {
-                return response()->json([
-                    'message' => 'Please complete the captcha verification',
-                    'requires_captcha' => true,
-                    'failed_attempts' => $user->failed_login_attempts
-                ], 422);
+            if ($validator->fails()) {
+                return response()->json($validator->errors(), 400);
             }
 
-            // Simple captcha validation (you can integrate with Google reCAPTCHA or similar)
-            if ($request->captcha !== 'PWD123') { // Simple test captcha
-                $user->incrementFailedAttempts();
-                return response()->json([
-                    'message' => 'Invalid captcha. Please try again.',
-                    'requires_captcha' => true,
-                    'failed_attempts' => $user->failed_login_attempts
-                ], 422);
+            // Find user by username first, then by email if not found
+            $user = User::where('username', $request->username)->first();
+            if (!$user) {
+                $user = User::where('email', $request->username)->first();
             }
-        }
 
-        // Check password
-        if (!Hash::check($request->password, $user->password)) {
-            // Only track failed attempts for PWDMember
-            if ($user->role === 'PWDMember') {
-                $user->incrementFailedAttempts();
-                
-                $response = [
-                    'message' => 'Invalid login credentials',
-                    'requires_captcha' => $user->requiresCaptcha(),
-                    'failed_attempts' => $user->failed_login_attempts
-                ];
-
-                // If account is now locked after this attempt
-                if ($user->isAccountLocked()) {
-                    $response['message'] = 'Account locked due to too many failed attempts. Please try again in 5 minutes.';
-                    $response['account_locked'] = true;
-                    $response['lockout_until'] = $user->account_locked_until;
-                }
-
-                return response()->json($response, 401);
-            } else {
+            // If user not found, return generic error (don't reveal if user exists)
+            if (!$user) {
                 return response()->json([
                     'message' => 'Invalid login credentials',
                     'requires_captcha' => false
                 ], 401);
             }
-        }
 
-        // Check if user is active
-        if (strtolower($user->status) !== 'active') {
-            return response()->json([
-                'message' => 'Your account is inactive. Please contact administrator.',
-                'requires_captcha' => false
-            ], 403);
-        }
+            // Check if account is locked (only for PWDMember)
+            if ($user->role === 'PWDMember' && $user->isAccountLocked()) {
+                $lockoutMinutes = $user->account_locked_until 
+                    ? now()->diffInMinutes($user->account_locked_until, false) 
+                    : 5;
+                return response()->json([
+                    'message' => "Account is locked due to too many failed attempts. Please try again in {$lockoutMinutes} minutes.",
+                    'requires_captcha' => false,
+                    'account_locked' => true,
+                    'lockout_until' => $user->account_locked_until
+                ], 423);
+            }
 
-        // Reset failed attempts on successful login (only for PWDMember)
-        if ($user->role === 'PWDMember') {
-            $user->resetFailedAttempts();
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        // Load role-specific data
-        if ($user->role === 'PWDMember') {
-            // Check if pwdMember relationship exists
-            if ($user->pwdMember) {
-                $user->load('pwdMember');
-                // Get barangay and idPictures from approved application
-                $approvedApplication = $user->pwdMember->applications()
-                    ->where('status', 'Approved')
-                    ->latest()
-                    ->first();
-                if ($approvedApplication) {
-                    $user->barangay = $approvedApplication->barangay;
-                    // Add idPictures to pwdMember data
-                    $user->pwdMember->idPictures = $approvedApplication->idPictures;
+            // Check if captcha is required for PWDMember
+            if ($user->role === 'PWDMember' && $user->requiresCaptcha()) {
+                if (!$request->captcha) {
+                    return response()->json([
+                        'message' => 'Please complete the captcha verification',
+                        'requires_captcha' => true,
+                        'failed_attempts' => $user->failed_login_attempts ?? 0
+                    ], 422);
                 }
-            } else {
-                // If no pwdMember relationship, get barangay and idPictures from application
-                $approvedApplication = \App\Models\Application::where('email', $user->email)
-                    ->where('status', 'Approved')
-                    ->latest()
-                    ->first();
-                if ($approvedApplication) {
-                    $user->barangay = $approvedApplication->barangay;
-                    // Create a temporary pwdMember object with idPictures
-                    $user->pwdMember = (object) [
-                        'idPictures' => $approvedApplication->idPictures
+
+                // Simple captcha validation (you can integrate with Google reCAPTCHA or similar)
+                if ($request->captcha !== 'PWD123') { // Simple test captcha
+                    try {
+                        $user->incrementFailedAttempts();
+                        $user->refresh();
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to increment login attempts in captcha validation: ' . $e->getMessage());
+                    }
+                    return response()->json([
+                        'message' => 'Invalid captcha. Please try again.',
+                        'requires_captcha' => true,
+                        'failed_attempts' => $user->failed_login_attempts ?? 0
+                    ], 422);
+                }
+            }
+
+            // Check password
+            if (!Hash::check($request->password, $user->password)) {
+                // Only track failed attempts for PWDMember
+                if ($user->role === 'PWDMember') {
+                    try {
+                        $user->incrementFailedAttempts();
+                        // Refresh to get updated values
+                        $user->refresh();
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to increment login attempts: ' . $e->getMessage());
+                    }
+                    
+                    $response = [
+                        'message' => 'Invalid login credentials',
+                        'requires_captcha' => $user->requiresCaptcha(),
+                        'failed_attempts' => $user->failed_login_attempts ?? 0
+                    ];
+
+                    // If account is now locked after this attempt
+                    if ($user->isAccountLocked()) {
+                        $response['message'] = 'Account locked due to too many failed attempts. Please try again in 5 minutes.';
+                        $response['account_locked'] = true;
+                        $response['lockout_until'] = $user->account_locked_until;
+                    }
+
+                    return response()->json($response, 401);
+                } else {
+                    return response()->json([
+                        'message' => 'Invalid login credentials',
+                        'requires_captcha' => false
+                    ], 401);
+                }
+            }
+
+            // Check if user is active
+            if (strtolower($user->status) !== 'active') {
+                return response()->json([
+                    'message' => 'Your account is inactive. Please contact administrator.',
+                    'requires_captcha' => false
+                ], 403);
+            }
+
+            // Reset failed attempts on successful login (only for PWDMember)
+            if ($user->role === 'PWDMember') {
+                try {
+                    $user->resetFailedAttempts();
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to reset login attempts: ' . $e->getMessage());
+                }
+            }
+
+            // Create authentication token
+            try {
+                $token = $user->createToken('auth_token')->plainTextToken;
+            } catch (\Exception $e) {
+                \Log::error('Failed to create token: ' . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString()
+                ]);
+                return response()->json([
+                    'message' => 'Failed to create authentication token. Please try again.',
+                    'error' => config('app.debug') ? $e->getMessage() : null
+                ], 500);
+            }
+
+            // Load role-specific data
+            if ($user->role === 'PWDMember') {
+                try {
+                    // Check if pwdMember relationship exists
+                    if ($user->pwdMember) {
+                        $user->load('pwdMember');
+                        // Get barangay and idPictures from approved application
+                        $approvedApplication = $user->pwdMember->applications()
+                            ->where('status', 'Approved')
+                            ->latest()
+                            ->first();
+                        if ($approvedApplication) {
+                            $user->barangay = $approvedApplication->barangay;
+                            // Add idPictures to pwdMember data
+                            $user->pwdMember->idPictures = $approvedApplication->idPictures;
+                        }
+                    } else {
+                        // If no pwdMember relationship, get barangay and idPictures from application
+                        $approvedApplication = \App\Models\Application::where('email', $user->email)
+                            ->where('status', 'Approved')
+                            ->latest()
+                            ->first();
+                        if ($approvedApplication) {
+                            $user->barangay = $approvedApplication->barangay;
+                            // Create a temporary pwdMember object with idPictures
+                            $user->pwdMember = (object) [
+                                'idPictures' => $approvedApplication->idPictures
+                            ];
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to load PWD Member data: ' . $e->getMessage());
+                }
+            } else if ($user->role === 'BarangayPresident') {
+                try {
+                    $user->load('barangayPresident');
+                } catch (\Exception $e) {
+                    // Handle missing barangay_president table gracefully
+                    \Log::warning('Barangay president table not available: ' . $e->getMessage());
+                    // Extract barangay from username (e.g., bp_gulod -> Gulod)
+                    $barangayName = 'Unknown';
+                    if (strpos($user->username, 'bp_') === 0) {
+                        $barangayName = str_replace('bp_', '', $user->username);
+                        $barangayName = str_replace('_', ' ', $barangayName);
+                        $barangayName = ucwords(strtolower($barangayName));
+                    }
+                    // Set barangay data extracted from username
+                    $user->barangayPresident = (object) [
+                        'barangay' => $barangayName,
+                        'barangayID' => 1
                     ];
                 }
-            }
-        } else if ($user->role === 'BarangayPresident') {
-            try {
-                $user->load('barangayPresident');
-            } catch (\Exception $e) {
-                // Handle missing barangay_president table gracefully
-                \Log::warning('Barangay president table not available: ' . $e->getMessage());
-                // Extract barangay from username (e.g., bp_gulod -> Gulod)
-                $barangayName = 'Unknown';
-                if (strpos($user->username, 'bp_') === 0) {
-                    $barangayName = str_replace('bp_', '', $user->username);
-                    $barangayName = str_replace('_', ' ', $barangayName);
-                    $barangayName = ucwords(strtolower($barangayName));
+            } else if ($user->role === 'Admin') {
+                try {
+                    $user->load('admin');
+                } catch (\Exception $e) {
+                    // Handle missing admin table gracefully
+                    \Log::warning('Admin table not available: ' . $e->getMessage());
                 }
-                // Set barangay data extracted from username
-                $user->barangayPresident = (object) [
-                    'barangay' => $barangayName,
-                    'barangayID' => 1
+            } else if ($user->role === 'SuperAdmin') {
+                try {
+                    $user->load('superAdmin');
+                } catch (\Exception $e) {
+                    // Handle missing superadmin table gracefully
+                    \Log::warning('SuperAdmin table not available: ' . $e->getMessage());
+                }
+            }
+
+            // Sanitize user data to prevent UTF-8 encoding issues
+            try {
+                $userData = [
+                    'userID' => $user->userID ?? null,
+                    'username' => $user->username ?? '',
+                    'email' => $user->email ?? '',
+                    'role' => $user->role ?? '',
+                    'status' => $user->status ?? 'active',
+                    'password_change_required' => $user->password_change_required ?? false,
+                    'created_at' => $user->created_at ? $user->created_at->toDateTimeString() : null,
+                    'updated_at' => $user->updated_at ? $user->updated_at->toDateTimeString() : null,
                 ];
-            }
-        } else if ($user->role === 'Admin') {
-            try {
-                $user->load('admin');
+
+                // Add role-specific data safely
+                if ($user->role === 'PWDMember' && isset($user->pwdMember) && $user->pwdMember) {
+                    $userData['pwdMember'] = [
+                        'firstName' => $user->pwdMember->firstName ?? '',
+                        'lastName' => $user->pwdMember->lastName ?? '',
+                        'middleName' => $user->pwdMember->middleName ?? '',
+                        'birthDate' => $user->pwdMember->birthDate ?? '',
+                        'gender' => $user->pwdMember->gender ?? '',
+                        'disabilityType' => $user->pwdMember->disabilityType ?? '',
+                        'address' => $user->pwdMember->address ?? '',
+                        'contactNumber' => $user->pwdMember->contactNumber ?? '',
+                        'pwd_id' => $user->pwdMember->pwd_id ?? '',
+                    ];
+                    if (isset($user->barangay)) {
+                        $userData['barangay'] = $user->barangay;
+                    }
+                    if (isset($user->pwdMember->idPictures)) {
+                        $userData['pwdMember']['idPictures'] = $user->pwdMember->idPictures;
+                    }
+                } else if ($user->role === 'BarangayPresident' && isset($user->barangayPresident) && $user->barangayPresident) {
+                    $userData['barangayPresident'] = [
+                        'barangayID' => $user->barangayPresident->barangayID ?? '',
+                        'barangay' => $user->barangayPresident->barangay ?? '',
+                    ];
+                } else if ($user->role === 'Admin' && isset($user->admin) && $user->admin) {
+                    $userData['admin'] = [
+                        'userID' => $user->admin->userID ?? '',
+                    ];
+                }
+
+                return response()->json([
+                    'user' => $userData,
+                    'access_token' => $token,
+                    'token_type' => 'Bearer',
+                    'requires_captcha' => false
+                ]);
             } catch (\Exception $e) {
-                // Handle missing admin table gracefully
-                \Log::warning('Admin table not available: ' . $e->getMessage());
+                \Log::error('Failed to build user data response: ' . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString()
+                ]);
+                // Return minimal user data if building full response fails
+                return response()->json([
+                    'user' => [
+                        'userID' => $user->userID ?? null,
+                        'username' => $user->username ?? '',
+                        'email' => $user->email ?? '',
+                        'role' => $user->role ?? '',
+                        'status' => $user->status ?? 'active',
+                    ],
+                    'access_token' => $token,
+                    'token_type' => 'Bearer',
+                    'requires_captcha' => false
+                ]);
             }
-        } else if ($user->role === 'SuperAdmin') {
-            try {
-                $user->load('superAdmin');
-            } catch (\Exception $e) {
-                // Handle missing superadmin table gracefully
-                \Log::warning('SuperAdmin table not available: ' . $e->getMessage());
-            }
+        } catch (\Exception $e) {
+            \Log::error('Login error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->except(['password'])
+            ]);
+            return response()->json([
+                'message' => 'An error occurred during login. Please try again.',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
         }
-
-        // Sanitize user data to prevent UTF-8 encoding issues
-        $userData = [
-            'userID' => $user->userID,
-            'username' => $user->username,
-            'email' => $user->email,
-            'role' => $user->role,
-            'status' => $user->status,
-            'password_change_required' => $user->password_change_required,
-            'created_at' => $user->created_at,
-            'updated_at' => $user->updated_at,
-        ];
-
-        // Add role-specific data safely
-        if ($user->role === 'PWDMember' && $user->pwdMember) {
-            $userData['pwdMember'] = [
-                'firstName' => $user->pwdMember->firstName ?? '',
-                'lastName' => $user->pwdMember->lastName ?? '',
-                'middleName' => $user->pwdMember->middleName ?? '',
-                'birthDate' => $user->pwdMember->birthDate ?? '',
-                'gender' => $user->pwdMember->gender ?? '',
-                'disabilityType' => $user->pwdMember->disabilityType ?? '',
-                'address' => $user->pwdMember->address ?? '',
-                'contactNumber' => $user->pwdMember->contactNumber ?? '',
-                'pwd_id' => $user->pwdMember->pwd_id ?? '',
-            ];
-            if (isset($user->barangay)) {
-                $userData['barangay'] = $user->barangay;
-            }
-            if (isset($user->pwdMember->idPictures)) {
-                $userData['pwdMember']['idPictures'] = $user->pwdMember->idPictures;
-            }
-        } else if ($user->role === 'BarangayPresident' && $user->barangayPresident) {
-            $userData['barangayPresident'] = [
-                'barangayID' => $user->barangayPresident->barangayID ?? '',
-                'barangay' => $user->barangayPresident->barangay ?? '',
-            ];
-        } else if ($user->role === 'Admin' && $user->admin) {
-            $userData['admin'] = [
-                'userID' => $user->admin->userID ?? '',
-            ];
-        }
-
-        return response()->json([
-            'user' => $userData,
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'requires_captcha' => false
-        ]);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Logged out successfully']);
+        try {
+            $user = $request->user();
+            if ($user && $user->currentAccessToken()) {
+                $user->currentAccessToken()->delete();
+            }
+            return response()->json(['message' => 'Logged out successfully']);
+        } catch (\Exception $e) {
+            // Log the error but still return success to allow client-side cleanup
+            \Log::warning('Logout error: ' . $e->getMessage());
+            return response()->json(['message' => 'Logged out successfully']);
+        }
     }
 
     public function changePassword(Request $request)
