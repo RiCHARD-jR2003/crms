@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\PWDMember;
 use App\Models\Application;
+use App\Models\BenefitClaim;
+use App\Models\SupportTicket;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
@@ -101,13 +103,47 @@ class DashboardController extends Controller
 
                 // Get support tickets count
                 $supportTicketsCount = 0;
+                $resolvedTicketsCount = 0;
                 try {
-                    $supportTicketsCount = \App\Models\SupportTicket::count();
-                    \Illuminate\Support\Facades\Log::info('Support tickets count:', ['count' => $supportTicketsCount]);
+                    $supportTicketsCount = SupportTicket::count();
+                    $resolvedTicketsCount = SupportTicket::whereIn('status', ['resolved', 'closed'])->count();
+                    \Illuminate\Support\Facades\Log::info('Support tickets count:', ['count' => $supportTicketsCount, 'resolved' => $resolvedTicketsCount]);
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::error('Error fetching support tickets count:', ['error' => $e->getMessage()]);
                     // Table doesn't exist or has issues, use default value
                     $supportTicketsCount = 0;
+                    $resolvedTicketsCount = 0;
+                }
+
+                // Get claimed IDs count (members with cardClaimed = true)
+                $claimedIDsCount = 0;
+                try {
+                    $claimedIDsCount = PWDMember::where('cardClaimed', true)->count();
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error fetching claimed IDs count:', ['error' => $e->getMessage()]);
+                    $claimedIDsCount = 0;
+                }
+
+                // Get renewed IDs count (members with cardClaimed = true and cardExpirationDate > cardIssueDate)
+                $renewedIDsCount = 0;
+                try {
+                    $renewedIDsCount = PWDMember::where('cardClaimed', true)
+                        ->whereNotNull('cardIssueDate')
+                        ->whereNotNull('cardExpirationDate')
+                        ->whereColumn('cardExpirationDate', '>', 'cardIssueDate')
+                        ->count();
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error fetching renewed IDs count:', ['error' => $e->getMessage()]);
+                    $renewedIDsCount = 0;
+                }
+
+                // Get claimed benefits count (benefit_claim with status = 'Claimed')
+                $claimedBenefitsCount = 0;
+                try {
+                    $claimedBenefitsCount = BenefitClaim::where('status', 'Claimed')->count();
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error fetching claimed benefits count:', ['error' => $e->getMessage()]);
+                    $claimedBenefitsCount = 0;
                 }
 
                 return [
@@ -115,7 +151,11 @@ class DashboardController extends Controller
                     'pendingApplications' => Application::whereIn('status', ['Pending Barangay Approval', 'Pending Admin Approval'])->count(),
                     'approvedApplications' => Application::where('status', 'Approved')->count(),
                     'activeMembers' => $pwdMemberCount, // All PWD members are considered active
-                    'supportTickets' => $supportTicketsCount
+                    'supportTickets' => $supportTicketsCount,
+                    'resolvedTickets' => $resolvedTicketsCount,
+                    'claimedIDs' => $claimedIDsCount,
+                    'renewedIDs' => $renewedIDsCount,
+                    'claimedBenefits' => $claimedBenefitsCount
                 ];
             });
 

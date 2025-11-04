@@ -31,7 +31,10 @@ class PWDMember extends Model
         'emergencyContact',
         'emergencyPhone',
         'emergencyRelationship',
-        'status'
+        'status',
+        'cardClaimed',
+        'cardIssueDate',
+        'cardExpirationDate'
     ];
 
     // Relationships
@@ -61,6 +64,9 @@ class PWDMember extends Model
     }
 
     protected $casts = [
-        'birthDate' => 'date'
+        'birthDate' => 'date',
+        'cardIssueDate' => 'date',
+        'cardExpirationDate' => 'date',
+        'cardClaimed' => 'boolean'
     ];
 }

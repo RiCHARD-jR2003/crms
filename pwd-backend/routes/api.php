@@ -1790,6 +1790,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pwd-members/{id}/applications', [PWDMemberController::class, 'getApplications']);
     Route::get('pwd-members/{id}/complaints', [PWDMemberController::class, 'getComplaints']);
     Route::get('pwd-members/{id}/benefit-claims', [PWDMemberController::class, 'getBenefitClaims']);
+    Route::post('pwd-members/{id}/claim-card', [PWDMemberController::class, 'claimCard']);
+    Route::post('pwd-members/{id}/renew-card', [PWDMemberController::class, 'renewCard']);
     
     // PWD Member change password route
     Route::put('/pwd-member/change-password', function (Request $request) {

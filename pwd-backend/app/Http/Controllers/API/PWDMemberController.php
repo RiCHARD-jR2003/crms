@@ -12,7 +12,34 @@ class PWDMemberController extends Controller
     public function index()
     {
         try {
-            $members = PWDMember::all();
+            // Optimize query: only select needed columns and use eager loading if needed
+            $members = PWDMember::select([
+                'id',
+                'userID',
+                'pwd_id',
+                'pwd_id_generated_at',
+                'firstName',
+                'lastName',
+                'middleName',
+                'suffix',
+                'birthDate',
+                'gender',
+                'disabilityType',
+                'address',
+                'contactNumber',
+                'email',
+                'barangay',
+                'emergencyContact',
+                'emergencyPhone',
+                'emergencyRelationship',
+                'status',
+                'cardClaimed',
+                'cardIssueDate',
+                'cardExpirationDate',
+                'created_at',
+                'updated_at'
+            ])->get();
+            
             return response()->json([
                 'success' => true,
                 'data' => $members,
@@ -86,5 +113,120 @@ class PWDMemberController extends Controller
         }
         
         return response()->json($member->benefitClaims);
+    }
+
+    /**
+     * Claim PWD card
+     */
+    public function claimCard(Request $request, $id)
+    {
+        try {
+            $member = PWDMember::find($id);
+            
+            if (!$member) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'PWD Member not found'
+                ], 404);
+            }
+
+            if ($member->cardClaimed) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Card has already been claimed'
+                ], 400);
+            }
+
+            // Set card as claimed
+            $issueDate = now();
+            $expirationDate = now()->addYears(3); // 3 years validity
+
+            $member->update([
+                'cardClaimed' => true,
+                'cardIssueDate' => $issueDate,
+                'cardExpirationDate' => $expirationDate
+            ]);
+
+            // Create notification for the member
+            \App\Models\Notification::create([
+                'user_id' => $member->userID,
+                'type' => 'card_claimed',
+                'title' => 'PWD Card Claimed',
+                'message' => 'Your PWD ID card has been successfully claimed. Card expires on ' . $expirationDate->format('F d, Y') . '.',
+                'data' => [
+                    'member_id' => $member->id,
+                    'card_issue_date' => $issueDate->toDateString(),
+                    'card_expiration_date' => $expirationDate->toDateString()
+                ]
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Card claimed successfully',
+                'data' => $member->fresh()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to claim card',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Renew PWD card
+     */
+    public function renewCard(Request $request, $id)
+    {
+        try {
+            $member = PWDMember::find($id);
+            
+            if (!$member) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'PWD Member not found'
+                ], 404);
+            }
+
+            if (!$member->cardClaimed) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Card must be claimed before it can be renewed'
+                ], 400);
+            }
+
+            // Renew card - set new expiration date (3 years from now)
+            $newExpirationDate = now()->addYears(3);
+            $member->update([
+                'cardExpirationDate' => $newExpirationDate,
+                'cardIssueDate' => now() // Update issue date to renewal date
+            ]);
+
+            // Create notification for the member
+            \App\Models\Notification::create([
+                'user_id' => $member->userID,
+                'type' => 'card_renewed',
+                'title' => 'PWD Card Renewed',
+                'message' => 'Your PWD ID card has been successfully renewed. New expiration date: ' . $newExpirationDate->format('F d, Y') . '.',
+                'data' => [
+                    'member_id' => $member->id,
+                    'card_renewal_date' => now()->toDateString(),
+                    'card_expiration_date' => $newExpirationDate->toDateString()
+                ]
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Card renewed successfully',
+                'data' => $member->fresh()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to renew card',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

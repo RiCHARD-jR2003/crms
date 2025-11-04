@@ -27,7 +27,11 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Collapse
+  Collapse,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import {
   CreditCard as CreditCardIcon,
@@ -67,10 +71,16 @@ function PWDCard() {
     barangay: '',
     disability: '',
     ageRange: '',
-    status: ''
+    status: '',
+    cardStatus: ''
   });
   const [orderBy, setOrderBy] = useState('');
   const [order, setOrder] = useState('asc');
+
+  // Confirmation dialog states
+  const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
+  const [renewConfirmOpen, setRenewConfirmOpen] = useState(false);
+  const [pendingMember, setPendingMember] = useState(null);
 
   // Calculate card status based on claimed status and expiration date
   const calculateCardStatus = (cardClaimed, cardExpirationDate) => {
@@ -131,6 +141,7 @@ function PWDCard() {
         
         return {
           id: member.pwd_id || `PWD-2025-${String(index + 1).padStart(6, '0')}`,
+          memberId: member.id || member.userID, // Database ID for API calls
           name: (() => {
           const parts = [];
           if (member.firstName) parts.push(member.firstName);
@@ -211,6 +222,131 @@ function PWDCard() {
 
   const handleDownloadPDF = () => {
     console.log('Download PDF clicked');
+  };
+
+  // Handle card claim - show confirmation first
+  const handleClaimCard = (event, member) => {
+    event.stopPropagation(); // Prevent row selection
+    
+    if (!member.memberId) {
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: 'Member ID not found. Cannot claim card.',
+        buttonText: 'OK'
+      });
+      return;
+    }
+
+    // Set pending member and show confirmation dialog
+    setPendingMember(member);
+    setClaimConfirmOpen(true);
+  };
+
+  // Confirm card claim
+  const handleClaimConfirm = async () => {
+    if (!pendingMember) return;
+
+    setClaimConfirmOpen(false);
+    const member = pendingMember;
+    setPendingMember(null);
+
+    try {
+      setLoading(true);
+      const response = await pwdMemberService.claimCard(member.memberId);
+      
+      if (response.data?.success) {
+        showModal({
+          type: 'success',
+          title: 'Card Claimed Successfully',
+          message: `The PWD card for ${member.name} has been successfully claimed. Card expires on ${new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.`,
+          buttonText: 'OK'
+        });
+        
+        // Refresh the members list to update card status
+        await fetchPwdMembers();
+      } else {
+        throw new Error(response.data?.message || 'Failed to claim card');
+      }
+    } catch (error) {
+      console.error('Error claiming card:', error);
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.message || error.message || 'Failed to claim card. Please try again.',
+        buttonText: 'OK'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle card renewal - show confirmation first
+  const handleRenewCard = (event, member) => {
+    event.stopPropagation(); // Prevent row selection
+    
+    if (!member.memberId) {
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: 'Member ID not found. Cannot renew card.',
+        buttonText: 'OK'
+      });
+      return;
+    }
+
+    // Set pending member and show confirmation dialog
+    setPendingMember(member);
+    setRenewConfirmOpen(true);
+  };
+
+  // Confirm card renewal
+  const handleRenewConfirm = async () => {
+    if (!pendingMember) return;
+
+    setRenewConfirmOpen(false);
+    const member = pendingMember;
+    setPendingMember(null);
+
+    try {
+      setLoading(true);
+      const response = await pwdMemberService.renewCard(member.memberId);
+      
+      if (response.data?.success) {
+        showModal({
+          type: 'success',
+          title: 'Card Renewed Successfully',
+          message: `The PWD card for ${member.name} has been successfully renewed. New expiration date: ${new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.`,
+          buttonText: 'OK'
+        });
+        
+        // Refresh the members list to update card status
+        await fetchPwdMembers();
+      } else {
+        throw new Error(response.data?.message || 'Failed to renew card');
+      }
+    } catch (error) {
+      console.error('Error renewing card:', error);
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.message || error.message || 'Failed to renew card. Please try again.',
+        buttonText: 'OK'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cancel confirmation dialogs
+  const handleClaimCancel = () => {
+    setClaimConfirmOpen(false);
+    setPendingMember(null);
+  };
+
+  const handleRenewCancel = () => {
+    setRenewConfirmOpen(false);
+    setPendingMember(null);
   };
 
   const handlePrintCard = () => {
@@ -436,7 +572,8 @@ function PWDCard() {
       barangay: '',
       disability: '',
       ageRange: '',
-      status: ''
+      status: '',
+      cardStatus: ''
     });
   };
 
@@ -468,6 +605,10 @@ function PWDCard() {
       const matchesStatus = !filters.status || 
         (member.status && member.status === filters.status);
 
+      // Card Status filter
+      const matchesCardStatus = !filters.cardStatus || 
+        (member.cardStatus && member.cardStatus === filters.cardStatus);
+
       // Age range filter
       let matchesAgeRange = true;
       if (filters.ageRange && member.age !== 'N/A') {
@@ -482,7 +623,7 @@ function PWDCard() {
         }
       }
 
-      return matchesSearch && matchesBarangay && matchesDisability && matchesAgeRange && matchesStatus;
+      return matchesSearch && matchesBarangay && matchesDisability && matchesAgeRange && matchesStatus && matchesCardStatus;
     });
 
     // Apply sorting
@@ -512,6 +653,22 @@ function PWDCard() {
           return order === 'asc' ? 1 : -1;
         }
         return 0;
+      });
+    } else {
+      // Default sort: prioritize card status - "to claim" first, then "for renewal", then "claimed"
+      filtered.sort((a, b) => {
+        const statusOrder = { 'to claim': 0, 'for renewal': 1, 'claimed': 2 };
+        const aStatus = statusOrder[a.cardStatus] ?? 3;
+        const bStatus = statusOrder[b.cardStatus] ?? 3;
+        
+        if (aStatus !== bStatus) {
+          return aStatus - bStatus;
+        }
+        
+        // If same status, sort by name alphabetically
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        return aName.localeCompare(bName);
       });
     }
     
@@ -914,6 +1071,39 @@ function PWDCard() {
                             </Select>
                           </FormControl>
                         </Grid>
+
+                        <Grid item xs={12} sm={6} md={3}>
+                          <FormControl fullWidth size="small">
+                            <InputLabel sx={{ color: '#0b87ac', fontWeight: 600 }}>Card Status</InputLabel>
+                            <Select
+                              value={filters.cardStatus}
+                              onChange={(e) => handleFilterChange('cardStatus', e.target.value)}
+                              label="Card Status"
+                              sx={{
+                                backgroundColor: '#FFFFFF',
+                                '& .MuiSelect-select': {
+                                  color: '#0b87ac',
+                                  fontWeight: 600,
+                                  fontSize: '0.9rem'
+                                },
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: '#E0E0E0'
+                                },
+                                '&:hover .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: '#0b87ac'
+                                },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: '#0b87ac'
+                                }
+                              }}
+                            >
+                              <MenuItem value="" sx={{ color: '#95A5A6', fontWeight: 600 }}>All Card Statuses</MenuItem>
+                              <MenuItem value="to claim" sx={{ color: '#F39C12', fontWeight: 600 }}>To Claim</MenuItem>
+                              <MenuItem value="for renewal" sx={{ color: '#E74C3C', fontWeight: 600 }}>For Renewal</MenuItem>
+                              <MenuItem value="claimed" sx={{ color: '#27AE60', fontWeight: 600 }}>Claimed</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
                       </Grid>
 
                       {/* Active Filters Display */}
@@ -925,10 +1115,24 @@ function PWDCard() {
                           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                             {Object.entries(filters).map(([key, value]) => {
                               if (value && key !== 'search') {
+                                // Format filter labels
+                                let displayLabel = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim();
+                                let displayValue = value;
+                                
+                                // Format card status values
+                                if (key === 'cardStatus') {
+                                  const statusLabels = {
+                                    'to claim': 'To Claim',
+                                    'for renewal': 'For Renewal',
+                                    'claimed': 'Claimed'
+                                  };
+                                  displayValue = statusLabels[value] || value;
+                                }
+                                
                                 return (
                                   <Chip
                                     key={key}
-                                    label={`${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}`}
+                                    label={`${displayLabel}: ${displayValue}`}
                                     onDelete={() => handleFilterChange(key, '')}
                                     size="small"
                                     sx={{ 
@@ -977,6 +1181,7 @@ function PWDCard() {
                           <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>BARANGAY</TableCell>
                           <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>STATUS</TableCell>
                           <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>CARD STATUS</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>ACTIONS</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -1111,6 +1316,75 @@ function PWDCard() {
                                   />
                                 );
                               })()}
+                            </TableCell>
+                            <TableCell sx={{ 
+                              py: 2,
+                              px: 2
+                            }}>
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                {member.cardStatus === 'to claim' && (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={(e) => handleClaimCard(e, member)}
+                                    disabled={loading || !member.memberId}
+                                    sx={{
+                                      bgcolor: '#F39C12',
+                                      color: 'white',
+                                      fontSize: '0.7rem',
+                                      py: 0.5,
+                                      px: 1.5,
+                                      textTransform: 'none',
+                                      fontWeight: 'bold',
+                                      '&:hover': {
+                                        bgcolor: '#E67E22'
+                                      },
+                                      '&:disabled': {
+                                        bgcolor: '#BDC3C7'
+                                      }
+                                    }}
+                                  >
+                                    Claim
+                                  </Button>
+                                )}
+                                {member.cardStatus === 'for renewal' && (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={(e) => handleRenewCard(e, member)}
+                                    disabled={loading || !member.memberId}
+                                    sx={{
+                                      bgcolor: '#E74C3C',
+                                      color: 'white',
+                                      fontSize: '0.7rem',
+                                      py: 0.5,
+                                      px: 1.5,
+                                      textTransform: 'none',
+                                      fontWeight: 'bold',
+                                      '&:hover': {
+                                        bgcolor: '#C0392B'
+                                      },
+                                      '&:disabled': {
+                                        bgcolor: '#BDC3C7'
+                                      }
+                                    }}
+                                  >
+                                    Renew
+                                  </Button>
+                                )}
+                                {member.cardStatus === 'claimed' && (
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                      fontSize: '0.7rem',
+                                      color: '#7F8C8D',
+                                      fontStyle: 'italic'
+                                    }}
+                                  >
+                                    -
+                                  </Typography>
+                                )}
+                              </Box>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1610,6 +1884,181 @@ function PWDCard() {
         type={modalConfig.type}
         buttonText={modalConfig.buttonText}
       />
+
+      {/* Claim Card Confirmation Dialog */}
+      <Dialog
+        open={claimConfirmOpen}
+        onClose={handleClaimCancel}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#F39C12', 
+          color: '#FFFFFF', 
+          fontWeight: 'bold',
+          fontSize: '1.1rem',
+          py: 2
+        }}>
+          Confirm Card Claim
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3, pb: 2 }}>
+          <Typography variant="body1" sx={{ mb: 2, color: '#2C3E50', lineHeight: 1.6 }}>
+            Are you sure you want to claim the PWD card for <strong>{pendingMember?.name}</strong>?
+          </Typography>
+          <Box sx={{ 
+            bgcolor: '#FEF5E7', 
+            p: 2, 
+            borderRadius: 1,
+            border: '1px solid #F39C12'
+          }}>
+            <Typography variant="body2" sx={{ color: '#B7791F', fontWeight: 600, mb: 1 }}>
+              Card Details:
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+              • PWD ID: <strong>{pendingMember?.id}</strong>
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+              • Validity: 3 years from claim date
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#2C3E50', mt: 1, fontStyle: 'italic' }}>
+              A notification will be sent to the member.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 1, gap: 1 }}>
+          <Button
+            onClick={handleClaimCancel}
+            variant="outlined"
+            sx={{
+              borderColor: '#95A5A6',
+              color: '#7F8C8D',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                borderColor: '#7F8C8D',
+                bgcolor: '#ECF0F1'
+              }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleClaimConfirm}
+            variant="contained"
+            disabled={loading}
+            sx={{
+              bgcolor: '#F39C12',
+              color: '#FFFFFF',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                bgcolor: '#E67E22'
+              },
+              '&:disabled': {
+                bgcolor: '#BDC3C7',
+                color: '#FFFFFF'
+              }
+            }}
+          >
+            {loading ? 'Processing...' : 'Confirm Claim'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Renew Card Confirmation Dialog */}
+      <Dialog
+        open={renewConfirmOpen}
+        onClose={handleRenewCancel}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#E74C3C', 
+          color: '#FFFFFF', 
+          fontWeight: 'bold',
+          fontSize: '1.1rem',
+          py: 2
+        }}>
+          Confirm Card Renewal
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3, pb: 2 }}>
+          <Typography variant="body1" sx={{ mb: 2, color: '#2C3E50', lineHeight: 1.6 }}>
+            Are you sure you want to renew the PWD card for <strong>{pendingMember?.name}</strong>?
+          </Typography>
+          <Box sx={{ 
+            bgcolor: '#FDEDEC', 
+            p: 2, 
+            borderRadius: 1,
+            border: '1px solid #E74C3C'
+          }}>
+            <Typography variant="body2" sx={{ color: '#C0392B', fontWeight: 600, mb: 1 }}>
+              Renewal Details:
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+              • PWD ID: <strong>{pendingMember?.id}</strong>
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+              • Current Expiration: {pendingMember?.cardExpirationDate ? new Date(pendingMember.cardExpirationDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+              • New Expiration: {new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#2C3E50', mt: 1, fontStyle: 'italic' }}>
+              A notification will be sent to the member.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 1, gap: 1 }}>
+          <Button
+            onClick={handleRenewCancel}
+            variant="outlined"
+            sx={{
+              borderColor: '#95A5A6',
+              color: '#7F8C8D',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                borderColor: '#7F8C8D',
+                bgcolor: '#ECF0F1'
+              }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRenewConfirm}
+            variant="contained"
+            disabled={loading}
+            sx={{
+              bgcolor: '#E74C3C',
+              color: '#FFFFFF',
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': {
+                bgcolor: '#C0392B'
+              },
+              '&:disabled': {
+                bgcolor: '#BDC3C7',
+                color: '#FFFFFF'
+              }
+            }}
+          >
+            {loading ? 'Processing...' : 'Confirm Renewal'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

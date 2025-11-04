@@ -106,6 +106,28 @@ const pwdMemberService = {
       console.error('Error fetching filtered PWD members:', error);
       throw error;
     }
+  },
+
+  // Claim PWD card
+  async claimCard(id) {
+    try {
+      const response = await api.post(`/pwd-members/${id}/claim-card`);
+      return response;
+    } catch (error) {
+      console.error('Error claiming card:', error);
+      throw error;
+    }
+  },
+
+  // Renew PWD card
+  async renewCard(id) {
+    try {
+      const response = await api.post(`/pwd-members/${id}/renew-card`);
+      return response;
+    } catch (error) {
+      console.error('Error renewing card:', error);
+      throw error;
+    }
   }
 };
 

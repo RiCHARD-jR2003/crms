@@ -29,7 +29,8 @@ import {
   AccessTime,
   ErrorOutline,
   Menu,
-  VolumeUp
+  VolumeUp,
+  CardGiftcard
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
@@ -60,6 +61,7 @@ function PWDMemberDashboard() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [announcements, setAnnouncements] = useState([]);
   const [supportTickets, setSupportTickets] = useState([]);
+  const [claimedBenefits, setClaimedBenefits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -124,6 +126,20 @@ function PWDMemberDashboard() {
           ticket.pwd_member?.user?.id === currentUser?.id
         );
         
+        // Fetch claimed benefits for this user
+        try {
+          const benefitClaimsResponse = await api.get('/benefit-claims');
+          const benefitClaimsData = Array.isArray(benefitClaimsResponse) ? benefitClaimsResponse : (benefitClaimsResponse?.data || []);
+          const userClaimedBenefits = benefitClaimsData.filter(claim => 
+            claim.pwdID === currentUser?.pwd_member?.userID || 
+            claim.pwdID === currentUser?.id ||
+            (claim.pwd_member && claim.pwd_member.userID === currentUser?.pwd_member?.userID)
+          ).filter(claim => claim.status === 'Claimed');
+          setClaimedBenefits(userClaimedBenefits.length);
+        } catch (benefitError) {
+          console.error('Error fetching claimed benefits:', benefitError);
+          setClaimedBenefits(0);
+        }
         
         // Fetch PWD member profile to get approval date
         try {
@@ -174,6 +190,20 @@ function PWDMemberDashboard() {
           ticket.pwd_member?.user?.id === currentUser?.id
         );
         
+        // Fetch claimed benefits for this user
+        try {
+          const benefitClaimsResponse = await api.get('/benefit-claims');
+          const benefitClaimsData = Array.isArray(benefitClaimsResponse) ? benefitClaimsResponse : (benefitClaimsResponse?.data || []);
+          const userClaimedBenefits = benefitClaimsData.filter(claim => 
+            claim.pwdID === currentUser?.pwd_member?.userID || 
+            claim.pwdID === currentUser?.id ||
+            (claim.pwd_member && claim.pwd_member.userID === currentUser?.pwd_member?.userID)
+          ).filter(claim => claim.status === 'Claimed');
+          setClaimedBenefits(userClaimedBenefits.length);
+        } catch (benefitError) {
+          console.error('Error fetching claimed benefits:', benefitError);
+          setClaimedBenefits(0);
+        }
         
         setAnnouncements(filteredAnnouncements.slice(0, 3));
         setSupportTickets(userTickets);
@@ -384,6 +414,26 @@ function PWDMemberDashboard() {
                       >
                         {t('buttons.viewSupportTickets')}
                       </Button>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ ...cardStyles, height: '100%', minHeight: 140 }}>
+                <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <CardGiftcard sx={{ fontSize: 48, color: '#F39C12', mr: 2 }} />
+                    <Box>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#F39C12', mb: 0.5 }}>
+                        {claimedBenefits}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#000000' }}>
+                        Claimed Benefits
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#7F8C8D', fontSize: '0.75rem', mt: 0.5 }}>
+                        Total benefits claimed
+                      </Typography>
                     </Box>
                   </Box>
                 </CardContent>

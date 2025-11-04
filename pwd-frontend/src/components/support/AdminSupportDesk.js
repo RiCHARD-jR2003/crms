@@ -326,6 +326,21 @@ const AdminSupportDesk = () => {
     if (websocketService.isConnected()) {
       websocketService.joinTicketRoom(ticket.id);
     }
+    
+    // Scroll to bottom when viewing a ticket
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+  };
+
+  const handleCloseChat = () => {
+    // Leave WebSocket room if connected
+    if (selectedTicketId && websocketService.isConnected()) {
+      websocketService.leaveTicketRoom(selectedTicketId);
+    }
+    
+    setSelectedTicketId(null);
+    setSelectedTicket(null);
   };
 
   const handleReplyTicket = (ticket) => {
@@ -818,48 +833,6 @@ const AdminSupportDesk = () => {
           </Grid>
         </Grid>
 
-        {/* Archive Toggle Buttons */}
-        <Box sx={{ mb: 3, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-          <Button
-            variant={!showArchive ? "contained" : "outlined"}
-            onClick={handleShowActiveTickets}
-            sx={{
-              backgroundColor: !showArchive ? '#0b87ac' : 'transparent',
-              color: !showArchive ? '#FFFFFF' : '#0b87ac',
-              borderColor: '#0b87ac',
-              '&:hover': { 
-                backgroundColor: !showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
-              },
-              borderRadius: 2,
-              textTransform: 'none',
-              fontWeight: 600,
-              px: 3,
-              py: 1.5
-            }}
-          >
-            Active Tickets
-          </Button>
-          <Button
-            variant={showArchive ? "contained" : "outlined"}
-            onClick={handleShowArchivedTickets}
-            sx={{
-              backgroundColor: showArchive ? '#0b87ac' : 'transparent',
-              color: showArchive ? '#FFFFFF' : '#0b87ac',
-              borderColor: '#0b87ac',
-              '&:hover': { 
-                backgroundColor: showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
-              },
-              borderRadius: 2,
-              textTransform: 'none',
-              fontWeight: 600,
-              px: 3,
-              py: 1.5
-            }}
-          >
-            Archive
-          </Button>
-        </Box>
-
         {/* Main Content - Two Column Layout */}
         <Box sx={{ 
           display: 'flex', 
@@ -883,14 +856,67 @@ const AdminSupportDesk = () => {
             transition: 'flex 0.3s ease',
             overflow: 'hidden'
         }}>
-          <Typography sx={{ 
-            fontWeight: 700, 
-            mb: { xs: 2, sm: 3 }, 
-            color: '#2C3E50', 
-            fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' }
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            mb: { xs: 2, sm: 3 }
           }}>
-            Support Tickets
-          </Typography>
+            <Typography sx={{ 
+              fontWeight: 700, 
+              color: '#2C3E50', 
+              fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' }
+            }}>
+              Support Tickets
+            </Typography>
+            
+            {/* Archive Toggle Buttons - Top Right */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 1
+            }}>
+              <Button
+                variant={!showArchive ? "contained" : "outlined"}
+                onClick={handleShowActiveTickets}
+                sx={{
+                  backgroundColor: !showArchive ? '#0b87ac' : 'transparent',
+                  color: !showArchive ? '#FFFFFF' : '#0b87ac',
+                  borderColor: '#0b87ac',
+                  '&:hover': { 
+                    backgroundColor: !showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
+                  },
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  px: { xs: 2, sm: 3 },
+                  py: { xs: 0.75, sm: 1 },
+                  fontSize: { xs: '0.75rem', sm: '0.8rem' }
+                }}
+              >
+                Active Tickets
+              </Button>
+              <Button
+                variant={showArchive ? "contained" : "outlined"}
+                onClick={handleShowArchivedTickets}
+                sx={{
+                  backgroundColor: showArchive ? '#0b87ac' : 'transparent',
+                  color: showArchive ? '#FFFFFF' : '#0b87ac',
+                  borderColor: '#0b87ac',
+                  '&:hover': { 
+                    backgroundColor: showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
+                  },
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  px: { xs: 2, sm: 3 },
+                  py: { xs: 0.75, sm: 1 },
+                  fontSize: { xs: '0.75rem', sm: '0.8rem' }
+                }}
+              >
+                Archive
+              </Button>
+            </Box>
+          </Box>
           
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
@@ -913,6 +939,7 @@ const AdminSupportDesk = () => {
                   <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Category</TableCell>
                   <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Priority</TableCell>
                   <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Status</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Messages</TableCell>
                   <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Created</TableCell>
                   <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>Actions</TableCell>
                 </TableRow>
@@ -1040,6 +1067,38 @@ const AdminSupportDesk = () => {
                         }}
                       />
                     </TableCell>
+                    <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip
+                            label={`${ticket.messages?.length || 0} total`}
+                            size="small"
+                            sx={{
+                              backgroundColor: '#E3F2FD',
+                              color: '#3498DB',
+                              fontWeight: 600,
+                              fontSize: '0.7rem',
+                              height: 20
+                            }}
+                          />
+                        </Box>
+                        {ticket.messages && ticket.messages.filter(m => !m.is_admin).length > 0 && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Chip
+                              label={`${ticket.messages.filter(m => !m.is_admin).length} from member`}
+                              size="small"
+                              sx={{
+                                backgroundColor: '#FEF5E7',
+                                color: '#F39C12',
+                                fontWeight: 600,
+                                fontSize: '0.65rem',
+                                height: 18
+                              }}
+                            />
+                          </Box>
+                        )}
+                      </Box>
+                    </TableCell>
                     <TableCell sx={{ 
                       color: '#000000',
                       fontWeight: 500,
@@ -1103,6 +1162,22 @@ const AdminSupportDesk = () => {
                   <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
                     Ticket #{selectedTicket?.ticket_number}
                   </Typography>
+                  {/* Message Summary */}
+                  {selectedTicket?.messages && selectedTicket.messages.length > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1 }}>
+                      <Typography variant="caption" sx={{ color: '#7F8C8D', fontSize: '0.75rem' }}>
+                        Total Messages: <strong>{selectedTicket.messages.length}</strong>
+                      </Typography>
+                      <Box sx={{ width: '1px', height: '12px', bgcolor: '#E0E0E0' }} />
+                      <Typography variant="caption" sx={{ color: '#F39C12', fontSize: '0.75rem' }}>
+                        From Member: <strong>{selectedTicket.messages.filter(m => !m.is_admin).length}</strong>
+                      </Typography>
+                      <Box sx={{ width: '1px', height: '12px', bgcolor: '#E0E0E0' }} />
+                      <Typography variant="caption" sx={{ color: '#3498DB', fontSize: '0.75rem' }}>
+                        From Admin: <strong>{selectedTicket.messages.filter(m => m.is_admin).length}</strong>
+                      </Typography>
+                    </Box>
+                  )}
                   {/* Connection Status */}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                     <Box sx={{
@@ -1123,15 +1198,31 @@ const AdminSupportDesk = () => {
                     </Typography>
                   </Box>
                 </Box>
-                <Chip 
-                  label={selectedTicket?.status?.toUpperCase()} 
-                  size="small"
-                  sx={{
-                    backgroundColor: selectedTicket?.status === 'resolved' ? '#E8F5E8' : '#FFECEC',
-                    color: selectedTicket?.status === 'resolved' ? '#27AE60' : '#C0392B',
-                    fontWeight: 600
-                  }}
-                />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Chip 
+                    label={selectedTicket?.status?.toUpperCase()} 
+                    size="small"
+                    sx={{
+                      backgroundColor: selectedTicket?.status === 'resolved' ? '#E8F5E8' : '#FFECEC',
+                      color: selectedTicket?.status === 'resolved' ? '#27AE60' : '#C0392B',
+                      fontWeight: 600
+                    }}
+                  />
+                  <IconButton
+                    onClick={handleCloseChat}
+                    size="small"
+                    sx={{
+                      color: '#7F8C8D',
+                      '&:hover': {
+                        backgroundColor: '#F5F5F5',
+                        color: '#2C3E50'
+                      }
+                    }}
+                    aria-label="Close chat"
+                  >
+                    <CloseIcon />
+                  </IconButton>
+                </Box>
               </Box>
 
               {/* Chat Messages */}
@@ -1187,7 +1278,25 @@ const AdminSupportDesk = () => {
                             mb: 0.5,
                             fontSize: '0.8rem'
                           }}>
-                            {message.sender_name || (message.is_admin ? (currentUser?.role === 'FrontDesk' ? 'FrontDesk' : 'Admin') : selectedTicket?.pwd_member ? `${selectedTicket.pwd_member.firstName} ${selectedTicket.pwd_member.lastName}` : 'User')}
+                            {message.sender_name || (message.is_admin ? (currentUser?.role === 'FrontDesk' ? 'FrontDesk' : 'Admin') : selectedTicket?.pwd_member ? `${selectedTicket.pwd_member.firstName} ${selectedTicket.pwd_member.lastName}` : 'PWD Member')}
+                            {!message.is_admin && (
+                              <Chip
+                                label="Member"
+                                size="small"
+                                sx={{
+                                  ml: 1,
+                                  height: 16,
+                                  fontSize: '0.6rem',
+                                  backgroundColor: '#FEF5E7',
+                                  color: '#F39C12',
+                                  fontWeight: 600,
+                                  '& .MuiChip-label': {
+                                    px: 0.5,
+                                    py: 0
+                                  }
+                                }}
+                              />
+                            )}
                           </Typography>
                           
                           {/* Message content */}

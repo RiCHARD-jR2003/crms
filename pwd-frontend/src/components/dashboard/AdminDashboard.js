@@ -44,12 +44,15 @@ import {
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
   LocationOn as LocationIcon,
-  Map as MapIcon,
   CheckCircle as CheckCircleIcon,
   Schedule as ScheduleIcon,
   PersonAdd as PersonAddIcon,
   CreditCard as CreditCardIcon,
   Report as ReportIcon,
+  CardGiftcard as CardGiftcardIcon,
+  VerifiedUser as VerifiedUserIcon,
+  DoneAll as DoneAllIcon,
+  CardMembership as CardMembershipIcon,
   Menu as MenuIcon,
   Campaign as CampaignIcon,
   History as HistoryIcon,
@@ -63,10 +66,19 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import AdminSidebar from '../shared/AdminSidebar';
 import MobileHeader from '../shared/MobileHeader';
-import FreeGoogleMapsComponent from '../shared/FreeGoogleMapsComponent';
 import dashboardService from '../../services/dashboardService';
 import supportService from '../../services/supportService';
+import pwdMemberService from '../../services/pwdMemberService';
 import { api } from '../../services/api';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 import { 
   mainContainerStyles, 
   contentAreaStyles, 
@@ -93,15 +105,21 @@ function AdminDashboard() {
     pendingApplications: 0,
     approvedApplications: 0,
     activeMembers: 0,
-    supportTickets: 0
+    supportTickets: 0,
+    resolvedTickets: 0,
+    claimedIDs: 0,
+    renewedIDs: 0,
+    claimedBenefits: 0
   });
   const [recentActivities, setRecentActivities] = useState([]);
   const [barangayContacts, setBarangayContacts] = useState([]);
   const [monthlyStats, setMonthlyStats] = useState([]);
+  const [disabilityDistribution, setDisabilityDistribution] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [disabilityLoading, setDisabilityLoading] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState(null);
   const [migrating, setMigrating] = useState(false);
@@ -363,7 +381,11 @@ function AdminDashboard() {
           pendingApplications: 0,
           approvedApplications: 0,
           activeMembers: 0,
-          supportTickets: 0
+          supportTickets: 0,
+          resolvedTickets: 0,
+          claimedIDs: 0,
+          renewedIDs: 0,
+          claimedBenefits: 0
         };
         console.log('Dashboard stats data:', statsData);
         
@@ -388,7 +410,11 @@ function AdminDashboard() {
           pendingApplications: 0,
           approvedApplications: 0,
           activeMembers: 0,
-          supportTickets: 0
+          supportTickets: 0,
+          resolvedTickets: 0,
+          claimedIDs: 0,
+          renewedIDs: 0,
+          claimedBenefits: 0
         });
       } finally {
         setLoading(false);
@@ -446,14 +472,60 @@ function AdminDashboard() {
       }
     };
 
+    const fetchDisabilityDistribution = async () => {
+      try {
+        setDisabilityLoading(true);
+        
+        // Fetch PWD members data
+        const membersResponse = await pwdMemberService.getAll();
+        const members = membersResponse?.data?.members || membersResponse?.data || (Array.isArray(membersResponse) ? membersResponse : []) || [];
+        
+        // Calculate disability type distribution
+        const disabilityCounts = {};
+        if (Array.isArray(members)) {
+          members.forEach(member => {
+            if (member && typeof member === 'object') {
+              const disability = member.disabilityType || member.disability_type || member.type_of_disability || member.disability || 'Not Specified';
+              disabilityCounts[disability] = (disabilityCounts[disability] || 0) + 1;
+            }
+          });
+        }
+        
+        // Convert to array format for chart, sort by count descending, limit to top 8
+        const distribution = Object.entries(disabilityCounts)
+          .map(([name, value]) => ({
+            name: name.length > 25 ? name.substring(0, 22) + '...' : name,
+            value: value,
+            fullName: name
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 8);
+        
+        if (distribution.length === 0) {
+          setDisabilityDistribution([
+            { name: 'No data available', value: 0, fullName: 'No data available' }
+          ]);
+        } else {
+          setDisabilityDistribution(distribution);
+        }
+      } catch (error) {
+        console.error('Error fetching disability distribution:', error);
+        setDisabilityDistribution([
+          { name: 'Error loading data', value: 0, fullName: 'Error loading data' }
+        ]);
+      } finally {
+        setDisabilityLoading(false);
+      }
+    };
+
     fetchDashboardData();
     fetchRecentActivities();
     fetchBarangayContacts();
     fetchMonthlyStats();
+    fetchDisabilityDistribution();
   }, []);
 
-  const renderMapSection = () => {
-    console.log('≡ƒù║∩╕Å AdminDashboard renderMapSection called');
+  const renderDisabilityDistributionChart = () => {
     return (
       <Card sx={{ ...cardStyles, height: { xs: '300px', sm: '340px' }, mb: 3 }}>
         <CardContent sx={{ height: '100%', p: { xs: 1, sm: 2 } }}>
@@ -466,7 +538,7 @@ function AdminDashboard() {
               color: '#2C3E50'
             }}
           >
-            MAP OF CABUYAO
+            DISABILITY TYPE DISTRIBUTION
           </Typography>
           <Typography 
             variant="body2" 
@@ -476,11 +548,68 @@ function AdminDashboard() {
               color: '#7F8C8D'
             }}
           >
-            Laguna, Philippines
+            Distribution of PWD members by disability type
           </Typography>
           
-          {/* Free Google Maps Component (No API Key Required) */}
-          <FreeGoogleMapsComponent height="calc(100% - 70px)" />
+          {disabilityLoading ? (
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              height: 'calc(100% - 70px)' 
+            }}>
+              <CircularProgress size={40} />
+            </Box>
+          ) : disabilityDistribution.length > 0 && disabilityDistribution[0].value > 0 ? (
+            <Box sx={{ height: 'calc(100% - 70px)' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={disabilityDistribution} 
+                  margin={{ top: 5, right: 20, left: 0, bottom: 40 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#7F8C8D" 
+                    fontSize={11} 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={60}
+                    interval={0}
+                  />
+                  <YAxis 
+                    stroke="#7F8C8D" 
+                    fontSize={11}
+                  />
+                  <Tooltip 
+                    formatter={(value, name) => [value, 'Count']}
+                    labelFormatter={(label) => {
+                      const item = disabilityDistribution.find(d => d.name === label);
+                      return item?.fullName || label;
+                    }}
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#3498DB" 
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </Box>
+          ) : (
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              height: 'calc(100% - 70px)',
+              flexDirection: 'column'
+            }}>
+              <AssessmentIcon sx={{ fontSize: 48, color: '#BDC3C7', mb: 1 }} />
+              <Typography variant="body2" sx={{ color: '#7F8C8D', textAlign: 'center' }}>
+                No disability data available
+              </Typography>
+            </Box>
+          )}
         </CardContent>
       </Card>
     );
@@ -945,17 +1074,237 @@ function AdminDashboard() {
               </CardContent>
             </Card>
           </Grid>
+          
+          <Grid item xs={6} sm={4} md={2.4}>
+            <Card 
+              onClick={() => handleCardClick('resolvedTickets')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#27AE60'
+                }
+              }}
+            >
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: { xs: 1.5, sm: 2, md: 3 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <DoneAllIcon sx={{ 
+                  fontSize: { xs: 24, sm: 32, md: 40 }, 
+                  color: '#27AE60', 
+                  mb: { xs: 0.5, sm: 1 } 
+                }} />
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: '#2C3E50', 
+                    mb: { xs: 0.5, sm: 1 },
+                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
+                  }}
+                >
+                  {stats.resolvedTickets || 0}
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#000000', 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.875rem' },
+                    lineHeight: 1.2
+                  }}
+                >
+                  Resolved Tickets
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={6} sm={4} md={2.4}>
+            <Card 
+              onClick={() => handleCardClick('claimedIDs')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#3498DB'
+                }
+              }}
+            >
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: { xs: 1.5, sm: 2, md: 3 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <CardMembershipIcon sx={{ 
+                  fontSize: { xs: 24, sm: 32, md: 40 }, 
+                  color: '#3498DB', 
+                  mb: { xs: 0.5, sm: 1 } 
+                }} />
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: '#2C3E50', 
+                    mb: { xs: 0.5, sm: 1 },
+                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
+                  }}
+                >
+                  {stats.claimedIDs || 0}
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#000000', 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.875rem' },
+                    lineHeight: 1.2
+                  }}
+                >
+                  Claimed IDs
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={6} sm={4} md={2.4}>
+            <Card 
+              onClick={() => handleCardClick('renewedIDs')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#9B59B6'
+                }
+              }}
+            >
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: { xs: 1.5, sm: 2, md: 3 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <VerifiedUserIcon sx={{ 
+                  fontSize: { xs: 24, sm: 32, md: 40 }, 
+                  color: '#9B59B6', 
+                  mb: { xs: 0.5, sm: 1 } 
+                }} />
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: '#2C3E50', 
+                    mb: { xs: 0.5, sm: 1 },
+                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
+                  }}
+                >
+                  {stats.renewedIDs || 0}
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#000000', 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.875rem' },
+                    lineHeight: 1.2
+                  }}
+                >
+                  Renewed IDs
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          
+          <Grid item xs={6} sm={4} md={2.4}>
+            <Card 
+              onClick={() => handleCardClick('claimedBenefits')}
+              sx={{ 
+                ...cardStyles, 
+                height: { xs: '120px', sm: '140px', md: '160px' },
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  borderColor: '#F39C12'
+                }
+              }}
+            >
+              <CardContent sx={{ 
+                textAlign: 'center', 
+                py: { xs: 1.5, sm: 2, md: 3 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <CardGiftcardIcon sx={{ 
+                  fontSize: { xs: 24, sm: 32, md: 40 }, 
+                  color: '#F39C12', 
+                  mb: { xs: 0.5, sm: 1 } 
+                }} />
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    color: '#2C3E50', 
+                    mb: { xs: 0.5, sm: 1 },
+                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
+                  }}
+                >
+                  {stats.claimedBenefits || 0}
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: '#000000', 
+                    fontWeight: 'bold',
+                    fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.875rem' },
+                    lineHeight: 1.2
+                  }}
+                >
+                  Claimed Benefits
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
       </Grid>
 
 
-      {/* Chart and Map Row - equal width */}
+      {/* Chart and Disability Distribution Row - equal width */}
       <Grid item xs={12} lg={6}>
         {renderLineChart()}
       </Grid>
       
       <Grid item xs={12} lg={6}>
-        {renderMapSection()}
+        {renderDisabilityDistributionChart()}
       </Grid>
 
       {/* Recent Activity Panel */}

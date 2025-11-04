@@ -724,7 +724,7 @@ const PWDMemberSupportDesk = () => {
         </Grid>
 
         {/* Action Buttons */}
-        <Box sx={{ mb: 3, display: 'flex', gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, justifyContent: 'flex-start', alignItems: 'center' }}>
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -741,48 +741,6 @@ const PWDMemberSupportDesk = () => {
           >
 {t('support.createTicket')}
           </Button>
-          
-          {/* Archive Toggle Buttons */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant={!showArchive ? "contained" : "outlined"}
-              onClick={handleShowActiveTickets}
-              sx={{
-                backgroundColor: !showArchive ? '#0b87ac' : 'transparent',
-                color: !showArchive ? '#FFFFFF' : '#0b87ac',
-                borderColor: '#0b87ac',
-                '&:hover': { 
-                  backgroundColor: !showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
-                },
-                borderRadius: 2,
-                textTransform: 'none',
-                fontWeight: 600,
-                px: 3,
-                py: 1.5
-              }}
-            >
-              Active Tickets
-            </Button>
-            <Button
-              variant={showArchive ? "contained" : "outlined"}
-              onClick={handleShowArchivedTickets}
-              sx={{
-                backgroundColor: showArchive ? '#0b87ac' : 'transparent',
-                color: showArchive ? '#FFFFFF' : '#0b87ac',
-                borderColor: '#0b87ac',
-                '&:hover': { 
-                  backgroundColor: showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
-                },
-                borderRadius: 2,
-                textTransform: 'none',
-                fontWeight: 600,
-                px: 3,
-                py: 1.5
-              }}
-            >
-              Archive
-            </Button>
-          </Box>
         </Box>
 
         {/* Alerts */}
@@ -802,25 +760,93 @@ const PWDMemberSupportDesk = () => {
           overflow: 'hidden'
         }}>
           {/* Left Column - Tickets List */}
-          <Paper sx={{ 
+          <Paper elevation={0} sx={{
             flex: selectedTicketId ? '0 0 35%' : '1',
-            borderRadius: 3, 
-            overflow: 'hidden', 
-            boxShadow: '0 4px 20px rgba(0,0,0,0.1)', 
+            p: { xs: 2, sm: 3 },
+            border: '1px solid #E0E0E0',
+            borderRadius: 4,
             bgcolor: '#FFFFFF',
-            transition: 'flex 0.3s ease',
             height: '100%',
             maxHeight: '100%',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            transition: 'flex 0.3s ease',
+            overflow: 'hidden'
           }}>
-          <TableContainer sx={{
-            flex: 1,
-            minHeight: 0,
-            maxHeight: '100%',
-            overflowX: 'auto',
-            overflowY: 'auto'
-          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              mb: { xs: 2, sm: 3 }
+            }}>
+              <Typography sx={{ 
+                fontWeight: 700, 
+                color: '#2C3E50', 
+                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' }
+              }}>
+                Support Tickets
+              </Typography>
+              
+              {/* Archive Toggle Buttons - Top Right */}
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1
+              }}>
+                <Button
+                  variant={!showArchive ? "contained" : "outlined"}
+                  onClick={handleShowActiveTickets}
+                  sx={{
+                    backgroundColor: !showArchive ? '#0b87ac' : 'transparent',
+                    color: !showArchive ? '#FFFFFF' : '#0b87ac',
+                    borderColor: '#0b87ac',
+                    '&:hover': { 
+                      backgroundColor: !showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
+                    },
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    px: { xs: 2, sm: 3 },
+                    py: { xs: 0.75, sm: 1 },
+                    fontSize: { xs: '0.75rem', sm: '0.8rem' }
+                  }}
+                >
+                  Active Tickets
+                </Button>
+                <Button
+                  variant={showArchive ? "contained" : "outlined"}
+                  onClick={handleShowArchivedTickets}
+                  sx={{
+                    backgroundColor: showArchive ? '#0b87ac' : 'transparent',
+                    color: showArchive ? '#FFFFFF' : '#0b87ac',
+                    borderColor: '#0b87ac',
+                    '&:hover': { 
+                      backgroundColor: showArchive ? '#0a6b8a' : 'rgba(11, 135, 172, 0.1)' 
+                    },
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    px: { xs: 2, sm: 3 },
+                    py: { xs: 0.75, sm: 1 },
+                    fontSize: { xs: '0.75rem', sm: '0.8rem' }
+                  }}
+                >
+                  Archive
+                </Button>
+              </Box>
+            </Box>
+            
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <TableContainer sx={{
+                flex: 1,
+                minHeight: 0,
+                maxHeight: '100%',
+                overflowX: 'auto',
+                overflowY: 'auto'
+              }}>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
@@ -970,8 +996,9 @@ const PWDMemberSupportDesk = () => {
                 )}
               </TableBody>
             </Table>
-          </TableContainer>
-        </Paper>
+            </TableContainer>
+            )}
+          </Paper>
 
           {/* Right Column - Chat Interface */}
           {selectedTicketId && (

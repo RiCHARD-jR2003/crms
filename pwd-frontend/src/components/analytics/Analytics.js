@@ -20,13 +20,25 @@ import {
   DialogActions,
   Checkbox,
   FormControlLabel,
-  ListItemText
+  ListItemText,
+  TextField,
+  Divider,
+  Tab,
+  Tabs
 } from '@mui/material';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import {
   Refresh as RefreshIcon,
   Fullscreen as FullscreenIcon,
   MoreVert as MoreVertIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Close as CloseIcon,
+  Assessment as AssessmentIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  Download as DownloadIcon,
+  PictureAsPdf as PictureAsPdfIcon
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -216,6 +228,25 @@ const Analytics = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailType, setDetailType] = useState(null);
+  const [selectedChart, setSelectedChart] = useState(null);
+  const [comparisonDateRange, setComparisonDateRange] = useState({ start: null, end: null });
+  const [comparisonData, setComparisonData] = useState(null);
+  const [reportTab, setReportTab] = useState(0);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportDateRange, setReportDateRange] = useState({ start: null, end: null });
+  const [reportData, setReportData] = useState(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [pdfBlob, setPdfBlob] = useState(null);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [selectedAnalytics, setSelectedAnalytics] = useState({
+    executiveSummary: true,
+    keyInsights: true,
+    monthlyRegistrations: true,
+    topBarangays: true,
+    disabilityDistribution: true,
+    benefitDistribution: true,
+    ticketStatus: true
+  });
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -704,6 +735,720 @@ const Analytics = () => {
     return value.toLocaleString();
   };
 
+  // Generate text analysis for visualizations
+  const generateTextAnalysis = (chartType, data, comparisonData = null) => {
+    const analysis = [];
+    const insights = [];
+    const trends = [];
+
+    if (!data || data.length === 0) {
+      return { analysis: ['No data available for analysis'], insights: [], trends: [] };
+    }
+
+    switch (chartType) {
+      case 'monthlyRegistrations':
+        const totalRegs = data.reduce((sum, d) => sum + (d.registrations || 0), 0);
+        const avgRegs = totalRegs / data.length;
+        const maxRegs = Math.max(...data.map(d => d.registrations || 0));
+        const maxMonth = data.find(d => d.registrations === maxRegs)?.month;
+        analysis.push(`Total registrations: ${totalRegs.toLocaleString()}`);
+        analysis.push(`Average monthly registrations: ${avgRegs.toFixed(1)}`);
+        analysis.push(`Peak month: ${maxMonth} with ${maxRegs} registrations`);
+        
+        if (data.length > 1) {
+          const recent = data.slice(-2);
+          const change = recent[1].registrations - recent[0].registrations;
+          const percentChange = ((change / recent[0].registrations) * 100).toFixed(1);
+          if (change > 0) {
+            trends.push(`Registration increased by ${change} (${percentChange}%) from ${recent[0].month} to ${recent[1].month}`);
+          } else if (change < 0) {
+            trends.push(`Registration decreased by ${Math.abs(change)} (${Math.abs(percentChange)}%) from ${recent[0].month} to ${recent[1].month}`);
+          }
+        }
+        
+        if (comparisonData) {
+          const compTotal = comparisonData.reduce((sum, d) => sum + (d.registrations || 0), 0);
+          const diff = totalRegs - compTotal;
+          const percentDiff = ((diff / compTotal) * 100).toFixed(1);
+          insights.push(`Comparison period shows ${diff > 0 ? 'increase' : 'decrease'} of ${Math.abs(diff)} registrations (${Math.abs(percentDiff)}%)`);
+        }
+        break;
+
+      case 'topBarangays':
+        const total = data.reduce((sum, d) => sum + (d.value || 0), 0);
+        const topBarangay = data[0];
+        const topPercentage = ((topBarangay.value / total) * 100).toFixed(1);
+        analysis.push(`Top barangay: ${topBarangay.name} with ${topBarangay.value} registrations`);
+        analysis.push(`Top barangay represents ${topPercentage}% of total registrations`);
+        analysis.push(`Total registrations across top 5 barangays: ${total.toLocaleString()}`);
+        
+        if (data.length > 1) {
+          insights.push(`Top 3 barangays account for ${((data.slice(0, 3).reduce((s, d) => s + d.value, 0) / total) * 100).toFixed(1)}% of registrations`);
+        }
+        break;
+
+      case 'monthlyCardIssuance':
+        const totalCards = data.reduce((sum, d) => sum + (d.cards || 0), 0);
+        const avgCards = totalCards / data.length;
+        const maxCards = Math.max(...data.map(d => d.cards || 0));
+        const maxCardMonth = data.find(d => d.cards === maxCards)?.month;
+        analysis.push(`Total cards issued: ${totalCards.toLocaleString()}`);
+        analysis.push(`Average monthly issuance: ${avgCards.toFixed(1)}`);
+        analysis.push(`Peak issuance month: ${maxCardMonth} with ${maxCards} cards`);
+        
+        if (data.length > 1) {
+          const recent = data.slice(-2);
+          const change = recent[1].cards - recent[0].cards;
+          if (change !== 0) {
+            trends.push(`Card issuance ${change > 0 ? 'increased' : 'decreased'} by ${Math.abs(change)} from ${recent[0].month} to ${recent[1].month}`);
+          }
+        }
+        break;
+
+      case 'benefitTypeDistribution':
+        const totalBenefits = data.reduce((sum, d) => sum + (d.value || 0), 0);
+        const topBenefit = data[0];
+        const topBenefitPercent = ((topBenefit.value / totalBenefits) * 100).toFixed(1);
+        analysis.push(`Total benefits distributed: ${totalBenefits.toLocaleString()}`);
+        analysis.push(`Most common benefit type: ${topBenefit.name} (${topBenefitPercent}%)`);
+        
+        if (data.length > 1) {
+          insights.push(`Top 2 benefit types account for ${((data.slice(0, 2).reduce((s, d) => s + d.value, 0) / totalBenefits) * 100).toFixed(1)}% of all benefits`);
+        }
+        break;
+
+      case 'disabilityDistribution':
+        const totalDisabilities = data.reduce((sum, d) => sum + (d.value || 0), 0);
+        const topDisability = data[0];
+        const topDisabilityPercent = ((topDisability.value / totalDisabilities) * 100).toFixed(1);
+        analysis.push(`Total members with disabilities: ${totalDisabilities.toLocaleString()}`);
+        analysis.push(`Most common disability: ${topDisability.name} (${topDisabilityPercent}%)`);
+        
+        if (data.length > 1) {
+          insights.push(`Top 3 disability types represent ${((data.slice(0, 3).reduce((s, d) => s + d.value, 0) / totalDisabilities) * 100).toFixed(1)}% of total`);
+        }
+        break;
+
+      case 'approvalRate':
+        analysis.push(`Current approval rate: ${data.toFixed(1)}%`);
+        if (data > 80) {
+          insights.push('Excellent approval rate! The system is processing applications efficiently.');
+        } else if (data > 60) {
+          insights.push('Good approval rate. Consider reviewing pending applications for faster processing.');
+        } else {
+          insights.push('Approval rate could be improved. Review application requirements and processing workflows.');
+        }
+        break;
+
+      case 'resolutionRate':
+        analysis.push(`Current resolution rate: ${data.toFixed(1)}%`);
+        if (data > 85) {
+          insights.push('Outstanding resolution rate! Support tickets are being handled efficiently.');
+        } else if (data > 70) {
+          insights.push('Good resolution rate. Monitor ticket response times for further improvement.');
+        } else {
+          insights.push('Resolution rate needs attention. Review ticket handling processes and staff allocation.');
+        }
+        break;
+
+      default:
+        analysis.push('Analysis data not available for this visualization type.');
+    }
+
+    return { analysis, insights, trends };
+  };
+
+  // Generate comprehensive analytics report
+  const generateComprehensiveReport = async (dateRange) => {
+    setGeneratingReport(true);
+    try {
+      const startDate = dateRange.start ? new Date(dateRange.start) : null;
+      const endDate = dateRange.end ? new Date(dateRange.end) : null;
+      
+      // Get all data
+      const members = window.__analytics_members || [];
+      const apps = window.__analytics_applications || [];
+      const benefits = window.__analytics_benefits || [];
+      const tickets = window.__analytics_tickets || [];
+      
+      // Filter by date range if provided
+      let filteredMembers = members;
+      let filteredApps = apps;
+      let filteredBenefits = benefits;
+      let filteredTickets = tickets;
+      
+      if (startDate && endDate) {
+        filteredMembers = members.filter(m => {
+          const regDate = m?.created_at || m?.createdAt || m?.registration_date || m?.date_registered;
+          if (!regDate) return false;
+          const dt = new Date(regDate);
+          return dt >= startDate && dt <= endDate;
+        });
+        
+        filteredApps = apps.filter(a => {
+          const appDate = a?.created_at || a?.createdAt || a?.submissionDate;
+          if (!appDate) return false;
+          const dt = new Date(appDate);
+          return dt >= startDate && dt <= endDate;
+        });
+        
+        filteredBenefits = benefits.filter(b => {
+          const benefitDate = b?.created_at || b?.createdAt || b?.distributionDate || b?.submittedDate;
+          if (!benefitDate) return false;
+          const dt = new Date(benefitDate);
+          return dt >= startDate && dt <= endDate;
+        });
+        
+        filteredTickets = tickets.filter(t => {
+          const ticketDate = t?.created_at || t?.createdAt;
+          if (!ticketDate) return false;
+          const dt = new Date(ticketDate);
+          return dt >= startDate && dt <= endDate;
+        });
+      }
+      
+      // Calculate all metrics
+      const totalMembers = filteredMembers.length;
+      const pendingApps = filteredApps.filter(a => a?.status?.toLowerCase() === 'pending').length;
+      const approvedApps = filteredApps.filter(a => a?.status?.toLowerCase() === 'approved').length;
+      const cardsIssued = filteredMembers.filter(m => 
+        m?.pwd_id || m?.pwd_card_number || m?.card_number
+      ).length;
+      const claimedIDs = filteredMembers.filter(m => m?.cardClaimed === true).length;
+      const renewedIDs = filteredMembers.filter(m => {
+        if (!m?.cardClaimed || !m?.cardIssueDate || !m?.cardExpirationDate) return false;
+        const issueDate = new Date(m.cardIssueDate);
+        const expDate = new Date(m.cardExpirationDate);
+        return expDate > issueDate;
+      }).length;
+      const resolvedTickets = filteredTickets.filter(t => ['resolved', 'closed'].includes((t?.status || '').toLowerCase())).length;
+      
+      // Generate monthly breakdown
+      const months = [];
+      const now = endDate || new Date();
+      const start = startDate || new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      for (let i = Math.ceil((now - start) / (1000 * 60 * 60 * 24 * 30)); i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+      }
+      
+      const monthlyReg = months.map(month => {
+        const count = filteredMembers.reduce((acc, m) => {
+          const d = m?.created_at || m?.createdAt || m?.registration_date || m?.date_registered;
+          if (d) {
+            const ds = new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            if (ds === month) return acc + 1;
+          }
+          return acc;
+        }, 0);
+        return { month, registrations: count };
+      });
+      
+      // Barangay breakdown
+      const barangayCounts = {};
+      filteredMembers.forEach(m => {
+        const b = m?.barangay || m?.barangay_name || m?.barangayName || 'Unknown';
+        barangayCounts[b] = (barangayCounts[b] || 0) + 1;
+      });
+      const topBarangays = Object.entries(barangayCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([name, value]) => ({ name, value }));
+      
+      // Disability breakdown
+      const disabilityCounts = {};
+      filteredMembers.forEach(m => {
+        const d = m?.disability_type || m?.type_of_disability || m?.disability || 'Not Specified';
+        disabilityCounts[d] = (disabilityCounts[d] || 0) + 1;
+      });
+      const disabilityDist = Object.entries(disabilityCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, value]) => ({ name, value }));
+      
+      // Benefit breakdown
+      const benefitTypeCounts = {};
+      filteredBenefits.forEach(b => {
+        const t = b?.benefit_type || b?.type || b?.category || 'Other';
+        benefitTypeCounts[t] = (benefitTypeCounts[t] || 0) + 1;
+      });
+      const benefitDist = Object.entries(benefitTypeCounts)
+        .map(([name, value]) => ({ name, value }));
+      
+      // Ticket breakdown
+      const ticketStatusCounts = {};
+      filteredTickets.forEach(t => {
+        const status = (t?.status || 'unknown').toLowerCase();
+        ticketStatusCounts[status] = (ticketStatusCounts[status] || 0) + 1;
+      });
+      
+      const report = {
+        generatedAt: new Date().toISOString(),
+        dateRange: {
+          start: startDate ? startDate.toISOString().split('T')[0] : 'All Time',
+          end: endDate ? endDate.toISOString().split('T')[0] : 'All Time'
+        },
+        summary: {
+          totalRegistrations: totalMembers,
+          pendingApplications: pendingApps,
+          approvedApplications: approvedApps,
+          cardsIssued,
+          claimedIDs,
+          renewedIDs,
+          benefitsDistributed: filteredBenefits.length,
+          ticketsResolved: resolvedTickets,
+          totalTickets: filteredTickets.length,
+          approvalRate: filteredApps.length > 0 ? ((approvedApps / filteredApps.length) * 100).toFixed(1) : 0,
+          resolutionRate: filteredTickets.length > 0 ? ((resolvedTickets / filteredTickets.length) * 100).toFixed(1) : 0
+        },
+        breakdowns: {
+          monthlyRegistrations: monthlyReg,
+          topBarangays,
+          disabilityDistribution: disabilityDist,
+          benefitTypeDistribution: benefitDist,
+          ticketStatusBreakdown: ticketStatusCounts
+        },
+        insights: {
+          topBarangay: topBarangays[0] || { name: 'N/A', value: 0 },
+          topDisability: disabilityDist[0] || { name: 'N/A', value: 0 },
+          topBenefit: benefitDist[0] || { name: 'N/A', value: 0 },
+          peakMonth: monthlyReg.reduce((max, m) => m.registrations > max.registrations ? m : max, monthlyReg[0] || { month: 'N/A', registrations: 0 })
+        }
+      };
+      
+      setReportData(report);
+      return report;
+    } catch (error) {
+      console.error('Error generating report:', error);
+      throw error;
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!reportDateRange.start || !reportDateRange.end) {
+      alert('Please select both start and end dates for the report.');
+      return;
+    }
+    
+    try {
+      const report = await generateComprehensiveReport(reportDateRange);
+      // Report data is stored in state, dialog will show it
+    } catch (error) {
+      alert('Error generating report. Please try again.');
+      console.error(error);
+    }
+  };
+
+  const handleDownloadReport = () => {
+    if (!reportData) return;
+    
+    // Create a formatted text report
+    const reportText = `
+PDAO ANALYTICS REPORT
+Generated: ${new Date(reportData.generatedAt).toLocaleString()}
+Date Range: ${reportData.dateRange.start} to ${reportData.dateRange.end}
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+
+Total Registrations: ${reportData.summary.totalRegistrations.toLocaleString()}
+Pending Applications: ${reportData.summary.pendingApplications.toLocaleString()}
+Approved Applications: ${reportData.summary.approvedApplications.toLocaleString()}
+Cards Issued: ${reportData.summary.cardsIssued.toLocaleString()}
+Claimed IDs: ${reportData.summary.claimedIDs.toLocaleString()}
+Renewed IDs: ${reportData.summary.renewedIDs.toLocaleString()}
+Benefits Distributed: ${reportData.summary.benefitsDistributed.toLocaleString()}
+Total Tickets: ${reportData.summary.totalTickets.toLocaleString()}
+Tickets Resolved: ${reportData.summary.ticketsResolved.toLocaleString()}
+Approval Rate: ${reportData.summary.approvalRate}%
+Resolution Rate: ${reportData.summary.resolutionRate}%
+
+================================================================================
+MONTHLY REGISTRATIONS BREAKDOWN
+================================================================================
+${reportData.breakdowns.monthlyRegistrations.map(m => `${m.month}: ${m.registrations}`).join('\n')}
+
+================================================================================
+TOP 10 BARANGAYS BY REGISTRATIONS
+================================================================================
+${reportData.breakdowns.topBarangays.map((b, idx) => `${idx + 1}. ${b.name}: ${b.value}`).join('\n')}
+
+================================================================================
+DISABILITY TYPE DISTRIBUTION
+================================================================================
+${reportData.breakdowns.disabilityDistribution.map(d => `${d.name}: ${d.value}`).join('\n')}
+
+================================================================================
+BENEFIT TYPE DISTRIBUTION
+================================================================================
+${reportData.breakdowns.benefitTypeDistribution.map(b => `${b.name}: ${b.value}`).join('\n')}
+
+================================================================================
+TICKET STATUS BREAKDOWN
+================================================================================
+${Object.entries(reportData.breakdowns.ticketStatusBreakdown).map(([status, count]) => `${status}: ${count}`).join('\n')}
+
+================================================================================
+KEY INSIGHTS
+================================================================================
+Top Barangay: ${reportData.insights.topBarangay.name} (${reportData.insights.topBarangay.value} registrations)
+Top Disability Type: ${reportData.insights.topDisability.name} (${reportData.insights.topDisability.value} members)
+Top Benefit Type: ${reportData.insights.topBenefit.name} (${reportData.insights.topBenefit.value} benefits)
+Peak Registration Month: ${reportData.insights.peakMonth.month} (${reportData.insights.peakMonth.registrations} registrations)
+
+================================================================================
+END OF REPORT
+================================================================================
+    `.trim();
+    
+    // Create and download file
+    const blob = new Blob([reportText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `PDAO_Analytics_Report_${reportData.dateRange.start}_to_${reportData.dateRange.end}_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const generatePDFReport = async () => {
+    if (!reportData) return;
+    
+    setGeneratingPDF(true);
+    try {
+      // Dynamically import jsPDF and autoTable to ensure proper loading
+      const { jsPDF } = await import('jspdf');
+      await import('jspdf-autotable');
+      
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
+      
+      // Header with background
+      doc.setFillColor(52, 152, 219); // Blue
+      doc.rect(0, 0, pageWidth, 45, 'F');
+      
+      // Header text
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PDAO ANALYTICS REPORT', pageWidth / 2, 18, { align: 'center' });
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Date Range: ${reportData.dateRange.start} to ${reportData.dateRange.end}`, pageWidth / 2, 28, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.text(`Generated: ${new Date(reportData.generatedAt).toLocaleString()}`, pageWidth / 2, 35, { align: 'center' });
+      
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+      yPosition = 55;
+      
+      // Executive Summary Section
+      if (selectedAnalytics.executiveSummary) {
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('EXECUTIVE SUMMARY', 20, yPosition);
+        
+        doc.setDrawColor(52, 152, 219);
+        doc.setLineWidth(0.5);
+        doc.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
+        
+        yPosition += 12;
+        
+        // Summary metrics in a table
+        const summaryData = [
+          ['Metric', 'Value'],
+          ['Total Registrations', reportData.summary.totalRegistrations.toLocaleString()],
+          ['Pending Applications', reportData.summary.pendingApplications.toLocaleString()],
+          ['Approved Applications', reportData.summary.approvedApplications.toLocaleString()],
+          ['Cards Issued', reportData.summary.cardsIssued.toLocaleString()],
+          ['Claimed IDs', reportData.summary.claimedIDs.toLocaleString()],
+          ['Renewed IDs', reportData.summary.renewedIDs.toLocaleString()],
+          ['Benefits Distributed', reportData.summary.benefitsDistributed.toLocaleString()],
+          ['Total Tickets', reportData.summary.totalTickets.toLocaleString()],
+          ['Tickets Resolved', reportData.summary.ticketsResolved.toLocaleString()],
+          ['Approval Rate', `${reportData.summary.approvalRate}%`],
+          ['Resolution Rate', `${reportData.summary.resolutionRate}%`]
+        ];
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [summaryData[0]],
+          body: summaryData.slice(1),
+          theme: 'striped',
+          headStyles: { fillColor: [52, 152, 219], textColor: [255, 255, 255], fontStyle: 'bold' },
+          styles: { fontSize: 10, cellPadding: 3 },
+          columnStyles: { 
+            0: { cellWidth: 70, fontStyle: 'bold' },
+            1: { cellWidth: 60, halign: 'right' }
+          },
+          margin: { left: 20, right: 20 }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 15;
+      }
+      
+      // Key Insights Section
+      if (selectedAnalytics.keyInsights) {
+        if (yPosition > pageHeight - 50) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('KEY INSIGHTS', 20, yPosition);
+        doc.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
+        
+        yPosition += 12;
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        const insights = [
+          `Top Barangay: ${reportData.insights.topBarangay.name} (${reportData.insights.topBarangay.value} registrations)`,
+          `Top Disability Type: ${reportData.insights.topDisability.name} (${reportData.insights.topDisability.value} members)`,
+          `Top Benefit Type: ${reportData.insights.topBenefit.name} (${reportData.insights.topBenefit.value} benefits)`,
+          `Peak Registration Month: ${reportData.insights.peakMonth.month} (${reportData.insights.peakMonth.registrations} registrations)`
+        ];
+        
+        insights.forEach((insight, idx) => {
+          doc.setFont('helvetica', 'bold');
+          doc.text('•', 25, yPosition);
+          doc.setFont('helvetica', 'normal');
+          doc.text(insight, 30, yPosition);
+          yPosition += 8;
+        });
+        
+        yPosition += 5;
+      }
+      
+      // Monthly Registrations Breakdown
+      if (selectedAnalytics.monthlyRegistrations) {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('MONTHLY REGISTRATIONS BREAKDOWN', 20, yPosition);
+        doc.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
+        
+        yPosition += 12;
+        
+        const monthlyData = [
+          ['Month', 'Registrations'],
+          ...reportData.breakdowns.monthlyRegistrations.map(m => [m.month, m.registrations.toString()])
+        ];
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [monthlyData[0]],
+          body: monthlyData.slice(1),
+          theme: 'striped',
+          headStyles: { fillColor: [52, 152, 219], textColor: [255, 255, 255], fontStyle: 'bold' },
+          styles: { fontSize: 10, cellPadding: 3 },
+          columnStyles: { 
+            0: { cellWidth: 80 },
+            1: { cellWidth: 50, halign: 'right' }
+          },
+          margin: { left: 20, right: 20 }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 15;
+      }
+      
+      // Top Barangays Breakdown
+      if (selectedAnalytics.topBarangays) {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TOP 10 BARANGAYS BY REGISTRATIONS', 20, yPosition);
+        doc.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
+        
+        yPosition += 12;
+        
+        const barangayData = [
+          ['Rank', 'Barangay', 'Registrations'],
+          ...reportData.breakdowns.topBarangays.slice(0, 10).map((b, idx) => [
+            (idx + 1).toString(),
+            b.name,
+            b.value.toString()
+          ])
+        ];
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [barangayData[0]],
+          body: barangayData.slice(1),
+          theme: 'striped',
+          headStyles: { fillColor: [52, 152, 219], textColor: [255, 255, 255], fontStyle: 'bold' },
+          styles: { fontSize: 10, cellPadding: 3 },
+          columnStyles: { 
+            0: { cellWidth: 20, halign: 'center' },
+            1: { cellWidth: 120 },
+            2: { cellWidth: 50, halign: 'right' }
+          },
+          margin: { left: 20, right: 20 }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 15;
+      }
+      
+      // Disability Distribution
+      if (selectedAnalytics.disabilityDistribution) {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DISABILITY TYPE DISTRIBUTION', 20, yPosition);
+        doc.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
+        
+        yPosition += 12;
+        
+        const disabilityData = [
+          ['Disability Type', 'Count'],
+          ...reportData.breakdowns.disabilityDistribution.map(d => [d.name, d.value.toString()])
+        ];
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [disabilityData[0]],
+          body: disabilityData.slice(1),
+          theme: 'striped',
+          headStyles: { fillColor: [52, 152, 219], textColor: [255, 255, 255], fontStyle: 'bold' },
+          styles: { fontSize: 10, cellPadding: 3 },
+          columnStyles: { 
+            0: { cellWidth: 120 },
+            1: { cellWidth: 70, halign: 'right' }
+          },
+          margin: { left: 20, right: 20 }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 15;
+      }
+      
+      // Benefit Type Distribution
+      if (selectedAnalytics.benefitDistribution) {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('BENEFIT TYPE DISTRIBUTION', 20, yPosition);
+        doc.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
+        
+        yPosition += 12;
+        
+        const benefitData = [
+          ['Benefit Type', 'Count'],
+          ...reportData.breakdowns.benefitTypeDistribution.map(b => [b.name, b.value.toString()])
+        ];
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [benefitData[0]],
+          body: benefitData.slice(1),
+          theme: 'striped',
+          headStyles: { fillColor: [52, 152, 219], textColor: [255, 255, 255], fontStyle: 'bold' },
+          styles: { fontSize: 10, cellPadding: 3 },
+          columnStyles: { 
+            0: { cellWidth: 120 },
+            1: { cellWidth: 70, halign: 'right' }
+          },
+          margin: { left: 20, right: 20 }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 15;
+      }
+      
+      // Ticket Status Breakdown
+      if (selectedAnalytics.ticketStatus) {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TICKET STATUS BREAKDOWN', 20, yPosition);
+        doc.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
+        
+        yPosition += 12;
+        
+        const ticketData = [
+          ['Status', 'Count'],
+          ...Object.entries(reportData.breakdowns.ticketStatusBreakdown).map(([status, count]) => [
+            status.charAt(0).toUpperCase() + status.slice(1),
+            count.toString()
+          ])
+        ];
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [ticketData[0]],
+          body: ticketData.slice(1),
+          theme: 'striped',
+          headStyles: { fillColor: [52, 152, 219], textColor: [255, 255, 255], fontStyle: 'bold' },
+          styles: { fontSize: 10, cellPadding: 3 },
+          columnStyles: { 
+            0: { cellWidth: 120 },
+            1: { cellWidth: 70, halign: 'right' }
+          },
+          margin: { left: 20, right: 20 }
+        });
+      }
+      
+      // Footer on last page
+      const totalPages = doc.internal.pages.length - 1;
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(128, 128, 128);
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      }
+      
+      // Generate blob for preview
+      const pdfBlob = doc.output('blob');
+      setPdfBlob(pdfBlob);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!pdfBlob) return;
+    
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `PDAO_Analytics_Report_${reportData.dateRange.start}_to_${reportData.dateRange.end}_${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const KPICard = ({ title, value, icon, formatFn = formatNumber }) => (
     <Card sx={{ 
       height: '100%', 
@@ -766,6 +1511,19 @@ const Analytics = () => {
             PDAO Analytics Dashboard
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="contained"
+              startIcon={<PictureAsPdfIcon />}
+              onClick={() => setReportDialogOpen(true)}
+              sx={{
+                bgcolor: '#27AE60',
+                '&:hover': { bgcolor: '#229954' },
+                textTransform: 'none',
+                fontWeight: 600
+              }}
+            >
+              Generate Report
+            </Button>
             <IconButton onClick={fetchAnalyticsData} sx={{ color: '#7F8C8D' }}>
               <RefreshIcon />
             </IconButton>
@@ -1061,11 +1819,850 @@ const Analytics = () => {
           </DialogActions>
         </Dialog>
 
+        {/* Detailed Visualization Modal */}
+        <Dialog 
+          open={!!selectedChart} 
+          onClose={() => {
+            setSelectedChart(null);
+            setComparisonDateRange({ start: null, end: null });
+            setComparisonData(null);
+            setReportTab(0);
+          }} 
+          maxWidth="lg" 
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              bgcolor: '#FFFFFF'
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            bgcolor: '#F8F9FA',
+            borderBottom: '2px solid #E0E0E0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            py: 2
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <AssessmentIcon sx={{ color: '#3498DB', fontSize: 28 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                {selectedChart?.type === 'monthlyRegistrations' && 'Monthly Registrations Analysis'}
+                {selectedChart?.type === 'topBarangays' && 'Top Barangays Analysis'}
+                {selectedChart?.type === 'monthlyCardIssuance' && 'Monthly Card Issuance Analysis'}
+                {selectedChart?.type === 'benefitTypeDistribution' && 'Benefit Type Distribution Analysis'}
+                {selectedChart?.type === 'disabilityDistribution' && 'Disability Distribution Analysis'}
+                {selectedChart?.type === 'approvalRate' && 'Approval Rate Analysis'}
+                {selectedChart?.type === 'resolutionRate' && 'Resolution Rate Analysis'}
+              </Typography>
+            </Box>
+            <IconButton
+              onClick={() => {
+                setSelectedChart(null);
+                setComparisonDateRange({ start: null, end: null });
+                setComparisonData(null);
+                setReportTab(0);
+              }}
+              sx={{ color: '#7F8C8D', '&:hover': { bgcolor: '#E0E0E0' } }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          
+          <DialogContent sx={{ p: 0 }}>
+            <Tabs 
+              value={reportTab} 
+              onChange={(e, newValue) => setReportTab(newValue)}
+              sx={{ 
+                borderBottom: '1px solid #E0E0E0',
+                bgcolor: '#F8F9FA',
+                px: 3,
+                '& .MuiTab-root': {
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  color: '#7F8C8D',
+                  '&.Mui-selected': {
+                    color: '#3498DB'
+                  }
+                }
+              }}
+            >
+              <Tab label="Visualization" />
+              <Tab label="Text Analysis" />
+              <Tab label="Report" />
+            </Tabs>
+            
+            {reportTab === 0 && (
+              <Box sx={{ p: 3 }}>
+                {/* Date Range Comparison */}
+                <Box sx={{ mb: 3, p: 2, bgcolor: '#F8F9FA', borderRadius: 2, border: '1px solid #E0E0E0' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#2C3E50', mb: 1.5 }}>
+                    Compare with Date Range
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                    <TextField
+                      type="date"
+                      label="Start Date"
+                      value={comparisonDateRange.start || ''}
+                      onChange={(e) => setComparisonDateRange({ ...comparisonDateRange, start: e.target.value })}
+                      InputLabelProps={{ shrink: true }}
+                      size="small"
+                      sx={{ minWidth: 200 }}
+                    />
+                    <TextField
+                      type="date"
+                      label="End Date"
+                      value={comparisonDateRange.end || ''}
+                      onChange={(e) => setComparisonDateRange({ ...comparisonDateRange, end: e.target.value })}
+                      InputLabelProps={{ shrink: true }}
+                      size="small"
+                      sx={{ minWidth: 200 }}
+                    />
+                    {comparisonDateRange.start && comparisonDateRange.end && (
+                      <>
+                        <Button
+                          variant="contained"
+                          onClick={async () => {
+                            // Generate comparison data
+                            const startDate = new Date(comparisonDateRange.start);
+                            const endDate = new Date(comparisonDateRange.end);
+                            
+                            const members = window.__analytics_members || [];
+                            const compMembers = members.filter(m => {
+                              const regDate = m?.created_at || m?.createdAt || m?.registration_date || m?.date_registered;
+                              if (!regDate) return false;
+                              const dt = new Date(regDate);
+                              return dt >= startDate && dt <= endDate;
+                            });
+                            
+                            if (selectedChart?.type === 'monthlyRegistrations') {
+                              const months = [];
+                              const monthsDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24 * 30));
+                              for (let i = monthsDiff; i >= 0; i--) {
+                                const date = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
+                                months.push(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+                              }
+                              const compData = months.map(month => {
+                                const count = compMembers.reduce((acc, m) => {
+                                  const d = m?.created_at || m?.createdAt || m?.registration_date || m?.date_registered;
+                                  if (d) {
+                                    const ds = new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                                    if (ds === month) return acc + 1;
+                                  }
+                                  return acc;
+                                }, 0);
+                                return { month, registrations: count };
+                              });
+                              setComparisonData(compData);
+                            } else if (selectedChart?.type === 'monthlyCardIssuance') {
+                              const months = [];
+                              const monthsDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24 * 30));
+                              for (let i = monthsDiff; i >= 0; i--) {
+                                const date = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
+                                months.push(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+                              }
+                              const compData = months.map(month => {
+                                const count = compMembers.filter(m => {
+                                  if (m?.pwd_id || m?.pwd_card_number || m?.card_number) {
+                                    const d = m?.pwd_id_generated_at || m?.card_issued_date || m?.card_date || m?.created_at || m?.createdAt;
+                                    if (d) {
+                                      const ds = new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                                      return ds === month;
+                                    }
+                                  }
+                                  return false;
+                                }).length;
+                                return { month, cards: count };
+                              });
+                              setComparisonData(compData);
+                            }
+                          }}
+                          size="small"
+                          sx={{ bgcolor: '#3498DB', '&:hover': { bgcolor: '#2980B9' } }}
+                        >
+                          Apply Comparison
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          onClick={() => {
+                            setComparisonDateRange({ start: null, end: null });
+                            setComparisonData(null);
+                          }}
+                          size="small"
+                        >
+                          Clear Comparison
+                        </Button>
+                      </>
+                    )}
+                  </Box>
+                </Box>
+
+                {/* Enhanced Chart */}
+                <Box sx={{ height: 400, mb: 2 }}>
+                  {selectedChart?.type === 'monthlyRegistrations' && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={comparisonData ? selectedChart.data.map((d, idx) => {
+                        const compItem = comparisonData[idx];
+                        return {
+                          month: d.month,
+                          current: d.registrations,
+                          comparison: compItem ? compItem.registrations : 0
+                        };
+                      }) : selectedChart.data.map(d => ({ month: d.month, current: d.registrations }))} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                        <XAxis dataKey="month" stroke="#7F8C8D" fontSize={12} />
+                        <YAxis stroke="#7F8C8D" fontSize={12} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="current" fill="#3498DB" radius={[4, 4, 0, 0]} name="Current Period" />
+                        {comparisonData && <Bar dataKey="comparison" fill="#1ABC9C" radius={[4, 4, 0, 0]} name="Comparison Period" />}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                  {selectedChart?.type === 'topBarangays' && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={selectedChart.data} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                        <XAxis type="number" stroke="#7F8C8D" fontSize={12} />
+                        <YAxis dataKey="name" type="category" stroke="#7F8C8D" fontSize={12} width={120} />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#3498DB" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                  {selectedChart?.type === 'monthlyCardIssuance' && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={comparisonData ? selectedChart.data.map((d, idx) => {
+                        const compItem = comparisonData[idx];
+                        return {
+                          month: d.month,
+                          current: d.cards,
+                          comparison: compItem ? compItem.cards : 0
+                        };
+                      }) : selectedChart.data.map(d => ({ month: d.month, current: d.cards }))} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                        <XAxis dataKey="month" stroke="#7F8C8D" fontSize={12} />
+                        <YAxis stroke="#7F8C8D" fontSize={12} />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="current" stroke="#1ABC9C" strokeWidth={3} dot={{ fill: '#1ABC9C', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} name="Current Period" />
+                        {comparisonData && <Line type="monotone" dataKey="comparison" stroke="#E74C3C" strokeWidth={3} dot={{ fill: '#E74C3C', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} name="Comparison Period" />}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                  {selectedChart?.type === 'benefitTypeDistribution' && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={selectedChart.data}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={100}
+                          innerRadius={50}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {selectedChart.data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend verticalAlign="bottom" height={36} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                  {selectedChart?.type === 'disabilityDistribution' && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={selectedChart.data} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                        <XAxis dataKey="name" stroke="#7F8C8D" fontSize={12} angle={-45} textAnchor="end" height={100} />
+                        <YAxis stroke="#7F8C8D" fontSize={12} />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#9B59B6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                  {(selectedChart?.type === 'approvalRate' || selectedChart?.type === 'resolutionRate') && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <GaugeChart 
+                          value={selectedChart.data} 
+                          title={selectedChart.type === 'approvalRate' ? 'Application Approval Rate' : 'Support Ticket Resolution Rate'} 
+                          color={selectedChart.type === 'approvalRate' ? '#1ABC9C' : '#3498DB'} 
+                        />
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            )}
+            
+            {reportTab === 1 && (
+              <Box sx={{ p: 3 }}>
+                {(() => {
+                  const { analysis, insights, trends } = generateTextAnalysis(selectedChart?.type, selectedChart?.data, comparisonData);
+                  return (
+                    <>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2 }}>
+                        Key Metrics
+                      </Typography>
+                      <Box sx={{ mb: 3 }}>
+                        {analysis.map((item, idx) => (
+                          <Typography key={idx} variant="body1" sx={{ color: '#34495E', mb: 1, pl: 2, borderLeft: '3px solid #3498DB' }}>
+                            • {item}
+                          </Typography>
+                        ))}
+                      </Box>
+                      
+                      {insights.length > 0 && (
+                        <>
+                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2, mt: 3 }}>
+                            Insights
+                          </Typography>
+                          <Box sx={{ mb: 3 }}>
+                            {insights.map((item, idx) => (
+                              <Box key={idx} sx={{ p: 2, mb: 1.5, bgcolor: '#E8F4FD', borderRadius: 2, borderLeft: '4px solid #3498DB' }}>
+                                <Typography variant="body1" sx={{ color: '#2C3E50' }}>
+                                  {item}
+                                </Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        </>
+                      )}
+                      
+                      {trends.length > 0 && (
+                        <>
+                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2, mt: 3 }}>
+                            Trends
+                          </Typography>
+                          <Box sx={{ mb: 3 }}>
+                            {trends.map((item, idx) => (
+                              <Box key={idx} sx={{ p: 2, mb: 1.5, bgcolor: '#FEF5E7', borderRadius: 2, borderLeft: '4px solid #F39C12', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {item.includes('+') ? <TrendingUpIcon sx={{ color: '#27AE60' }} /> : <TrendingDownIcon sx={{ color: '#E74C3C' }} />}
+                                <Typography variant="body1" sx={{ color: '#2C3E50' }}>
+                                  {item}
+                                </Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
+              </Box>
+            )}
+            
+            {reportTab === 2 && (
+              <Box sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2 }}>
+                  Detailed Report
+                </Typography>
+                <Paper sx={{ p: 3, bgcolor: '#F8F9FA', borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ color: '#7F8C8D', mb: 2 }}>
+                    Report generated on: {new Date().toLocaleString()}
+                  </Typography>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="body1" sx={{ color: '#2C3E50', mb: 2 }}>
+                    This report provides a comprehensive analysis of the selected visualization. 
+                    The data reflects current filters and date range selections.
+                  </Typography>
+                  {(() => {
+                    const { analysis, insights, trends } = generateTextAnalysis(selectedChart?.type, selectedChart?.data, comparisonData);
+                    return (
+                      <>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#2C3E50', mt: 2, mb: 1 }}>
+                          Summary
+                        </Typography>
+                        {analysis.map((item, idx) => (
+                          <Typography key={idx} variant="body2" sx={{ color: '#34495E', mb: 0.5, pl: 2 }}>
+                            • {item}
+                          </Typography>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </Paper>
+              </Box>
+            )}
+          </DialogContent>
+          
+          <DialogActions sx={{ p: 2, bgcolor: '#F8F9FA', borderTop: '1px solid #E0E0E0' }}>
+            <Button 
+              onClick={() => {
+                setSelectedChart(null);
+                setComparisonDateRange({ start: null, end: null });
+                setComparisonData(null);
+                setReportTab(0);
+              }}
+              variant="contained"
+              sx={{ bgcolor: '#3498DB', '&:hover': { bgcolor: '#2980B9' } }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Report Generation Dialog */}
+        <Dialog
+          open={reportDialogOpen}
+          onClose={() => {
+            setReportDialogOpen(false);
+            setReportDateRange({ start: null, end: null });
+            setReportData(null);
+            setPdfBlob(null);
+          }}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              bgcolor: '#FFFFFF'
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            bgcolor: '#F8F9FA',
+            borderBottom: '2px solid #E0E0E0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            py: 2
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <PictureAsPdfIcon sx={{ color: '#27AE60', fontSize: 28 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                Generate Analytics Report
+              </Typography>
+            </Box>
+            <IconButton
+              onClick={() => {
+                setReportDialogOpen(false);
+                setReportDateRange({ start: null, end: null });
+                setReportData(null);
+                setPdfBlob(null);
+                setSelectedAnalytics({
+                  executiveSummary: true,
+                  keyInsights: true,
+                  monthlyRegistrations: true,
+                  topBarangays: true,
+                  disabilityDistribution: true,
+                  benefitDistribution: true,
+                  ticketStatus: true
+                });
+              }}
+              sx={{ color: '#7F8C8D', '&:hover': { bgcolor: '#E0E0E0' } }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          
+          <DialogContent sx={{ p: 3 }}>
+            {!reportData ? (
+              <>
+                <Typography variant="body1" sx={{ color: '#2C3E50', mb: 3 }}>
+                  Select a date range for the analytics report. The report will include a complete breakdown of all metrics, 
+                  visualizations, and insights for the selected period.
+                </Typography>
+                
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <Box sx={{ p: 2, bgcolor: '#F8F9FA', borderRadius: 2, border: '1px solid #E0E0E0' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2 }}>
+                      Report Date Range
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                      <TextField
+                        type="date"
+                        label="Start Date"
+                        value={reportDateRange.start || ''}
+                        onChange={(e) => setReportDateRange({ ...reportDateRange, start: e.target.value })}
+                        InputLabelProps={{ shrink: true }}
+                        fullWidth
+                        required
+                        sx={{ minWidth: 200 }}
+                      />
+                      <TextField
+                        type="date"
+                        label="End Date"
+                        value={reportDateRange.end || ''}
+                        onChange={(e) => setReportDateRange({ ...reportDateRange, end: e.target.value })}
+                        InputLabelProps={{ shrink: true }}
+                        fullWidth
+                        required
+                        sx={{ minWidth: 200 }}
+                        inputProps={{
+                          min: reportDateRange.start || undefined
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ p: 2, bgcolor: '#E8F4FD', borderRadius: 2, border: '1px solid #3498DB' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#2C3E50', mb: 1 }}>
+                      Select Analytics to Include:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedAnalytics.executiveSummary}
+                            onChange={(e) => setSelectedAnalytics({ ...selectedAnalytics, executiveSummary: e.target.checked })}
+                            sx={{ color: '#3498DB', '&.Mui-checked': { color: '#3498DB' } }}
+                          />
+                        }
+                        label="Executive Summary with all KPIs"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedAnalytics.keyInsights}
+                            onChange={(e) => setSelectedAnalytics({ ...selectedAnalytics, keyInsights: e.target.checked })}
+                            sx={{ color: '#3498DB', '&.Mui-checked': { color: '#3498DB' } }}
+                          />
+                        }
+                        label="Key Insights"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedAnalytics.monthlyRegistrations}
+                            onChange={(e) => setSelectedAnalytics({ ...selectedAnalytics, monthlyRegistrations: e.target.checked })}
+                            sx={{ color: '#3498DB', '&.Mui-checked': { color: '#3498DB' } }}
+                          />
+                        }
+                        label="Monthly Registrations Breakdown"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedAnalytics.topBarangays}
+                            onChange={(e) => setSelectedAnalytics({ ...selectedAnalytics, topBarangays: e.target.checked })}
+                            sx={{ color: '#3498DB', '&.Mui-checked': { color: '#3498DB' } }}
+                          />
+                        }
+                        label="Top 10 Barangays by Registrations"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedAnalytics.disabilityDistribution}
+                            onChange={(e) => setSelectedAnalytics({ ...selectedAnalytics, disabilityDistribution: e.target.checked })}
+                            sx={{ color: '#3498DB', '&.Mui-checked': { color: '#3498DB' } }}
+                          />
+                        }
+                        label="Disability Type Distribution"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedAnalytics.benefitDistribution}
+                            onChange={(e) => setSelectedAnalytics({ ...selectedAnalytics, benefitDistribution: e.target.checked })}
+                            sx={{ color: '#3498DB', '&.Mui-checked': { color: '#3498DB' } }}
+                          />
+                        }
+                        label="Benefit Type Distribution"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedAnalytics.ticketStatus}
+                            onChange={(e) => setSelectedAnalytics({ ...selectedAnalytics, ticketStatus: e.target.checked })}
+                            sx={{ color: '#3498DB', '&.Mui-checked': { color: '#3498DB' } }}
+                          />
+                        }
+                        label="Ticket Status Breakdown"
+                      />
+                    </Box>
+                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #BDC3C7' }}>
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setSelectedAnalytics({
+                            executiveSummary: true,
+                            keyInsights: true,
+                            monthlyRegistrations: true,
+                            topBarangays: true,
+                            disabilityDistribution: true,
+                            benefitDistribution: true,
+                            ticketStatus: true
+                          });
+                        }}
+                        sx={{ mr: 1, textTransform: 'none' }}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setSelectedAnalytics({
+                            executiveSummary: false,
+                            keyInsights: false,
+                            monthlyRegistrations: false,
+                            topBarangays: false,
+                            disabilityDistribution: false,
+                            benefitDistribution: false,
+                            ticketStatus: false
+                          });
+                        }}
+                        sx={{ textTransform: 'none' }}
+                      >
+                        Deselect All
+                      </Button>
+                    </Box>
+                  </Box>
+                </Box>
+              </>
+            ) : (
+              <Box>
+                <Box sx={{ p: 2, bgcolor: '#E8F5E8', borderRadius: 2, border: '1px solid #27AE60', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#27AE60', mb: 1 }}>
+                    Report Generated Successfully!
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+                    Generated on: {new Date(reportData.generatedAt).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+                    Date Range: {reportData.dateRange.start} to {reportData.dateRange.end}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ maxHeight: 400, overflowY: 'auto', p: 2, bgcolor: '#F8F9FA', borderRadius: 2, border: '1px solid #E0E0E0' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2 }}>
+                    Executive Summary
+                  </Typography>
+                  <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid item xs={6} sm={4}>
+                      <Paper sx={{ p: 1.5, bgcolor: '#FFFFFF', borderRadius: 1 }}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Total Registrations</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                          {reportData.summary.totalRegistrations.toLocaleString()}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                      <Paper sx={{ p: 1.5, bgcolor: '#FFFFFF', borderRadius: 1 }}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Approved Applications</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#27AE60' }}>
+                          {reportData.summary.approvedApplications.toLocaleString()}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                      <Paper sx={{ p: 1.5, bgcolor: '#FFFFFF', borderRadius: 1 }}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Claimed IDs</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#3498DB' }}>
+                          {reportData.summary.claimedIDs.toLocaleString()}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                      <Paper sx={{ p: 1.5, bgcolor: '#FFFFFF', borderRadius: 1 }}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Renewed IDs</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#9B59B6' }}>
+                          {reportData.summary.renewedIDs.toLocaleString()}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                      <Paper sx={{ p: 1.5, bgcolor: '#FFFFFF', borderRadius: 1 }}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Benefits Distributed</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#F39C12' }}>
+                          {reportData.summary.benefitsDistributed.toLocaleString()}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                      <Paper sx={{ p: 1.5, bgcolor: '#FFFFFF', borderRadius: 1 }}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Tickets Resolved</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#E74C3C' }}>
+                          {reportData.summary.ticketsResolved.toLocaleString()}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  </Grid>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2 }}>
+                    Key Insights
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="body2" sx={{ color: '#34495E', pl: 2, borderLeft: '3px solid #3498DB' }}>
+                      • Top Barangay: <strong>{reportData.insights.topBarangay.name}</strong> ({reportData.insights.topBarangay.value} registrations)
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#34495E', pl: 2, borderLeft: '3px solid #1ABC9C' }}>
+                      • Top Disability Type: <strong>{reportData.insights.topDisability.name}</strong> ({reportData.insights.topDisability.value} members)
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#34495E', pl: 2, borderLeft: '3px solid #F39C12' }}>
+                      • Top Benefit Type: <strong>{reportData.insights.topBenefit.name}</strong> ({reportData.insights.topBenefit.value} benefits)
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#34495E', pl: 2, borderLeft: '3px solid #9B59B6' }}>
+                      • Peak Registration Month: <strong>{reportData.insights.peakMonth.month}</strong> ({reportData.insights.peakMonth.registrations} registrations)
+                    </Typography>
+                  </Box>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2 }}>
+                    Breakdown Details
+                  </Typography>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#2C3E50', mb: 1 }}>
+                      Top Barangays:
+                    </Typography>
+                    {reportData.breakdowns.topBarangays.slice(0, 5).map((b, idx) => (
+                      <Typography key={idx} variant="body2" sx={{ color: '#34495E', pl: 2 }}>
+                        {idx + 1}. {b.name}: {b.value.toLocaleString()}
+                      </Typography>
+                    ))}
+                  </Box>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#2C3E50', mb: 1 }}>
+                      Monthly Registrations:
+                    </Typography>
+                    {reportData.breakdowns.monthlyRegistrations.slice(-6).map((m, idx) => (
+                      <Typography key={idx} variant="body2" sx={{ color: '#34495E', pl: 2 }}>
+                        {m.month}: {m.registrations.toLocaleString()}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              </Box>
+            )}
+            
+            {/* PDF Preview Section */}
+            {pdfBlob && (
+              <Box sx={{ mt: 3 }}>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2 }}>
+                  PDF Preview
+                </Typography>
+                <Box sx={{ 
+                  border: '2px solid #E0E0E0', 
+                  borderRadius: 2, 
+                  overflow: 'hidden',
+                  bgcolor: '#FFFFFF'
+                }}>
+                  <iframe
+                    src={URL.createObjectURL(pdfBlob)}
+                    style={{
+                      width: '100%',
+                      height: '600px',
+                      border: 'none'
+                    }}
+                    title="PDF Preview"
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                  <Button
+                    onClick={handleDownloadPDF}
+                    variant="contained"
+                    startIcon={<DownloadIcon />}
+                    sx={{ bgcolor: '#E74C3C', '&:hover': { bgcolor: '#C0392B' } }}
+                  >
+                    Download PDF
+                  </Button>
+                </Box>
+              </Box>
+            )}
+          </DialogContent>
+          
+          <DialogActions sx={{ p: 2, bgcolor: '#F8F9FA', borderTop: '1px solid #E0E0E0' }}>
+            {!reportData ? (
+              <>
+                <Button
+                  onClick={() => {
+                    setReportDialogOpen(false);
+                    setReportDateRange({ start: null, end: null });
+                  }}
+                  variant="outlined"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleGenerateReport}
+                  variant="contained"
+                  disabled={!reportDateRange.start || !reportDateRange.end || generatingReport}
+                  startIcon={generatingReport ? <CircularProgress size={16} /> : <PictureAsPdfIcon />}
+                  sx={{ bgcolor: '#27AE60', '&:hover': { bgcolor: '#229954' } }}
+                >
+                  {generatingReport ? 'Generating...' : 'Generate Report'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={() => {
+                    setReportDateRange({ start: null, end: null });
+                    setReportData(null);
+                    setPdfBlob(null);
+                  }}
+                  variant="outlined"
+                >
+                  Generate New Report
+                </Button>
+                <Button
+                  onClick={handleDownloadReport}
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                  sx={{ borderColor: '#3498DB', color: '#3498DB', '&:hover': { borderColor: '#2980B9', bgcolor: 'rgba(52, 152, 219, 0.1)' } }}
+                >
+                  Download TXT
+                </Button>
+                <Button
+                  onClick={generatePDFReport}
+                  variant="contained"
+                  disabled={generatingPDF || Object.values(selectedAnalytics).every(v => !v)}
+                  startIcon={generatingPDF ? <CircularProgress size={16} /> : <PictureAsPdfIcon />}
+                  sx={{ bgcolor: '#E74C3C', '&:hover': { bgcolor: '#C0392B' } }}
+                >
+                  {generatingPDF ? 'Generating PDF...' : 'Generate PDF'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setReportDialogOpen(false);
+                    setReportDateRange({ start: null, end: null });
+                    setReportData(null);
+                    setPdfBlob(null);
+                  }}
+                  variant="contained"
+                  sx={{ bgcolor: '#7F8C8D', '&:hover': { bgcolor: '#566573' } }}
+                >
+                  Close
+                </Button>
+              </>
+            )}
+          </DialogActions>
+        </Dialog>
+
         {/* Middle Row - Charts and Gauges */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {/* Monthly Registrations Chart */}
           <Grid item xs={12} md={6} lg={4}>
-            <Paper sx={{ p: 2, height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
+            <Paper 
+              onClick={() => setSelectedChart({ type: 'monthlyRegistrations', data: monthlyRegistrations })}
+              sx={{ 
+                p: 2, 
+                height: '100%', 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+                borderRadius: 2, 
+                bgcolor: '#FFFFFF', 
+                border: '1px solid #E0E0E0',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)',
+                  borderColor: '#3498DB'
+                }
+              }}
+            >
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '0.95rem' }}>
                 Monthly Registrations
               </Typography>
@@ -1083,14 +2680,54 @@ const Analytics = () => {
 
           {/* Approval Rate Gauge */}
           <Grid item xs={12} md={6} lg={4}>
-            <Paper sx={{ p: 2, height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Paper 
+              onClick={() => setSelectedChart({ type: 'approvalRate', data: approvalRate })}
+              sx={{ 
+                p: 2, 
+                height: '100%', 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+                borderRadius: 2, 
+                bgcolor: '#FFFFFF', 
+                border: '1px solid #E0E0E0', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)',
+                  borderColor: '#1ABC9C'
+                }
+              }}
+            >
               <GaugeChart value={approvalRate} title="Application Approval Rate" color="#1ABC9C" />
             </Paper>
           </Grid>
 
           {/* Resolution Rate Gauge */}
           <Grid item xs={12} md={6} lg={4}>
-            <Paper sx={{ p: 2, height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Paper 
+              onClick={() => setSelectedChart({ type: 'resolutionRate', data: resolutionRate })}
+              sx={{ 
+                p: 2, 
+                height: '100%', 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+                borderRadius: 2, 
+                bgcolor: '#FFFFFF', 
+                border: '1px solid #E0E0E0', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)',
+                  borderColor: '#3498DB'
+                }
+              }}
+            >
               <GaugeChart value={resolutionRate} title="Support Ticket Resolution Rate" color="#3498DB" />
             </Paper>
           </Grid>
@@ -1100,7 +2737,24 @@ const Analytics = () => {
         <Grid container spacing={2}>
           {/* Top 5 Barangays by Registrations */}
           <Grid item xs={12} md={6} lg={4}>
-            <Paper sx={{ p: 2, height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
+            <Paper 
+              onClick={() => setSelectedChart({ type: 'topBarangays', data: topBarangays })}
+              sx={{ 
+                p: 2, 
+                height: '100%', 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+                borderRadius: 2, 
+                bgcolor: '#FFFFFF', 
+                border: '1px solid #E0E0E0',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)',
+                  borderColor: '#3498DB'
+                }
+              }}
+            >
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '0.95rem' }}>
                 Top 5 Barangays by Registrations
               </Typography>
@@ -1122,7 +2776,24 @@ const Analytics = () => {
 
           {/* Monthly Card Issuance */}
           <Grid item xs={12} md={6} lg={4}>
-            <Paper sx={{ p: 2, height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
+            <Paper 
+              onClick={() => setSelectedChart({ type: 'monthlyCardIssuance', data: monthlyCardIssuance })}
+              sx={{ 
+                p: 2, 
+                height: '100%', 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+                borderRadius: 2, 
+                bgcolor: '#FFFFFF', 
+                border: '1px solid #E0E0E0',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)',
+                  borderColor: '#1ABC9C'
+                }
+              }}
+            >
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '0.95rem' }}>
                 Monthly Card Issuance
               </Typography>
@@ -1147,7 +2818,24 @@ const Analytics = () => {
 
           {/* Benefit Type Distribution */}
           <Grid item xs={12} md={6} lg={4}>
-            <Paper sx={{ p: 2, height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
+            <Paper 
+              onClick={() => setSelectedChart({ type: 'benefitTypeDistribution', data: benefitTypeDistribution })}
+              sx={{ 
+                p: 2, 
+                height: '100%', 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+                borderRadius: 2, 
+                bgcolor: '#FFFFFF', 
+                border: '1px solid #E0E0E0',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)',
+                  borderColor: '#9B59B6'
+                }
+              }}
+            >
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '0.95rem' }}>
                 Benefit Type Distribution
               </Typography>
@@ -1179,7 +2867,24 @@ const Analytics = () => {
         {/* Additional Row - Disability Distribution */}
         <Grid container spacing={2} sx={{ mt: 2 }}>
           <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2, height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #E0E0E0' }}>
+            <Paper 
+              onClick={() => setSelectedChart({ type: 'disabilityDistribution', data: disabilityDistribution })}
+              sx={{ 
+                p: 2, 
+                height: '100%', 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+                borderRadius: 2, 
+                bgcolor: '#FFFFFF', 
+                border: '1px solid #E0E0E0',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)',
+                  borderColor: '#9B59B6'
+                }
+              }}
+            >
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '0.95rem' }}>
                 Disability Type Distribution
               </Typography>
