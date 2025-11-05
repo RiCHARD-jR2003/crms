@@ -41,6 +41,7 @@ import AccessibilitySettings from '../shared/AccessibilitySettings';
 import MobileHeader from '../shared/MobileHeader';
 import HelpGuide from '../shared/HelpGuide';
 import { api } from '../../services/api';
+import { API_CONFIG } from '../../config/production';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
@@ -342,11 +343,8 @@ function MemberDocumentUpload() {
       formData.append('required_document_id', selectedDocument.id);
       formData.append('document', selectedFile);
 
-      const response = await api.post('/documents/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // Don't set Content-Type manually - browser will set it with boundary automatically
+      const response = await api.post('/documents/upload', formData);
 
       if (response.success) {
         setSuccess('Document uploaded successfully!');
@@ -425,7 +423,7 @@ function MemberDocumentUpload() {
 
   const buildFileUrl = (memberDoc) => {
     if (!memberDoc) return null;
-    if (memberDoc.id) return `http://192.168.18.25:8000/api/documents/file/${memberDoc.id}`;
+    if (memberDoc.id) return api.getFilePreviewUrl('document-file', memberDoc.id);
     if (memberDoc.filePath) return buildStorageUrl(memberDoc.filePath);
     return null;
   };

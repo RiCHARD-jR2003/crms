@@ -276,11 +276,8 @@ const DocumentCorrectionPage = () => {
         }
       });
 
-      const response = await api.post('/applications/submit-corrections', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      // Don't set Content-Type manually - browser will set it with boundary automatically
+      const response = await api.post('/applications/submit-corrections', formData);
 
       console.log('Submit corrections response:', response);
       

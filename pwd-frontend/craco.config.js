@@ -6,10 +6,14 @@ const { GenerateSW } = require('workbox-webpack-plugin');
 module.exports = {
   webpack: {
     configure: (webpackConfig, { env, paths }) => {
-      // Ignore source map warnings for @zxing packages
+      // Ignore source map warnings for @zxing and html5-qrcode packages
       webpackConfig.ignoreWarnings = [
         {
           module: /node_modules\/@zxing/,
+          message: /Failed to parse source map/,
+        },
+        {
+          module: /node_modules\/html5-qrcode/,
           message: /Failed to parse source map/,
         },
       ];
@@ -92,7 +96,6 @@ module.exports = {
             cleanupOutdatedCaches: true,
             exclude: [/\.map$/, /asset-manifest\.json$/],
             // Precaching - cache critical resources
-            precacheManifestFilename: 'precache-manifest.[manifestHash].js',
             additionalManifestEntries: [
               '/',
               '/dashboard',

@@ -126,11 +126,8 @@ function ReuploadDocumentsSection({ referenceNumber, onUploadSuccess }) {
         }
       });
 
-      const response = await api.post(`/application-status/${referenceNumber}/reupload-documents`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      // Don't set Content-Type manually - browser will set it with boundary automatically
+      const response = await api.post(`/application-status/${referenceNumber}/reupload-documents`, formData);
 
       if (response.success || response.data?.success) {
         setUploadMessage(response.data?.message || 'Documents uploaded successfully! Your application has been resubmitted for review.');

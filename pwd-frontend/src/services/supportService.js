@@ -40,11 +40,8 @@ export const supportService = {
       formData.append('attachment', file);
     }
     
-    return api.post('/support-tickets', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // Don't set Content-Type manually - browser will set it with boundary automatically
+    return api.post('/support-tickets', formData);
   },
   
   // Update a support ticket
@@ -132,11 +129,8 @@ export const supportService = {
       formData.append('attachment', file);
     }
     
-    return api.post(`/support-tickets/${id}/messages`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // Don't set Content-Type manually - browser will set it with boundary automatically
+    return api.post(`/support-tickets/${id}/messages`, formData);
   },
   
   // Admin-specific methods
