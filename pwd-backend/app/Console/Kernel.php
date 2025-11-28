@@ -19,6 +19,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('pwd:check-card-renewals')
             ->daily()
             ->at('09:00'); // Run at 9:00 AM daily
+
+        // Process pending applications for expiry/rejection
+        $schedule->command('applications:process-pending')
+            ->hourly(); // Run every hour
     }
 
     /**

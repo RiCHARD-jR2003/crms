@@ -2151,7 +2151,7 @@ function PWDCard() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <TextField
                         size="small"
-                        placeholder="Search members..."
+                        placeholder="Search by name, ID, barangay..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         sx={{ 
@@ -3220,7 +3220,7 @@ function PWDCard() {
                           <EditIcon sx={{ fontSize: 7, color: 'white' }} />
                         </Box>
                       </Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#FFFFFF' }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#1A1A1A' }}>
                         PWD Information
                       </Typography>
                     </Box>
@@ -3249,32 +3249,32 @@ function PWDCard() {
                       }
                     }}>
                       <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#FFFFFF', mb: 0.5, fontSize: '12px' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
                           Name:
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold' }}>
+                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
                             {selectedMemberData.lastName || ''},
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold' }}>
+                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
                             {selectedMemberData.firstName || ''},
                           </Typography>
                           {selectedMemberData.middleName && selectedMemberData.middleName.trim().toUpperCase() !== 'N/A' && (
-                            <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold' }}>
+                            <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
                               {selectedMemberData.middleName},
                             </Typography>
                           )}
-                          <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px', fontWeight: 'bold' }}>
+                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
                             {selectedMemberData.suffix || ''}
                           </Typography>
                         </Box>
                       </Box>
                       
                       <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#FFFFFF', mb: 0.5, fontSize: '12px' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
                           Address:
                         </Typography>
-                        <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px' }}>
+                        <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px' }}>
                           {(() => {
                             const addressParts = [];
                             
@@ -3308,28 +3308,28 @@ function PWDCard() {
                       
                       <Box sx={{ display: 'flex', gap: 3 }}>
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#FFFFFF', mb: 0.5, fontSize: '12px' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
                             Contact #:
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px' }}>
+                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px' }}>
                             {selectedMemberData.contactNumber || '+63 987 654 3210'}
                           </Typography>
                         </Box>
                         
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#FFFFFF', mb: 0.5, fontSize: '12px' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
                             Sex:
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px' }}>
+                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px' }}>
                             {selectedMemberData.gender || 'Male'}
                           </Typography>
                         </Box>
                         
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#FFFFFF', mb: 0.5, fontSize: '12px' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
                             Blood Type:
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#FFFFFF', fontSize: '14px' }}>
+                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px' }}>
                             {selectedMemberData.bloodType || 'O+'}
                           </Typography>
                         </Box>
@@ -3343,8 +3343,8 @@ function PWDCard() {
                       py: 4,
                       flexDirection: 'column'
                     }}>
-                      <PersonIcon sx={{ fontSize: 48, color: '#FFFFFF', mb: 1 }} />
-                      <Typography variant="body2" sx={{ color: '#FFFFFF', textAlign: 'center' }}>
+                      <PersonIcon sx={{ fontSize: 48, color: '#4A4A4A', mb: 1 }} />
+                      <Typography variant="body2" sx={{ color: '#1A1A1A', textAlign: 'center' }}>
                         Select a PWD member to view information
                       </Typography>
                     </Box>

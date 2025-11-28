@@ -46,6 +46,7 @@ import {
 } from '@mui/icons-material';
 import BarangayPresidentSidebar from '../shared/BarangayPresidentSidebar';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import dashboardService from '../../services/dashboardService';
 import { 
@@ -66,6 +67,7 @@ import {
 
 function BarangayPresidentDashboard() {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalPWDMembers: 0,
     pendingApplications: 0,
@@ -98,7 +100,10 @@ function BarangayPresidentDashboard() {
         
         // Fetch PWD members statistics
         const pwdResponse = await api.get('/pwd-members');
-        const pwdMembers = pwdResponse.data || [];
+        // Handle both response formats: {success: true, data: [...]} or direct array
+        const pwdMembers = (pwdResponse?.data && Array.isArray(pwdResponse.data)) 
+          ? pwdResponse.data 
+          : (Array.isArray(pwdResponse) ? pwdResponse : []);
         
         // Fetch applications directly from API for recent applications
         const applicationsResponse = await api.get('/applications');
@@ -161,15 +166,16 @@ function BarangayPresidentDashboard() {
   }, [currentUser]);
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'Approved': return '#27AE60';
-      case 'Pending Barangay Approval': return '#F39C12';
-      case 'Pending Admin Approval': return '#3498DB';
-      case 'Rejected': return '#E74C3C';
-      case 'active': return '#27AE60';
-      case 'inactive': return '#000000';
-      default: return '#000000';
-    }
+    if (!status) return '#000000';
+    const normalizedStatus = status.toLowerCase().trim();
+    if (normalizedStatus === 'approved' || normalizedStatus === 'active') return '#27AE60';
+    if (normalizedStatus === 'pending barangay approval' || normalizedStatus === 'pending admin approval' || normalizedStatus.includes('pending')) return '#F39C12';
+    if (normalizedStatus === 'pending admin approval') return '#3498DB';
+    if (normalizedStatus === 'rejected' || normalizedStatus === 'inactive') return '#E74C3C';
+    if (normalizedStatus === 'expired') return '#E74C3C';
+    if (normalizedStatus === 'for claiming') return '#3498DB';
+    if (normalizedStatus === 'for renewal') return '#E74C3C';
+    return '#000000';
   };
 
   if (loading) {
@@ -397,6 +403,7 @@ function BarangayPresidentDashboard() {
                   <Button
                     variant="outlined"
                     size="medium"
+                    onClick={() => navigate('/barangay-president-pwd-records')}
                     sx={{ 
                       borderColor: '#3498DB', 
                       color: '#3498DB',
@@ -422,7 +429,22 @@ function BarangayPresidentDashboard() {
                   </TableHead>
                   <TableBody>
                     {recentApplications.map((application, index) => (
-                      <TableRow key={`application-${index}`} sx={{ bgcolor: index % 2 ? '#F7FBFF' : 'white' }}>
+                      <TableRow 
+                        key={`application-${index}`} 
+                        sx={{ 
+                          bgcolor: index % 2 ? '#F7FBFF' : 'white',
+                          cursor: 'pointer',
+                          '&:hover': {
+                            bgcolor: index % 2 ? '#E8F4F8' : '#F5F5F5',
+                            transition: 'background-color 0.2s'
+                          }
+                        }}
+                        onClick={() => {
+                          if (application.applicationID) {
+                            navigate(`/barangay-president-pwd-records?applicationId=${application.applicationID}`);
+                          }
+                        }}
+                      >
                         <TableCell sx={{ py: 2, px: 2, fontSize: '0.8rem' }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Avatar sx={{ width: 32, height: 32, bgcolor: '#3498DB', fontSize: '0.75rem' }}>

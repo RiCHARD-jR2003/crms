@@ -1,188 +1,294 @@
-body {
+/* Modern, Accessible Color System - WCAG AA Compliant */
+:root {
+  /* Base colors */
+  --color-white: #FFFFFF;
+  --color-black: #1A1A1A;
+  --color-gray-50: #FAFAFA;
+  --color-gray-100: #F5F5F5;
+  --color-gray-200: #E8E8E8;
+  --color-gray-300: #D1D1D1;
+  --color-gray-400: #9E9E9E;
+  --color-gray-500: #6B6B6B;
+  --color-gray-600: #4A4A4A;
+  --color-gray-700: #333333;
+  
+  /* Semantic colors */
+  --color-success: #2E7D32;
+  --color-success-light: #4CAF50;
+  --color-success-bg: #E8F5E9;
+  --color-warning: #F57C00;
+  --color-warning-light: #FF9800;
+  --color-warning-bg: #FFF3E0;
+  --color-error: #C62828;
+  --color-error-light: #E53935;
+  --color-error-bg: #FFEBEE;
+  --color-info: #0277BD;
+  --color-info-light: #0288D1;
+  --color-info-bg: #E1F5FE;
+  
+  /* Default (Admin) colors */
+  --color-primary: #1565C0;
+  --color-primary-light: #1976D2;
+  --color-primary-dark: #0D47A1;
+  --color-primary-contrast: #FFFFFF;
+  --color-accent: #42A5F5;
+  --color-bg: #E3F2FD;
+  --color-surface: #FFFFFF;
+  --color-text: #1A1A1A;
+  --color-text-secondary: #4A4A4A;
+  
+  /* UI elements */
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-medium: rgba(0, 0, 0, 0.12);
+  --focus-ring: 0 0 0 3px rgba(21, 101, 192, 0.4);
+  --app-shell-bg: linear-gradient(180deg, #E3F2FD 0%, #F5F5F5 40%, #FFFFFF 100%);
+  --sidebar-bg: #FFFFFF;
+  --sidebar-hover: rgba(21, 101, 192, 0.08);
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --card-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  
+  /* Legacy support */
+  --color-primary-dark: #0D47A1;
+  --color-secondary: #F57C00;
+  --color-surface-muted: #F5F5F5;
+  --color-text-muted: #4A4A4A;
+  --color-border-subtle: rgba(0, 0, 0, 0.08);
+}
+
+/* SuperAdmin - Deep Purple */
+body[data-role='superadmin'] {
+  --color-primary: #5E35B1;
+  --color-primary-light: #7E57C2;
+  --color-primary-dark: #4527A0;
+  --color-primary-contrast: #FFFFFF;
+  --color-accent: #9C27B0;
+  --color-bg: #F3E5F5;
+  --sidebar-hover: rgba(94, 53, 177, 0.08);
+  --focus-ring: 0 0 0 3px rgba(94, 53, 177, 0.4);
+  --app-shell-bg: linear-gradient(180deg, #F3E5F5 0%, #F5F5F5 40%, #FFFFFF 100%);
+}
+
+/* Admin - Professional Blue */
+body[data-role='admin'] {
+  --color-primary: #1565C0;
+  --color-primary-light: #1976D2;
+  --color-primary-dark: #0D47A1;
+  --color-primary-contrast: #FFFFFF;
+  --color-accent: #42A5F5;
+  --color-bg: #E3F2FD;
+  --sidebar-hover: rgba(21, 101, 192, 0.08);
+  --focus-ring: 0 0 0 3px rgba(21, 101, 192, 0.4);
+  --app-shell-bg: linear-gradient(180deg, #E3F2FD 0%, #F5F5F5 40%, #FFFFFF 100%);
+}
+
+/* Staff1 - Teal */
+body[data-role='staff1'] {
+  --color-primary: #00695C;
+  --color-primary-light: #00897B;
+  --color-primary-dark: #004D40;
+  --color-primary-contrast: #FFFFFF;
+  --color-accent: #26A69A;
+  --color-bg: #E0F2F1;
+  --sidebar-hover: rgba(0, 105, 92, 0.08);
+  --focus-ring: 0 0 0 3px rgba(0, 105, 92, 0.4);
+  --app-shell-bg: linear-gradient(180deg, #E0F2F1 0%, #F5F5F5 40%, #FFFFFF 100%);
+}
+
+/* Staff2 - Deep Orange */
+body[data-role='staff2'] {
+  --color-primary: #E65100;
+  --color-primary-light: #FF6F00;
+  --color-primary-dark: #BF360C;
+  --color-primary-contrast: #FFFFFF;
+  --color-accent: #FF9800;
+  --color-bg: #FFF3E0;
+  --sidebar-hover: rgba(230, 81, 0, 0.08);
+  --focus-ring: 0 0 0 3px rgba(230, 81, 0, 0.4);
+  --app-shell-bg: linear-gradient(180deg, #FFF3E0 0%, #F5F5F5 40%, #FFFFFF 100%);
+}
+
+/* FrontDesk - Purple */
+body[data-role='frontdesk'] {
+  --color-primary: #6A1B9A;
+  --color-primary-light: #8E24AA;
+  --color-primary-dark: #4A148C;
+  --color-primary-contrast: #FFFFFF;
+  --color-accent: #AB47BC;
+  --color-bg: #F3E5F5;
+  --sidebar-hover: rgba(106, 27, 154, 0.08);
+  --focus-ring: 0 0 0 3px rgba(106, 27, 154, 0.4);
+  --app-shell-bg: linear-gradient(180deg, #F3E5F5 0%, #F5F5F5 40%, #FFFFFF 100%);
+}
+
+/* PWDMember - Teal Green */
+body[data-role='pwdmember'] {
+  --color-primary: #00796B;
+  --color-primary-light: #009688;
+  --color-primary-dark: #004D40;
+  --color-primary-contrast: #FFFFFF;
+  --color-accent: #26A69A;
+  --color-bg: #E0F2F1;
+  --sidebar-hover: rgba(0, 121, 107, 0.08);
+  --focus-ring: 0 0 0 3px rgba(0, 121, 107, 0.4);
+  --app-shell-bg: linear-gradient(180deg, #E0F2F1 0%, #F5F5F5 40%, #FFFFFF 100%);
+}
+
+/* BarangayPresident - Green */
+body[data-role='barangaypresident'] {
+  --color-primary: #2E7D32;
+  --color-primary-light: #388E3C;
+  --color-primary-dark: #1B5E20;
+  --color-primary-contrast: #FFFFFF;
+  --color-accent: #66BB6A;
+  --color-bg: #E8F5E9;
+  --sidebar-hover: rgba(46, 125, 50, 0.08);
+  --focus-ring: 0 0 0 3px rgba(46, 125, 50, 0.4);
+  --app-shell-bg: linear-gradient(180deg, #E8F5E9 0%, #F5F5F5 40%, #FFFFFF 100%);
+}
+
+body,
+html {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  padding: 0;
+  height: 100%;
+  font-family: 'Nunito', 'Roboto', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  background: var(--app-shell-bg);
+  color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #000000 !important;
-  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-x: hidden;
+  letter-spacing: 0.01em;
+  min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  font-size: 16px; /* Base font size for accessibility */
+  line-height: 1.6; /* Improved readability */
 }
 
-* {
-  color: #000000 !important;
-  box-sizing: border-box; /* Include padding and border in element's total width and height */
+#root {
+  min-height: 100vh;
 }
 
-.MuiTypography-root {
-  color: #000000 !important;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-.MuiTypography-h1,
-.MuiTypography-h2,
-.MuiTypography-h3,
-.MuiTypography-h4,
-.MuiTypography-h5,
-.MuiTypography-h6,
-.MuiTypography-body1,
-.MuiTypography-body2,
-.MuiTypography-caption {
-  color: #000000 !important;
+a {
+  color: var(--color-primary);
+  text-decoration: none;
 }
 
-/* Force all text in dashboard components to be black */
-[class*="MuiTypography"] {
-  color: #000000 !important;
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
 }
 
-/* Override any white text */
-p, span, div, h1, h2, h3, h4, h5, h6 {
-  color: #000000 !important;
+button,
+[role='button'],
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+/* Enhanced focus styles for accessibility */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 6px;
+  outline-offset: 2px;
 }
 
-/* Screen reader only class for accessibility */
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --color-border: rgba(0, 0, 0, 0.3);
+    --color-border-medium: rgba(0, 0, 0, 0.5);
+    --focus-ring: 0 0 0 3px currentColor;
+  }
+  
+  body {
+    background: var(--color-white);
+    color: var(--color-black);
+  }
+}
+
 .sr-only {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-/* Skip links for accessibility */
 .skip-link {
   position: absolute;
   top: -40px;
   left: 6px;
-  background: #000;
+  background: var(--color-primary);
   color: #fff;
-  padding: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
   text-decoration: none;
   z-index: 1000;
+  box-shadow: var(--card-shadow);
 }
 
 .skip-link:focus {
-  top: 6px;
+  top: 12px;
 }
 
-/* Mobile Responsive Styles - Removed !important rules to allow Material-UI responsive behavior */
+.app-surface {
+  background: var(--color-surface);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: var(--card-shadow);
+}
+
 @media (max-width: 768px) {
-  /* Touch-friendly minimum sizes */
   .MuiButton-root {
-    min-height: 44px; /* Touch-friendly minimum size */
+    min-height: 48px;
   }
-  
-  /* Paper adjustments */
-  .MuiPaper-root {
-    margin: 4px;
-  }
-  
-  /* Dialog adjustments for mobile */
+
   .MuiDialog-paper {
     margin: 16px;
     max-height: calc(100vh - 32px);
-    max-width: calc(100vw - 32px);
   }
-  
-  /* Form control adjustments */
-  .MuiTextField-root {
-    margin-bottom: 16px;
+
+  .app-surface {
+    border-radius: 16px;
+    padding: 16px;
   }
-  
-  .MuiInputBase-root {
-    font-size: 16px !important; /* Prevent zoom on iOS */
-  }
-  
-  /* Table adjustments for mobile - removed !important to allow Material-UI responsive behavior */
 }
 
-/* Tablet styles - removed !important rules to allow Material-UI responsive behavior */
-@media (min-width: 769px) and (max-width: 1024px) {
-  /* Let Material-UI handle tablet responsiveness */
-}
-
-/* Touch-friendly interactions */
+/* Touch target sizes for accessibility (WCAG 2.5.5) */
 @media (hover: none) and (pointer: coarse) {
-  /* Touch device styles */
-  .MuiButton-root {
-    min-height: 48px !important;
-    min-width: 48px !important;
+  .MuiButton-root,
+  .MuiIconButton-root,
+  .MuiFab-root,
+  .MuiListItem-root,
+  .MuiMenuItem-root,
+  button,
+  [role='button'],
+  a[role='button'] {
+    min-height: 44px;
+    min-width: 44px;
   }
   
-  .MuiIconButton-root {
-    min-height: 48px !important;
-    min-width: 48px !important;
-  }
-  
-  .MuiFab-root {
-    min-height: 56px !important;
-    min-width: 56px !important;
-  }
-  
-  /* Increase touch targets */
-  .MuiListItem-root {
-    min-height: 48px !important;
-  }
-  
-  .MuiMenuItem-root {
-    min-height: 48px !important;
-  }
-  
-  /* Remove hover effects on touch devices */
-  .MuiButton-root:hover,
-  .MuiIconButton-root:hover,
-  .MuiCard-root:hover {
-    transform: none !important;
-    box-shadow: inherit !important;
-  }
-}
-
-/* Landscape mobile orientation */
-@media (max-width: 768px) and (orientation: landscape) {
-  .MuiTypography-h1 {
-    font-size: 1.5rem !important;
-  }
-  
-  .MuiTypography-h2 {
-    font-size: 1.3rem !important;
-  }
-  
-  .MuiTypography-h3 {
-    font-size: 1.1rem !important;
-  }
-  
-  .MuiDialog-paper {
-    max-height: calc(100vh - 16px) !important;
-  }
-}
-
-/* High DPI displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  /* Ensure crisp text rendering on high DPI displays */
+  /* Ensure text is readable on touch devices */
   body {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    font-size: 17px; /* iOS minimum readable size */
   }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  /* Keep text black as per design requirements */
-  body, * {
-    color: #000000 !important;
-  }
-}
-
-/* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
@@ -191,13 +297,12 @@ code {
   }
 }
 
-/* Print styles */
 @media print {
   body {
     background: white !important;
     color: black !important;
   }
-  
+
   .MuiAppBar-root,
   .MuiDrawer-root,
   .MuiFab-root {

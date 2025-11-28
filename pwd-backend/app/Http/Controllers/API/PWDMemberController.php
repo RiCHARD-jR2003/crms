@@ -12,53 +12,82 @@ class PWDMemberController extends Controller
     public function index()
     {
         try {
-            // Optimize query: only select needed columns and use eager loading if needed
-            $members = PWDMember::select([
-                'id',
-                'userID',
-                'pwd_id',
-                'pwd_id_generated_at',
-                'firstName',
-                'lastName',
-                'middleName',
-                'suffix',
-                'birthDate',
-                'gender',
-                'disabilityType',
-                'address',
-                'contactNumber',
-                'email',
-                'barangay',
-                'emergencyContact',
-                'emergencyPhone',
-                'emergencyRelationship',
-                'status',
-                'cardClaimed',
-                'cardIssueDate',
-                'cardExpirationDate',
-                'created_at',
-                'updated_at'
-            ])->get();
+            // Cache for 10 minutes
+            $cacheKey = 'pwd_members.all';
+            $enhancedMembers = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(10), function () {
+                try {
+                    // Optimize query: only select needed columns
+                    $members = PWDMember::select([
+                        'id',
+                        'userID',
+                        'pwd_id',
+                        'pwd_id_generated_at',
+                        'firstName',
+                        'lastName',
+                        'middleName',
+                        'suffix',
+                        'birthDate',
+                        'gender',
+                        'disabilityType',
+                        'address',
+                        'contactNumber',
+                        'email',
+                        'barangay',
+                        'emergencyContact',
+                        'emergencyPhone',
+                        'emergencyRelationship',
+                        'status',
+                        'cardClaimed',
+                        'cardIssueDate',
+                        'cardExpirationDate',
+                        'created_at',
+                        'updated_at'
+                    ])->get();
+                } catch (\Exception $e) {
+                    // If table doesn't exist or query fails, return empty collection
+                    \Illuminate\Support\Facades\Log::warning('PWDMember query failed, returning empty collection', [
+                        'error' => $e->getMessage()
+                    ]);
+                    $members = collect([]);
+                }
             
-            // Enhance members with data from approved applications if available
-            $enhancedMembers = $members->map(function ($member) {
-                // Get contact number and emergency contact from approved application as fallback
-                $approvedApplication = \App\Models\Application::where('pwdID', $member->userID)
-                    ->where('status', 'Approved')
-                    ->latest()
-                    ->first();
-                
-                if ($approvedApplication) {
-                    // Use application data as fallback if member data is missing
-                    if (empty($member->contactNumber) && !empty($approvedApplication->contactNumber)) {
-                        $member->contactNumber = $approvedApplication->contactNumber;
-                    }
-                    if (empty($member->emergencyContact) && !empty($approvedApplication->emergencyContact)) {
-                        $member->emergencyContact = $approvedApplication->emergencyContact;
+                // Get all approved applications in one query to avoid N+1
+                $approvedApplications = collect([]);
+                if ($members->isNotEmpty()) {
+                    try {
+                        $approvedApplications = \App\Models\Application::where('status', 'Approved')
+                            ->whereIn('pwdID', $members->pluck('userID'))
+                            ->select(['pwdID', 'contactNumber', 'emergencyContact'])
+                            ->get()
+                            ->groupBy('pwdID')
+                            ->map(function ($apps) {
+                                return $apps->first(); // Get latest (first in collection)
+                            });
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::warning('Failed to fetch approved applications', [
+                            'error' => $e->getMessage()
+                        ]);
                     }
                 }
                 
-                return $member;
+                // Enhance members with data from approved applications if available
+                $enhancedMembers = $members->map(function ($member) use ($approvedApplications) {
+                    $approvedApplication = $approvedApplications->get($member->userID);
+                    
+                    if ($approvedApplication) {
+                        // Use application data as fallback if member data is missing
+                        if (empty($member->contactNumber) && !empty($approvedApplication->contactNumber)) {
+                            $member->contactNumber = $approvedApplication->contactNumber;
+                        }
+                        if (empty($member->emergencyContact) && !empty($approvedApplication->emergencyContact)) {
+                            $member->emergencyContact = $approvedApplication->emergencyContact;
+                        }
+                    }
+                    
+                    return $member;
+                });
+                
+                return $enhancedMembers; // Return from cache closure
             });
             
             return response()->json([
@@ -67,9 +96,14 @@ class PWDMemberController extends Controller
                 'count' => $enhancedMembers->count()
             ]);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('PWDMemberController::index error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'message' => 'Failed to fetch PWD members'
             ], 500);
         }
     }

@@ -2,9 +2,9 @@
 // Update these URLs to match your Hostinger domain
 
 const PRODUCTION_CONFIG = {
-  // Updated for Hostinger temporary domain
-  API_BASE_URL: 'https://lightgoldenrodyellow-ibis-644404.hostingersite.com/api',
-  STORAGE_BASE_URL: 'https://lightgoldenrodyellow-ibis-644404.hostingersite.com',
+  // Cloudflare tunnel (live frontend)
+  API_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com',
   
   // Example configurations for different domains:
   // API_BASE_URL: 'https://pwdmanagement.yourdomain.com/api',
@@ -30,8 +30,8 @@ const DEVELOPMENT_CONFIG = {
 // Cloudflare Tunnel Configuration (for accessing from other devices)
 const CLOUDFLARE_TUNNEL_CONFIG = {
   // Backend API through Cloudflare tunnel
-  API_BASE_URL: 'https://nylon-accountability-businesses-architect.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://nylon-accountability-businesses-architect.trycloudflare.com',
+  API_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com',
 };
 
 // Export configuration - Change this to CLOUDFLARE_TUNNEL_CONFIG when using Cloudflare tunnels

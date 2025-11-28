@@ -1391,7 +1391,7 @@ function PWDRecords() {
                   <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', width: '100%' }}>
                     <TextField 
                       size="small" 
-                      placeholder="Search table" 
+                      placeholder="Search by name, ID, barangay, disability, status..." 
                       value={filters.search}
                       onChange={(e) => handleFilterChange('search', e.target.value)}
                       sx={{ 
@@ -1941,9 +1941,16 @@ function PWDRecords() {
                                     label={row.status} 
                                     size="small"
                                     sx={{ 
-                                      bgcolor: row.status === 'Active' ? '#27AE60' : 
-                                            row.status === 'Pending' ? '#F39C12' : 
-                                            row.status === 'Suspended' ? '#E74C3C' : '#95A5A6',
+                                      bgcolor: (() => {
+                                        const status = (row.status || '').toLowerCase();
+                                        if (status === 'active' || status === 'approved') return '#27AE60';
+                                        if (status === 'pending') return '#F39C12';
+                                        if (status === 'suspended' || status === 'rejected') return '#E74C3C';
+                                        if (status === 'expired') return '#E74C3C';
+                                        if (status === 'for claiming') return '#3498DB';
+                                        if (status === 'for renewal') return '#E74C3C';
+                                        return '#95A5A6';
+                                      })(),
                                       color: '#FFFFFF',
                                       fontSize: '0.7rem',
                                       fontWeight: 600,
@@ -2676,9 +2683,16 @@ function PWDRecords() {
                       label={selectedApplication.status || 'Pending'} 
                       size="small"
                       sx={{ 
-                        bgcolor: (selectedApplication.status || 'Pending') === 'Approved' ? '#27AE60' : 
-                               (selectedApplication.status || 'Pending') === 'Pending' ? '#F39C12' : 
-                               (selectedApplication.status || 'Pending') === 'Rejected' ? '#E74C3C' : '#95A5A6',
+                        bgcolor: (() => {
+                          const status = (selectedApplication.status || 'Pending').toLowerCase();
+                          if (status === 'approved') return '#27AE60';
+                          if (status === 'pending') return '#F39C12';
+                          if (status === 'rejected') return '#E74C3C';
+                          if (status === 'expired') return '#E74C3C';
+                          if (status === 'for claiming') return '#3498DB';
+                          if (status === 'for renewal') return '#E74C3C';
+                          return '#95A5A6';
+                        })(),
                         color: '#FFFFFF',
                         fontWeight: 'bold',
                         fontSize: '0.75rem'

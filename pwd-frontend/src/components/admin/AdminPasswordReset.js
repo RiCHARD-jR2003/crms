@@ -358,7 +358,7 @@ function AdminPasswordReset({ open, onClose }) {
               </Typography>
               <TextField
                 size="small"
-                placeholder="Search by email..."
+                placeholder="Search by email, username, role..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 sx={{

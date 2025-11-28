@@ -69,7 +69,14 @@ function BarangayPresidentAnnouncement() {
         authorRole: announcement.author?.role || 'Admin'
       }));
       
-      setAnnouncements(filteredAnnouncements);
+      // Ensure latest-first sorting (backend should do this, but sort as fallback)
+      const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) => {
+        const dateA = new Date(a.publishDate || a.created_at || 0);
+        const dateB = new Date(b.publishDate || b.created_at || 0);
+        return dateB - dateA; // Latest first
+      });
+      
+      setAnnouncements(sortedAnnouncements);
     } catch (err) {
       console.error('Error fetching announcements:', err);
       setError('Failed to fetch announcements');

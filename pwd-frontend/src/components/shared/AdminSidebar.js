@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Avatar, IconButton, Badge } from '@mui/material';
+import { Box, Typography, Button, Avatar, IconButton, Badge, Collapse } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
@@ -10,17 +10,23 @@ import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import SecurityIcon from '@mui/icons-material/Security';
 import DescriptionIcon from '@mui/icons-material/Description';
+import UpdateIcon from '@mui/icons-material/Update';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import Menu from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FolderIcon from '@mui/icons-material/Folder';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supportService } from '../../services/supportService';
 import toastService from '../../services/toastService';
 import ChangePassword from '../auth/ChangePassword';
 import AdminPasswordReset from '../admin/AdminPasswordReset';
+import NotificationBell from './NotificationBell';
 
 function AdminSidebar({ isOpen, onToggle }) {
   const navigate = useNavigate();
@@ -29,6 +35,10 @@ function AdminSidebar({ isOpen, onToggle }) {
   const [supportNotifications, setSupportNotifications] = useState(0);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [adminPasswordResetOpen, setAdminPasswordResetOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState({
+    memberManagement: true,
+    benefitTracking: true
+  });
 
   useEffect(() => {
     const fetchSupportNotifications = async () => {
@@ -65,37 +75,100 @@ function AdminSidebar({ isOpen, onToggle }) {
     return location.pathname === path;
   };
 
-  const SidebarItem = ({ icon, label, path, active = false, badgeCount = 0 }) => {
+  // Check if any sub-item in a group is active
+  const isGroupActive = (paths) => {
+    return paths.some(path => isActive(path));
+  };
+
+  const toggleGroup = (groupName) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupName]: !prev[groupName]
+    }));
+  };
+
+  const SidebarItem = ({ icon, label, path, active = false, badgeCount = 0, isSubItem = false }) => {
     return (
       <Box 
         onClick={() => navigate(path)}
         sx={{
           display: 'flex', 
           alignItems: 'center', 
-          gap: 1.5, // Restored to comfortable size
-          px: 1.5, // Restored to comfortable size
-          py: 1, // Restored to comfortable size
+          gap: 1.5,
+          px: isSubItem ? 3 : 1.5, // Indent sub-items
+          py: 0.75,
           borderRadius: 2, 
-          mb: 0.5, // Restored to comfortable size
-          bgcolor: active ? '#0b87ac' : 'transparent',
-          color: active ? '#FFFFFF' : '#566573',
+          mb: 0.5,
+          bgcolor: active ? 'var(--color-primary)' : 'transparent',
+          color: active ? '#FFFFFF' : 'var(--color-text-muted)',
           fontWeight: active ? 600 : 500,
           '&:hover': {
-            background: active ? '#0a6b8a' : '#E8F0FE',
+            background: active ? 'var(--color-primary-dark)' : 'var(--sidebar-hover)',
             cursor: 'pointer',
-            color: active ? '#FFFFFF' : '#0b87ac'
+            color: active ? '#FFFFFF' : 'var(--color-primary)'
           },
           transition: 'all 0.2s ease-in-out'
         }}
       >
         {badgeCount > 0 ? (
           <Badge badgeContent={badgeCount} color="error">
-            {React.cloneElement(icon, { sx: { fontSize: 22, color: active ? '#FFFFFF' : '#566573' } })}
+            {React.cloneElement(icon, { sx: { fontSize: isSubItem ? 18 : 22, color: active ? '#FFFFFF' : 'var(--color-text-muted)' } })}
           </Badge>
         ) : (
-          React.cloneElement(icon, { sx: { fontSize: 22, color: active ? '#FFFFFF' : '#566573' } })
+          React.cloneElement(icon, { sx: { fontSize: isSubItem ? 18 : 22, color: active ? '#FFFFFF' : 'var(--color-text-muted)' } })
         )}
-        <Typography sx={{ fontWeight: 'inherit', fontSize: '0.95rem', color: active ? '#FFFFFF' : '#566573' }}>{label}</Typography>
+        <Typography sx={{ fontWeight: 'inherit', fontSize: isSubItem ? '0.9rem' : '0.95rem', color: active ? '#FFFFFF' : 'var(--color-text-muted)' }}>{label}</Typography>
+      </Box>
+    );
+  };
+
+  const SidebarGroup = ({ icon, label, groupName, children, paths = [] }) => {
+    const isExpanded = expandedGroups[groupName];
+    const groupActive = isGroupActive(paths);
+    
+    return (
+      <Box>
+        <Box 
+          onClick={() => toggleGroup(groupName)}
+          sx={{
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1,
+            px: 1.5,
+            py: 0.75,
+            borderRadius: 2, 
+            mb: 0.5,
+            bgcolor: groupActive ? 'var(--color-primary)' : 'transparent',
+            color: groupActive ? '#FFFFFF' : 'var(--color-text-muted)',
+            fontWeight: groupActive ? 600 : 500,
+            '&:hover': {
+              background: groupActive ? 'var(--color-primary-dark)' : 'var(--sidebar-hover)',
+              cursor: 'pointer',
+              color: groupActive ? '#FFFFFF' : 'var(--color-primary)'
+            },
+            transition: 'all 0.2s ease-in-out'
+          }}
+        >
+          <IconButton 
+            size="small" 
+            sx={{ 
+              p: 0.5, 
+              color: groupActive ? '#FFFFFF' : 'var(--color-text-muted)',
+              '&:hover': { bgcolor: 'transparent' }
+            }}
+          >
+            {isExpanded ? <ExpandMoreIcon sx={{ fontSize: 18 }} /> : <ChevronRightIcon sx={{ fontSize: 18 }} />}
+          </IconButton>
+          {React.cloneElement(icon, { sx: { fontSize: 22, color: groupActive ? '#FFFFFF' : 'var(--color-text-muted)' } })}
+          <Typography sx={{ fontWeight: 'inherit', fontSize: '0.95rem', color: groupActive ? '#FFFFFF' : 'var(--color-text-muted)' }}>
+            {label}
+          </Typography>
+        </Box>
+        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+          <Box sx={{ pl: 0.5 }}>
+            {children}
+          </Box>
+        </Collapse>
       </Box>
     );
   };
@@ -103,19 +176,19 @@ function AdminSidebar({ isOpen, onToggle }) {
   return (
     <Box sx={{ 
       width: { xs: isOpen ? 280 : 0, md: 280 },
-      bgcolor: '#FFFFFF', 
-      color: '#333', 
+      bgcolor: 'var(--sidebar-bg)', 
+      color: 'var(--color-text)', 
       display: 'flex', 
       flexDirection: 'column',
       position: 'fixed',
       height: '100vh',
       left: 0,
       top: 0,
-      borderRight: '1px solid #E0E0E0',
+      borderRight: '1px solid var(--color-border-subtle)',
       zIndex: 1300,
       transition: 'width 0.3s ease-in-out',
       overflow: 'hidden', // No scrolling - all content should fit
-      boxShadow: { xs: isOpen ? '2px 0 8px rgba(0,0,0,0.1)' : 'none', md: 'none' }
+      boxShadow: { xs: isOpen ? '0 20px 35px rgba(11,31,51,0.15)' : 'none', md: '0 8px 24px rgba(11,31,51,0.08)' }
     }}>
       {/* Header with Logo and Toggle Button */}
       <Box sx={{ 
@@ -188,10 +261,12 @@ function AdminSidebar({ isOpen, onToggle }) {
         <Typography sx={{ 
           fontWeight: 600, 
           color: '#2C3E50',
-          display: { xs: isOpen ? 'block' : 'none', md: 'block' }
+          display: { xs: isOpen ? 'block' : 'none', md: 'block' },
+          flex: 1
         }}>
           Hello {currentUser?.role === 'SuperAdmin' ? 'SuperAdmin' : 'Admin'}
         </Typography>
+        <NotificationBell />
       </Box>
 
       {/* Navigation Menu */}
@@ -210,43 +285,74 @@ function AdminSidebar({ isOpen, onToggle }) {
           path="/admin-dashboard"
           active={isActive('/admin-dashboard') || isActive('/dashboard')}
         />
-        {/* Full SuperAdmin/Admin navigation */}
-        <SidebarItem 
-          icon={<PeopleIcon />} 
-          label="PWD Masterlist" 
-          path="/pwd-records"
-          active={isActive('/pwd-records')}
-        />
-        <SidebarItem 
-          icon={<CreditCardIcon />} 
-          label="PWD Card" 
-          path="/pwd-card"
-          active={isActive('/pwd-card')}
-        />
+        
+        {/* Member Management Group */}
+        <SidebarGroup 
+          icon={<PeopleIcon />}
+          label="Member Management"
+          groupName="memberManagement"
+          paths={['/pwd-records', '/pwd-card']}
+        >
+          <SidebarItem 
+            icon={<PeopleIcon />} 
+            label="PWD Masterlist" 
+            path="/pwd-records"
+            active={isActive('/pwd-records')}
+            isSubItem={true}
+          />
+          <SidebarItem 
+            icon={<CreditCardIcon />} 
+            label="PWD Card" 
+            path="/pwd-card"
+            active={isActive('/pwd-card')}
+            isSubItem={true}
+          />
+        </SidebarGroup>
+
         <SidebarItem 
           icon={<BarChartIcon />} 
           label="Analytics" 
           path="/analytics"
           active={isActive('/analytics')}
         />
+        
         <SidebarItem 
-          icon={<FavoriteIcon />} 
-          label="Ayuda" 
-          path="/ayuda"
-          active={isActive('/ayuda')}
+          icon={<UpdateIcon />} 
+          label="ID Renewal" 
+          path="/renewal-dashboard"
+          active={isActive('/renewal-dashboard')}
         />
-        <SidebarItem 
-          icon={<TrackChangesIcon />} 
-          label="Benefit Tracking" 
-          path="/benefit-tracking"
-          active={isActive('/benefit-tracking')}
-        />
-        <SidebarItem 
-          icon={<DescriptionIcon />} 
-          label="Claim History" 
-          path="/claim-history"
-          active={isActive('/claim-history')}
-        />
+        
+        {/* Benefit Tracking Group */}
+        <SidebarGroup 
+          icon={<TrackChangesIcon />}
+          label="Benefit Tracking"
+          groupName="benefitTracking"
+          paths={['/ayuda', '/benefit-tracking', '/claim-history']}
+        >
+          <SidebarItem 
+            icon={<FavoriteIcon />} 
+            label="Ayuda" 
+            path="/ayuda"
+            active={isActive('/ayuda')}
+            isSubItem={true}
+          />
+          <SidebarItem 
+            icon={<TrackChangesIcon />} 
+            label="Benefit Tracking" 
+            path="/benefit-tracking"
+            active={isActive('/benefit-tracking')}
+            isSubItem={true}
+          />
+          <SidebarItem 
+            icon={<DescriptionIcon />} 
+            label="Claim History" 
+            path="/claim-history"
+            active={isActive('/claim-history')}
+            isSubItem={true}
+          />
+        </SidebarGroup>
+
         <SidebarItem 
           icon={<AnnouncementIcon />} 
           label="Announcement" 

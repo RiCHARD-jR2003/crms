@@ -135,35 +135,55 @@ class DocumentMigrationService
                             'document' => $documentName
                         ]);
                         
-                    // Use updateOrCreate to prevent duplicates and update if exists
-                    $memberDocument = MemberDocument::updateOrCreate(
-                        [
+                        // Use updateOrCreate to prevent duplicates and update if exists
+                        $memberDocument = MemberDocument::updateOrCreate(
+                            [
+                                'member_id' => $pwdUser->userID,
+                                'required_document_id' => $requiredDocument->id,
+                            ],
+                            [
+                                'file_path' => $destinationRelativePath, // Store new path in member-documents storage
+                                'file_name' => $originalFileName, // Keep original filename
+                                'file_size' => $fileSize,
+                                'file_type' => $fileType,
+                                'uploaded_at' => $application->submissionDate ?? now(),
+                                'status' => 'approved', // Mark as approved since application was approved
+                                'notes' => 'Migrated from application form',
+                                'reviewed_by' => $reviewedBy, // Admin who approved the application
+                                'reviewed_at' => now(),
+                                'updated_at' => now()
+                            ]
+                        );
+                        
+                        Log::info('MemberDocument created/updated', [
+                            'member_document_id' => $memberDocument->id,
                             'member_id' => $pwdUser->userID,
                             'required_document_id' => $requiredDocument->id,
-                        ],
-                        [
-                            'file_path' => $destinationRelativePath, // Store new path in member-documents storage
-                            'file_name' => $originalFileName, // Keep original filename
-                            'file_size' => $fileSize,
-                            'file_type' => $fileType,
-                            'uploaded_at' => $application->submissionDate ?? now(),
-                            'status' => 'approved', // Mark as approved since application was approved
-                            'notes' => 'Migrated from application form',
-                            'reviewed_by' => $reviewedBy, // Admin who approved the application
-                            'reviewed_at' => now(),
-                            'updated_at' => now()
-                        ]
-                    );
-                    
-                    Log::info('MemberDocument created/updated', [
-                        'member_document_id' => $memberDocument->id,
-                        'member_id' => $pwdUser->userID,
-                        'required_document_id' => $requiredDocument->id,
-                        'document_name' => $documentName,
-                        'file_path' => $destinationRelativePath,
-                        'was_recently_created' => $memberDocument->wasRecentlyCreated
-                    ]);
-                } else {
+                            'document_name' => $documentName,
+                            'file_path' => $destinationRelativePath,
+                            'was_recently_created' => $memberDocument->wasRecentlyCreated
+                        ]);
+                        
+                        // Count as migrated if it was newly created OR updated
+                        if ($memberDocument->wasRecentlyCreated) {
+                            $migratedCount++;
+                            Log::info('Document migrated successfully', [
+                                'member_id' => $pwdUser->userID,
+                                'document' => $documentName,
+                                'member_document_id' => $memberDocument->id,
+                                'source_path' => $filePath,
+                                'destination_path' => $destinationRelativePath
+                            ]);
+                        } else {
+                            $migratedCount++; // Also count updates as migrations
+                            Log::info('Document already exists, updated', [
+                                'member_id' => $pwdUser->userID,
+                                'document' => $documentName,
+                                'member_document_id' => $memberDocument->id,
+                                'new_path' => $destinationRelativePath
+                            ]);
+                        }
+                    } else {
                         Log::error('Failed to copy file to member documents storage', [
                             'source' => $sourceFilePath,
                             'destination' => $destinationFilePath,
@@ -173,25 +193,12 @@ class DocumentMigrationService
                         continue; // Skip if copy failed
                     }
                     
-                    // Count as migrated if it was newly created OR updated
-                    if ($memberDocument->wasRecentlyCreated) {
-                        $migratedCount++;
-                        Log::info('Document migrated successfully', [
-                            'member_id' => $pwdUser->userID,
-                            'document' => $documentName,
-                            'member_document_id' => $memberDocument->id,
-                            'source_path' => $filePath,
-                            'destination_path' => $destinationRelativePath
-                        ]);
-                    } else {
-                        $migratedCount++; // Also count updates as migrations
-                        Log::info('Document already exists, updated', [
-                            'member_id' => $pwdUser->userID,
-                            'document' => $documentName,
-                            'member_document_id' => $memberDocument->id,
-                            'new_path' => $destinationRelativePath
-                        ]);
-                    }
+                } else {
+                    Log::info('Document field is empty, skipping migration', [
+                        'field' => $fieldName,
+                        'document_name' => $documentName,
+                        'application_id' => $application->applicationID
+                    ]);
                 }
             }
 

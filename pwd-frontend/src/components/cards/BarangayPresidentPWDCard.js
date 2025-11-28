@@ -269,7 +269,7 @@ function BarangayPresidentPWDCard() {
           </Button>
           <Box sx={{ flexGrow: 1 }} />
           <TextField
-            placeholder="Search table"
+            placeholder="Search by name, ID, barangay..."
             size="small"
             sx={{
               width: 300,

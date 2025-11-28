@@ -38,7 +38,8 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   Download as DownloadIcon,
-  PictureAsPdf as PictureAsPdfIcon
+  PictureAsPdf as PictureAsPdfIcon,
+  Lightbulb as LightbulbIcon
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -60,6 +61,7 @@ import pwdMemberService from '../../services/pwdMemberService';
 import { applicationService } from '../../services/applicationService';
 import benefitService from '../../services/benefitService';
 import { supportService } from '../../services/supportService';
+import analyticsService from '../../services/analyticsService';
 
 // All 18 Barangays in Cabuyao
 const ALL_BARANGAYS = [
@@ -248,9 +250,37 @@ const Analytics = () => {
     ticketStatus: true
   });
 
+  // Comprehensive Analytics State
+  const [comprehensiveAnalytics, setComprehensiveAnalytics] = useState(null);
+  const [loadingComprehensive, setLoadingComprehensive] = useState(false);
+
   useEffect(() => {
     fetchAnalyticsData();
   }, []);
+
+  useEffect(() => {
+    fetchComprehensiveAnalytics();
+  }, [dateRange, selectedBarangays]);
+
+  // Fetch comprehensive analytics
+  const fetchComprehensiveAnalytics = async () => {
+    try {
+      setLoadingComprehensive(true);
+      const response = await analyticsService.getComprehensiveAnalytics({
+        start_date: dateRange === 'all' ? null : (dateRange === 'month' ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : null),
+        end_date: new Date().toISOString().split('T')[0],
+        barangay: selectedBarangays.length === 1 ? selectedBarangays[0] : null
+      });
+      
+      if (response.success && response.data) {
+        setComprehensiveAnalytics(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching comprehensive analytics:', error);
+    } finally {
+      setLoadingComprehensive(false);
+    }
+  };
 
   // Allowed benefit types (case-insensitive match)
   const ALLOWED_BENEFIT_TYPES = useMemo(() => ['Financial Assistance', 'Birthday Cash Gift'], []);
@@ -1816,6 +1846,262 @@ END OF REPORT
             </div>
           </Grid>
         </Grid>
+
+        {/* Enhanced Analytics Section */}
+        {comprehensiveAnalytics && (
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: '#2C3E50', mb: 3 }}>
+              Enhanced Analytics & Insights
+            </Typography>
+
+            {/* Actionable Insights */}
+            {comprehensiveAnalytics.actionable_insights && comprehensiveAnalytics.actionable_insights.length > 0 && (
+              <Paper sx={{ p: 3, mb: 3, bgcolor: '#FFF9E6', border: '2px solid #F39C12', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <LightbulbIcon sx={{ color: '#F39C12', fontSize: 28 }} />
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                    Actionable Insights
+                  </Typography>
+                </Box>
+                <Grid container spacing={2}>
+                  {comprehensiveAnalytics.actionable_insights.map((insight, idx) => (
+                    <Grid item xs={12} md={6} key={idx}>
+                      <Card sx={{ 
+                        bgcolor: insight.priority === 'high' ? '#FFEBEE' : '#E3F2FD',
+                        border: `2px solid ${insight.priority === 'high' ? '#E74C3C' : '#3498DB'}`,
+                        borderRadius: 2
+                      }}>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                            <Chip 
+                              label={insight.priority.toUpperCase()} 
+                              size="small" 
+                              color={insight.priority === 'high' ? 'error' : 'primary'}
+                              sx={{ fontWeight: 700 }}
+                            />
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                              {insight.title}
+                            </Typography>
+                          </Box>
+                          <Typography variant="body2" sx={{ color: '#34495E', mb: 1.5 }}>
+                            {insight.message}
+                          </Typography>
+                          <Box sx={{ mt: 1.5, p: 1.5, bgcolor: 'rgba(255,255,255,0.7)', borderRadius: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: '#2C3E50', display: 'block', mb: 0.5 }}>
+                              Recommended Action:
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#27AE60', fontWeight: 500 }}>
+                              {insight.action}
+                            </Typography>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Paper>
+            )}
+
+            {/* Renewal Analytics */}
+            {comprehensiveAnalytics.renewal_analytics && (
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                <Grid item xs={12}>
+                  <Paper sx={{ p: 3, borderRadius: 2, bgcolor: '#FFFFFF', boxShadow: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50', mb: 2 }}>
+                      Renewal Analytics
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Card sx={{ bgcolor: '#FFF3E0', border: '1px solid #F39C12' }}>
+                          <CardContent>
+                            <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Expiring Soon (30 days)</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#F39C12' }}>
+                              {comprehensiveAnalytics.renewal_analytics.expiring_soon || 0}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Card sx={{ bgcolor: '#FFEBEE', border: '1px solid #E74C3C' }}>
+                          <CardContent>
+                            <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Expired Cards</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#E74C3C' }}>
+                              {comprehensiveAnalytics.renewal_analytics.expired || 0}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Card sx={{ bgcolor: '#E8F5E9', border: '1px solid #27AE60' }}>
+                          <CardContent>
+                            <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Renewal Rate</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#27AE60' }}>
+                              {comprehensiveAnalytics.renewal_analytics.renewal_rate?.toFixed(1) || 0}%
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Card sx={{ bgcolor: '#F3E5F5', border: '1px solid #9B59B6' }}>
+                          <CardContent>
+                            <Typography variant="caption" sx={{ color: '#7F8C8D' }}>Urgency Score</Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#9B59B6' }}>
+                              {comprehensiveAnalytics.renewal_analytics.renewal_urgency_score?.toFixed(1) || 0}%
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+              </Grid>
+            )}
+
+            {/* Document Compliance & Processing Time */}
+            <Grid container spacing={3} sx={{ mb: 3 }}>
+              {/* Document Compliance */}
+              {comprehensiveAnalytics.document_analytics && (
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3, borderRadius: 2, bgcolor: '#FFFFFF', boxShadow: 2, height: '100%' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50', mb: 2 }}>
+                      Document Compliance
+                    </Typography>
+                    <Box sx={{ mb: 2 }}>
+                      <GaugeChart 
+                        value={comprehensiveAnalytics.document_analytics.compliance_rate || 0}
+                        title="Compliance Rate"
+                        color={comprehensiveAnalytics.document_analytics.compliance_rate >= 80 ? '#27AE60' : '#F39C12'}
+                      />
+                    </Box>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ color: '#7F8C8D' }}>Complete Docs</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#27AE60' }}>
+                          {comprehensiveAnalytics.document_analytics.members_with_complete_docs || 0}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ color: '#7F8C8D' }}>Missing Docs</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#E74C3C' }}>
+                          {comprehensiveAnalytics.document_analytics.members_with_missing_docs || 0}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+              )}
+
+              {/* Processing Time Analytics */}
+              {comprehensiveAnalytics.processing_time_analytics && (
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3, borderRadius: 2, bgcolor: '#FFFFFF', boxShadow: 2, height: '100%' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50', mb: 2 }}>
+                      Application Processing Time
+                    </Typography>
+                    <Box sx={{ mb: 2 }}>
+                      <GaugeChart 
+                        value={comprehensiveAnalytics.processing_time_analytics.efficiency_score || 0}
+                        title="Efficiency Score"
+                        color={comprehensiveAnalytics.processing_time_analytics.efficiency_score >= 80 ? '#27AE60' : '#F39C12'}
+                      />
+                    </Box>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ color: '#7F8C8D' }}>Avg Processing</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#3498DB' }}>
+                          {comprehensiveAnalytics.processing_time_analytics.avg_processing_time?.toFixed(1) || 0} days
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ color: '#7F8C8D' }}>Long Pending</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#E74C3C' }}>
+                          {comprehensiveAnalytics.processing_time_analytics.long_pending_applications || 0}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+              )}
+            </Grid>
+
+            {/* Operational Efficiency & Comparative Analytics */}
+            <Grid container spacing={3}>
+              {/* Operational Efficiency */}
+              {comprehensiveAnalytics.operational_efficiency && (
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3, borderRadius: 2, bgcolor: '#FFFFFF', boxShadow: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50', mb: 2 }}>
+                      Operational Efficiency
+                    </Typography>
+                    <Box sx={{ mb: 3 }}>
+                      <GaugeChart 
+                        value={comprehensiveAnalytics.operational_efficiency.overall_efficiency_score || 0}
+                        title="Overall Efficiency"
+                        color={comprehensiveAnalytics.operational_efficiency.overall_efficiency_score >= 70 ? '#27AE60' : '#F39C12'}
+                      />
+                    </Box>
+                    <Grid container spacing={2}>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block' }}>Approval Rate</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#3498DB' }}>
+                          {comprehensiveAnalytics.operational_efficiency.approval_rate?.toFixed(1) || 0}%
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block' }}>Resolution Rate</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#27AE60' }}>
+                          {comprehensiveAnalytics.operational_efficiency.resolution_rate?.toFixed(1) || 0}%
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block' }}>Claim Rate</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#9B59B6' }}>
+                          {comprehensiveAnalytics.operational_efficiency.claim_rate?.toFixed(1) || 0}%
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+              )}
+
+              {/* Comparative Analytics */}
+              {comprehensiveAnalytics.comparative_analytics && (
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3, borderRadius: 2, bgcolor: '#FFFFFF', boxShadow: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50', mb: 2 }}>
+                      Period Comparison
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {Object.entries(comprehensiveAnalytics.comparative_analytics.changes || {}).map(([key, data]) => (
+                        <Box key={key} sx={{ p: 2, bgcolor: '#F8F9FA', borderRadius: 1 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#2C3E50', mb: 1, textTransform: 'capitalize' }}>
+                            {key.replace(/_/g, ' ')}
+                          </Typography>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box>
+                              <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                                Current: <strong>{data.current}</strong>
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                                Previous: <strong>{data.previous}</strong>
+                              </Typography>
+                            </Box>
+                            <Chip
+                              label={`${data.change_percent > 0 ? '+' : ''}${data.change_percent?.toFixed(1)}%`}
+                              color={data.trend === 'up' ? 'success' : data.trend === 'down' ? 'error' : 'default'}
+                              icon={data.trend === 'up' ? <TrendingUpIcon /> : data.trend === 'down' ? <TrendingDownIcon /> : null}
+                              sx={{ fontWeight: 700 }}
+                            />
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Paper>
+                </Grid>
+              )}
+            </Grid>
+          </Box>
+        )}
 
         {/* Advanced Filters Modal */}
         <Dialog open={filtersOpen} onClose={()=>setFiltersOpen(false)} maxWidth="md" fullWidth>

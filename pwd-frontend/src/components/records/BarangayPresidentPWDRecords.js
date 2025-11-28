@@ -50,6 +50,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import BarangayPresidentSidebar from '../shared/BarangayPresidentSidebar';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import { filePreviewService } from '../../services/filePreviewService';
 import toastService from '../../services/toastService';
@@ -64,6 +65,7 @@ const toProperCase = (text) => {
 
 function BarangayPresidentPWDRecords() {
   const { currentUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -355,6 +357,68 @@ function BarangayPresidentPWDRecords() {
     fetchDocumentTypes();
   }, [currentUser]);
 
+  // Auto-open modal when applicationId is in URL
+  useEffect(() => {
+    const applicationId = searchParams.get('applicationId');
+    if (applicationId && !viewDetailsOpen && !loading) {
+      // Switch to pending applications tab (tab 0)
+      setTab(0);
+      
+      // First, try to find in already loaded applications
+      let application = applications.find(app => 
+        app.applicationID === parseInt(applicationId) || 
+        app.applicationID === applicationId ||
+        String(app.applicationID) === String(applicationId)
+      );
+      
+      // If not found in pending applications, fetch it directly
+      if (!application) {
+        const fetchApplicationById = async () => {
+          try {
+            const allApplications = await api.get('/applications');
+            if (allApplications && Array.isArray(allApplications)) {
+              application = allApplications.find(app => 
+                app.applicationID === parseInt(applicationId) || 
+                app.applicationID === applicationId ||
+                String(app.applicationID) === String(applicationId)
+              );
+              
+              if (application) {
+                // Transform to proper case
+                application = {
+                  ...application,
+                  firstName: toProperCase(application.firstName),
+                  lastName: toProperCase(application.lastName),
+                  disabilityType: toProperCase(application.disabilityType)
+                };
+                
+                // Set the selected application and open the modal
+                setSelectedApplication(application);
+                setViewDetailsOpen(true);
+                
+                // Remove the applicationId from URL to clean it up
+                searchParams.delete('applicationId');
+                setSearchParams(searchParams, { replace: true });
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching application by ID:', error);
+          }
+        };
+        
+        fetchApplicationById();
+      } else {
+        // Found in pending applications, open modal
+        setSelectedApplication(application);
+        setViewDetailsOpen(true);
+        
+        // Remove the applicationId from URL to clean it up
+        searchParams.delete('applicationId');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [searchParams, applications, viewDetailsOpen, loading, setSearchParams]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -446,6 +510,14 @@ function BarangayPresidentPWDRecords() {
   };
 
   const handleRejectClick = async (application) => {
+    console.log('handleRejectClick called with:', application);
+    
+    if (!application || !application.applicationID) {
+      console.error('Invalid application object:', application);
+      toastService.error('Invalid application data. Please try again.');
+      return;
+    }
+    
     // Show application details modal
     setSelectedApplication(application);
     setViewDetailsOpen(true);
@@ -455,9 +527,15 @@ function BarangayPresidentPWDRecords() {
     try {
       const response = await api.get(`/applications`);
       if (response && Array.isArray(response)) {
-        const freshApplication = response.find(app => app.applicationID === application.applicationID);
+        const freshApplication = response.find(app => 
+          app.applicationID === application.applicationID || 
+          String(app.applicationID) === String(application.applicationID)
+        );
         if (freshApplication) {
+          console.log('Found fresh application:', freshApplication);
           setSelectedApplication(freshApplication);
+        } else {
+          console.warn('Fresh application not found, using cached data');
         }
       }
     } catch (error) {
@@ -576,7 +654,16 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
   };
 
   const handleRejectConfirm = async () => {
-    if (!selectedApplication) return;
+    if (!selectedApplication) {
+      toastService.error('No application selected');
+      return;
+    }
+    
+    if (!selectedApplication.applicationID) {
+      console.error('Application missing applicationID:', selectedApplication);
+      toastService.error('Application ID is missing. Please try again.');
+      return;
+    }
     
     setRejectionConfirmationOpen(false);
     
@@ -591,7 +678,14 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
         rejectionData.customReason = customReason.trim();
       }
       
-      await api.post(`/applications/${selectedApplication.applicationID}/reject`, rejectionData);
+      console.log('Rejecting application:', {
+        applicationID: selectedApplication.applicationID,
+        rejectionData: rejectionData
+      });
+      
+      const response = await api.post(`/applications/${selectedApplication.applicationID}/reject`, rejectionData);
+      
+      console.log('Rejection response:', response);
 
       // Refresh the applications list
       await fetchData();
@@ -606,7 +700,15 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
       setRejectionRemarks('');
     } catch (err) {
       console.error('Error rejecting application:', err);
-      toastService.error('Failed to reject application: ' + (err.message || 'Unknown error'));
+      console.error('Error details:', {
+        message: err.message,
+        status: err.status,
+        data: err.data,
+        applicationID: selectedApplication?.applicationID
+      });
+      
+      const errorMessage = err.data?.message || err.message || 'Unknown error';
+      toastService.error('Failed to reject application: ' + errorMessage);
     }
   };
 
@@ -1112,20 +1214,15 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
   }, [filteredRows, page, rowsPerPage]);
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'Active':
-      case 'Approved':
-        return '#27AE60';
-      case 'Pending':
-      case 'Pending Barangay Approval':
-      case 'Pending Admin Approval':
-        return '#F39C12';
-      case 'Inactive':
-      case 'Rejected':
-        return '#E74C3C';
-      default:
-        return '#7F8C8D';
-    }
+    if (!status) return '#95A5A6';
+    const normalizedStatus = status.toLowerCase().trim();
+    if (normalizedStatus === 'active' || normalizedStatus === 'approved') return '#27AE60';
+    if (normalizedStatus === 'pending' || normalizedStatus.includes('pending')) return '#F39C12';
+    if (normalizedStatus === 'inactive' || normalizedStatus === 'rejected') return '#E74C3C';
+    if (normalizedStatus === 'expired') return '#E74C3C';
+    if (normalizedStatus === 'for claiming') return '#3498DB';
+    if (normalizedStatus === 'for renewal') return '#E74C3C';
+    return '#7F8C8D';
   };
 
   const columns = tab === 0 ? [
@@ -1262,7 +1359,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', width: '100%' }}>
                   <TextField 
                     size="small" 
-                    placeholder="Search by name or ID..." 
+                    placeholder="Search by name, ID, barangay, disability, status..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     sx={{ 
@@ -2815,7 +2912,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
         PaperProps={{
           sx: {
             maxHeight: '90vh',
-            bgcolor: '#000'
+            bgcolor: '#ffffff'
           }
         }}
       >
@@ -2824,17 +2921,18 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            bgcolor: '#000',
-            color: '#fff',
-            borderBottom: '1px solid #333'
+            bgcolor: '#f5f5f5',
+            color: '#333',
+            borderBottom: '1px solid #e0e0e0',
+            py: 2
           }}
         >
-          <Typography variant="h6" sx={{ color: '#fff' }}>
+          <Typography variant="h6" sx={{ color: '#333', fontWeight: 600 }}>
             {previewImageTitle}
           </Typography>
           <IconButton
             onClick={handleCloseImagePreview}
-            sx={{ color: '#fff' }}
+            sx={{ color: '#666', '&:hover': { bgcolor: '#e0e0e0' } }}
           >
             <CloseIcon />
           </IconButton>
@@ -2845,7 +2943,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            bgcolor: '#000',
+            bgcolor: '#f5f5f5',
             minHeight: '60vh',
             maxHeight: '80vh',
             overflow: 'auto'
@@ -2859,7 +2957,8 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
                 alignItems: 'center',
                 width: '100%',
                 height: '100%',
-                p: 2
+                p: 2,
+                bgcolor: '#ffffff'
               }}
             >
               <img
@@ -2869,7 +2968,8 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
                   maxWidth: '100%',
                   maxHeight: '80vh',
                   objectFit: 'contain',
-                  borderRadius: '4px'
+                  borderRadius: '4px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                 }}
                 crossOrigin="anonymous"
                 onError={(e) => {
@@ -2883,8 +2983,8 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
         </DialogContent>
         <DialogActions
           sx={{
-            bgcolor: '#000',
-            borderTop: '1px solid #333',
+            bgcolor: '#ffffff',
+            borderTop: '1px solid #e0e0e0',
             p: 2
           }}
         >

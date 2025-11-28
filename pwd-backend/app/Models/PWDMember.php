@@ -34,7 +34,10 @@ class PWDMember extends Model
         'status',
         'cardClaimed',
         'cardIssueDate',
-        'cardExpirationDate'
+        'cardExpirationDate',
+        'renewal_flag',
+        'flagged_at',
+        'renewal_reminder_sent_at'
     ];
 
     // Relationships
@@ -72,6 +75,137 @@ class PWDMember extends Model
         'birthDate' => 'date',
         'cardIssueDate' => 'date',
         'cardExpirationDate' => 'date',
-        'cardClaimed' => 'boolean'
+        'cardClaimed' => 'boolean',
+        'renewal_flag' => 'boolean',
+        'flagged_at' => 'datetime',
+        'renewal_reminder_sent_at' => 'datetime'
     ];
+
+    /**
+     * Check if member is flagged for renewal
+     *
+     * @return bool
+     */
+    public function isFlaggedForRenewal()
+    {
+        return $this->renewal_flag === true;
+    }
+
+    /**
+     * Check if member needs renewal (based on expiration date)
+     *
+     * @param int $daysBeforeExpiry
+     * @return bool
+     */
+    public function needsRenewal($daysBeforeExpiry = null)
+    {
+        if (!$this->cardClaimed || !$this->cardExpirationDate) {
+            return false;
+        }
+
+        if ($daysBeforeExpiry === null) {
+            try {
+                $daysBeforeExpiry = (int) RenewalSetting::getValue('renewal_days_before_expiry', 30);
+            } catch (\Exception $e) {
+                $daysBeforeExpiry = 30; // Default
+            }
+        }
+
+        $expirationDate = \Carbon\Carbon::parse($this->cardExpirationDate);
+        $thresholdDate = \Carbon\Carbon::today()->addDays($daysBeforeExpiry);
+
+        return $expirationDate->lte($thresholdDate) && $expirationDate->gte(\Carbon\Carbon::today());
+    }
+
+    /**
+     * Flag member for renewal
+     *
+     * @return bool
+     */
+    public function flagForRenewal()
+    {
+        return $this->update([
+            'renewal_flag' => true,
+            'flagged_at' => now()
+        ]);
+    }
+
+    /**
+     * Unflag member from renewal
+     *
+     * @return bool
+     */
+    public function unflagFromRenewal()
+    {
+        return $this->update([
+            'renewal_flag' => false,
+            'flagged_at' => null
+        ]);
+    }
+
+    /**
+     * Mark renewal reminder as sent
+     *
+     * @return bool
+     */
+    public function markRenewalReminderSent()
+    {
+        return $this->update([
+            'renewal_reminder_sent_at' => now()
+        ]);
+    }
+
+    /**
+     * Check if renewal reminder should be sent
+     *
+     * @param int $reminderIntervalDays
+     * @return bool
+     */
+    public function shouldSendRenewalReminder($reminderIntervalDays = null)
+    {
+        if (!$this->isFlaggedForRenewal()) {
+            return false;
+        }
+
+        if ($reminderIntervalDays === null) {
+            try {
+                $reminderIntervalDays = (int) RenewalSetting::getValue('renewal_reminder_interval_days', 7);
+            } catch (\Exception $e) {
+                $reminderIntervalDays = 7; // Default
+            }
+        }
+
+        // If never sent, send it
+        if (!$this->renewal_reminder_sent_at) {
+            return true;
+        }
+
+        // Check if interval has passed
+        $lastSent = \Carbon\Carbon::parse($this->renewal_reminder_sent_at);
+        return $lastSent->addDays($reminderIntervalDays)->lte(now());
+    }
+
+    /**
+     * Scope for members flagged for renewal
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeFlaggedForRenewal($query)
+    {
+        return $query->where('renewal_flag', true);
+    }
+
+    /**
+     * Scope for members ready to claim (ID generated but not claimed)
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeReadyToClaim($query)
+    {
+        return $query->where('cardClaimed', false)
+                    ->whereNotNull('pwd_id')
+                    ->whereNotNull('pwd_id_generated_at');
+    }
 }

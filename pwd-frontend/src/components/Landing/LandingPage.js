@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { useReadAloud } from '../../hooks/useReadAloud';
+import PendingCountdown from '../application/PendingCountdown';
 
 // Maximum file size: 2MB
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
@@ -376,6 +377,12 @@ function LandingPage() {
         return '#F39C12';
       case 'rejected':
         return '#E74C3C';
+      case 'expired':
+        return '#E74C3C';
+      case 'for claiming':
+        return '#3498DB';
+      case 'for renewal':
+        return '#E74C3C';
       default:
         return '#95A5A6';
     }
@@ -429,10 +436,23 @@ function LandingPage() {
   }
 
   return (
-    <Box sx={{ bgcolor: '#f8f9fa' }}>
+    <Box sx={{ bgcolor: '#f8f9fa', margin: 0, padding: 0 }}>
       {/* Header/Navigation */}
-      <AppBar position="fixed" elevation={0} sx={{ bgcolor: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', zIndex: 1000 }}>
-        <Toolbar sx={{ justifyContent: 'space-between', py: 1 }}>
+      <AppBar 
+        position="fixed" 
+        elevation={0} 
+        sx={{ 
+          bgcolor: 'white', 
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)', 
+          zIndex: 1000,
+          top: 0,
+          left: 0,
+          right: 0,
+          margin: 0,
+          padding: 0
+        }}
+      >
+        <Toolbar sx={{ justifyContent: 'space-between', py: 1, minHeight: '64px !important' }}>
           {/* Logo */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Avatar sx={{ bgcolor: '#0b87ac', width: 40, height: 40 }}>
@@ -666,33 +686,85 @@ function LandingPage() {
                   )}
 
                   {applicationData && (
-                    <Box sx={{ mt: 3, p: 2, bgcolor: '#f8f9fa', borderRadius: 2 }}>
-                      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                        Application Details
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12}>
-                          <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#7F8C8D', display: 'block' }}>
-                            Reference Number:
+                    <Box sx={{ mt: 3 }}>
+                      {/* Claiming Notification Banner */}
+                      {applicationData.status === 'For Claiming' && (
+                        <Alert 
+                          severity="info" 
+                          sx={{ 
+                            mb: 2, 
+                            bgcolor: '#EBF5FB', 
+                            borderLeft: '4px solid #3498DB',
+                            '& .MuiAlert-icon': {
+                              color: '#3498DB'
+                            }
+                          }}
+                        >
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#2874A6' }}>
+                            🎉 Your PWD ID Card is Ready for Claiming!
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 'bold' }}>
-                            {applicationData.referenceNumber || 'N/A'}
+                          <Typography variant="body2" sx={{ color: '#2C3E50', mb: 1 }}>
+                            Your PWD ID card has been processed and is ready for claiming at the PDAO office.
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#2874A6', mb: 0.5 }}>
+                            Claiming Schedule:
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#2C3E50', mb: 1 }}>
+                            Monday to Friday, 8:00 AM - 5:00 PM
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#2874A6', mb: 0.5 }}>
+                            What to Bring:
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+                            Please bring a valid government-issued ID when claiming your PWD ID card.
+                          </Typography>
+                        </Alert>
+                      )}
+                      
+                      <Box sx={{ p: 2, bgcolor: '#f8f9fa', borderRadius: 2 }}>
+                        <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+                          Application Details
+                        </Typography>
+                        <Grid container spacing={2}>
+                          <Grid item xs={12}>
+                            <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#7F8C8D', display: 'block' }}>
+                              Reference Number:
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 'bold' }}>
+                              {applicationData.referenceNumber || 'N/A'}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#7F8C8D', display: 'block' }}>
+                              Status:
+                            </Typography>
+                            <Chip
+                              label={applicationData.status || 'Pending'}
+                              size="small"
+                              sx={{
+                                bgcolor: getStatusColor(applicationData.status),
+                                color: 'white',
+                                fontWeight: 'bold'
+                              }}
+                            />
+                          </Grid>
+                        <Grid item xs={12}>
+                          <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#7F8C8D', display: 'block', mb: 0.5 }}>
+                            Submission Date:
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+                            {formatDate(applicationData.submissionDate)}
                           </Typography>
                         </Grid>
-                        <Grid item xs={12}>
-                          <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#7F8C8D', display: 'block' }}>
-                            Status:
-                          </Typography>
-                          <Chip
-                            label={applicationData.status || 'Pending'}
-                            size="small"
-                            sx={{
-                              bgcolor: getStatusColor(applicationData.status),
-                              color: 'white',
-                              fontWeight: 'bold'
-                            }}
-                          />
-                        </Grid>
+                        {applicationData.expiresAt && (
+                          <Grid item xs={12}>
+                            <PendingCountdown
+                              expiresAt={applicationData.expiresAt}
+                              status={applicationData.status}
+                              referenceNumber={applicationData.referenceNumber}
+                            />
+                          </Grid>
+                        )}
                         {applicationData.status === 'Rejected' && applicationData.remarks && (
                           <Grid item xs={12}>
                             <Alert severity="error" sx={{ mt: 2 }}>
@@ -717,6 +789,7 @@ function LandingPage() {
                           }}
                         />
                       )}
+                    </Box>
                     </Box>
                   )}
                 </CardContent>

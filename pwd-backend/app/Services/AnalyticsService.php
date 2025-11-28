@@ -8,6 +8,8 @@ use App\Models\BenefitClaim;
 use App\Models\Complaint;
 use App\Models\SupportTicket;
 use App\Models\Announcement;
+use App\Models\MemberDocument;
+use App\Models\RequiredDocument;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -680,5 +682,376 @@ class AnalyticsService
         }
         
         return $summary;
+    }
+
+    /**
+     * Get comprehensive analytics dashboard data
+     * Includes renewal, document compliance, processing times, and comparative metrics
+     */
+    public function getComprehensiveAnalytics($dateRange = null, $barangay = null)
+    {
+        $startDate = $dateRange ? Carbon::parse($dateRange['start']) : Carbon::now()->subYear();
+        $endDate = $dateRange ? Carbon::parse($dateRange['end']) : Carbon::now();
+
+        return [
+            'renewal_analytics' => $this->getRenewalAnalytics($startDate, $endDate, $barangay),
+            'document_analytics' => $this->getDocumentComplianceAnalytics($barangay),
+            'processing_time_analytics' => $this->getProcessingTimeAnalytics($startDate, $endDate, $barangay),
+            'comparative_analytics' => $this->getComparativeAnalytics($startDate, $endDate, $barangay),
+            'operational_efficiency' => $this->getOperationalEfficiencyMetrics($startDate, $endDate, $barangay),
+            'actionable_insights' => $this->generateActionableInsights($startDate, $endDate, $barangay),
+            'generated_at' => now(),
+            'analysis_period' => [
+                'start' => $startDate->toDateString(),
+                'end' => $endDate->toDateString()
+            ]
+        ];
+    }
+
+    /**
+     * Get renewal analytics
+     */
+    private function getRenewalAnalytics($startDate, $endDate, $barangay = null)
+    {
+        $query = PWDMember::whereNotNull('cardExpirationDate');
+        
+        if ($barangay) {
+            $query->where('barangay', $barangay);
+        }
+
+        $totalMembers = $query->count();
+        $expiringSoon = $query->clone()
+            ->where('cardExpirationDate', '<=', Carbon::now()->addDays(30))
+            ->where('cardExpirationDate', '>', Carbon::now())
+            ->count();
+        
+        $expired = $query->clone()
+            ->where('cardExpirationDate', '<', Carbon::now())
+            ->count();
+        
+        $flaggedForRenewal = $query->clone()
+            ->where('renewal_flag', true)
+            ->count();
+        
+        $renewed = $query->clone()
+            ->whereNotNull('renewal_reminder_sent_at')
+            ->where('cardExpirationDate', '>', Carbon::now())
+            ->count();
+
+        // Calculate renewal rate (members who renewed before expiration)
+        $renewalRate = $totalMembers > 0 ? (($renewed / $totalMembers) * 100) : 0;
+
+        // Monthly renewal trends
+        $monthlyRenewals = $query->clone()
+            ->whereNotNull('renewal_reminder_sent_at')
+            ->whereBetween('renewal_reminder_sent_at', [$startDate, $endDate])
+            ->selectRaw('DATE_FORMAT(renewal_reminder_sent_at, "%Y-%m") as month, COUNT(*) as count')
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
+
+        return [
+            'total_members_with_cards' => $totalMembers,
+            'expiring_soon' => $expiringSoon,
+            'expired' => $expired,
+            'flagged_for_renewal' => $flaggedForRenewal,
+            'renewed' => $renewed,
+            'renewal_rate' => round($renewalRate, 2),
+            'overdue_renewals' => $expired,
+            'monthly_trends' => $monthlyRenewals,
+            'renewal_urgency_score' => $totalMembers > 0 ? round((($expiringSoon + $expired) / $totalMembers) * 100, 2) : 0
+        ];
+    }
+
+    /**
+     * Get document compliance analytics
+     */
+    private function getDocumentComplianceAnalytics($barangay = null)
+    {
+        $requiredDocs = RequiredDocument::where('is_active', true)->count();
+        
+        $query = PWDMember::query();
+        if ($barangay) {
+            $query->where('barangay', $barangay);
+        }
+        
+        $totalMembers = $query->count();
+        
+        // Get members with complete documents
+        $membersWithCompleteDocs = $query->clone()
+            ->whereHas('memberDocuments', function($q) use ($requiredDocs) {
+                $q->where('status', 'approved')
+                  ->groupBy('member_id')
+                  ->havingRaw('COUNT(DISTINCT required_document_id) >= ?', [$requiredDocs]);
+            })
+            ->count();
+        
+        // Get members with missing documents
+        $membersWithMissingDocs = $totalMembers - $membersWithCompleteDocs;
+        
+        // Compliance rate
+        $complianceRate = $totalMembers > 0 ? (($membersWithCompleteDocs / $totalMembers) * 100) : 0;
+        
+        // Document status breakdown
+        $documentStatus = MemberDocument::query()
+            ->when($barangay, function($q) use ($barangay) {
+                $q->whereHas('member', function($memberQuery) use ($barangay) {
+                    $memberQuery->where('barangay', $barangay);
+                });
+            })
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->get()
+            ->pluck('count', 'status')
+            ->toArray();
+
+        return [
+            'total_members' => $totalMembers,
+            'required_documents' => $requiredDocs,
+            'members_with_complete_docs' => $membersWithCompleteDocs,
+            'members_with_missing_docs' => $membersWithMissingDocs,
+            'compliance_rate' => round($complianceRate, 2),
+            'document_status_breakdown' => $documentStatus,
+            'non_compliance_rate' => round(100 - $complianceRate, 2)
+        ];
+    }
+
+    /**
+     * Get application processing time analytics
+     */
+    private function getProcessingTimeAnalytics($startDate, $endDate, $barangay = null)
+    {
+        $query = Application::whereBetween('submissionDate', [$startDate, $endDate])
+            ->whereNotNull('approvalDate')
+            ->whereNotNull('submissionDate');
+        
+        if ($barangay) {
+            $query->where('barangay', $barangay);
+        }
+
+        // Calculate processing times
+        $processingTimes = $query->clone()
+            ->selectRaw('DATEDIFF(approvalDate, submissionDate) as processing_days')
+            ->get()
+            ->pluck('processing_days')
+            ->filter();
+
+        $avgProcessingTime = $processingTimes->avg() ?? 0;
+        $medianProcessingTime = $processingTimes->median() ?? 0;
+        $minProcessingTime = $processingTimes->min() ?? 0;
+        $maxProcessingTime = $processingTimes->max() ?? 0;
+
+        // Processing time distribution
+        $fast = $processingTimes->filter(fn($days) => $days <= 7)->count();
+        $moderate = $processingTimes->filter(fn($days) => $days > 7 && $days <= 15)->count();
+        $slow = $processingTimes->filter(fn($days) => $days > 15 && $days <= 30)->count();
+        $verySlow = $processingTimes->filter(fn($days) => $days > 30)->count();
+
+        // Bottleneck analysis - applications pending for more than 15 days
+        $pendingQuery = Application::where('status', 'Pending Admin Approval')
+            ->orWhere('status', 'Pending Barangay Approval')
+            ->whereBetween('submissionDate', [$startDate, $endDate]);
+        
+        if ($barangay) {
+            $pendingQuery->where('barangay', $barangay);
+        }
+
+        $longPending = $pendingQuery->clone()
+            ->whereRaw('DATEDIFF(NOW(), submissionDate) > 15')
+            ->count();
+
+        return [
+            'total_processed' => $processingTimes->count(),
+            'avg_processing_time' => round($avgProcessingTime, 2),
+            'median_processing_time' => round($medianProcessingTime, 2),
+            'min_processing_time' => $minProcessingTime,
+            'max_processing_time' => $maxProcessingTime,
+            'processing_time_distribution' => [
+                'fast_7_days' => $fast,
+                'moderate_8_15_days' => $moderate,
+                'slow_16_30_days' => $slow,
+                'very_slow_30_plus_days' => $verySlow
+            ],
+            'long_pending_applications' => $longPending,
+            'efficiency_score' => $avgProcessingTime > 0 ? round((15 / max($avgProcessingTime, 15)) * 100, 2) : 0
+        ];
+    }
+
+    /**
+     * Get comparative analytics (Year-over-Year, Month-over-Month)
+     */
+    private function getComparativeAnalytics($startDate, $endDate, $barangay = null)
+    {
+        $currentPeriod = [
+            'applications' => $this->getPeriodCount(Application::class, $startDate, $endDate, $barangay),
+            'approvals' => $this->getPeriodCount(Application::class, $startDate, $endDate, $barangay, 'Approved'),
+            'registrations' => $this->getPeriodCount(PWDMember::class, $startDate, $endDate, $barangay),
+            'benefits' => $this->getPeriodCount(BenefitClaim::class, $startDate, $endDate, $barangay)
+        ];
+
+        // Previous period (same duration before)
+        $periodDuration = $startDate->diffInDays($endDate);
+        $prevStartDate = $startDate->copy()->subDays($periodDuration);
+        $prevEndDate = $startDate->copy();
+
+        $previousPeriod = [
+            'applications' => $this->getPeriodCount(Application::class, $prevStartDate, $prevEndDate, $barangay),
+            'approvals' => $this->getPeriodCount(Application::class, $prevStartDate, $prevEndDate, $barangay, 'Approved'),
+            'registrations' => $this->getPeriodCount(PWDMember::class, $prevStartDate, $prevEndDate, $barangay),
+            'benefits' => $this->getPeriodCount(BenefitClaim::class, $prevStartDate, $prevEndDate, $barangay)
+        ];
+
+        // Calculate changes
+        $changes = [];
+        foreach ($currentPeriod as $key => $current) {
+            $previous = $previousPeriod[$key] ?? 0;
+            $change = $previous > 0 ? ((($current - $previous) / $previous) * 100) : ($current > 0 ? 100 : 0);
+            $changes[$key] = [
+                'current' => $current,
+                'previous' => $previous,
+                'change_percent' => round($change, 2),
+                'change_absolute' => $current - $previous,
+                'trend' => $change > 0 ? 'up' : ($change < 0 ? 'down' : 'stable')
+            ];
+        }
+
+        return [
+            'current_period' => $currentPeriod,
+            'previous_period' => $previousPeriod,
+            'changes' => $changes,
+            'period_comparison' => [
+                'current_start' => $startDate->toDateString(),
+                'current_end' => $endDate->toDateString(),
+                'previous_start' => $prevStartDate->toDateString(),
+                'previous_end' => $prevEndDate->toDateString()
+            ]
+        ];
+    }
+
+    /**
+     * Helper to get period count
+     */
+    private function getPeriodCount($model, $startDate, $endDate, $barangay = null, $status = null)
+    {
+        $query = $model::whereBetween('created_at', [$startDate, $endDate]);
+        
+        if ($barangay && method_exists($model, 'where')) {
+            if ($model === Application::class || $model === PWDMember::class) {
+                $query->where('barangay', $barangay);
+            }
+        }
+        
+        if ($status) {
+            $query->where('status', $status);
+        }
+        
+        return $query->count();
+    }
+
+    /**
+     * Get operational efficiency metrics
+     */
+    private function getOperationalEfficiencyMetrics($startDate, $endDate, $barangay = null)
+    {
+        // Application approval rate
+        $appsQuery = Application::whereBetween('submissionDate', [$startDate, $endDate]);
+        if ($barangay) {
+            $appsQuery->where('barangay', $barangay);
+        }
+        
+        $totalApps = $appsQuery->count();
+        $approvedApps = $appsQuery->clone()->where('status', 'Approved')->count();
+        $approvalRate = $totalApps > 0 ? (($approvedApps / $totalApps) * 100) : 0;
+
+        // Support ticket resolution rate
+        $ticketsQuery = SupportTicket::whereBetween('created_at', [$startDate, $endDate]);
+        $totalTickets = $ticketsQuery->count();
+        $resolvedTickets = $ticketsQuery->clone()->whereIn('status', ['closed', 'resolved'])->count();
+        $resolutionRate = $totalTickets > 0 ? (($resolvedTickets / $totalTickets) * 100) : 0;
+
+        // Benefit claim processing rate
+        $benefitsQuery = BenefitClaim::whereBetween('created_at', [$startDate, $endDate]);
+        if ($barangay) {
+            $benefitsQuery->whereHas('pwdMember', function($q) use ($barangay) {
+                $q->where('barangay', $barangay);
+            });
+        }
+        $totalBenefits = $benefitsQuery->count();
+        $claimedBenefits = $benefitsQuery->clone()->where('status', 'Claimed')->count();
+        $claimRate = $totalBenefits > 0 ? (($claimedBenefits / $totalBenefits) * 100) : 0;
+
+        // Overall efficiency score (weighted average)
+        $efficiencyScore = ($approvalRate * 0.4) + ($resolutionRate * 0.3) + ($claimRate * 0.3);
+
+        return [
+            'approval_rate' => round($approvalRate, 2),
+            'resolution_rate' => round($resolutionRate, 2),
+            'claim_rate' => round($claimRate, 2),
+            'overall_efficiency_score' => round($efficiencyScore, 2),
+            'workload_distribution' => [
+                'applications' => $totalApps,
+                'support_tickets' => $totalTickets,
+                'benefit_claims' => $totalBenefits
+            ]
+        ];
+    }
+
+    /**
+     * Generate actionable insights based on analytics
+     */
+    private function generateActionableInsights($startDate, $endDate, $barangay = null)
+    {
+        $insights = [];
+        
+        $renewalAnalytics = $this->getRenewalAnalytics($startDate, $endDate, $barangay);
+        $documentAnalytics = $this->getDocumentComplianceAnalytics($barangay);
+        $processingAnalytics = $this->getProcessingTimeAnalytics($startDate, $endDate, $barangay);
+        $efficiencyMetrics = $this->getOperationalEfficiencyMetrics($startDate, $endDate, $barangay);
+
+        // Renewal insights
+        if ($renewalAnalytics['renewal_urgency_score'] > 20) {
+            $insights[] = [
+                'type' => 'renewal',
+                'priority' => 'high',
+                'title' => 'High Renewal Urgency',
+                'message' => "{$renewalAnalytics['expiring_soon']} cards expiring soon and {$renewalAnalytics['expired']} expired. Take immediate action.",
+                'action' => 'Review renewal dashboard and send reminders'
+            ];
+        }
+
+        // Document compliance insights
+        if ($documentAnalytics['compliance_rate'] < 80) {
+            $insights[] = [
+                'type' => 'compliance',
+                'priority' => 'high',
+                'title' => 'Document Compliance Below Target',
+                'message' => "Only {$documentAnalytics['compliance_rate']}% of members have complete documents.",
+                'action' => 'Send compliance reminders and follow up with members'
+            ];
+        }
+
+        // Processing time insights
+        if ($processingAnalytics['avg_processing_time'] > 15) {
+            $insights[] = [
+                'type' => 'efficiency',
+                'priority' => 'medium',
+                'title' => 'Processing Time Exceeds Target',
+                'message' => "Average processing time is {$processingAnalytics['avg_processing_time']} days. Target is 15 days.",
+                'action' => 'Review workflow bottlenecks and optimize processes'
+            ];
+        }
+
+        // Efficiency insights
+        if ($efficiencyMetrics['overall_efficiency_score'] < 70) {
+            $insights[] = [
+                'type' => 'performance',
+                'priority' => 'high',
+                'title' => 'Overall Efficiency Below Target',
+                'message' => "Overall efficiency score is {$efficiencyMetrics['overall_efficiency_score']}%. Review all processes.",
+                'action' => 'Implement process improvements across all services'
+            ];
+        }
+
+        return $insights;
     }
 }

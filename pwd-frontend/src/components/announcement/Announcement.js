@@ -56,6 +56,7 @@ const Announcement = () => {
   const [announcementToDelete, setAnnouncementToDelete] = useState(null);
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -118,10 +119,18 @@ const Announcement = () => {
     try {
       setLoading(true);
       const data = await announcementService.getAll();
-      setAnnouncements(data);
+      
+      // Ensure latest-first sorting (backend should do this, but sort as fallback)
+      const sortedData = [...(data || [])].sort((a, b) => {
+        const dateA = new Date(a.publishDate || a.created_at || 0);
+        const dateB = new Date(b.publishDate || b.created_at || 0);
+        return dateB - dateA; // Latest first
+      });
+      
+      setAnnouncements(sortedData);
       
       // Calculate statistics from real data
-      const calculatedStats = calculateStats(data);
+      const calculatedStats = calculateStats(sortedData);
       setStats(calculatedStats);
       
       setError(null);
@@ -198,15 +207,37 @@ const Announcement = () => {
       setError(null);
       setSuccess(null);
       
-      // Validate expiry date
-      const today = new Date();
-      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-      const selectedExpiryDate = new Date(formData.expiryDate);
-      
-      if (selectedExpiryDate <= today) {
-        setError('Expiry date must be at least tomorrow. Please select a future date.');
+      // Frontend validation
+      if (!formData.title || formData.title.trim().length < 10) {
+        setError('Title must be at least 10 characters long.');
         setSubmitting(false);
         return;
+      }
+      
+      if (!formData.content || formData.content.trim().length < 50) {
+        setError('Content must be at least 50 characters long. Please provide detailed information.');
+        setSubmitting(false);
+        return;
+      }
+      
+      if (!formData.type) {
+        setError('Please select an announcement type.');
+        setSubmitting(false);
+        return;
+      }
+      
+      // Validate expiry date if provided
+      if (formData.expiryDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const selectedExpiryDate = new Date(formData.expiryDate);
+        selectedExpiryDate.setHours(0, 0, 0, 0);
+        
+        if (selectedExpiryDate <= today) {
+          setError('Expiry date must be at least tomorrow. Please select a future date.');
+          setSubmitting(false);
+          return;
+        }
       }
       
       if (editingAnnouncement) {
@@ -228,7 +259,22 @@ const Announcement = () => {
       setTimeout(() => setSuccess(null), 3000);
     } catch (error) {
       console.error('Error saving announcement:', error);
-      setError(error.response?.data?.error || 'Failed to save announcement. Please try again.');
+      
+      // Handle duplicate error
+      if (error.response?.status === 409) {
+        const duplicateInfo = error.response?.data?.duplicate;
+        setError(
+          error.response?.data?.message || 
+          'A similar announcement was posted recently. Please review existing announcements or modify the title/type.'
+        );
+      } else if (error.response?.data?.messages) {
+        // Validation errors from backend
+        const messages = error.response.data.messages;
+        const firstError = Object.values(messages)[0]?.[0] || 'Validation failed';
+        setError(firstError);
+      } else {
+        setError(error.response?.data?.error || error.response?.data?.message || 'Failed to save announcement. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -278,7 +324,7 @@ const Announcement = () => {
         </Box>
 
         {/* Content Area */}
-        <Box sx={{ flex: 1, p: 3, bgcolor: 'white' }}>
+        <Box sx={{ flex: 1, p: 3, bgcolor: 'white', maxWidth: '100%' }}>
           {/* Success Alert */}
           {success && (
             <Alert severity="success" sx={{ mb: 3 }}>
@@ -299,7 +345,8 @@ const Announcement = () => {
             border: '1px solid #E0E0E0',
             borderRadius: 4,
             bgcolor: 'white',
-            mb: 3
+            mb: 3,
+            width: '100%'
           }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Typography sx={{ 
@@ -330,14 +377,19 @@ const Announcement = () => {
             </Box>
 
             {/* Summary Cards */}
-            <Grid container spacing={{ xs: 2, sm: 3 }}>
+            <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ justifyContent: 'flex-start' }}>
               <Grid item xs={12} sm={6} md={3}>
                 <Paper elevation={0} sx={{ 
                   border: '1px solid #E0E0E0', 
                   bgcolor: 'white',
                   borderRadius: 2,
                   p: 3,
-                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  width: '100%',
+                  height: '100%',
+                  minHeight: '140px',
                   '&:hover': { 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     transform: 'translateY(-2px)',
@@ -368,7 +420,12 @@ const Announcement = () => {
                   bgcolor: 'white',
                   borderRadius: 2,
                   p: 3,
-                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  width: '100%',
+                  height: '100%',
+                  minHeight: '140px',
                   '&:hover': { 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     transform: 'translateY(-2px)',
@@ -399,7 +456,12 @@ const Announcement = () => {
                   bgcolor: 'white',
                   borderRadius: 2,
                   p: 3,
-                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  width: '100%',
+                  height: '100%',
+                  minHeight: '140px',
                   '&:hover': { 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     transform: 'translateY(-2px)',
@@ -430,7 +492,12 @@ const Announcement = () => {
                   bgcolor: 'white',
                   borderRadius: 2,
                   p: 3,
-                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  width: '100%',
+                  height: '100%',
+                  minHeight: '140px',
                   '&:hover': { 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     transform: 'translateY(-2px)',
@@ -463,11 +530,12 @@ const Announcement = () => {
             p: 3,
             border: '1px solid #E0E0E0',
             borderRadius: 4,
-            bgcolor: 'white'
+            bgcolor: 'white',
+            width: '100%'
           }}>
             {/* Loading and Error States */}
             {loading && (
-              <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Box sx={{ py: 4 }}>
                 <Typography sx={{ color: '#2C3E50' }}>Loading announcements...</Typography>
               </Box>
             )}
@@ -733,10 +801,12 @@ const Announcement = () => {
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
-                      label="Announcement Title"
+                      label="Announcement Title (Minimum 10 characters)"
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       margin="normal"
+                      helperText={`${formData.title.length} characters (minimum 10 required)`}
+                      error={formData.title.length > 0 && formData.title.length < 10}
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           bgcolor: '#FFFFFF',
@@ -766,12 +836,14 @@ const Announcement = () => {
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
-                      label="Content"
+                      label="Content (Minimum 50 characters)"
                       value={formData.content}
                       onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                       margin="normal"
                       multiline
-                      rows={4}
+                      rows={6}
+                      helperText={`${formData.content.length} characters (minimum 50 required)`}
+                      error={formData.content.length > 0 && formData.content.length < 50}
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           bgcolor: '#FFFFFF',
@@ -842,6 +914,10 @@ const Announcement = () => {
                         <MenuItem value="Event">Event</MenuItem>
                         <MenuItem value="Notice">Notice</MenuItem>
                         <MenuItem value="Emergency">Emergency</MenuItem>
+                        <MenuItem value="System Update">System Update</MenuItem>
+                        <MenuItem value="Reminder">Reminder</MenuItem>
+                        <MenuItem value="Deadline">Deadline</MenuItem>
+                        <MenuItem value="Advisory">Advisory</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>
@@ -1070,9 +1146,32 @@ const Announcement = () => {
                   Cancel
                 </Button>
                 <Button 
+                  onClick={() => {
+                    setSelectedAnnouncement({
+                      ...formData,
+                      publishDate: formData.publishDate || new Date().toISOString().split('T')[0],
+                      author: currentUser
+                    });
+                    setPreviewOpen(true);
+                  }}
+                  variant="outlined"
+                  disabled={!formData.title || !formData.content || formData.title.length < 10 || formData.content.length < 50}
+                  startIcon={<Visibility />}
+                  sx={{ 
+                    borderColor: '#F39C12',
+                    color: '#F39C12',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    py: { xs: 1.5, sm: 1 },
+                    '&:hover': { borderColor: '#E67E22', bgcolor: '#F39C1215' },
+                    '&:disabled': { borderColor: '#BDC3C7', color: '#BDC3C7' }
+                  }}
+                >
+                  Preview
+                </Button>
+                <Button 
                   onClick={handleSubmit}
                   variant="contained"
-                  disabled={submitting}
+                  disabled={submitting || !formData.title || !formData.content || formData.title.length < 10 || formData.content.length < 50}
                   sx={{ 
                     bgcolor: '#3498DB',
                     color: '#FFFFFF',
@@ -1154,6 +1253,84 @@ const Announcement = () => {
                   }}
                 >
                   Delete
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            {/* Preview Dialog */}
+            <Dialog 
+              open={previewOpen} 
+              onClose={() => setPreviewOpen(false)} 
+              maxWidth="md" 
+              fullWidth
+              PaperProps={{
+                sx: {
+                  borderRadius: { xs: 0, sm: 2 },
+                  m: { xs: 0, sm: 2 }
+                }
+              }}
+            >
+              <DialogTitle sx={{ 
+                backgroundColor: '#F39C12',
+                color: '#FFFFFF !important', 
+                fontWeight: 600,
+                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' },
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid #E0E0E0'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Visibility sx={{ color: '#FFFFFF' }} />
+                  <Typography variant="h6" sx={{ color: '#FFFFFF !important' }}>
+                    Preview Announcement
+                  </Typography>
+                </Box>
+                <IconButton onClick={() => setPreviewOpen(false)} sx={{ color: '#FFFFFF' }}>
+                  <Close />
+                </IconButton>
+              </DialogTitle>
+              <DialogContent sx={{ 
+                backgroundColor: '#FFFFFF !important',
+                color: '#2C3E50 !important',
+                p: { xs: 2, sm: 3 }
+              }}>
+                {selectedAnnouncement && (
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#2C3E50', mb: 2 }}>
+                      {selectedAnnouncement.title}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                      <Chip label={selectedAnnouncement.type} size="small" sx={{ bgcolor: getTypeColor(selectedAnnouncement.type), color: '#FFFFFF' }} />
+                      <Chip label={selectedAnnouncement.priority} size="small" sx={{ bgcolor: getPriorityColor(selectedAnnouncement.priority), color: '#FFFFFF' }} />
+                      <Chip label={selectedAnnouncement.targetAudience} size="small" sx={{ bgcolor: '#3498DB', color: '#FFFFFF' }} />
+                    </Box>
+                    <Typography variant="body1" sx={{ color: '#2C3E50', lineHeight: 1.8, whiteSpace: 'pre-wrap', mb: 2 }}>
+                      {selectedAnnouncement.content}
+                    </Typography>
+                    <Box sx={{ borderTop: '1px solid #E0E0E0', pt: 2 }}>
+                      <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                        Publish Date: {formatDateMMDDYYYY(selectedAnnouncement.publishDate || new Date().toISOString().split('T')[0])}
+                        {selectedAnnouncement.expiryDate && ` | Expiry Date: ${formatDateMMDDYYYY(selectedAnnouncement.expiryDate)}`}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+              </DialogContent>
+              <DialogActions sx={{ borderTop: '1px solid #E0E0E0', p: 2 }}>
+                <Button onClick={() => setPreviewOpen(false)} sx={{ color: '#2C3E50' }}>
+                  Close
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setPreviewOpen(false);
+                    handleSubmit();
+                  }}
+                  variant="contained"
+                  disabled={submitting || !formData.title || !formData.content || formData.title.length < 10 || formData.content.length < 50}
+                  sx={{ bgcolor: '#3498DB', color: '#FFFFFF', '&:hover': { bgcolor: '#2980B9' } }}
+                >
+                  {submitting ? 'Publishing...' : 'Publish'}
                 </Button>
               </DialogActions>
             </Dialog>

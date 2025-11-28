@@ -1,120 +1,316 @@
 // src/App.js
-import React from 'react';
+import React, { Suspense, lazy, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { CircularProgress, Box } from '@mui/material';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import ResourcePrefetcher from './components/optimization/ResourcePrefetcher';
 import { usePageTitle } from './hooks/usePageTitle';
-import LandingPage from './components/Landing/LandingPage';
-import AboutUsPage from './components/Landing/AboutUsPage';
-import ContactUsPage from './components/Landing/ContactUsPage';
-import Login from './components/auth/login';
-import Register from './components/auth/Register';
-import PasswordReset from './components/auth/PasswordReset';
-import PasswordChangeWrapper from './components/auth/PasswordChangeWrapper';
-import AdminDashboard from './components/dashboard/AdminDashboard';
-import BarangayPresidentDashboard from './components/dashboard/BarangayPresidentDashboard';
-import PWDMemberDashboard from './components/dashboard/PWDMemberDashboard';
-import Staff1Dashboard from './components/dashboard/Staff1Dashboard';
-import Staff2Dashboard from './components/dashboard/Staff2Dashboard';
-import FrontDeskDashboard from './components/dashboard/FrontDeskDashboard';
+import { getRoleColors, themeColors } from './utils/themeColors';
+
+// Loading component
+const LoadingFallback = () => (
+  <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+    <CircularProgress />
+  </Box>
+);
+
+// Lazy load all components for code splitting
+// Landing pages (loaded immediately for better UX)
+const LandingPage = lazy(() => import('./components/Landing/LandingPage'));
+const AboutUsPage = lazy(() => import('./components/Landing/AboutUsPage'));
+const ContactUsPage = lazy(() => import('./components/Landing/ContactUsPage'));
+
+// Auth components
+const Login = lazy(() => import('./components/auth/login'));
+const Register = lazy(() => import('./components/auth/Register'));
+const PasswordReset = lazy(() => import('./components/auth/PasswordReset'));
+const PasswordChangeWrapper = lazy(() => import('./components/auth/PasswordChangeWrapper'));
+
+// Dashboard components
+const AdminDashboard = lazy(() => import('./components/dashboard/AdminDashboard'));
+const BarangayPresidentDashboard = lazy(() => import('./components/dashboard/BarangayPresidentDashboard'));
+const PWDMemberDashboard = lazy(() => import('./components/dashboard/PWDMemberDashboard'));
+const Staff1Dashboard = lazy(() => import('./components/dashboard/Staff1Dashboard'));
+const Staff2Dashboard = lazy(() => import('./components/dashboard/Staff2Dashboard'));
+const FrontDeskDashboard = lazy(() => import('./components/dashboard/FrontDeskDashboard'));
 
 // Admin components
-import PWDRecords from './components/records/PWDRecords';
-import PWDCard from './components/cards/PWDCard';
-import Analytics from './components/analytics/Analytics';
-import Ayuda from './components/ayuda/Ayuda';
-import BenefitTracking from './components/benefit/BenefitTracking';
-import ClaimHistory from './components/benefit/ClaimHistory';
-import Announcement from './components/announcement/Announcement';
-import AdminSupportDesk from './components/support/AdminSupportDesk';
-
-// Staff components
-import Staff1Sidebar from './components/shared/Staff1Sidebar';
-import Staff2Sidebar from './components/shared/Staff2Sidebar';
-import FrontDeskSidebar from './components/shared/FrontDeskSidebar';
+const PWDRecords = lazy(() => import('./components/records/PWDRecords'));
+const PWDCard = lazy(() => import('./components/cards/PWDCard'));
+const Analytics = lazy(() => import('./components/analytics/Analytics'));
+const Ayuda = lazy(() => import('./components/ayuda/Ayuda'));
+const BenefitTracking = lazy(() => import('./components/benefit/BenefitTracking'));
+const ClaimHistory = lazy(() => import('./components/benefit/ClaimHistory'));
+const Announcement = lazy(() => import('./components/announcement/Announcement'));
+const AdminSupportDesk = lazy(() => import('./components/support/AdminSupportDesk'));
+const RenewalDashboard = lazy(() => import('./components/renewal/RenewalDashboard'));
 
 // Barangay President components
-import BarangayPresidentPWDRecords from './components/records/BarangayPresidentPWDRecords';
-import BarangayPresidentPWDCard from './components/cards/BarangayPresidentPWDCard';
-import BarangayPresidentReports from './components/reports/BarangayPresidentReports';
-import BarangayPresidentAyuda from './components/ayuda/BarangayPresidentAyuda';
-import BarangayPresidentAnnouncement from './components/announcement/BarangayPresidentAnnouncement';
+const BarangayPresidentPWDRecords = lazy(() => import('./components/records/BarangayPresidentPWDRecords'));
+const BarangayPresidentPWDCard = lazy(() => import('./components/cards/BarangayPresidentPWDCard'));
+const BarangayPresidentReports = lazy(() => import('./components/reports/BarangayPresidentReports'));
+const BarangayPresidentAyuda = lazy(() => import('./components/ayuda/BarangayPresidentAyuda'));
+const BarangayPresidentAnnouncement = lazy(() => import('./components/announcement/BarangayPresidentAnnouncement'));
 
 // PWD Member components
-import PWDMemberAnnouncement from './components/announcement/PWDMemberAnnouncement';
-import PWDMemberSupportDesk from './components/support/PWDMemberSupportDesk';
-import PWDProfile from './components/profile/PWDProfile';
-import MemberDocumentUpload from './components/documents/MemberDocumentUpload';
-import PWDMemberBenefits from './components/benefit/PWDMemberBenefits';
+const PWDMemberAnnouncement = lazy(() => import('./components/announcement/PWDMemberAnnouncement'));
+const PWDMemberSupportDesk = lazy(() => import('./components/support/PWDMemberSupportDesk'));
+const PWDProfile = lazy(() => import('./components/profile/PWDProfile'));
+const MemberDocumentUpload = lazy(() => import('./components/documents/MemberDocumentUpload'));
+const PWDMemberBenefits = lazy(() => import('./components/benefit/PWDMemberBenefits'));
 
 // Application components
-import ApplicationForm from './components/application/ApplicationForm';
-import ApplicationStatusCheck from './components/application/ApplicationStatusCheck';
-import DocumentCorrectionPage from './components/application/DocumentCorrectionPage';
+const ApplicationForm = lazy(() => import('./components/application/ApplicationForm'));
+const ApplicationStatusCheck = lazy(() => import('./components/application/ApplicationStatusCheck'));
+const DocumentCorrectionPage = lazy(() => import('./components/application/DocumentCorrectionPage'));
 
 // Document Management components
-import DocumentManagement from './components/documents/DocumentManagement';
-import AuditLogs from './components/audit/AuditLogs';
-import SecurityMonitoring from './components/security/SecurityMonitoring';
+const DocumentManagement = lazy(() => import('./components/documents/DocumentManagement'));
+const AuditLogs = lazy(() => import('./components/audit/AuditLogs'));
+const SecurityMonitoring = lazy(() => import('./components/security/SecurityMonitoring'));
 
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1976D2',
-      dark: '#1565C0',
-      light: '#42A5F5',
+// Create theme function that adapts to user role
+const createRoleTheme = (role) => {
+  const roleColors = getRoleColors(role);
+  const semantic = themeColors.semantic;
+  
+  return createTheme({
+    palette: {
+      primary: {
+        main: roleColors.primary,
+        light: roleColors.primaryLight,
+        dark: roleColors.primaryDark,
+        contrastText: roleColors.primaryContrast,
+      },
+      secondary: {
+        main: roleColors.accent,
+        light: roleColors.primaryLight,
+        dark: roleColors.primaryDark,
+        contrastText: roleColors.primaryContrast,
+      },
+      success: {
+        main: semantic.success.main,
+        light: semantic.success.light,
+        dark: semantic.success.dark,
+        contrastText: semantic.success.contrastText,
+      },
+      warning: {
+        main: semantic.warning.main,
+        light: semantic.warning.light,
+        dark: semantic.warning.dark,
+        contrastText: semantic.warning.contrastText,
+      },
+      error: {
+        main: semantic.error.main,
+        light: semantic.error.light,
+        dark: semantic.error.dark,
+        contrastText: semantic.error.contrastText,
+      },
+      info: {
+        main: semantic.info.main,
+        light: semantic.info.light,
+        dark: semantic.info.dark,
+        contrastText: semantic.info.contrastText,
+      },
+      background: {
+        default: roleColors.bg,
+        paper: roleColors.surface,
+      },
+      text: {
+        primary: roleColors.text,
+        secondary: roleColors.textSecondary,
+      },
     },
-    secondary: {
-      main: '#4CAF50',
-      light: '#66BB6A',
-      dark: '#388E3C',
+    typography: {
+      fontFamily: '"Nunito", "Roboto", "Helvetica", "Arial", sans-serif',
+      h1: {
+        fontWeight: 700,
+        fontSize: '2.4rem',
+        lineHeight: 1.2,
+        color: roleColors.text,
+      },
+      h2: {
+        fontWeight: 700,
+        fontSize: '1.9rem',
+        lineHeight: 1.3,
+        color: roleColors.text,
+      },
+      h3: {
+        fontWeight: 600,
+        fontSize: '1.5rem',
+        lineHeight: 1.4,
+        color: roleColors.text,
+      },
+      h4: {
+        fontWeight: 600,
+        fontSize: '1.25rem',
+        lineHeight: 1.4,
+        color: roleColors.text,
+      },
+      h5: {
+        fontWeight: 600,
+        fontSize: '1.1rem',
+        lineHeight: 1.4,
+        color: roleColors.text,
+      },
+      h6: {
+        fontWeight: 600,
+        fontSize: '1rem',
+        lineHeight: 1.4,
+        color: roleColors.text,
+      },
+      button: {
+        textTransform: 'none',
+        fontWeight: 600,
+        fontSize: '1rem',
+      },
+      body1: {
+        fontSize: '1rem',
+        lineHeight: 1.6,
+        color: roleColors.text,
+      },
+      body2: {
+        fontSize: '0.95rem',
+        lineHeight: 1.5,
+        color: roleColors.textSecondary,
+      },
     },
-    background: {
-      default: '#FFFFFF',
-      paper: '#FFFFFF',
+    shape: {
+      borderRadius: 12,
     },
-    text: {
-      primary: '#000000',
-      secondary: '#1976D2',
-    },
-  },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontWeight: 700,
-      fontSize: '2.5rem',
-    },
-    h2: {
-      fontWeight: 700,
-      fontSize: '2rem',
-    },
-    h6: {
-      fontWeight: 600,
-    },
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 4,
-          textTransform: 'none',
-          fontWeight: 600,
+    components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: {
+            backgroundColor: roleColors.bg,
+            color: roleColors.text,
+          },
+        },
+      },
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            borderRadius: 8,
+            padding: '10px 22px',
+            minHeight: '44px', // WCAG touch target
+            fontWeight: 600,
+            boxShadow: themeColors.shadows.sm,
+            '&:hover': {
+              boxShadow: themeColors.shadows.md,
+            },
+            '&:focus-visible': {
+              boxShadow: themeColors.interactive.focus.ring,
+            },
+          },
+          contained: {
+            boxShadow: themeColors.shadows.md,
+            '&:hover': {
+              boxShadow: themeColors.shadows.lg,
+            },
+          },
+        },
+      },
+      MuiCard: {
+        styleOverrides: {
+          root: {
+            borderRadius: 16,
+            boxShadow: themeColors.shadows.md,
+            border: themeColors.borders.light,
+            backgroundColor: roleColors.surface,
+          },
+        },
+      },
+      MuiPaper: {
+        styleOverrides: {
+          root: {
+            borderRadius: 16,
+            backgroundColor: roleColors.surface,
+          },
+        },
+      },
+      MuiAppBar: {
+        styleOverrides: {
+          colorPrimary: {
+            backgroundColor: roleColors.surface,
+            color: roleColors.text,
+            boxShadow: themeColors.shadows.sm,
+            borderBottom: themeColors.borders.light,
+          },
+        },
+      },
+      MuiDrawer: {
+        styleOverrides: {
+          paper: {
+            borderRight: themeColors.borders.light,
+            backgroundColor: roleColors.surface,
+          },
+        },
+      },
+      MuiChip: {
+        styleOverrides: {
+          root: {
+            fontWeight: 600,
+            fontSize: '0.875rem',
+            height: '32px',
+          },
+        },
+      },
+      MuiTextField: {
+        styleOverrides: {
+          root: {
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 8,
+              '&:hover .MuiOutlinedInput-notchedOutline': {
+                borderColor: roleColors.primary,
+              },
+              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                borderColor: roleColors.primary,
+                borderWidth: '2px',
+              },
+            },
+          },
+        },
+      },
+      MuiListItemButton: {
+        styleOverrides: {
+          root: {
+            borderRadius: 8,
+            margin: '4px 8px',
+            minHeight: '44px', // WCAG touch target
+            '&:hover': {
+              backgroundColor: themeColors.interactive.hover.light,
+            },
+            '&.Mui-selected': {
+              backgroundColor: `${roleColors.primary}15`,
+              color: roleColors.primary,
+              '&:hover': {
+                backgroundColor: `${roleColors.primary}25`,
+              },
+            },
+            '&:focus-visible': {
+              boxShadow: themeColors.interactive.focus.ring,
+            },
+          },
+        },
+      },
+      MuiIconButton: {
+        styleOverrides: {
+          root: {
+            minWidth: '44px',
+            minHeight: '44px', // WCAG touch target
+            '&:focus-visible': {
+              boxShadow: themeColors.interactive.focus.ring,
+            },
+          },
         },
       },
     },
-    MuiTypography: {
-      styleOverrides: {
-        root: {
-          color: '#000000 !important',
-        },
-      },
-    },
-  },
-});
+  });
+};
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { currentUser } = useAuth();
@@ -145,11 +341,20 @@ function AppContent() {
   
   // Update page title based on current route
   usePageTitle();
+  
+  useEffect(() => {
+    const role = currentUser?.role?.toLowerCase() ?? 'public';
+    document.body.dataset.role = role;
+    return () => {
+      document.body.dataset.role = 'public';
+    };
+  }, [currentUser]);
 
   return (
     <>
       <ResourcePrefetcher />
-      <Routes>
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/check-status/:referenceNumber" element={<LandingPage />} />
       <Route path="/about" element={<AboutUsPage />} />
@@ -284,6 +489,14 @@ function AppContent() {
         element={
           <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
             <ClaimHistory />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/renewal-dashboard" 
+        element={
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin']}>
+            <RenewalDashboard />
           </ProtectedRoute>
         } 
       />
@@ -479,30 +692,48 @@ function AppContent() {
       
       {/* Public Document Correction Route */}
       <Route path="/document-correction/:token" element={<DocumentCorrectionPage />} />
-    </Routes>
+        </Routes>
+      </Suspense>
     </>
+  );
+}
+
+// Theme wrapper component that has access to auth context
+function ThemeWrapper({ children }) {
+  const { currentUser } = useAuth();
+  
+  // Create dynamic theme based on user role
+  const theme = useMemo(() => {
+    const role = currentUser?.role || 'admin';
+    return createRoleTheme(role);
+  }, [currentUser?.role]);
+  
+  return (
+    <ThemeProvider theme={theme}>
+      {children}
+    </ThemeProvider>
   );
 }
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <AuthProvider>
-        <TranslationProvider>
-          <Router
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true
-            }}
-          >
+    <AuthProvider>
+      <TranslationProvider>
+        <Router
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true
+          }}
+        >
+          <ThemeWrapper>
+            <CssBaseline />
             <div className="App">
               <AppContent />
             </div>
-          </Router>
-        </TranslationProvider>
-      </AuthProvider>
-    </ThemeProvider>
+          </ThemeWrapper>
+        </Router>
+      </TranslationProvider>
+    </AuthProvider>
   );
 }
 

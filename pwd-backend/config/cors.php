@@ -24,9 +24,8 @@ return [
         'http://localhost:5173',
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173',
-        'https://communication-bathrooms-jean-employ.trycloudflare.com',
-        'https://brian-exhibition-applicants-identifying.trycloudflare.com',
-        'https://spaces-counting-general-before.trycloudflare.com',
+        'https://brown-idol-pharmacies-absolute.trycloudflare.com',
+        'https://artist-eliminate-attitude-destiny.trycloudflare.com',
     ],
 
     'allowed_origins_patterns' => [

@@ -78,6 +78,18 @@ const analyticsService = {
     }
   },
 
+  // Get comprehensive analytics (renewal, documents, processing times, etc.)
+  getComprehensiveAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/comprehensive', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching comprehensive analytics:', error);
+      toastService.error('Failed to fetch comprehensive analytics: ' + (error.message || 'Unknown error'));
+      throw error;
+    }
+  },
+
   // Helper function to format suggestion priority for display
   formatPriority: (priority) => {
     const priorityMap = {

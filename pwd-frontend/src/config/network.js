@@ -15,15 +15,15 @@ const DEVELOPMENT_CONFIG = {
 
 // Production Configuration (Hostinger)
 const PRODUCTION_CONFIG = {
-  API_BASE_URL: 'https://lightgoldenrodyellow-ibis-644404.hostingersite.com/api',
-  STORAGE_BASE_URL: 'https://lightgoldenrodyellow-ibis-644404.hostingersite.com',
+  API_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com',
 };
 
 // Cloudflare Tunnel Configuration
 const CLOUDFLARE_TUNNEL_CONFIG = {
   // Backend API through Cloudflare tunnel
-  API_BASE_URL: 'https://nylon-accountability-businesses-architect.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://nylon-accountability-businesses-architect.trycloudflare.com',
+  API_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com',
 };
 
 // Auto-detect environment

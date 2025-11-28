@@ -164,10 +164,30 @@ class RouteServiceProvider extends ServiceProvider
                         ], 422);
                     }
 
+                    $oldStatus = $application->status;
                     $application->update([
                         'status' => 'Pending Admin Approval',
                         'remarks' => $request->remarks || 'Approved by Barangay President'
                     ]);
+
+                    // Send notification to applicant if user account exists
+                    try {
+                        $user = \App\Models\User::where('email', $application->email)->first();
+                        if ($user) {
+                            $applicantName = trim(($application->firstName ?? '') . ' ' . ($application->lastName ?? ''));
+                            \App\Services\NotificationService::notifyApplicationStatusChange(
+                                $user->userID,
+                                'Pending Admin Approval',
+                                $applicantName,
+                                $application->remarks ?? 'Approved by Barangay President'
+                            );
+                        }
+                    } catch (\Exception $notifError) {
+                        \Illuminate\Support\Facades\Log::error('Failed to send barangay approval notification', [
+                            'application_id' => $application->applicationID,
+                            'error' => $notifError->getMessage()
+                        ]);
+                    }
 
                     return response()->json([
                         'message' => 'Application approved successfully',
@@ -184,6 +204,13 @@ class RouteServiceProvider extends ServiceProvider
             
             Route::middleware('auth:sanctum')->post('/api/applications/{id}/reject', function (Request $request, $id) {
                 try {
+                    // Log the rejection attempt
+                    \Illuminate\Support\Facades\Log::info('Rejection request received', [
+                        'application_id' => $id,
+                        'user' => $request->user() ? $request->user()->userID : 'unauthenticated',
+                        'request_data' => $request->all()
+                    ]);
+                    
                     $application = \App\Models\Application::findOrFail($id);
                     
                     $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [

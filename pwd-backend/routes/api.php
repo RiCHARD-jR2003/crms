@@ -21,6 +21,7 @@ use App\Http\Controllers\DashboardController as MainDashboardController;
 use App\Http\Controllers\API\AnalyticsController;
 use App\Http\Controllers\API\DocumentManagementController;
 use App\Http\Controllers\API\IDRenewalController;
+use App\Http\Controllers\API\RenewalController;
 
 // Language routes
 Route::prefix('language')->group(function () {
@@ -56,6 +57,25 @@ Route::get('/application-status/{referenceNumber}', function ($referenceNumber) 
                 'message' => 'Application not found'
             ], 404);
         }
+
+        // Calculate expiry if not set and application is pending
+        try {
+            if (!$application->expires_at && in_array($application->status, ['Pending', 'Pending Barangay Approval', 'Pending Admin Approval'])) {
+                $application->calculateExpiryDate();
+                $application->save();
+            }
+        } catch (\Exception $e) {
+            // If settings table doesn't exist, skip expiry calculation
+            \Illuminate\Support\Facades\Log::warning('Could not calculate expiry date, settings table may not exist', [
+                'error' => $e->getMessage(),
+                'reference_number' => $referenceNumber
+            ]);
+        }
+
+        // Get remaining time
+        $remainingTime = $application->getRemainingTime();
+        $remainingHours = $remainingTime ? round($remainingTime / 3600, 1) : null;
+        $remainingDays = $remainingTime ? round($remainingTime / 86400, 1) : null;
         
         return response()->json([
             'success' => true,
@@ -69,6 +89,10 @@ Route::get('/application-status/{referenceNumber}', function ($referenceNumber) 
                 'email' => $application->email,
                 'status' => $application->status,
                 'submissionDate' => $application->submissionDate,
+                'expiresAt' => $application->expires_at?->toDateTimeString(),
+                'remainingHours' => $remainingHours,
+                'remainingDays' => $remainingDays,
+                'isExpired' => $application->isExpired(),
                 'remarks' => $application->remarks,
                 // Include document paths for rejected applications (allowing re-upload)
                 'canReuploadDocuments' => $application->status === 'Rejected',
@@ -266,23 +290,39 @@ Route::get('/applications/status/{status}', function ($status) {
     }
 });
 
-// Get all applications (adjusting for singular table name)
+// Get all applications (adjusting for singular table name) - Optimized with caching and eager loading
 Route::get('/applications', function () {
     try {
-        $applications = \App\Models\Application::all();
-        
-        // Add pending correction request status to each application
-        $applicationsWithCorrections = $applications->map(function ($application) {
-            $pendingCorrection = \App\Models\DocumentCorrectionRequest::where('application_id_string', $application->applicationID)
-                ->where('status', 'pending')
+        // Cache for 2 minutes
+        $cacheKey = 'applications.all';
+        $applications = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(2), function () {
+            // Get all pending correction requests in one query
+            $pendingCorrections = \App\Models\DocumentCorrectionRequest::where('status', 'pending')
                 ->where('expires_at', '>', now())
-                ->first();
+                ->pluck('application_id_string')
+                ->toArray();
             
-            $application->has_pending_correction = $pendingCorrection ? true : false;
-            return $application;
+            // Get all applications
+            $applications = \App\Models\Application::select([
+                'applicationID', 'referenceNumber', 'pwdID', 'firstName', 'lastName', 
+                'middleName', 'suffix', 'birthDate', 'gender', 'civilStatus', 
+                'nationality', 'disabilityType', 'disabilityCause', 'disabilityDate',
+                'address', 'barangay', 'city', 'province', 'postalCode', 'email',
+                'contactNumber', 'emergencyContact', 'emergencyPhone', 'emergencyRelationship',
+                'idType', 'idNumber', 'medicalCertificate', 'clinicalAbstract',
+                'voterCertificate', 'idPictures', 'birthCertificate', 'wholeBodyPicture',
+                'affidavit', 'barangayCertificate', 'submissionDate', 'status', 'remarks',
+                'created_at', 'updated_at'
+            ])->get();
+            
+            // Add pending correction status efficiently
+            return $applications->map(function ($application) use ($pendingCorrections) {
+                $application->has_pending_correction = in_array((string)$application->applicationID, $pendingCorrections);
+                return $application;
+            });
         });
         
-        return response()->json($applicationsWithCorrections);
+        return response()->json($applications);
     } catch (\Exception $e) {
         return response()->json([
             'success' => false,
@@ -1960,55 +2000,55 @@ Route::get('application-file/{applicationId}/{fileType}', function($applicationI
             }
         }
         
-        $fullFilePath = storage_path('app/public/' . $filePath);
-        
-        // Log for debugging
-        \Illuminate\Support\Facades\Log::info('Serving application file', [
-            'application_id' => $applicationId,
-            'file_type' => $fileType,
-            'file_path' => $filePath,
-            'full_file_path' => $fullFilePath,
-            'file_exists' => file_exists($fullFilePath)
-        ]);
-        
-        if (!file_exists($fullFilePath)) {
-            \Illuminate\Support\Facades\Log::error('Application file not found', [
+        // Try to retrieve file using FileStorageService (supports multiple storage methods)
+        try {
+            $storageMethod = \App\Services\FileStorageService::getStorageMethod();
+            
+            // Check if file exists in current storage
+            if (!\App\Services\FileStorageService::fileExists($filePath, $storageMethod)) {
+                // Fallback to local storage if not found
+                if ($storageMethod !== 'local') {
+                    $storageMethod = 'local';
+                }
+            }
+            
+            // Retrieve file content
+            $fileData = \App\Services\FileStorageService::retrieveFile($filePath, $storageMethod);
+            
+            // Generate filename
+            $extension = pathinfo($filePath, PATHINFO_EXTENSION) ?: 'pdf';
+            $fileName = $fileType . '_' . $application->firstName . '_' . $application->lastName . '.' . $extension;
+            
+            // Set appropriate headers
+            $headers = [
+                'Content-Type' => $fileData['mime_type'],
+                'Content-Length' => $fileData['size'],
+                'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+                'Cache-Control' => 'private, max-age=60, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0'
+            ];
+
+            // Return file response
+            return response($fileData['content'], 200, $headers);
+            
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error retrieving application file', [
                 'application_id' => $applicationId,
                 'file_type' => $fileType,
                 'file_path' => $filePath,
-                'full_file_path' => $fullFilePath,
-                'storage_path' => storage_path('app/public'),
-                'directory_exists' => is_dir(storage_path('app/public'))
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
-                'error' => 'File not found on disk',
+                'error' => 'File not found or error retrieving file',
                 'file_path' => $filePath,
-                'full_file_path' => $fullFilePath,
                 'application_id' => $applicationId,
-                'file_type' => $fileType
+                'file_type' => $fileType,
+                'message' => $e->getMessage()
             ], 404);
         }
-
-        // Get file info
-        $fileSize = filesize($fullFilePath);
-        $mimeType = mime_content_type($fullFilePath);
-        
-        // Generate filename
-        $fileName = $fileType . '_' . $application->firstName . '_' . $application->lastName . '.' . pathinfo($fullFilePath, PATHINFO_EXTENSION);
-        
-        // Set appropriate headers - reduce cache time for application files that might be updated
-        $headers = [
-            'Content-Type' => $mimeType,
-            'Content-Length' => $fileSize,
-            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
-            'Cache-Control' => 'private, max-age=60, must-revalidate', // Reduced to 60 seconds and must-revalidate
-            'Pragma' => 'no-cache',
-            'Expires' => '0'
-        ];
-
-        // Return file response with proper headers
-        return response()->file($fullFilePath, $headers);
         
     } catch (\Exception $e) {
         return response()->json([
@@ -2212,6 +2252,29 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('support-tickets/{id}/messages', [SupportTicketController::class, 'addMessage']);
     Route::get('support-tickets/messages/{messageId}/force-download', [SupportTicketController::class, 'forceDownloadAttachment']);
     
+    // Pending Registration Policy Settings (Admin only)
+    Route::get('pending-registration-policy', function (Request $request) {
+        $user = $request->user();
+        if (!$user || !in_array($user->role, ['Admin', 'SuperAdmin'])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        return (new \App\Http\Controllers\API\PendingRegistrationPolicyController)->index();
+    });
+    Route::get('pending-registration-policy/{key}', function (Request $request, $key) {
+        $user = $request->user();
+        if (!$user || !in_array($user->role, ['Admin', 'SuperAdmin'])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        return (new \App\Http\Controllers\API\PendingRegistrationPolicyController)->show($key);
+    });
+    Route::put('pending-registration-policy', function (Request $request) {
+        $user = $request->user();
+        if (!$user || !in_array($user->role, ['Admin', 'SuperAdmin'])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        return (new \App\Http\Controllers\API\PendingRegistrationPolicyController)->update($request);
+    });
+    
     // Dashboard data routes
     Route::get('dashboard/test', [DashboardController::class, 'test']);
     Route::get('dashboard/recent-activities', [DashboardController::class, 'getRecentActivities']);
@@ -2230,6 +2293,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('suggestions/summary', [AnalyticsController::class, 'getSuggestionSummary']);
         Route::get('suggestions/high-priority', [AnalyticsController::class, 'getHighPrioritySuggestions']);
         Route::get('transaction-analysis', [AnalyticsController::class, 'getTransactionAnalysis']);
+        Route::get('comprehensive', [AnalyticsController::class, 'getComprehensiveAnalytics']);
     });
 
     // Document Management routes
@@ -2266,6 +2330,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}/file/{type}', [IDRenewalController::class, 'getFile']);
     });
 
+    // Renewal Management routes (for flagged members)
+    Route::prefix('renewals')->group(function () {
+        Route::get('/members', [RenewalController::class, 'getRenewalMembers']);
+        Route::get('/stats', [RenewalController::class, 'getRenewalStats']);
+        Route::get('/settings', [RenewalController::class, 'getRenewalSettings']);
+        Route::post('/settings', [RenewalController::class, 'updateRenewalSettings']);
+    });
+
     // Document Migration routes (Admin only)
     Route::prefix('admin')->group(function () {
         Route::post('/migrate-documents', [App\Http\Controllers\API\DocumentMigrationController::class, 'migrateApplicationDocuments']);
@@ -2287,15 +2359,39 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', function (Request $request) {
             try {
                 $user = $request->user();
+                
+                // Ensure proper sorting: latest first (descending by created_at, then by id as tiebreaker)
                 $notifications = \App\Models\Notification::forUser($user->userID)
                     ->orderBy('created_at', 'desc')
-                    ->get();
+                    ->orderBy('id', 'desc') // Secondary sort for consistent ordering
+                    ->get()
+                    ->map(function ($notification) {
+                        // Ensure timestamps are properly formatted
+                        return [
+                            'id' => $notification->id,
+                            'user_id' => $notification->user_id,
+                            'type' => $notification->type,
+                            'title' => $notification->title,
+                            'message' => $notification->message,
+                            'data' => $notification->data,
+                            'is_read' => $notification->is_read,
+                            'read_at' => $notification->read_at ? $notification->read_at->toIso8601String() : null,
+                            'created_at' => $notification->created_at->toIso8601String(),
+                            'updated_at' => $notification->updated_at->toIso8601String(),
+                            'timestamp' => $notification->created_at->toIso8601String() // Alias for frontend compatibility
+                        ];
+                    });
                 
                 return response()->json([
                     'success' => true,
                     'notifications' => $notifications
                 ]);
             } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to fetch notifications', [
+                    'user_id' => $request->user()->userID ?? null,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
                 return response()->json([
                     'success' => false,
                     'error' => 'Failed to fetch notifications',
@@ -2316,6 +2412,10 @@ Route::middleware('auth:sanctum')->group(function () {
                     'unread_count' => $unreadCount
                 ]);
             } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to fetch unread count', [
+                    'user_id' => $request->user()->userID ?? null,
+                    'error' => $e->getMessage()
+                ]);
                 return response()->json([
                     'success' => false,
                     'error' => 'Failed to fetch unread count',
@@ -2918,21 +3018,32 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
         $newUser->save();
 
         // Migrate documents from application to member_documents table
-        try {
-            $documentMigrationService = new \App\Services\DocumentMigrationService();
-            $migrationResult = $documentMigrationService->migrateApplicationDocuments($application, $newUser, $user->userID);
-            
-            \Illuminate\Support\Facades\Log::info('Document migration result', [
+        // CRITICAL: This must succeed - documents are required for member accounts
+        $documentMigrationService = new \App\Services\DocumentMigrationService();
+        $migrationResult = $documentMigrationService->migrateApplicationDocuments($application, $newUser, $user->userID);
+        
+        \Illuminate\Support\Facades\Log::info('Document migration result', [
+            'application_id' => $application->applicationID,
+            'migration_result' => $migrationResult,
+            'member_id' => $newUser->userID
+        ]);
+        
+        // If migration failed or no documents were migrated, log warning but don't fail approval
+        // (Some applications might not have all documents uploaded)
+        if (!$migrationResult['success'] || $migrationResult['migrated_count'] === 0) {
+            \Illuminate\Support\Facades\Log::warning('Document migration had issues during approval', [
                 'application_id' => $application->applicationID,
-                'migration_result' => $migrationResult
+                'member_id' => $newUser->userID,
+                'migration_result' => $migrationResult,
+                'application_documents' => [
+                    'medicalCertificate' => !empty($application->medicalCertificate),
+                    'idPictures' => !empty($application->idPictures),
+                    'barangayCertificate' => !empty($application->barangayCertificate),
+                    'clinicalAbstract' => !empty($application->clinicalAbstract),
+                    'voterCertificate' => !empty($application->voterCertificate),
+                    'birthCertificate' => !empty($application->birthCertificate),
+                ]
             ]);
-        } catch (\Exception $migrationError) {
-            \Illuminate\Support\Facades\Log::error('Document migration failed during approval', [
-                'application_id' => $application->applicationID,
-                'error' => $migrationError->getMessage(),
-                'trace' => $migrationError->getTraceAsString()
-            ]);
-            // Don't fail the approval if migration fails, just log it
         }
 
         // Send approval email
@@ -2953,6 +3064,26 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
             $emailSent = true;
         } catch (\Exception $mailError) {
             \Illuminate\Support\Facades\Log::error('Email sending failed', ['error' => $mailError->getMessage()]);
+        }
+
+        // Send in-app notification to the new user
+        try {
+            $applicantName = trim($application->firstName . ' ' . $application->lastName);
+            \App\Services\NotificationService::notifyApplicationStatusChange(
+                $newUser->userID,
+                'Approved',
+                $applicantName,
+                'Your application has been approved. You can now log in to access your PWD member portal.'
+            );
+            \Illuminate\Support\Facades\Log::info('Approval notification sent', [
+                'user_id' => $newUser->userID,
+                'application_id' => $application->applicationID
+            ]);
+        } catch (\Exception $notifError) {
+            \Illuminate\Support\Facades\Log::error('Notification sending failed', [
+                'error' => $notifError->getMessage(),
+                'user_id' => $newUser->userID ?? null
+            ]);
         }
 
         return response()->json([

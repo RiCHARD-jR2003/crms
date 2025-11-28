@@ -17,6 +17,7 @@ class Announcement extends Model
         'title',
         'content',
         'type',
+        'category',
         'priority',
         'targetAudience',
         'status',

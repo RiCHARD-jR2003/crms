@@ -329,4 +329,51 @@ class AnalyticsController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get comprehensive analytics dashboard data
+     */
+    public function getComprehensiveAnalytics(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'barangay' => 'nullable|string'
+            ]);
+            
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+            
+            $dateRange = null;
+            if ($request->start_date && $request->end_date) {
+                $dateRange = [
+                    'start' => $request->start_date,
+                    'end' => $request->end_date
+                ];
+            }
+            
+            $analytics = $this->analyticsService->getComprehensiveAnalytics(
+                $dateRange,
+                $request->barangay
+            );
+            
+            return response()->json([
+                'success' => true,
+                'data' => $analytics
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate comprehensive analytics',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

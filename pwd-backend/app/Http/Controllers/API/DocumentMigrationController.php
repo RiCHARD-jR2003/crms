@@ -176,7 +176,15 @@ class DocumentMigrationController extends Controller
 
             $approvedApplications = Application::where('status', 'Approved')->count();
             $totalMemberDocuments = MemberDocument::count();
-            $requiredDocuments = RequiredDocument::count();
+            
+            // Count only active, unique required documents (by name)
+            // This prevents counting duplicates or inactive documents
+            // When documents are updated, new versions are created, so we need to get unique by name
+            $requiredDocuments = RequiredDocument::active()
+                ->orderBy('id', 'desc') // Get most recent first
+                ->get()
+                ->unique('name') // Get unique by name (keeps first occurrence, which is most recent due to orderBy)
+                ->count();
 
             return response()->json([
                 'success' => true,

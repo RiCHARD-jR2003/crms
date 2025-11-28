@@ -614,12 +614,12 @@ class DocumentManagementController extends Controller
     public function getAllMemberDocuments()
     {
         // Get all members with their submitted documents for admin management
+        // Changed: Show ALL members, not just those with documents, so we can see who needs documents migrated
         $members = Cache::remember('documents.all_members', now()->addMinutes(5), function () {
             return PWDMember::with(['memberDocuments' => function($query) {
                 $query->with(['requiredDocument', 'reviewer'])
                       ->orderBy('uploaded_at', 'desc');
             }])
-            ->whereHas('memberDocuments') // Only members who have submitted documents
             ->orderBy('lastName')
             ->orderBy('firstName')
             ->get();

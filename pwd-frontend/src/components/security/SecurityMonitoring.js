@@ -1374,7 +1374,7 @@ function SecurityMonitoring() {
                   <Grid item xs={12} md={4}>
                     <TextField
                       fullWidth
-                      placeholder="Search events..."
+                      placeholder="Search by event type, user, IP address, timestamp..."
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       InputProps={{
