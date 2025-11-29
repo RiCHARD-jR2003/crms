@@ -4,11 +4,18 @@ import { api } from './api';
 import toastService from './toastService';
 
 const benefitService = {
-  // Get all benefits
-  getAll: async () => {
+  // Get all benefits (with optional barangay filter)
+  getAll: async (barangay = null) => {
     try {
-      const response = await api.get('/benefits-simple');
-      return response;
+      const url = barangay ? `/benefits?barangay=${encodeURIComponent(barangay)}` : '/benefits';
+      const response = await api.get(url);
+      // Sort by most recent first (created_at or distributionDate)
+      const sorted = Array.isArray(response) ? response.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.distributionDate || 0);
+        const dateB = new Date(b.created_at || b.distributionDate || 0);
+        return dateB - dateA; // Most recent first
+      }) : response;
+      return sorted;
     } catch (error) {
       console.error('Error fetching benefits:', error);
       toastService.error('Failed to fetch benefits: ' + (error.message || 'Unknown error'));
@@ -72,6 +79,18 @@ const benefitService = {
     } catch (error) {
       console.error('Error fetching benefit claims:', error);
       toastService.error('Failed to fetch benefit claims: ' + (error.message || 'Unknown error'));
+      throw error;
+    }
+  },
+
+  // Announce benefit (Barangay President feature)
+  announceBenefit: async (id) => {
+    try {
+      const response = await api.post(`/benefits/${id}/announce`);
+      return response;
+    } catch (error) {
+      console.error('Error announcing benefit:', error);
+      toastService.error('Failed to announce benefit: ' + (error.message || 'Unknown error'));
       throw error;
     }
   }

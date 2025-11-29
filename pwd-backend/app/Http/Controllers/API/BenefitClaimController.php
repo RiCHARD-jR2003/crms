@@ -7,12 +7,37 @@ use App\Http\Controllers\Controller;
 use App\Models\BenefitClaim;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class BenefitClaimController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $claims = BenefitClaim::with('pwdMember.user', 'benefit')->get();
+        $userId = $request->get('user_id');
+        $cacheKey = $userId ? "benefit_claims:user:{$userId}" : "benefit_claims:all";
+        
+        // Cache for 2 minutes (120 seconds) - claims change frequently
+        $claims = Cache::remember($cacheKey, 120, function() use ($userId) {
+            $query = BenefitClaim::selectEssential()
+                ->with([
+                    'pwdMember' => function($q) {
+                        $q->select(['userID', 'firstName', 'lastName', 'barangay']);
+                    },
+                    'benefit' => function($q) {
+                        $q->select(['id', 'title', 'type', 'amount', 'status']);
+                    }
+                ])
+                ->recentFirst();
+            
+            if ($userId) {
+                $query->forUser($userId);
+            }
+            
+            return $query->limit(1000)->get();
+        });
+        
         return response()->json($claims);
     }
 
@@ -40,7 +65,20 @@ class BenefitClaimController extends Controller
 
     public function show($id)
     {
-        $claim = BenefitClaim::with('pwdMember.user', 'benefit')->find($id);
+        $cacheKey = "benefit_claim:show:{$id}";
+        
+        $claim = Cache::remember($cacheKey, 300, function() use ($id) {
+            return BenefitClaim::selectEssential()
+                ->with([
+                    'pwdMember' => function($q) {
+                        $q->select(['userID', 'firstName', 'lastName', 'barangay']);
+                    },
+                    'benefit' => function($q) {
+                        $q->select(['id', 'title', 'type', 'amount', 'status']);
+                    }
+                ])
+                ->find($id);
+        });
         
         if (!$claim) {
             return response()->json(['message' => 'Benefit claim not found'], 404);
@@ -67,7 +105,19 @@ class BenefitClaimController extends Controller
 
         $claim->update($request->only(['claimDate']));
 
-        return response()->json($claim->load('pwdMember.user', 'benefit'));
+        // Clear cache
+        Cache::forget("benefit_claim:show:{$id}");
+        Cache::forget("benefit_claims:user:{$claim->pwdID}");
+        Cache::forget("benefit_claims:all");
+
+        return response()->json($claim->load([
+            'pwdMember' => function($q) {
+                $q->select(['userID', 'firstName', 'lastName', 'barangay']);
+            },
+            'benefit' => function($q) {
+                $q->select(['id', 'title', 'type', 'amount', 'status']);
+            }
+        ]));
     }
 
     public function destroy($id)
@@ -101,7 +151,19 @@ class BenefitClaimController extends Controller
 
         $claim->update(['status' => $request->status]);
 
-        return response()->json($claim->load('pwdMember.user', 'benefit'));
+        // Clear cache
+        Cache::forget("benefit_claim:show:{$id}");
+        Cache::forget("benefit_claims:user:{$claim->pwdID}");
+        Cache::forget("benefit_claims:all");
+
+        return response()->json($claim->load([
+            'pwdMember' => function($q) {
+                $q->select(['userID', 'firstName', 'lastName', 'barangay']);
+            },
+            'benefit' => function($q) {
+                $q->select(['id', 'title', 'type', 'amount', 'status']);
+            }
+        ]));
     }
 
     /**
@@ -223,17 +285,38 @@ class BenefitClaimController extends Controller
                 $authorizationLetterPath = $file->storeAs('authorization_letters', $fileName, 'public');
             }
 
-            // Get active benefits
+            // Get active benefits - filter by member's barangay
+            $memberBarangay = $member->barangay;
             $benefits = [];
+            
             if ($request->has('benefitID')) {
                 // Claim specific benefit - benefit table only has 'id' column, not 'benefitID'
-                $benefit = \App\Models\Benefit::where('id', $request->benefitID)->first();
-                if ($benefit && $benefit->status === 'Active') {
-                    $benefits[] = $benefit;
+                $benefit = \App\Models\Benefit::where('id', $request->benefitID)
+                    ->where('status', 'Active')
+                    ->first();
+                
+                if ($benefit) {
+                    // Check if benefit is for this member's barangay
+                    $isEligible = false;
+                    if ($benefit->selectedBarangays && is_array($benefit->selectedBarangays)) {
+                        $isEligible = in_array($memberBarangay, $benefit->selectedBarangays);
+                    } elseif ($benefit->barangay) {
+                        $isEligible = ($benefit->barangay === 'All' || $benefit->barangay === $memberBarangay);
+                    } else {
+                        // No barangay restriction
+                        $isEligible = true;
+                    }
+                    
+                    if ($isEligible) {
+                        $benefits[] = $benefit;
+                    }
                 }
             } else {
-                // Claim all eligible active benefits
-                $benefits = \App\Models\Benefit::where('status', 'Active')->get();
+                // OPTIMIZED: Get all eligible active benefits in a single optimized query
+                $benefits = \App\Models\Benefit::selectEssential()
+                    ->active()
+                    ->forBarangay($memberBarangay)
+                    ->get();
             }
 
             if (empty($benefits)) {
@@ -243,40 +326,105 @@ class BenefitClaimController extends Controller
                 ], 404);
             }
 
+            // OPTIMIZED: Get all existing claims for this user in a single query
+            $benefitIds = collect($benefits)->pluck('id')->toArray();
+            $existingClaims = BenefitClaim::selectEssential()
+                ->where('pwdID', $member->userID)
+                ->whereIn('benefitID', $benefitIds)
+                ->get()
+                ->keyBy('benefitID'); // Index by benefitID for fast lookup
+            
             $claimsCreated = [];
+            $duplicateErrors = [];
+            $realTimeNow = now();
+            
+            // Prepare bulk insert data
+            $bulkInsertData = [];
+            
             foreach ($benefits as $benefit) {
-                // Benefit table only has 'id' column, not 'benefitID'
                 $benefitId = $benefit->id;
+                $existingClaim = $existingClaims->get($benefitId);
                 
-                // Check if claim already exists
-                $existingClaim = BenefitClaim::where('pwdID', $member->userID)
-                    ->where('benefitID', $benefitId)
-                    ->first();
-
-                if (!$existingClaim) {
-                    $claim = BenefitClaim::create([
+                // Check if already claimed
+                if ($existingClaim && $existingClaim->status === 'Claimed') {
+                    \Illuminate\Support\Facades\Log::warning('Double disbursement attempt blocked', [
+                        'member_id' => $member->userID,
+                        'benefit_id' => $benefitId,
+                        'existing_claim_id' => $existingClaim->id,
+                        'existing_claim_date' => $existingClaim->claimDate,
+                        'timestamp' => $realTimeNow->toDateTimeString()
+                    ]);
+                    
+                    $duplicateErrors[] = [
+                        'benefit_id' => $benefitId,
+                        'benefit_title' => $benefit->title ?? $benefit->type ?? 'Benefit',
+                        'message' => 'This benefit has already been claimed by this applicant',
+                        'previous_claim_date' => $existingClaim->claimDate ? Carbon::parse($existingClaim->claimDate)->format('M d, Y H:i:s') : 'Unknown'
+                    ];
+                    continue;
+                }
+                
+                if ($existingClaim) {
+                    // Update existing unclaimed claim
+                    if ($existingClaim->status !== 'Claimed') {
+                        $existingClaim->update([
+                            'status' => 'Claimed',
+                            'claimDate' => $realTimeNow,
+                            'claimantType' => $request->claimantType,
+                            'claimantName' => $request->claimantName,
+                            'claimantRelation' => $request->claimantRelation,
+                            'authorizationLetter' => $authorizationLetterPath ?: $existingClaim->authorizationLetter,
+                            'updated_at' => $realTimeNow
+                        ]);
+                        $claimsCreated[] = $existingClaim;
+                    }
+                } else {
+                    // Prepare for bulk insert
+                    $bulkInsertData[] = [
                         'pwdID' => $member->userID,
                         'benefitID' => $benefitId,
-                        'claimDate' => now(),
+                        'claimDate' => $realTimeNow,
                         'status' => 'Claimed',
                         'claimantType' => $request->claimantType,
                         'claimantName' => $request->claimantName,
                         'claimantRelation' => $request->claimantRelation,
                         'authorizationLetter' => $authorizationLetterPath,
-                    ]);
-                    $claimsCreated[] = $claim;
-                } else {
-                    // Update existing claim
-                    $existingClaim->update([
-                        'status' => 'Claimed',
-                        'claimDate' => now(),
-                        'claimantType' => $request->claimantType,
-                        'claimantName' => $request->claimantName,
-                        'claimantRelation' => $request->claimantRelation,
-                        'authorizationLetter' => $authorizationLetterPath ?: $existingClaim->authorizationLetter,
-                    ]);
-                    $claimsCreated[] = $existingClaim;
+                        'created_at' => $realTimeNow,
+                        'updated_at' => $realTimeNow
+                    ];
                 }
+            }
+            
+            // Bulk insert new claims (much faster than individual inserts)
+            if (!empty($bulkInsertData)) {
+                BenefitClaim::insert($bulkInsertData);
+                
+                // Get the inserted claims
+                $insertedClaims = BenefitClaim::selectEssential()
+                    ->where('pwdID', $member->userID)
+                    ->whereIn('benefitID', collect($bulkInsertData)->pluck('benefitID')->toArray())
+                    ->where('status', 'Claimed')
+                    ->where('claimDate', $realTimeNow)
+                    ->get();
+                
+                $claimsCreated = array_merge($claimsCreated, $insertedClaims->all());
+                
+                \Illuminate\Support\Facades\Log::info('Benefit claims bulk created', [
+                    'member_id' => $member->userID,
+                    'claims_count' => count($insertedClaims),
+                    'timestamp' => $realTimeNow->toDateTimeString()
+                ]);
+            }
+            
+            // Clear cache for this user's claims
+            Cache::forget("benefit_claims:user:{$member->userID}");
+            
+            // If there were duplicate errors, include them in response
+            if (!empty($duplicateErrors)) {
+                \Illuminate\Support\Facades\Log::warning('Some benefits were not claimed due to duplicates', [
+                    'member_id' => $member->userID,
+                    'duplicates' => $duplicateErrors
+                ]);
             }
 
             // Convert benefits to array format
@@ -289,7 +437,7 @@ class BenefitClaimController extends Controller
                 ];
             })->toArray();
 
-            return response()->json([
+            $response = [
                 'success' => true,
                 'benefitsClaimed' => count($claimsCreated),
                 'benefits' => $benefitsArray,
@@ -302,7 +450,16 @@ class BenefitClaimController extends Controller
                 'claimantType' => $request->claimantType,
                 'claimantName' => $request->claimantName,
                 'claimantRelation' => $request->claimantRelation,
-            ]);
+                'claim_timestamp' => now()->format('Y-m-d H:i:s')
+            ];
+
+            // Include duplicate errors if any
+            if (!empty($duplicateErrors)) {
+                $response['duplicate_errors'] = $duplicateErrors;
+                $response['warning'] = count($duplicateErrors) . ' benefit(s) were not claimed due to duplicate disbursement prevention.';
+            }
+
+            return response()->json($response);
 
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('QR scan claim benefits error', [

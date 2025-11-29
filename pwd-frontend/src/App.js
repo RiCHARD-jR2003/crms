@@ -198,18 +198,39 @@ const createRoleTheme = (role) => {
             padding: '10px 22px',
             minHeight: '44px', // WCAG touch target
             fontWeight: 600,
-            boxShadow: themeColors.shadows.sm,
+            boxShadow: 'none',
+            border: 'none',
             '&:hover': {
-              boxShadow: themeColors.shadows.md,
+              boxShadow: 'none',
+              border: 'none',
             },
             '&:focus-visible': {
-              boxShadow: themeColors.interactive.focus.ring,
+              boxShadow: 'none',
+              border: 'none',
             },
           },
           contained: {
-            boxShadow: themeColors.shadows.md,
+            boxShadow: 'none',
+            border: 'none',
             '&:hover': {
-              boxShadow: themeColors.shadows.lg,
+              boxShadow: 'none',
+              border: 'none',
+            },
+          },
+          outlined: {
+            border: 'none',
+            boxShadow: 'none',
+            '&:hover': {
+              border: 'none',
+              boxShadow: 'none',
+            },
+          },
+          text: {
+            border: 'none',
+            boxShadow: 'none',
+            '&:hover': {
+              border: 'none',
+              boxShadow: 'none',
             },
           },
         },
@@ -264,13 +285,62 @@ const createRoleTheme = (role) => {
           root: {
             '& .MuiOutlinedInput-root': {
               borderRadius: 8,
+              outline: 'none',
               '&:hover .MuiOutlinedInput-notchedOutline': {
                 borderColor: roleColors.primary,
               },
-              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                borderColor: roleColors.primary,
-                borderWidth: '2px',
+              '&.Mui-focused': {
+                outline: 'none',
+                boxShadow: 'none',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: roleColors.primary,
+                  borderWidth: '2px',
+                },
               },
+              '&:focus': {
+                outline: 'none',
+                boxShadow: 'none',
+              },
+              '&:focus-visible': {
+                outline: 'none',
+                boxShadow: 'none',
+              },
+            },
+          },
+        },
+      },
+      MuiInputBase: {
+        styleOverrides: {
+          root: {
+            '&:focus': {
+              outline: 'none',
+              boxShadow: 'none',
+            },
+            '&:focus-visible': {
+              outline: 'none',
+              boxShadow: 'none',
+            },
+            '&.Mui-focused': {
+              outline: 'none',
+              boxShadow: 'none',
+            },
+          },
+        },
+      },
+      MuiSelect: {
+        styleOverrides: {
+          root: {
+            '&:focus': {
+              outline: 'none',
+              boxShadow: 'none',
+            },
+            '&:focus-visible': {
+              outline: 'none',
+              boxShadow: 'none',
+            },
+            '&.Mui-focused': {
+              outline: 'none',
+              boxShadow: 'none',
             },
           },
         },
@@ -302,8 +372,15 @@ const createRoleTheme = (role) => {
           root: {
             minWidth: '44px',
             minHeight: '44px', // WCAG touch target
+            border: 'none',
+            boxShadow: 'none',
+            '&:hover': {
+              border: 'none',
+              boxShadow: 'none',
+            },
             '&:focus-visible': {
-              boxShadow: themeColors.interactive.focus.ring,
+              boxShadow: 'none',
+              border: 'none',
             },
           },
         },

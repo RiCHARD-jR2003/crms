@@ -291,10 +291,10 @@ function BarangayPresidentPWDCard() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <IconButton sx={{ color: '#7F8C8D', border: '1px solid #E0E0E0', borderRadius: 2 }}>
+          <IconButton sx={{ color: '#7F8C8D', border: 'none', borderRadius: 2 }}>
             <FilterListIcon />
           </IconButton>
-          <IconButton sx={{ color: '#7F8C8D', border: '1px solid #E0E0E0', borderRadius: 2 }}>
+          <IconButton sx={{ color: '#7F8C8D', border: 'none', borderRadius: 2 }}>
             <Menu />
           </IconButton>
         </Box>

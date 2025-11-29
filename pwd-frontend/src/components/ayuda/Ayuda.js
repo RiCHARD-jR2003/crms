@@ -166,11 +166,17 @@ const Ayuda = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load benefits from database
+        // Load benefits from database and sort by most recent first
         const benefitsData = await benefitService.getAll();
         console.log('Loading benefits from database:', benefitsData);
         if (benefitsData && Array.isArray(benefitsData)) {
-          setBenefits(benefitsData);
+          // Sort by most recent first (created_at or distributionDate)
+          const sortedBenefits = benefitsData.sort((a, b) => {
+            const dateA = new Date(a.created_at || a.distributionDate || 0);
+            const dateB = new Date(b.created_at || b.distributionDate || 0);
+            return dateB - dateA; // Most recent first
+          });
+          setBenefits(sortedBenefits);
         } else {
           setBenefits([]);
         }
@@ -276,6 +282,29 @@ const Ayuda = () => {
   };
 
   const handleSubmit = async () => {
+    // Validate selectedBarangays - at least one barangay must be selected
+    if (formData.type === 'Financial Assistance' || formData.type === 'Birthday Cash Gift') {
+      if (!formData.selectedBarangays || !Array.isArray(formData.selectedBarangays) || formData.selectedBarangays.length === 0) {
+        toastService.error('Please select at least one barangay for this benefit.');
+        return;
+      }
+      
+      // Filter out empty or invalid barangay entries
+      const validBarangays = formData.selectedBarangays.filter(b => b && typeof b === 'string' && b.trim() !== '');
+      
+      if (validBarangays.length === 0) {
+        toastService.error('Please select at least one valid barangay. Empty or invalid entries are not allowed.');
+        return;
+      }
+      
+      // Remove duplicates
+      const uniqueBarangays = [...new Set(validBarangays)];
+      if (uniqueBarangays.length !== formData.selectedBarangays.length) {
+        formData.selectedBarangays = uniqueBarangays;
+        toastService.info('Removed duplicate barangay selections.');
+      }
+    }
+    
     // Validate distribution date
     if (formData.distributionDate) {
       const today = new Date();
@@ -303,14 +332,16 @@ const Ayuda = () => {
     if (editingBenefit) {
       // Update existing benefit
       try {
-        // Format distribution date to include time (12:00 AM)
+        // Format distribution date to include time (12:00 AM) and use real-time timestamp
+        const realTimeNow = new Date().toISOString();
         const updateData = {
           ...formData,
           distributionDate: formData.distributionDate ? (() => {
             const dateObj = new Date(formData.distributionDate);
             dateObj.setHours(0, 0, 0, 0); // Set to 12:00 AM
             return dateObj.toISOString();
-          })() : formData.distributionDate
+          })() : formData.distributionDate,
+          updated_at: realTimeNow // Real-time timestamp
         };
         await benefitService.update(editingBenefit.id, updateData);
         const updatedBenefits = benefits.map(benefit => 

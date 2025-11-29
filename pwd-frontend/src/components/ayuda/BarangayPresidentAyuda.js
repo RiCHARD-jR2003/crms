@@ -58,12 +58,15 @@ import {
   Description,
   Approval,
   PictureAsPdf,
-  Menu as MenuIcon
+  Menu as MenuIcon,
+  Campaign as CampaignIcon
 } from '@mui/icons-material';
 import BarangayPresidentSidebar from '../shared/BarangayPresidentSidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import benefitService from '../../services/benefitService';
 import { reportsService } from '../../services/reportsService';
+import toastService from '../../services/toastService';
+import { formatDateTime } from '../../utils/dateTimeFormatter';
 
 function BarangayPresidentAyuda() {
   const { currentUser } = useAuth();
@@ -80,6 +83,7 @@ function BarangayPresidentAyuda() {
     pendingDistribution: 0,
     activePrograms: 0
   });
+  const [announcingBenefit, setAnnouncingBenefit] = useState(null);
 
   useEffect(() => {
     loadBenefitsData();
@@ -90,21 +94,28 @@ function BarangayPresidentAyuda() {
       setLoading(true);
       setError(null);
       
-      // Load benefits data
-      const benefitsData = await benefitService.getAll();
+      // Load benefits data filtered by barangay
+      const benefitsData = await benefitService.getAll(barangay);
       
-      // Filter benefits for this barangay
-      const filteredBenefits = benefitsData.filter(benefit => {
-        // Check if benefit is for this barangay or all barangays
-        if (benefit.barangay === 'All' || benefit.barangay === barangay) {
-          return true;
-        }
-        // Check if benefit has selectedBarangays array and includes this barangay
-        if (benefit.selectedBarangays && Array.isArray(benefit.selectedBarangays)) {
-          return benefit.selectedBarangays.includes(barangay);
-        }
-        return false;
-      });
+      // Filter benefits for this barangay and sort by most recent first
+      const filteredBenefits = benefitsData
+        .filter(benefit => {
+          // Check if benefit is for this barangay or all barangays
+          if (benefit.barangay === 'All' || benefit.barangay === barangay) {
+            return true;
+          }
+          // Check if benefit has selectedBarangays array and includes this barangay
+          if (benefit.selectedBarangays && Array.isArray(benefit.selectedBarangays)) {
+            return benefit.selectedBarangays.includes(barangay);
+          }
+          return false;
+        })
+        .sort((a, b) => {
+          // Sort by most recent first (created_at or distributionDate)
+          const dateA = new Date(a.created_at || a.distributionDate || 0);
+          const dateB = new Date(b.created_at || b.distributionDate || 0);
+          return dateB - dateA; // Most recent first
+        });
       
       setBenefits(filteredBenefits);
       
@@ -142,6 +153,28 @@ function BarangayPresidentAyuda() {
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
+  };
+
+  const handleAnnounceBenefit = async (benefitId) => {
+    try {
+      setAnnouncingBenefit(benefitId);
+      const response = await benefitService.announceBenefit(benefitId);
+      
+      if (response.success) {
+        toastService.success(
+          `Benefit announced successfully! Notifications sent to ${response.notifications_sent} qualified applicants.`
+        );
+        // Reload benefits to show updated announcement status
+        await loadBenefitsData();
+      } else {
+        toastService.error(response.message || 'Failed to announce benefit');
+      }
+    } catch (error) {
+      console.error('Error announcing benefit:', error);
+      toastService.error('Failed to announce benefit: ' + (error.message || 'Unknown error'));
+    } finally {
+      setAnnouncingBenefit(null);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -455,6 +488,33 @@ function BarangayPresidentAyuda() {
                               sx={{ fontWeight: 600 }}
                             />
                           </Box>
+                          
+                          {/* Announce Benefit Button (Barangay President only) */}
+                          {benefit.status === 'Active' && (
+                            <Box sx={{ mt: 2 }}>
+                              <Button
+                                fullWidth
+                                variant="contained"
+                                startIcon={<CampaignIcon />}
+                                onClick={() => handleAnnounceBenefit(benefit.id)}
+                                disabled={announcingBenefit === benefit.id}
+                                sx={{
+                                  bgcolor: '#3498DB',
+                                  '&:hover': { bgcolor: '#2980B9' },
+                                  textTransform: 'none',
+                                  fontWeight: 600,
+                                  py: 1
+                                }}
+                              >
+                                {announcingBenefit === benefit.id ? 'Announcing...' : 'Announce Benefit'}
+                              </Button>
+                              {benefit.announced_at && (
+                                <Typography variant="caption" sx={{ color: '#7F8C8D', mt: 1, display: 'block', textAlign: 'center' }}>
+                                  Announced: {formatDateTime(benefit.announced_at)}
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
                         </CardContent>
                       </Card>
                     </Grid>

@@ -203,6 +203,97 @@ textarea {
   outline-offset: 2px;
 }
 
+/* Remove outline from all input fields */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove outline from Material-UI input fields */
+.MuiOutlinedInput-root:focus,
+.MuiOutlinedInput-root:focus-visible,
+.MuiOutlinedInput-root.Mui-focused,
+.MuiInputBase-root:focus,
+.MuiInputBase-root:focus-visible,
+.MuiInputBase-root.Mui-focused,
+.MuiTextField-root .MuiOutlinedInput-root:focus,
+.MuiTextField-root .MuiOutlinedInput-root:focus-visible,
+.MuiTextField-root .MuiOutlinedInput-root.Mui-focused {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove outline from Material-UI Select fields */
+.MuiSelect-root:focus,
+.MuiSelect-root:focus-visible,
+.MuiSelect-root.Mui-focused {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove borders and shadows from all buttons */
+button,
+.MuiButton-root,
+.MuiButton-contained,
+.MuiButton-outlined,
+.MuiButton-text,
+.MuiIconButton-root,
+.MuiIconButton-edgeStart,
+.MuiIconButton-edgeEnd,
+[role='button'] {
+  border: none !important;
+  border-color: transparent !important;
+  border-width: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+button:hover,
+button:focus,
+button:active,
+.MuiButton-root:hover,
+.MuiButton-root:focus,
+.MuiButton-root:active,
+.MuiButton-contained:hover,
+.MuiButton-contained:focus,
+.MuiButton-contained:active,
+.MuiButton-outlined:hover,
+.MuiButton-outlined:focus,
+.MuiButton-outlined:active,
+.MuiButton-text:hover,
+.MuiButton-text:focus,
+.MuiButton-text:active,
+.MuiIconButton-root:hover,
+.MuiIconButton-root:focus,
+.MuiIconButton-root:active,
+[role='button']:hover,
+[role='button']:focus,
+[role='button']:active {
+  border: none !important;
+  border-color: transparent !important;
+  border-width: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Remove borders from Material-UI outlined buttons specifically */
+.MuiButton-outlined {
+  border: none !important;
+  border-color: transparent !important;
+}
+
+.MuiButton-outlined:hover,
+.MuiButton-outlined:focus,
+.MuiButton-outlined:active {
+  border: none !important;
+  border-color: transparent !important;
+}
+
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   :root {

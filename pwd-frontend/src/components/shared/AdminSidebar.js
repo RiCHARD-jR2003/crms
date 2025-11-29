@@ -187,7 +187,7 @@ function AdminSidebar({ isOpen, onToggle }) {
       borderRight: '1px solid var(--color-border-subtle)',
       zIndex: 1300,
       transition: 'width 0.3s ease-in-out',
-      overflow: 'hidden', // No scrolling - all content should fit
+      overflow: 'hidden', // Prevent outer container from scrolling
       boxShadow: { xs: isOpen ? '0 20px 35px rgba(11,31,51,0.15)' : 'none', md: '0 8px 24px rgba(11,31,51,0.08)' }
     }}>
       {/* Header with Logo and Toggle Button */}
@@ -276,8 +276,24 @@ function AdminSidebar({ isOpen, onToggle }) {
         mt: 1, // Restored to comfortable size
         opacity: { xs: isOpen ? 1 : 0, md: 1 },
         transition: 'opacity 0.3s ease-in-out',
-        overflow: 'hidden', // No scrolling
-        minHeight: 0 // Allow flex item to shrink
+        overflowY: 'auto', // Enable scrolling when needed
+        overflowX: 'hidden',
+        minHeight: 0, // Allow flex item to shrink
+        maxHeight: '100%', // Constrain to parent height
+        '&::-webkit-scrollbar': {
+          width: '6px',
+        },
+        '&::-webkit-scrollbar-track': {
+          background: '#f1f1f1',
+          borderRadius: '10px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: '#c1c1c1',
+          borderRadius: '10px',
+        },
+        '&::-webkit-scrollbar-thumb:hover': {
+          background: '#a8a8a8',
+        },
       }}>
         <SidebarItem 
           icon={<DashboardIcon />} 

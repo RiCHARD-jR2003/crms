@@ -324,6 +324,19 @@ function Login() {
                         '& .MuiOutlinedInput-root': {
                           borderRadius: 3,
                           backgroundColor: '#f8f9fa',
+                          outline: 'none',
+                          '&:focus': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
+                          '&:focus-visible': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
+                          '&.Mui-focused': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
                           '& fieldset': {
                             borderColor: '#e9ecef',
                           },
@@ -338,6 +351,14 @@ function Login() {
                         '& .MuiInputBase-input': {
                           color: '#2C3E50',
                           py: 1.5,
+                          '&:focus': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
+                          '&:focus-visible': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
                         },
                       }}
                     />
@@ -384,6 +405,19 @@ function Login() {
                         '& .MuiOutlinedInput-root': {
                           borderRadius: 3,
                           backgroundColor: '#f8f9fa',
+                          outline: 'none',
+                          '&:focus': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
+                          '&:focus-visible': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
+                          '&.Mui-focused': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
                           '& fieldset': {
                             borderColor: '#e9ecef',
                           },
@@ -398,6 +432,14 @@ function Login() {
                         '& .MuiInputBase-input': {
                           color: '#2C3E50',
                           py: 1.5,
+                          '&:focus': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
+                          '&:focus-visible': {
+                            outline: 'none',
+                            boxShadow: 'none',
+                          },
                         },
                       }}
                     />
@@ -420,6 +462,19 @@ function Login() {
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 3,
                             backgroundColor: '#fff3cd',
+                            outline: 'none',
+                            '&:focus': {
+                              outline: 'none',
+                              boxShadow: 'none',
+                            },
+                            '&:focus-visible': {
+                              outline: 'none',
+                              boxShadow: 'none',
+                            },
+                            '&.Mui-focused': {
+                              outline: 'none',
+                              boxShadow: 'none',
+                            },
                             '& fieldset': {
                               borderColor: '#ffc107',
                             },
@@ -434,6 +489,14 @@ function Login() {
                           '& .MuiInputBase-input': {
                             color: '#2C3E50',
                             py: 1.5,
+                            '&:focus': {
+                              outline: 'none',
+                              boxShadow: 'none',
+                            },
+                            '&:focus-visible': {
+                              outline: 'none',
+                              boxShadow: 'none',
+                            },
                           },
                         }}
                       />

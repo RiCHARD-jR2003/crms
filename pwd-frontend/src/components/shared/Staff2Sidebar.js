@@ -180,15 +180,19 @@ function Staff2Sidebar({ isOpen, onToggle }) {
         flex: 1, 
         p: 1.5,
         overflowY: 'auto',
+        overflowX: 'hidden',
+        minHeight: 0,
+        maxHeight: '100%',
         '&::-webkit-scrollbar': {
-          width: '4px',
+          width: '6px',
         },
         '&::-webkit-scrollbar-track': {
           background: '#f1f1f1',
+          borderRadius: '10px',
         },
         '&::-webkit-scrollbar-thumb': {
           background: '#c1c1c1',
-          borderRadius: '2px',
+          borderRadius: '10px',
         },
         '&::-webkit-scrollbar-thumb:hover': {
           background: '#a8a8a8',

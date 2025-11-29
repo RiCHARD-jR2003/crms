@@ -26,6 +26,7 @@ return [
         'http://127.0.0.1:5173',
         'https://brown-idol-pharmacies-absolute.trycloudflare.com',
         'https://artist-eliminate-attitude-destiny.trycloudflare.com',
+        'https://intranet-pty-talks-lottery.trycloudflare.com',
     ],
 
     'allowed_origins_patterns' => [

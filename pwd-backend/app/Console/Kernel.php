@@ -23,6 +23,10 @@ class Kernel extends ConsoleKernel
         // Process pending applications for expiry/rejection
         $schedule->command('applications:process-pending')
             ->hourly(); // Run every hour
+
+        // Auto-deactivate expired benefits (check every hour)
+        $schedule->command('benefits:auto-deactivate')
+            ->hourly(); // Run every hour to check for expired benefits
     }
 
     /**

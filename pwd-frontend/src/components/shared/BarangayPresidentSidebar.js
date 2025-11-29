@@ -161,7 +161,29 @@ function BarangayPresidentSidebar() {
       </Box>
 
       {/* Navigation Menu */}
-      <Box sx={{ p: 2, flex: 1, mt: 2 }}>
+      <Box sx={{ 
+        p: 2, 
+        flex: 1, 
+        mt: 2,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        minHeight: 0,
+        maxHeight: '100%',
+        '&::-webkit-scrollbar': {
+          width: '6px',
+        },
+        '&::-webkit-scrollbar-track': {
+          background: '#f1f1f1',
+          borderRadius: '10px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: '#c1c1c1',
+          borderRadius: '10px',
+        },
+        '&::-webkit-scrollbar-thumb:hover': {
+          background: '#a8a8a8',
+        },
+      }}>
         <SidebarItem 
           icon={<DashboardIcon />} 
           label="Dashboard" 

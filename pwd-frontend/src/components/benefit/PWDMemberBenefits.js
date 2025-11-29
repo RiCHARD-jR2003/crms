@@ -72,9 +72,22 @@ const PWDMemberBenefits = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch all benefits
-      const allBenefits = await benefitService.getAll();
-      const activeBenefits = allBenefits.filter(b => b.status === 'Active');
+      // Get user's barangay for filtering
+      const userBarangay = currentUser?.barangay || currentUser?.pwdMember?.barangay;
+      
+      // Fetch benefits filtered by user's barangay
+      const allBenefits = await benefitService.getAll(userBarangay);
+      
+      // Filter active benefits and sort by most recent first
+      const activeBenefits = allBenefits
+        .filter(b => b.status === 'Active')
+        .sort((a, b) => {
+          // Sort by created_at or distributionDate, most recent first
+          const dateA = new Date(a.created_at || a.distributionDate || 0);
+          const dateB = new Date(b.created_at || b.distributionDate || 0);
+          return dateB - dateA;
+        });
+      
       setBenefits(activeBenefits);
 
       // Fetch user's claims

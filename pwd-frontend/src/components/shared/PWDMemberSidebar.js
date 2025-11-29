@@ -90,7 +90,7 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
       bgcolor: '#FFFFFF',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden', // No scrolling - all content should fit
+      overflow: 'hidden', // Prevent outer container from scrolling
       borderRight: '1px solid #000000'
     }}>
       {/* Header */}
@@ -169,7 +169,29 @@ function PWDMemberSidebar({ isOpen, onToggle }) {
       </Box>
 
       {/* Navigation Menu */}
-      <Box sx={{ p: 2, flex: 1, mt: 2 }}>
+      <Box sx={{ 
+        p: 2, 
+        flex: 1, 
+        mt: 2,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        minHeight: 0,
+        maxHeight: '100%',
+        '&::-webkit-scrollbar': {
+          width: '6px',
+        },
+        '&::-webkit-scrollbar-track': {
+          background: '#f1f1f1',
+          borderRadius: '10px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: '#c1c1c1',
+          borderRadius: '10px',
+        },
+        '&::-webkit-scrollbar-thumb:hover': {
+          background: '#a8a8a8',
+        },
+      }}>
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (

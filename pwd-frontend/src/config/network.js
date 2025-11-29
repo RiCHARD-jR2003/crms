@@ -15,15 +15,15 @@ const DEVELOPMENT_CONFIG = {
 
 // Production Configuration (Hostinger)
 const PRODUCTION_CONFIG = {
-  API_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com',
+  API_BASE_URL: 'https://wiki-apparent-office-predictions.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://wiki-apparent-office-predictions.trycloudflare.com',
 };
 
 // Cloudflare Tunnel Configuration
 const CLOUDFLARE_TUNNEL_CONFIG = {
   // Backend API through Cloudflare tunnel
-  API_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://acid-section-abu-oldest.trycloudflare.com',
+  API_BASE_URL: 'https://wiki-apparent-office-predictions.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://wiki-apparent-office-predictions.trycloudflare.com',
 };
 
 // Auto-detect environment

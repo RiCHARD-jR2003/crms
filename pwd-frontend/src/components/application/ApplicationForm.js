@@ -97,6 +97,19 @@ function ApplicationForm() {
     '& .MuiOutlinedInput-root': {
       borderRadius: 3,
       backgroundColor: '#FFFFFF',
+      outline: 'none',
+      '&:focus': {
+        outline: 'none',
+        boxShadow: 'none',
+      },
+      '&:focus-visible': {
+        outline: 'none',
+        boxShadow: 'none',
+      },
+      '&.Mui-focused': {
+        outline: 'none',
+        boxShadow: 'none',
+      },
       '& fieldset': {
         borderColor: hasError ? '#E74C3C' : '#CCCCCC',
       },
@@ -111,7 +124,15 @@ function ApplicationForm() {
     '& .MuiInputBase-input': {
       color: '#000000',
       py: 1.2,
-      fontSize: '0.95rem'
+      fontSize: '0.95rem',
+      '&:focus': {
+        outline: 'none',
+        boxShadow: 'none',
+      },
+      '&:focus-visible': {
+        outline: 'none',
+        boxShadow: 'none',
+      },
     },
     '& .MuiFormHelperText-root': {
       color: '#E74C3C',
