@@ -59,7 +59,8 @@ import {
   Description,
   Approval,
   PictureAsPdf,
-  Menu as MenuIcon
+  Menu as MenuIcon,
+  Campaign as CampaignIcon
 } from '@mui/icons-material';
 import AdminSidebar from '../shared/AdminSidebar';
 import Staff2Sidebar from '../shared/Staff2Sidebar';
@@ -82,6 +83,7 @@ const Ayuda = () => {
   const [loadingEligibleMembers, setLoadingEligibleMembers] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [approvingSchedule, setApprovingSchedule] = useState(false);
+  const [showDraftAnnouncementPopup, setShowDraftAnnouncementPopup] = useState(false);
 
   // Format date as MM/DD/YYYY
   const formatDateMMDDYYYY = (dateString) => {
@@ -94,6 +96,232 @@ const Ayuda = () => {
     const year = date.getFullYear();
     
     return `${month}/${day}/${year}`;
+  };
+
+  // Format date and time as MM/DD/YYYY HH:MM AM/PM
+  const formatDateTime = (dateString) => {
+    if (!dateString) return null;
+    
+    // Handle date strings that might not have time component
+    let date;
+    if (typeof dateString === 'string') {
+      // If it's just a date (YYYY-MM-DD), add default time
+      if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        date = new Date(dateString + 'T00:00:00');
+      } else if (dateString.includes('T')) {
+        date = new Date(dateString);
+      } else {
+        date = new Date(dateString + 'T00:00:00');
+      }
+    } else {
+      date = new Date(dateString);
+    }
+    
+    if (isNaN(date.getTime())) return null;
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    const formattedTime = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+    
+    return `${month}/${day}/${year} ${formattedTime}`;
+  };
+
+  // Format description with proper bullets and numbering
+  const formatDescription = (description) => {
+    if (!description) return [];
+    
+    // Split by lines and process each line
+    const lines = description.split('\n');
+    const formattedLines = [];
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      
+      // Skip empty lines but keep them for spacing
+      if (!trimmedLine) {
+        formattedLines.push({ type: 'empty', content: '' });
+        return;
+      }
+      
+      // Check for section headers (all caps words followed by colon, or specific patterns)
+      if (trimmedLine.match(/^[A-Z][A-Z\s:]+:$/) || 
+          trimmedLine.match(/^[A-Z\s]{3,}:$/) ||
+          trimmedLine.match(/^(PROGRAM|ELIGIBILITY|IMPORTANT|CLAIMING|VENUE|CONTACT|NOTE|HOW TO|PROGRAM OVERVIEW|PROGRAM DETAILS):$/i)) {
+        formattedLines.push({ type: 'header', content: trimmedLine });
+        return;
+      }
+      
+      // Check for numbered lists (1., 2., 3., etc. or 1), 2), etc.)
+      if (trimmedLine.match(/^\d+[\.\)]\s/)) {
+        formattedLines.push({ type: 'numbered', content: trimmedLine });
+        return;
+      }
+      
+      // Check for bullet points (•, -, *, or lines starting with spaces and bullet)
+      if (trimmedLine.match(/^[•\-\*]\s/) || 
+          trimmedLine.match(/^[•\-\*]/) ||
+          trimmedLine.match(/^\s+[•\-\*]/)) {
+        formattedLines.push({ type: 'bullet', content: trimmedLine });
+        return;
+      }
+      
+      // Regular text
+      formattedLines.push({ type: 'text', content: trimmedLine });
+    });
+    
+    return formattedLines;
+  };
+
+  // Generate announcement preview based on form data
+  const generateAnnouncementPreview = () => {
+    if (!formData.type) return [];
+    
+    const benefitType = formData.type || 'Financial Assistance';
+    const amount = formData.amount ? formData.amount.replace(/[₱,]/g, '') : '0.00';
+    const benefitDescription = formData.description || '';
+    
+    // Get selected barangays
+    const selectedBarangays = formData.selectedBarangays && formData.selectedBarangays.length > 0
+      ? formData.selectedBarangays
+      : (formData.barangay && formData.barangay !== 'All Barangays' ? [formData.barangay] : []);
+    
+    // Format dates
+    const distributionDate = formData.distributionDate 
+      ? new Date(formData.distributionDate + 'T00:00:00')
+      : null;
+    const expiryDate = formData.expiryDate 
+      ? new Date(formData.expiryDate + 'T00:00:00')
+      : null;
+    
+    // Build description
+    let description = "A new Ayuda (Benefit) program has been approved and is now available for claiming.\n\n";
+    
+    // Program Summary
+    description += "PROGRAM SUMMARY:\n";
+    description += "This announcement is for the approved " + benefitType + " program";
+    if (selectedBarangays.length > 0) {
+      description += " targeting the following barangay(s): " + selectedBarangays.join(', ');
+    }
+    description += ".\n\n";
+    
+    // Program Details
+    description += "PROGRAM DETAILS:\n";
+    description += "• Benefit Type: " + benefitType + "\n";
+    description += "• Amount: ₱" + amount + "\n";
+    if (benefitDescription) {
+      description += "• Description: " + benefitDescription + "\n";
+    }
+    description += "\n";
+    
+    // Eligibility
+    description += "ELIGIBILITY:\n";
+    description += "• Must be a registered PWD member\n";
+    if (selectedBarangays.length > 0) {
+      description += "• Must belong to one of the following barangays: " + selectedBarangays.join(', ') + "\n";
+    }
+    description += "• Must have completed all required documents\n";
+    description += "• Must be in good standing with the PWD registry\n";
+    description += "\n";
+    
+    // Important Dates
+    description += "IMPORTANT DATES:\n";
+    if (distributionDate) {
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+      description += "• Distribution Date: " + monthNames[distributionDate.getMonth()] + " " + 
+        distributionDate.getDate() + ", " + distributionDate.getFullYear() + "\n";
+    } else {
+      description += "• Distribution Date: [TO BE SPECIFIED]\n";
+    }
+    if (expiryDate) {
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+      description += "• Claim Deadline: " + monthNames[expiryDate.getMonth()] + " " + 
+        expiryDate.getDate() + ", " + expiryDate.getFullYear() + "\n";
+    } else {
+      description += "• Claim Deadline: [TO BE SPECIFIED]\n";
+    }
+    description += "\n";
+    
+    // Claiming Instructions
+    description += "CLAIMING INSTRUCTIONS:\n";
+    description += "1. Visit your barangay hall or the designated claiming venue\n";
+    description += "2. Present valid ID and PWD card for verification\n";
+    description += "3. Wait for verification and approval\n";
+    description += "4. Receive your benefit upon approval\n";
+    description += "\n";
+    
+    // Venue
+    description += "VENUE:\n";
+    description += "• Location: [TO BE SPECIFIED - Venue will be finalized through coordination with Barangay President, PDO Head, and Mayor]\n";
+    description += "• PDAO Office Hours: 8am-4pm\n";
+    description += "\n";
+    
+    // Contact Information
+    description += "CONTACT INFORMATION:\n";
+    description += "• For questions or concerns, please contact your barangay office\n";
+    description += "• Office: [TO BE SPECIFIED]\n";
+    description += "• Phone: [TO BE SPECIFIED]\n";
+    description += "• Email: [TO BE SPECIFIED]\n";
+    description += "\n";
+    
+    // Important Reminders
+    description += "IMPORTANT REMINDERS:\n";
+    description += "• Please bring all required documents when claiming (Valid ID, PWD Card)\n";
+    description += "• Benefits must be claimed before the specified deadline\n";
+    description += "• Only eligible members will receive the benefit\n";
+    description += "• For any issues or concerns, contact your barangay office immediately\n";
+    description += "\n";
+    
+    description += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+    description += "Note: This is a draft announcement. Please complete all [TO BE SPECIFIED] fields, especially the venue details, before posting.\n";
+    
+    // Format the description similar to formatAnnouncementContent
+    const lines = description.split('\n');
+    const formattedLines = [];
+    
+    lines.forEach((line) => {
+      const trimmedLine = line.trim();
+      
+      if (!trimmedLine) {
+        formattedLines.push({ type: 'empty', content: '' });
+        return;
+      }
+      
+      // Check for section headers
+      if (trimmedLine.match(/^[A-Z][A-Z\s:]+:$/) || 
+          trimmedLine.match(/^[A-Z\s]{3,}:$/) ||
+          trimmedLine.match(/^(PROGRAM|ELIGIBILITY|IMPORTANT|CLAIMING|VENUE|CONTACT|NOTE):$/i)) {
+        formattedLines.push({ type: 'header', content: trimmedLine });
+        return;
+      }
+      
+      // Check for numbered lists
+      if (trimmedLine.match(/^\d+[\.\)]\s/)) {
+        formattedLines.push({ type: 'numbered', content: trimmedLine });
+        return;
+      }
+      
+      // Check for bullet points
+      if (trimmedLine.match(/^[•\-\*]\s/) || 
+          trimmedLine.match(/^[•\-\*]/) ||
+          trimmedLine.match(/^\s+[•\-\*]/)) {
+        formattedLines.push({ type: 'bullet', content: trimmedLine });
+        return;
+      }
+      
+      // Regular text
+      formattedLines.push({ type: 'text', content: trimmedLine });
+    });
+    
+    return formattedLines;
   };
 
   const [formData, setFormData] = useState({
@@ -110,6 +338,95 @@ const Ayuda = () => {
     quarterly: '',
     status: 'Active'
   });
+
+  // Separate state for editable venue/contact section
+  const [venueContact, setVenueContact] = useState({
+    venue: '[TO BE ANNOUNCED - Will be finalized through coordination]',
+    officeHours: '8am-4pm',
+    contact: '[TO BE SPECIFIED]'
+  });
+
+  // Generate read-only description template (auto-updates based on form data)
+  const generateReadOnlyDescription = () => {
+    if (!formData.type) return '';
+    
+    const benefitType = formData.type || 'Financial Assistance';
+    const amount = formData.amount ? formData.amount.replace(/[₱,]/g, '') : '[AMOUNT]';
+    const selectedBarangays = formData.selectedBarangays && formData.selectedBarangays.length > 0
+      ? formData.selectedBarangays
+      : (formData.barangay && formData.barangay !== 'All Barangays' ? [formData.barangay] : []);
+    
+    // Format dates
+    const distributionDate = formData.distributionDate 
+      ? (() => {
+          const date = new Date(formData.distributionDate + 'T00:00:00');
+          const monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+          return monthNames[date.getMonth()] + " " + date.getDate() + ", " + date.getFullYear();
+        })()
+      : '[DISTRIBUTION DATE]';
+    
+    const expiryDate = formData.expiryDate 
+      ? (() => {
+          const date = new Date(formData.expiryDate + 'T00:00:00');
+          const monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+          return monthNames[date.getMonth()] + " " + date.getDate() + ", " + date.getFullYear();
+        })()
+      : '[EXPIRY DATE]';
+    
+    let template = `PROGRAM OVERVIEW:\n`;
+    template += `This ${benefitType} program provides financial assistance to eligible Persons with Disabilities (PWD) in our community.\n\n`;
+    
+    template += `PROGRAM DETAILS:\n`;
+    template += `• Benefit Type: ${benefitType}\n`;
+    template += `• Amount per Beneficiary: ₱${amount}\n`;
+    if (selectedBarangays.length > 0) {
+      template += `• Target Barangays: ${selectedBarangays.join(', ')}\n`;
+    }
+    template += `• Distribution Date: ${distributionDate}\n`;
+    template += `• Claim Deadline: ${expiryDate}\n\n`;
+    
+    template += `ELIGIBILITY CRITERIA:\n`;
+    template += `• Must be a registered PWD member in the City of Cabuyao\n`;
+    template += `• Must have completed all required documents and registration\n\n`;
+    
+    template += `HOW TO CLAIM:\n`;
+    template += `1. Visit the designated claiming venue on or after the distribution date\n`;
+    template += `2. Present valid government-issued ID and PWD ID card\n`;
+    template += `3. Wait for verification and approval\n`;
+    template += `4. Receive your benefit upon successful verification\n\n`;
+    
+    template += `IMPORTANT REMINDERS:\n`;
+    template += `• Please bring all required documents when claiming (Valid ID, PWD Card)\n`;
+    template += `• Benefits must be claimed before the specified deadline\n`;
+    template += `• Only eligible members will receive the benefit\n`;
+    template += `• For questions or concerns, please contact your barangay office or the PDAO\n\n`;
+    
+    return template;
+  };
+
+  // Generate full description combining read-only and editable parts
+  const generateFullDescription = () => {
+    const readOnly = generateReadOnlyDescription();
+    const venueContactSection = `VENUE AND CONTACT:\n`;
+    const venueContactDetails = `• Venue: ${venueContact.venue}\n`;
+    const officeHours = `• Office Hours: ${venueContact.officeHours}\n`;
+    const contact = `• Contact: ${venueContact.contact}`;
+    
+    return readOnly + venueContactSection + venueContactDetails + officeHours + contact;
+  };
+
+  // Auto-update description when form data changes (but not when description itself changes to avoid loops)
+  useEffect(() => {
+    if (formData.type && openDialog) {
+      const fullDescription = generateFullDescription();
+      // Only update if description is different to avoid infinite loops
+      if (formData.description !== fullDescription) {
+        setFormData(prev => ({ ...prev, description: fullDescription }));
+      }
+    }
+  }, [formData.type, formData.amount, formData.distributionDate, formData.expiryDate, formData.selectedBarangays, formData.barangay, venueContact, openDialog]);
 
   const distributionHistory = [];
 
@@ -137,6 +454,12 @@ const Ayuda = () => {
   };
 
   const handleOpenDialog = (benefit = null) => {
+    // Prevent editing active benefits
+    if (benefit && benefit.status === 'Active') {
+      toastService.error('Active benefits cannot be edited. Please set the status to Inactive first.');
+      return;
+    }
+    
     if (benefit) {
       setEditingBenefit(benefit);
       setFormData({
@@ -169,30 +492,140 @@ const Ayuda = () => {
         // Load benefits from database and sort by most recent first
         const benefitsData = await benefitService.getAll();
         console.log('Loading benefits from database:', benefitsData);
-        if (benefitsData && Array.isArray(benefitsData)) {
-          // Sort by most recent first (created_at or distributionDate)
-          const sortedBenefits = benefitsData.sort((a, b) => {
-            const dateA = new Date(a.created_at || a.distributionDate || 0);
-            const dateB = new Date(b.created_at || b.distributionDate || 0);
-            return dateB - dateA; // Most recent first
-          });
-          setBenefits(sortedBenefits);
+        console.log('Benefits data type:', typeof benefitsData);
+        console.log('Is array?', Array.isArray(benefitsData));
+        
+        // Handle different response structures
+        let benefitsArray = [];
+        if (Array.isArray(benefitsData)) {
+          benefitsArray = benefitsData;
+        } else if (benefitsData && benefitsData.data && Array.isArray(benefitsData.data)) {
+          benefitsArray = benefitsData.data;
+        } else if (benefitsData && Array.isArray(benefitsData.benefits)) {
+          benefitsArray = benefitsData.benefits;
+        } else if (benefitsData && typeof benefitsData === 'object') {
+          // If it's an object but not an array, log it for debugging
+          console.warn('Unexpected benefits data structure:', benefitsData);
+          benefitsArray = [];
         } else {
-          setBenefits([]);
+          benefitsArray = [];
         }
+        
+        // Parse selectedBarangays if it's a JSON string and normalize data
+        const parsedBenefits = benefitsArray.map(benefit => {
+          // Parse selectedBarangays if it's a JSON string
+          if (benefit.selectedBarangays && typeof benefit.selectedBarangays === 'string') {
+            try {
+              benefit.selectedBarangays = JSON.parse(benefit.selectedBarangays);
+            } catch (e) {
+              console.warn('Failed to parse selectedBarangays for benefit:', benefit.id, e);
+              benefit.selectedBarangays = [];
+            }
+          }
+          
+          // Ensure selectedBarangays is an array
+          if (!Array.isArray(benefit.selectedBarangays)) {
+            benefit.selectedBarangays = [];
+          }
+          
+          // Ensure amount is formatted correctly
+          if (benefit.amount && typeof benefit.amount === 'number') {
+            benefit.amount = `₱${benefit.amount.toLocaleString('en-US')}`;
+          }
+          
+          // Ensure status has a default value
+          if (!benefit.status) {
+            benefit.status = 'Active';
+          }
+          
+          // Ensure distributed and pending are numbers
+          benefit.distributed = benefit.distributed || 0;
+          benefit.pending = benefit.pending || 0;
+          
+          return benefit;
+        });
+        
+        // Check and auto-deactivate benefits where distribution date has passed
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const benefitsWithAutoDeactivation = parsedBenefits.map(benefit => {
+          if (benefit.status === 'Active' && benefit.distributionDate) {
+            const distributionDate = new Date(benefit.distributionDate);
+            distributionDate.setHours(0, 0, 0, 0);
+            
+            // If distribution date has passed, automatically set to Inactive
+            if (distributionDate < today) {
+              console.log(`Auto-deactivating benefit ${benefit.id}: distribution date ${benefit.distributionDate} has passed`);
+              // Update in database
+              benefitService.update(benefit.id, { status: 'Inactive' }).catch(err => {
+                console.warn('Failed to auto-deactivate benefit in database:', err);
+              });
+              return { ...benefit, status: 'Inactive' };
+            }
+          }
+          return benefit;
+        });
+        
+        // Sort by most recent first (created_at or distributionDate)
+        const sortedBenefits = benefitsWithAutoDeactivation.sort((a, b) => {
+          const dateA = new Date(a.created_at || a.distributionDate || a.updated_at || 0);
+          const dateB = new Date(b.created_at || b.distributionDate || b.updated_at || 0);
+          return dateB - dateA; // Most recent first
+        });
+        
+        console.log('Processed and sorted benefits:', sortedBenefits);
+        setBenefits(sortedBenefits);
 
         // Load pending schedules from localStorage (for now)
         const savedPendingSchedules = localStorage.getItem('pendingSchedules');
         console.log('Loading pending schedules from localStorage:', savedPendingSchedules);
         if (savedPendingSchedules && savedPendingSchedules !== 'null' && savedPendingSchedules !== 'undefined') {
-          const parsedPendingSchedules = JSON.parse(savedPendingSchedules);
-          console.log('Parsed pending schedules:', parsedPendingSchedules);
-          if (Array.isArray(parsedPendingSchedules)) {
-            setPendingSchedules(parsedPendingSchedules);
+          try {
+            const parsedPendingSchedules = JSON.parse(savedPendingSchedules);
+            console.log('Parsed pending schedules:', parsedPendingSchedules);
+            if (Array.isArray(parsedPendingSchedules)) {
+              // Normalize pending schedules data
+              const normalizedSchedules = parsedPendingSchedules.map(schedule => {
+                // Ensure selectedBarangays is an array
+                if (schedule.selectedBarangays && typeof schedule.selectedBarangays === 'string') {
+                  try {
+                    schedule.selectedBarangays = JSON.parse(schedule.selectedBarangays);
+                  } catch (e) {
+                    schedule.selectedBarangays = [];
+                  }
+                }
+                if (!Array.isArray(schedule.selectedBarangays)) {
+                  schedule.selectedBarangays = [];
+                }
+                
+                // Ensure amount is formatted correctly
+                if (schedule.amount && typeof schedule.amount === 'number') {
+                  schedule.amount = `₱${schedule.amount.toLocaleString('en-US')}`;
+                }
+                
+                return schedule;
+              });
+              
+              // Sort by most recent first
+              const sortedSchedules = normalizedSchedules.sort((a, b) => {
+                const dateA = new Date(a.submittedDate || a.created_at || 0);
+                const dateB = new Date(b.submittedDate || b.created_at || 0);
+                return dateB - dateA; // Most recent first
+              });
+              
+              setPendingSchedules(sortedSchedules);
+            }
+          } catch (parseError) {
+            console.error('Error parsing pending schedules from localStorage:', parseError);
+            setPendingSchedules([]);
           }
+        } else {
+          setPendingSchedules([]);
         }
       } catch (error) {
         console.error('Error loading data:', error);
+        toastService.error('Failed to load benefits data. Please refresh the page.');
         // Fallback to localStorage for benefits if database fails
         try {
           const savedBenefits = localStorage.getItem('benefits');
@@ -201,6 +634,8 @@ const Ayuda = () => {
             if (Array.isArray(parsedBenefits)) {
               setBenefits(parsedBenefits);
             }
+          } else {
+            setBenefits([]);
           }
         } catch (localError) {
           console.error('Error loading from localStorage:', localError);
@@ -211,6 +646,36 @@ const Ayuda = () => {
     };
     
     loadData();
+    
+    // Set up interval to check and auto-deactivate benefits every hour
+    const autoDeactivateInterval = setInterval(() => {
+      setBenefits(prevBenefits => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        return prevBenefits.map(benefit => {
+          if (benefit.status === 'Active' && benefit.distributionDate) {
+            const distributionDate = new Date(benefit.distributionDate);
+            distributionDate.setHours(0, 0, 0, 0);
+            
+            // If distribution date has passed, automatically set to Inactive
+            if (distributionDate < today) {
+              console.log(`Auto-deactivating benefit ${benefit.id}: distribution date ${benefit.distributionDate} has passed`);
+              // Update in database
+              benefitService.update(benefit.id, { status: 'Inactive' }).catch(err => {
+                console.warn('Failed to auto-deactivate benefit in database:', err);
+              });
+              return { ...benefit, status: 'Inactive' };
+            }
+          }
+          return benefit;
+        });
+      });
+    }, 60 * 60 * 1000); // Check every hour
+    
+    return () => {
+      clearInterval(autoDeactivateInterval);
+    };
   }, []);
 
   // Effect to fetch eligible members when benefit type, month/quarter, and barangay change
@@ -228,6 +693,11 @@ const Ayuda = () => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingBenefit(null);
+    setVenueContact({
+      venue: '[TO BE ANNOUNCED - Will be finalized through coordination]',
+      officeHours: '8am-4pm',
+      contact: '[TO BE SPECIFIED]'
+    });
   };
 
   const handleBarangaySelection = (barangay) => {
@@ -305,27 +775,53 @@ const Ayuda = () => {
       }
     }
     
+    // Calculate 1 week from today for validation
+    const oneWeekFromNow = new Date();
+    oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+    oneWeekFromNow.setHours(0, 0, 0, 0);
+    
     // Validate distribution date
     if (formData.distributionDate) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to midnight for comparison
-      const selectedDistributionDate = new Date(formData.distributionDate);
-      selectedDistributionDate.setHours(0, 0, 0, 0); // Set to midnight
+      const selectedDistributionDate = new Date(formData.distributionDate + 'T00:00:00');
+      selectedDistributionDate.setHours(0, 0, 0, 0);
       
-      if (selectedDistributionDate < today) {
-        toastService.error('Distribution date cannot be in the past. Please select today or a future date.');
+      // Check if distribution date is a weekend
+      const distDayOfWeek = selectedDistributionDate.getDay();
+      if (distDayOfWeek === 0 || distDayOfWeek === 6) {
+        toastService.error('Distribution date cannot be on a weekend (Saturday or Sunday). Please select a weekday.');
+        return;
+      }
+      
+      if (selectedDistributionDate < oneWeekFromNow) {
+        toastService.error('Distribution date must be at least 1 week from today.');
         return;
       }
     }
     
     // Validate expiry date
     if (formData.expiryDate) {
-      const today = new Date();
-      const selectedExpiryDate = new Date(formData.expiryDate);
+      const selectedExpiryDate = new Date(formData.expiryDate + 'T00:00:00');
+      selectedExpiryDate.setHours(0, 0, 0, 0);
       
-      if (selectedExpiryDate <= today) {
-        toastService.error('Expiry date must be at least tomorrow. Please select a future date.');
+      // Check if expiry date is a weekend
+      const expiryDayOfWeek = selectedExpiryDate.getDay();
+      if (expiryDayOfWeek === 0 || expiryDayOfWeek === 6) {
+        toastService.error('Expiry date cannot be on a weekend (Saturday or Sunday). Please select a weekday.');
         return;
+      }
+      
+      if (selectedExpiryDate < oneWeekFromNow) {
+        toastService.error('Expiry date must be at least 1 week from today.');
+        return;
+      }
+      
+      // Also ensure expiry date is after distribution date
+      if (formData.distributionDate) {
+        const selectedDistributionDate = new Date(formData.distributionDate + 'T00:00:00');
+        if (selectedExpiryDate <= selectedDistributionDate) {
+          toastService.error('Expiry date must be after the distribution date.');
+          return;
+        }
       }
     }
     
@@ -575,8 +1071,10 @@ const Ayuda = () => {
 
         console.log('Creating benefit in database...');
         // Save to database
-        const savedBenefit = await benefitService.create(approvedBenefitData);
-        console.log('Benefit created successfully:', savedBenefit);
+        const savedBenefitResponse = await benefitService.create(approvedBenefitData);
+        console.log('Benefit created successfully:', savedBenefitResponse);
+        
+        const savedBenefit = savedBenefitResponse.data || savedBenefitResponse;
         
         // Add to active benefits with the database ID
         const approvedBenefit = {
@@ -593,22 +1091,21 @@ const Ayuda = () => {
         setPendingSchedules(updatedPendingSchedules);
         localStorage.setItem('pendingSchedules', JSON.stringify(updatedPendingSchedules));
 
-        // Create announcement for the approved benefit
-        try {
-          const announcementCount = await createBenefitAnnouncement(approvedBenefit);
-          console.log(`Created ${announcementCount} announcement(s) for the benefit program.`);
-        } catch (announcementError) {
-          console.error('Error creating announcement:', announcementError);
-          // Don't fail the approval if announcement creation fails
-          toastService.warning('Benefit approved, but failed to create announcement. Please create it manually.');
-        }
-
+        // Check if draft announcement was created by backend
+        const draftAnnouncementCreated = savedBenefitResponse.draft_announcement_created || false;
+        
         // Close dialogs and reset
         setOpenApprovalDialog(false);
         setSelectedPendingSchedule(null);
         setApprovalFile(null);
         
         toastService.success('Benefit program approved and saved to database successfully!');
+        
+        // Show popup if draft announcement was created
+        if (draftAnnouncementCreated) {
+          setShowDraftAnnouncementPopup(true);
+        }
+        
         console.log('Approval process completed successfully');
       } catch (error) {
         console.error('Error approving schedule:', error);
@@ -1133,7 +1630,7 @@ const Ayuda = () => {
       }}>
 
         <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, border: '1px solid #E0E0E0', bgcolor: '#FFFFFF' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+          <Box sx={{ mb: 3 }}>
             <Typography variant="h4" component="h1" sx={{ 
               fontWeight: 700, 
               color: '#2C3E50',
@@ -1141,22 +1638,6 @@ const Ayuda = () => {
             }}>
               Ayuda & Benefits Management
             </Typography>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => handleOpenDialog()}
-              sx={{ 
-                bgcolor: '#27AE60', 
-                textTransform: 'none',
-                fontWeight: 600,
-                px: 3,
-                py: 1,
-                borderRadius: 2,
-                '&:hover': { bgcolor: '#229954' } 
-              }}
-            >
-              + Add New Benefit
-            </Button>
           </Box>
 
           {/* Tabs */}
@@ -1169,13 +1650,25 @@ const Ayuda = () => {
                   color: '#2C3E50',
                   fontWeight: 600,
                   textTransform: 'none',
-                  fontSize: '1rem'
-                },
-                '& .Mui-selected': {
-                  color: '#27AE60'
+                  fontSize: '1rem',
+                  paddingLeft: '24px',
+                  paddingRight: '24px',
+                  position: 'relative',
+                  '&.Mui-selected': {
+                    color: '#27AE60',
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: '12px',
+                      right: '12px',
+                      height: '3px',
+                      backgroundColor: '#27AE60'
+                    }
+                  }
                 },
                 '& .MuiTabs-indicator': {
-                  bgcolor: '#27AE60'
+                  display: 'none'
                 }
               }}
             >
@@ -1211,12 +1704,22 @@ const Ayuda = () => {
                 }
               }}>
                 <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                  <AttachMoney sx={{ fontSize: 40, color: '#27AE60', mb: 1 }} />
+                  <Typography 
+                    sx={{ 
+                      fontSize: 40, 
+                      color: '#27AE60', 
+                      mb: 1, 
+                      fontWeight: 700,
+                      fontFamily: 'Arial, sans-serif'
+                    }}
+                  >
+                    ₱
+                  </Typography>
                   <Typography variant="h4" sx={{ fontWeight: 700, color: '#2C3E50', mb: 1 }}>
                     ₱{benefits.reduce((sum, benefit) => {
                       const amount = benefit.amount ? benefit.amount.replace(/[₱,]/g, '') : '0';
                       return sum + (parseInt(amount) || 0);
-                    }, 0).toLocaleString()}
+                    }, 0).toLocaleString('en-US')}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#7F8C8D', fontWeight: 500 }}>
                     Total Distributed
@@ -1292,7 +1795,7 @@ const Ayuda = () => {
             </Grid>
           </Grid>
 
-          {/* Benefits Cards */}
+          {/* Benefits Table */}
           <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '1.2rem' }}>
             Available Benefits Programs
           </Typography>
@@ -1329,163 +1832,144 @@ const Ayuda = () => {
               </Button>
             </Box>
           ) : (
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            {benefits.map((benefit) => (
-              <Grid item xs={12} sm={6} md={4} key={benefit.id}>
-                <Card 
-                  elevation={0} 
-                  sx={{ 
-                    border: '1px solid #E0E0E0',
-                    borderRadius: 2,
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    bgcolor: 'white',
-                    '&:hover': { 
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                      transform: 'translateY(-2px)',
-                      transition: 'all 0.3s ease'
-                    }
-                  }}
-                >
-                  <CardContent sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Chip 
-                        label={benefit.type} 
-                        size="small" 
-                        sx={{ 
-                          bgcolor: `${benefit.color}15`, 
-                          color: benefit.color,
-                          fontWeight: 600,
-                          fontSize: '0.75rem'
-                        }}
-                      />
+            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E0E0E0', borderRadius: 2, mb: 3 }}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#F8F9FA' }}>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Type</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Title</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Barangays</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Distribution Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Distributed</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Pending</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {benefits.map((benefit) => (
+                    <TableRow 
+                      key={benefit.id}
+                      sx={{ 
+                        '&:hover': { bgcolor: '#F8F9FA' },
+                        '&:last-child td': { borderBottom: 0 }
+                      }}
+                    >
+                      <TableCell>
+                        <Chip 
+                          label={benefit.type} 
+                          size="small" 
+                          sx={{ 
+                            bgcolor: `${benefit.color || '#3498DB'}15`, 
+                            color: benefit.color || '#3498DB',
+                            fontWeight: 600,
+                            fontSize: '0.75rem'
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>
+                        {benefit.title || benefit.benefitType || benefit.type}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                        {benefit.amount || 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        {benefit.type === 'Financial Assistance' 
+                          ? (benefit.selectedBarangays && benefit.selectedBarangays.length > 0 
+                              ? benefit.selectedBarangays.join(', ') 
+                              : 'All Barangays')
+                          : (benefit.barangay || 'All Barangays')
+                        }
+                      </TableCell>
+                      <TableCell>
+                        {benefit.distributionDate 
+                          ? formatDateMMDDYYYY(benefit.distributionDate) 
+                          : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ color: '#27AE60', fontWeight: 600 }}>
+                          {benefit.distributed || 0}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ color: '#F39C12', fontWeight: 600 }}>
+                          {benefit.pending || 0}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <RadioGroup
+                          row
+                          value={benefit.status || 'Active'}
+                          onChange={(e) => handleStatusChange(benefit.id, e.target.value)}
+                          sx={{ gap: 1 }}
+                        >
+                          <FormControlLabel
+                            value="Active"
+                            control={
+                              <Radio 
+                                size="small" 
+                                sx={{ 
+                                  color: '#27AE60',
+                                  '&.Mui-checked': { color: '#27AE60' }
+                                }} 
+                              />
+                            }
+                            label={
+                              <Typography variant="caption" sx={{ 
+                                color: benefit.status === 'Active' ? '#27AE60' : '#2C3E50',
+                                fontWeight: benefit.status === 'Active' ? 600 : 400
+                              }}>
+                                Active
+                              </Typography>
+                            }
+                          />
+                          <FormControlLabel
+                            value="Inactive"
+                            control={
+                              <Radio 
+                                size="small" 
+                                sx={{ 
+                                  color: '#E74C3C',
+                                  '&.Mui-checked': { color: '#E74C3C' }
+                                }} 
+                              />
+                            }
+                            label={
+                              <Typography variant="caption" sx={{ 
+                                color: benefit.status === 'Inactive' ? '#E74C3C' : '#2C3E50',
+                                fontWeight: benefit.status === 'Inactive' ? 600 : 400
+                              }}>
+                                Inactive
+                              </Typography>
+                            }
+                          />
+                        </RadioGroup>
+                      </TableCell>
+                      <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handlePrintBenefit(benefit)}
-                            sx={{ color: '#2C3E50', '&:hover': { bgcolor: 'rgba(44, 62, 80, 0.1)' } }}
-                            title="Print Benefit"
-                          >
-                            <Print />
-                          </IconButton>
-                      <IconButton 
-                        size="small" 
-                        onClick={() => handleOpenDialog(benefit)}
-                            sx={{ color: '#2C3E50', '&:hover': { bgcolor: 'rgba(44, 62, 80, 0.1)' } }}
-                            title="Edit Benefit"
-                      >
-                        <Edit />
-                      </IconButton>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleDeleteBenefit(benefit.id)}
-                            sx={{ color: '#E74C3C', '&:hover': { bgcolor: 'rgba(231, 76, 60, 0.1)' } }}
-                            title="Delete Benefit"
-                          >
-                            <Delete />
-                          </IconButton>
+                          {benefit.status !== 'Active' && (
+                            <IconButton 
+                              size="small" 
+                              onClick={() => handleOpenDialog(benefit)}
+                              sx={{ color: '#2C3E50', '&:hover': { bgcolor: 'rgba(44, 62, 80, 0.1)' } }}
+                              title="Edit Benefit"
+                            >
+                              <Edit />
+                            </IconButton>
+                          )}
+                          {benefit.status === 'Active' && (
+                            <Typography variant="caption" sx={{ color: '#7F8C8D', fontStyle: 'italic' }}>
+                              Cannot edit active benefits
+                            </Typography>
+                          )}
                         </Box>
-                    </Box>
-                    <Typography variant="h6" component="h3" sx={{ fontWeight: 600, mb: 1, color: '#2C3E50', fontSize: '1rem' }}>
-                      {benefit.title || benefit.benefitType || benefit.type}
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#2C3E50', mb: 1 }}>
-                      {benefit.amount}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#2C3E50', mb: 2, lineHeight: 1.5 }}>
-                      {benefit.description}
-                    </Typography>
-                    {benefit.type === 'Financial Assistance' ? (
-                      <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mb: 1, fontWeight: 500 }}>
-                        Barangays: {benefit.selectedBarangays && benefit.selectedBarangays.length > 0 ? benefit.selectedBarangays.join(', ') : 'All Barangays'}
-                      </Typography>
-                    ) : (
-                      <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mb: 1, fontWeight: 500 }}>
-                        Barangay: {benefit.barangay || 'All Barangays'}
-                      </Typography>
-                    )}
-                    {benefit.type === 'Birthday Cash Gift' ? (
-                      <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mb: 2, fontWeight: 500 }}>
-                        Birthday Month Quarter: {benefit.birthdayMonth ? getQuarterName(benefit.birthdayMonth) : 'All Quarters'}
-                      </Typography>
-                    ) : benefit.type === 'Financial Assistance' ? (
-                      null
-                    ) : (
-                      // No additional fields for other benefit types
-                      null
-                    )}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto' }}>
-                      <Box>
-                        <Typography variant="caption" sx={{ color: '#27AE60', fontWeight: 600 }}>
-                          Distributed: {benefit.distributed}
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" sx={{ color: '#F39C12', fontWeight: 600 }}>
-                          Pending: {benefit.pending}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    
-                    {/* Status Radio Buttons */}
-                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #E0E0E0' }}>
-                      <Typography variant="caption" sx={{ color: '#2C3E50', fontWeight: 600, mb: 1, display: 'block' }}>
-                        Status:
-                      </Typography>
-                      <RadioGroup
-                        row
-                        value={benefit.status}
-                        onChange={(e) => handleStatusChange(benefit.id, e.target.value)}
-                        sx={{ gap: 1 }}
-                      >
-                        <FormControlLabel
-                          value="Active"
-                          control={
-                            <Radio 
-                              size="small" 
-                              sx={{ 
-                                color: '#27AE60',
-                                '&.Mui-checked': { color: '#27AE60' }
-                              }} 
-                            />
-                          }
-                          label={
-                            <Typography variant="caption" sx={{ 
-                              color: benefit.status === 'Active' ? '#27AE60' : '#2C3E50',
-                              fontWeight: benefit.status === 'Active' ? 600 : 400
-                            }}>
-                              Active
-                            </Typography>
-                          }
-                        />
-                        <FormControlLabel
-                          value="Inactive"
-                          control={
-                            <Radio 
-                              size="small" 
-                              sx={{ 
-                                color: '#E74C3C',
-                                '&.Mui-checked': { color: '#E74C3C' }
-                              }} 
-                            />
-                          }
-                          label={
-                            <Typography variant="caption" sx={{ 
-                              color: benefit.status === 'Inactive' ? '#E74C3C' : '#2C3E50',
-                              fontWeight: benefit.status === 'Inactive' ? 600 : 400
-                            }}>
-                              Inactive
-                            </Typography>
-                          }
-                        />
-                      </RadioGroup>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
 
           {/* Distribution History */}
@@ -1631,12 +2115,22 @@ const Ayuda = () => {
                     }
                   }}>
                     <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                      <AttachMoney sx={{ fontSize: 40, color: '#27AE60', mb: 1 }} />
+                      <Typography 
+                        sx={{ 
+                          fontSize: 40, 
+                          color: '#27AE60', 
+                          mb: 1, 
+                          fontWeight: 700,
+                          fontFamily: 'Arial, sans-serif'
+                        }}
+                      >
+                        ₱
+                      </Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700, color: '#2C3E50', mb: 1 }}>
                         ₱{pendingSchedules.reduce((sum, p) => {
                           const amount = p.amount.replace(/[₱,]/g, '');
                           return sum + (parseInt(amount) || 0);
-                        }, 0).toLocaleString()}
+                        }, 0).toLocaleString('en-US')}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#7F8C8D', fontWeight: 500 }}>
                         Total Value
@@ -1668,7 +2162,7 @@ const Ayuda = () => {
                 </Grid>
               </Grid>
 
-              {/* Pending Schedules List */}
+              {/* Pending Schedules Table */}
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '1.2rem' }}>
                 Pending Approval Schedules
               </Typography>
@@ -1689,37 +2183,72 @@ const Ayuda = () => {
                   </Typography>
                 </Box>
               ) : (
-                <Grid container spacing={3} sx={{ mb: 3 }}>
-                  {pendingSchedules.map((schedule) => (
-                    <Grid item xs={12} sm={6} md={4} key={schedule.id}>
-                      <Card 
-                        elevation={0} 
-                        sx={{ 
-                          border: '1px solid #E0E0E0',
-                          borderRadius: 2,
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          bgcolor: 'white',
-                          '&:hover': { 
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            transform: 'translateY(-2px)',
-                            transition: 'all 0.3s ease'
-                          }
-                        }}
-                      >
-                        <CardContent sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E0E0E0', borderRadius: 2, mb: 3 }}>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#F8F9FA' }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Title</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Amount</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Barangays</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Distribution Date</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Expiry Date</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Submitted</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Status</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pendingSchedules.map((schedule) => (
+                        <TableRow 
+                          key={schedule.id}
+                          sx={{ 
+                            '&:hover': { bgcolor: '#F8F9FA' },
+                            '&:last-child td': { borderBottom: 0 }
+                          }}
+                        >
+                          <TableCell>
                             <Chip 
                               label={schedule.type} 
                               size="small" 
                               sx={{ 
-                                bgcolor: `${schedule.color}15`, 
-                                color: schedule.color,
+                                bgcolor: `${schedule.color || '#3498DB'}15`, 
+                                color: schedule.color || '#3498DB',
                                 fontWeight: 600,
                                 fontSize: '0.75rem'
                               }}
                             />
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>
+                            {schedule.name || schedule.type}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                            {schedule.amount || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {schedule.type === 'Financial Assistance' 
+                              ? (schedule.selectedBarangays && schedule.selectedBarangays.length > 0 
+                                  ? schedule.selectedBarangays.join(', ') 
+                                  : 'All Barangays')
+                              : (schedule.barangay || 'All Barangays')
+                            }
+                          </TableCell>
+                          <TableCell>
+                            {schedule.distributionDate 
+                              ? formatDateMMDDYYYY(schedule.distributionDate) 
+                              : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {schedule.expiryDate 
+                              ? formatDateMMDDYYYY(schedule.expiryDate) 
+                              : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {schedule.submittedDate 
+                              ? formatDateMMDDYYYY(schedule.submittedDate) 
+                              : 'N/A'}
+                          </TableCell>
+                          <TableCell>
                             <Chip 
                               label="Pending" 
                               size="small" 
@@ -1730,78 +2259,46 @@ const Ayuda = () => {
                                 fontSize: '0.75rem'
                               }}
                             />
-                          </Box>
-                          <Typography variant="h6" component="h3" sx={{ fontWeight: 600, mb: 1, color: '#2C3E50', fontSize: '1rem' }}>
-                            {schedule.name || schedule.type}
-                          </Typography>
-                          <Typography variant="h5" sx={{ fontWeight: 700, color: '#2C3E50', mb: 1 }}>
-                            {schedule.amount}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#2C3E50', mb: 2, lineHeight: 1.5 }}>
-                            {schedule.description}
-                          </Typography>
-                          {schedule.type === 'Financial Assistance' ? (
-                            <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mb: 1, fontWeight: 500 }}>
-                              Barangays: {schedule.selectedBarangays && schedule.selectedBarangays.length > 0 ? schedule.selectedBarangays.join(', ') : 'All Barangays'}
-                            </Typography>
-                          ) : (
-                            <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mb: 1, fontWeight: 500 }}>
-                              Barangay: {schedule.barangay || 'All Barangays'}
-                            </Typography>
-                          )}
-                          {schedule.type === 'Birthday Cash Gift' ? (
-                            <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mb: 2, fontWeight: 500 }}>
-                              Birthday Month Quarter: {schedule.birthdayMonth ? getQuarterName(schedule.birthdayMonth) : 'All Quarters'}
-                            </Typography>
-                          ) : schedule.type === 'Financial Assistance' ? (
-                            null
-                          ) : (
-                            // No additional fields for other benefit types
-                            null
-                          )}
-                          <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mb: 2, fontWeight: 500 }}>
-                            Submitted: {formatDateMMDDYYYY(schedule.submittedDate)}
-                          </Typography>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto', gap: 1 }}>
-                            <Button
-                              variant="contained"
-                              startIcon={<Approval />}
-                              onClick={() => {
-                                setSelectedPendingSchedule(schedule);
-                                setOpenApprovalDialog(true);
-                              }}
-                              sx={{ 
-                                bgcolor: '#27AE60', 
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                px: 3,
-                                py: 1,
-                                borderRadius: 2,
-                                flex: 1,
-                                '&:hover': { bgcolor: '#229954' } 
-                              }}
-                            >
-                              Review & Approve
-                            </Button>
-                            <IconButton 
-                              size="small" 
-                              onClick={() => handleDeletePendingSchedule(schedule.id)}
-                              sx={{ 
-                                color: '#E74C3C', 
-                                '&:hover': { bgcolor: 'rgba(231, 76, 60, 0.1)' },
-                                border: '1px solid #E74C3C',
-                                borderRadius: 1
-                              }}
-                              title="Delete Pending Schedule"
-                            >
-                              <Delete />
-                            </IconButton>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              <Button
+                                variant="contained"
+                                startIcon={<Approval />}
+                                onClick={() => {
+                                  setSelectedPendingSchedule(schedule);
+                                  setOpenApprovalDialog(true);
+                                }}
+                                sx={{ 
+                                  bgcolor: '#27AE60', 
+                                  textTransform: 'none',
+                                  fontWeight: 600,
+                                  px: 2,
+                                  py: 0.5,
+                                  fontSize: '0.75rem',
+                                  '&:hover': { bgcolor: '#229954' } 
+                                }}
+                              >
+                                Review & Approve
+                              </Button>
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleDeletePendingSchedule(schedule.id)}
+                                sx={{ 
+                                  color: '#E74C3C', 
+                                  '&:hover': { bgcolor: 'rgba(231, 76, 60, 0.1)' }
+                                }}
+                                title="Delete Pending Schedule"
+                              >
+                                <Delete />
+                              </IconButton>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </>
           )}
@@ -1882,9 +2379,9 @@ const Ayuda = () => {
                               bgcolor: '#f5f5f5'
                             },
                             '&.Mui-selected': {
-                              bgcolor: '#E8F4FD',
+                              bgcolor: 'transparent',
                               '&:hover': {
-                                bgcolor: '#E8F4FD'
+                                bgcolor: '#f5f5f5'
                               }
                             }
                           }
@@ -1902,8 +2399,25 @@ const Ayuda = () => {
                   fullWidth
                   label="Amount"
                   value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  placeholder="e.g., ₱1,500"
+                  onChange={(e) => {
+                    // Only allow numbers (0-9)
+                    const inputValue = e.target.value;
+                    // Remove all non-numeric characters
+                    const numericValue = inputValue.replace(/[^0-9]/g, '');
+                    // Format with commas for thousands
+                    const formattedValue = numericValue ? parseInt(numericValue, 10).toLocaleString('en-US') : '';
+                    setFormData({ ...formData, amount: formattedValue });
+                  }}
+                  onBlur={(e) => {
+                    // Ensure the value is properly formatted on blur
+                    const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                    if (numericValue) {
+                      const formattedValue = parseInt(numericValue, 10).toLocaleString('en-US');
+                      setFormData({ ...formData, amount: formattedValue });
+                    }
+                  }}
+                  placeholder="e.g., 1500"
+                  helperText="Enter amount in numbers only (e.g., 1500 will display as 1,500)"
                   sx={{
                     '& .MuiInputLabel-root': {
                       fontSize: '1.1rem',
@@ -1942,23 +2456,30 @@ const Ayuda = () => {
                   onChange={(e) => {
                     const selectedDate = e.target.value;
                     if (selectedDate) {
-                      // Set the date to 12:00 AM (midnight) of the selected date
-                      const dateObj = new Date(selectedDate);
-                      dateObj.setHours(0, 0, 0, 0);
-                      // Format as YYYY-MM-DD for the input (date input doesn't include time)
-                      const formattedDate = dateObj.toISOString().split('T')[0];
-                      setFormData({ ...formData, distributionDate: formattedDate });
-                    } else {
-                      setFormData({ ...formData, distributionDate: '' });
+                      // Check if the selected date is a weekend
+                      const date = new Date(selectedDate + 'T00:00:00');
+                      const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+                      
+                      if (dayOfWeek === 0 || dayOfWeek === 6) {
+                        toastService.error('Distribution date cannot be on a weekend (Saturday or Sunday). Please select a weekday.');
+                        return;
+                      }
                     }
+                    // Directly use the selected date value (YYYY-MM-DD format)
+                    setFormData({ ...formData, distributionDate: selectedDate });
                   }}
                   InputLabelProps={{
                     shrink: true,
                   }}
                   inputProps={{
-                    min: new Date().toISOString().split('T')[0] // Today's date - cannot select past dates
+                    min: (() => {
+                      // Calculate 1 week from today
+                      const oneWeekFromNow = new Date();
+                      oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+                      return oneWeekFromNow.toISOString().split('T')[0];
+                    })()
                   }}
-                  helperText="Distribution date must be today or a future date. Time will be set to 12:00 AM."
+                  helperText="Distribution date must be at least 1 week from today and cannot be on a weekend. Time will be set to 12:00 AM."
                   FormHelperTextProps={{
                     sx: {
                       color: '#B0BEC5',
@@ -2000,14 +2521,33 @@ const Ayuda = () => {
                   label="Expiry Date"
                   type="date"
                   value={formData.expiryDate}
-                  onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+                  onChange={(e) => {
+                    const selectedDate = e.target.value;
+                    if (selectedDate) {
+                      // Check if the selected date is a weekend
+                      const date = new Date(selectedDate + 'T00:00:00');
+                      const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+                      
+                      if (dayOfWeek === 0 || dayOfWeek === 6) {
+                        toastService.error('Expiry date cannot be on a weekend (Saturday or Sunday). Please select a weekday.');
+                        return;
+                      }
+                    }
+                    // Directly use the selected date value (YYYY-MM-DD format)
+                    setFormData({ ...formData, expiryDate: selectedDate });
+                  }}
                   InputLabelProps={{
                     shrink: true,
                   }}
                   inputProps={{
-                    min: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Tomorrow's date
+                    min: (() => {
+                      // Calculate 1 week from today
+                      const oneWeekFromNow = new Date();
+                      oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+                      return oneWeekFromNow.toISOString().split('T')[0];
+                    })()
                   }}
-                  helperText="Expiry date must be at least tomorrow (cannot be today or previous dates)"
+                  helperText="Expiry date must be at least 1 week from today and cannot be on a weekend"
                   FormHelperTextProps={{
                     sx: {
                       color: '#B0BEC5',
@@ -2044,43 +2584,141 @@ const Ayuda = () => {
                 />
               </Grid>
               <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  multiline
-                  rows={4}
-                  placeholder="Describe the benefit program, eligibility criteria, and how it helps PWD members..."
-                  sx={{
-                    '& .MuiInputLabel-root': {
-                      fontSize: '1.1rem',
-                      fontWeight: 700,
-                      color: '#2C3E50'
-                    },
-                    '& .MuiOutlinedInput-root': {
-                      fontSize: '1rem',
-                      borderRadius: 2,
-                      backgroundColor: '#FFFFFF',
-                      '& fieldset': {
-                        borderColor: '#E0E0E0',
-                        borderWidth: 2
-                      },
-                      '&:hover fieldset': {
-                        borderColor: '#3498DB'
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: '#27AE60'
-                      }
-                    },
-                    '& .MuiInputBase-input': {
-                      fontSize: '1rem',
-                      padding: '16px 14px',
-                      lineHeight: 1.5,
-                      color: '#2C3E50'
-                    }
-                  }}
-                />
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#2C3E50', mb: 2 }}>
+                  Description
+                </Typography>
+                
+                {/* Read-only sections */}
+                {formData.type && (
+                  <Paper elevation={0} sx={{ 
+                    p: 2, 
+                    mb: 2, 
+                    bgcolor: '#F8F9FA', 
+                    borderRadius: 2,
+                    border: '1px solid #E0E0E0'
+                  }}>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: '#2C3E50', 
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: 1.8,
+                        fontFamily: 'monospace',
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      {generateReadOnlyDescription()}
+                    </Typography>
+                  </Paper>
+                )}
+                
+                {/* Editable Venue and Contact Section */}
+                <Box sx={{ 
+                  p: 2, 
+                  bgcolor: '#FFFFFF', 
+                  borderRadius: 2,
+                  border: '2px solid #0b87ac'
+                }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0b87ac', mb: 2 }}>
+                    VENUE AND CONTACT (Editable)
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Venue"
+                        value={venueContact.venue}
+                        onChange={(e) => setVenueContact({ ...venueContact, venue: e.target.value })}
+                        placeholder="Enter the claiming venue location"
+                        sx={{
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            color: '#2C3E50'
+                          },
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.9rem',
+                            borderRadius: 2,
+                            backgroundColor: '#FFFFFF',
+                            '& fieldset': {
+                              borderColor: '#E0E0E0',
+                              borderWidth: 2
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#3498DB'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#0b87ac'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Office Hours"
+                        value={venueContact.officeHours}
+                        onChange={(e) => setVenueContact({ ...venueContact, officeHours: e.target.value })}
+                        placeholder="e.g., 8am-4pm"
+                        sx={{
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            color: '#2C3E50'
+                          },
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.9rem',
+                            borderRadius: 2,
+                            backgroundColor: '#FFFFFF',
+                            '& fieldset': {
+                              borderColor: '#E0E0E0',
+                              borderWidth: 2
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#3498DB'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#0b87ac'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Contact Information"
+                        value={venueContact.contact}
+                        onChange={(e) => setVenueContact({ ...venueContact, contact: e.target.value })}
+                        placeholder="Enter contact details (phone, email, etc.)"
+                        sx={{
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            color: '#2C3E50'
+                          },
+                          '& .MuiOutlinedInput-root': {
+                            fontSize: '0.9rem',
+                            borderRadius: 2,
+                            backgroundColor: '#FFFFFF',
+                            '& fieldset': {
+                              borderColor: '#E0E0E0',
+                              borderWidth: 2
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#3498DB'
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#0b87ac'
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
               </Grid>
               {formData.type === 'Birthday Cash Gift' && (
                 <Grid item xs={12} md={6}>
@@ -2455,42 +3093,121 @@ const Ayuda = () => {
                   </Box>
                 )}
 
-                {/* PDF Generation Button */}
-                {eligibleMembers.length > 0 && (
-                  <Box sx={{ 
-                    mt: 3, 
-                    display: 'flex', 
-                    justifyContent: 'center',
-                    gap: 2
-                  }}>
-                    <Button
-                      variant="contained"
-                      startIcon={<PictureAsPdf />}
-                      onClick={generateEligibleMembersPDF}
-                      disabled={generatingPDF}
-                      sx={{ 
-                        bgcolor: '#E74C3C',
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        px: 4,
-                        py: 1.5,
-                        borderRadius: 2,
-                        fontSize: '1rem',
-                        '&:hover': { 
-                          bgcolor: '#C0392B' 
-                        },
-                        '&:disabled': {
-                          bgcolor: '#BDC3C7',
-                          color: '#7F8C8D'
-                        }
-                      }}
-                    >
-                      {generatingPDF ? 'Generating PDF...' : 'Generate PDF for Signatures'}
-                    </Button>
-                  </Box>
-                )}
               </Box>
             ) : null}
+
+            {/* Announcement Preview Section */}
+            {(formData.type && (formData.selectedBarangays?.length > 0 || formData.barangay)) && (
+              <Box sx={{ mt: 4 }}>
+                <Divider sx={{ mb: 3 }} />
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 600, 
+                  mb: 2, 
+                  color: '#2C3E50',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}>
+                  <CampaignIcon sx={{ color: '#0b87ac' }} />
+                  Announcement Preview
+                  <Chip 
+                    label="Draft" 
+                    size="small" 
+                    sx={{ 
+                      bgcolor: '#FFF3E0', 
+                      color: '#F57C00',
+                      fontWeight: 600,
+                      fontSize: '0.75rem'
+                    }}
+                  />
+                </Typography>
+                <Alert severity="info" sx={{ mb: 2, bgcolor: '#E3F2FD', border: '1px solid #2196F3' }}>
+                  <Typography variant="body2" sx={{ color: '#1976D2', fontWeight: 500 }}>
+                    This is a preview of the announcement that will be automatically created when this benefit is approved. 
+                    The announcement will be saved as a draft for you to review and complete before posting.
+                  </Typography>
+                </Alert>
+                <Paper elevation={0} sx={{ 
+                  p: 3, 
+                  bgcolor: '#FAFAFA', 
+                  borderRadius: 2,
+                  border: '1px solid #E0E0E0',
+                  maxHeight: 500,
+                  overflow: 'auto'
+                }}>
+                  <Box sx={{ 
+                    color: '#2C3E50', 
+                    lineHeight: 1.8,
+                    fontFamily: 'inherit',
+                    '& .preview-header': {
+                      fontWeight: 700,
+                      fontSize: '1.1rem',
+                      color: '#0b87ac',
+                      mt: 2,
+                      mb: 1,
+                      display: 'block'
+                    },
+                    '& .preview-bullet': {
+                      display: 'block',
+                      pl: 3,
+                      mb: 0.5,
+                      position: 'relative',
+                      '&::before': {
+                        content: '"•"',
+                        position: 'absolute',
+                        left: '8px',
+                        fontWeight: 700,
+                        color: '#2C3E50'
+                      }
+                    },
+                    '& .preview-numbered': {
+                      display: 'block',
+                      pl: 3,
+                      mb: 0.5
+                    },
+                    '& .preview-text': {
+                      display: 'block',
+                      mb: 0.5
+                    },
+                    '& .preview-empty': {
+                      display: 'block',
+                      height: '0.5rem'
+                    }
+                  }}>
+                    {generateAnnouncementPreview().map((item, idx) => {
+                      if (item.type === 'empty') {
+                        return <Box key={idx} className="preview-empty" />;
+                      } else if (item.type === 'header') {
+                        return (
+                          <Typography key={idx} className="preview-header" component="div" variant="h6">
+                            {item.content}
+                          </Typography>
+                        );
+                      } else if (item.type === 'bullet') {
+                        const text = item.content.replace(/^[•\-\*]\s*/, '');
+                        return (
+                          <Typography key={idx} className="preview-bullet" component="div" variant="body2">
+                            {text}
+                          </Typography>
+                        );
+                      } else if (item.type === 'numbered') {
+                        return (
+                          <Typography key={idx} className="preview-numbered" component="div" variant="body2">
+                            {item.content}
+                          </Typography>
+                        );
+                      } else {
+                        return (
+                          <Typography key={idx} className="preview-text" component="div" variant="body2">
+                            {item.content}
+                          </Typography>
+                        );
+                      }
+                    })}
+                  </Box>
+                </Paper>
+              </Box>
+            )}
           </DialogContent>
           <DialogActions sx={{ 
             p: 4, 
@@ -2638,19 +3355,94 @@ const Ayuda = () => {
                     null
                   )}
                   <Grid item xs={12}>
-                    <Typography variant="body2" sx={{ color: '#7F8C8D', fontWeight: 600, mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ color: '#7F8C8D', fontWeight: 600, mb: 1 }}>
                       Description
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', fontWeight: 500 }}>
-                      {selectedPendingSchedule.description}
-                    </Typography>
+                    <Box sx={{ 
+                      bgcolor: '#F8F9FA', 
+                      p: 2, 
+                      borderRadius: 2, 
+                      border: '1px solid #E0E0E0',
+                      maxHeight: '400px',
+                      overflowY: 'auto'
+                    }}>
+                      {formatDescription(selectedPendingSchedule.description).map((item, index) => {
+                        if (item.type === 'empty') {
+                          return <Box key={index} sx={{ height: '8px' }} />;
+                        }
+                        if (item.type === 'header') {
+                          return (
+                            <Typography 
+                              key={index} 
+                              variant="body1" 
+                              sx={{ 
+                                fontWeight: 700, 
+                                color: '#2C3E50', 
+                                fontSize: '1rem',
+                                mb: 1,
+                                mt: index > 0 ? 2 : 0
+                              }}
+                            >
+                              {item.content}
+                            </Typography>
+                          );
+                        }
+                        if (item.type === 'numbered') {
+                          return (
+                            <Typography 
+                              key={index} 
+                              variant="body2" 
+                              sx={{ 
+                                color: '#2C3E50', 
+                                mb: 0.5,
+                                pl: 2,
+                                whiteSpace: 'pre-wrap'
+                              }}
+                            >
+                              {item.content}
+                            </Typography>
+                          );
+                        }
+                        if (item.type === 'bullet') {
+                          return (
+                            <Typography 
+                              key={index} 
+                              variant="body2" 
+                              sx={{ 
+                                color: '#2C3E50', 
+                                mb: 0.5,
+                                pl: 2,
+                                whiteSpace: 'pre-wrap'
+                              }}
+                            >
+                              {item.content}
+                            </Typography>
+                          );
+                        }
+                        return (
+                          <Typography 
+                            key={index} 
+                            variant="body2" 
+                            sx={{ 
+                              color: '#2C3E50', 
+                              mb: 0.5,
+                              whiteSpace: 'pre-wrap'
+                            }}
+                          >
+                            {item.content}
+                          </Typography>
+                        );
+                      })}
+                    </Box>
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Typography variant="body2" sx={{ color: '#7F8C8D', fontWeight: 600, mb: 0.5 }}>
                       Distribution Date
                     </Typography>
                     <Typography variant="body1" sx={{ color: '#2C3E50', fontWeight: 500 }}>
-                      {selectedPendingSchedule.distributionDate}
+                      {selectedPendingSchedule.distributionDate 
+                        ? formatDateTime(selectedPendingSchedule.distributionDate) 
+                        : 'N/A'}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
@@ -2658,7 +3450,9 @@ const Ayuda = () => {
                       Expiry Date
                     </Typography>
                     <Typography variant="body1" sx={{ color: '#2C3E50', fontWeight: 500 }}>
-                      {selectedPendingSchedule.expiryDate || 'N/A'}
+                      {selectedPendingSchedule.expiryDate 
+                        ? formatDateTime(selectedPendingSchedule.expiryDate) 
+                        : 'N/A'}
                     </Typography>
                   </Grid>
                 </Grid>
@@ -2779,6 +3573,77 @@ const Ayuda = () => {
               ) : (
                 'Approve Program'
               )}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Draft Announcement Popup */}
+        <Dialog
+          open={showDraftAnnouncementPopup}
+          onClose={() => setShowDraftAnnouncementPopup(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              p: 0,
+              bgcolor: '#FFFFFF'
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            bgcolor: '#0b87ac', 
+            color: '#FFFFFF', 
+            py: 2,
+            px: 3,
+            borderBottom: '1px solid #E0E0E0'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CheckCircle sx={{ fontSize: 28 }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Draft Announcement Created
+              </Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ p: 3, bgcolor: '#FFFFFF' }}>
+            <Alert severity="info" sx={{ mb: 2, bgcolor: '#E3F2FD', border: '1px solid #2196F3' }}>
+              <Typography variant="body1" sx={{ fontWeight: 600, mb: 1 }}>
+                A draft announcement has been created.
+              </Typography>
+              <Typography variant="body2">
+                Please complete all required information before posting to the selected barangays.
+              </Typography>
+            </Alert>
+            <Typography variant="body2" sx={{ color: '#7F8C8D', mt: 2 }}>
+              You can find and edit the draft announcement in the Announcements module. 
+              Once all required fields are complete, you can post it to make it visible to the targeted barangays.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ 
+            p: 3, 
+            pt: 2, 
+            borderTop: '1px solid #E0E0E0',
+            bgcolor: '#FFFFFF',
+            gap: 2
+          }}>
+            <Button 
+              onClick={() => setShowDraftAnnouncementPopup(false)}
+              variant="contained"
+              sx={{ 
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 4,
+                py: 1.5,
+                borderRadius: 2,
+                fontSize: '1rem',
+                bgcolor: '#0b87ac',
+                '&:hover': { 
+                  bgcolor: '#0a6d8a' 
+                }
+              }}
+            >
+              OK
             </Button>
           </DialogActions>
         </Dialog>

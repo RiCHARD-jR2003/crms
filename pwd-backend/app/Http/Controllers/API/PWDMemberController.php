@@ -12,9 +12,9 @@ class PWDMemberController extends Controller
     public function index()
     {
         try {
-            // Cache for 10 minutes
+            // Cache for 5 minutes (reduced from 10 to ensure fresh data)
             $cacheKey = 'pwd_members.all';
-            $enhancedMembers = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(10), function () {
+            $enhancedMembers = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(5), function () {
                 try {
                     // Optimize query: only select needed columns
                     $members = PWDMember::select([
@@ -52,17 +52,58 @@ class PWDMemberController extends Controller
                 }
             
                 // Get all approved applications in one query to avoid N+1
+                // Also get applications by email for better matching
                 $approvedApplications = collect([]);
                 if ($members->isNotEmpty()) {
                     try {
-                        $approvedApplications = \App\Models\Application::where('status', 'Approved')
-                            ->whereIn('pwdID', $members->pluck('userID'))
-                            ->select(['pwdID', 'contactNumber', 'emergencyContact'])
-                            ->get()
-                            ->groupBy('pwdID')
+                        $userIDs = $members->pluck('userID')->filter()->toArray();
+                        $emails = $members->pluck('email')->filter()->toArray();
+                        
+                        // Get ALL applications (not just approved) to find contact numbers
+                        // This ensures we get contact numbers even if application status changed
+                        $allApps = \App\Models\Application::where(function($query) use ($userIDs, $emails) {
+                            if (!empty($userIDs)) {
+                                $query->whereIn('pwdID', $userIDs);
+                            }
+                            if (!empty($emails)) {
+                                if (!empty($userIDs)) {
+                                    $query->orWhereIn('email', $emails);
+                                } else {
+                                    $query->whereIn('email', $emails);
+                                }
+                            }
+                        })
+                        ->select(['applicationID', 'pwdID', 'email', 'contactNumber', 'emergencyContact', 'firstName', 'lastName', 'status'])
+                        ->get();
+                        
+                        // Group by pwdID first (most reliable)
+                        $appsByPwdID = collect();
+                        if (!empty($userIDs)) {
+                            $appsByPwdID = $allApps->whereIn('pwdID', $userIDs)
+                                ->groupBy('pwdID')
+                                ->map(function ($apps) {
+                                    // Prefer approved, but take any if approved not available
+                                    $approved = $apps->where('status', 'Approved')->first();
+                                    return $approved ?: $apps->first();
+                                });
+                        }
+                        
+                        // Group by email for applications without pwdID set or as fallback
+                        $appsByEmail = collect();
+                        if (!empty($emails)) {
+                            $appsByEmail = $allApps->filter(function($app) use ($emails) {
+                                return in_array($app->email, $emails);
+                            })
+                            ->groupBy('email')
                             ->map(function ($apps) {
-                                return $apps->first(); // Get latest (first in collection)
+                                // Prefer approved, but take any if approved not available
+                                $approved = $apps->where('status', 'Approved')->first();
+                                return $approved ?: $apps->first();
                             });
+                        }
+                        
+                        // Combine both lookups (email lookup will override pwdID if both exist)
+                        $approvedApplications = $appsByPwdID->merge($appsByEmail);
                     } catch (\Exception $e) {
                         \Illuminate\Support\Facades\Log::warning('Failed to fetch approved applications', [
                             'error' => $e->getMessage()
@@ -72,7 +113,26 @@ class PWDMemberController extends Controller
                 
                 // Enhance members with data from approved applications if available
                 $enhancedMembers = $members->map(function ($member) use ($approvedApplications) {
-                    $approvedApplication = $approvedApplications->get($member->userID);
+                    // Try to find application by pwdID first
+                    $approvedApplication = $approvedApplications->first(function ($app) use ($member) {
+                        return $app->pwdID == $member->userID;
+                    });
+                    
+                    // If not found by pwdID, try by email
+                    if (!$approvedApplication && $member->email) {
+                        $approvedApplication = $approvedApplications->first(function ($app) use ($member) {
+                            return $app->email && strtolower($app->email) === strtolower($member->email);
+                        });
+                    }
+                    
+                    // If still not found, try by name matching
+                    if (!$approvedApplication) {
+                        $approvedApplication = $approvedApplications->first(function ($app) use ($member) {
+                            return $app->firstName && $app->lastName && 
+                                   strtolower($app->firstName) === strtolower($member->firstName) &&
+                                   strtolower($app->lastName) === strtolower($member->lastName);
+                        });
+                    }
                     
                     if ($approvedApplication) {
                         // Use application data as fallback if member data is missing

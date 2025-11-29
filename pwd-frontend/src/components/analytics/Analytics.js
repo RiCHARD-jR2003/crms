@@ -131,8 +131,8 @@ const GaugeChart = ({ value, min = 0, max = 100, title, color = '#3498DB' }) => 
       <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '0.95rem' }}>
         {title}
       </Typography>
-      <Box sx={{ position: 'relative', width: 200, height: 120 }}>
-        <svg width="200" height="120" viewBox="0 0 200 120" style={{ overflow: 'visible' }}>
+      <Box sx={{ position: 'relative', width: 200, height: 140 }}>
+        <svg width="200" height="120" viewBox="0 0 200 120" style={{ overflow: 'visible', position: 'relative', zIndex: 1 }}>
           {/* Background arc */}
           <path
             d={pathDescription}
@@ -151,14 +151,14 @@ const GaugeChart = ({ value, min = 0, max = 100, title, color = '#3498DB' }) => 
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
           />
-          {/* Needle */}
+          {/* Needle - positioned above the number for better visibility */}
           <line
             x1={centerX}
             y1={centerY}
             x2={needleX}
             y2={needleY}
             stroke="#2C3E50"
-            strokeWidth="3"
+            strokeWidth="4"
             strokeLinecap="round"
           />
           {/* Center circle */}
@@ -167,13 +167,13 @@ const GaugeChart = ({ value, min = 0, max = 100, title, color = '#3498DB' }) => 
         <Box
           sx={{
             position: 'absolute',
-            top: '85px',
+            top: '110px',
             left: '50%',
             transform: 'translateX(-50%)',
             textAlign: 'center',
             width: '100%',
             pointerEvents: 'none',
-            zIndex: 1
+            zIndex: 2
           }}
         >
           <Typography variant="h4" sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '2rem' }}>
@@ -2259,9 +2259,24 @@ END OF REPORT
                   textTransform: 'none',
                   fontWeight: 600,
                   color: '#7F8C8D',
+                  paddingLeft: '24px',
+                  paddingRight: '24px',
+                  position: 'relative',
                   '&.Mui-selected': {
-                    color: '#3498DB'
+                    color: '#3498DB',
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: '12px',
+                      right: '12px',
+                      height: '3px',
+                      backgroundColor: '#3498DB'
+                    }
                   }
+                },
+                '& .MuiTabs-indicator': {
+                  display: 'none'
                 }
               }}
             >

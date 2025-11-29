@@ -1072,7 +1072,26 @@ function SecurityMonitoring() {
                 borderBottom: 1, 
                 borderColor: 'divider',
                 px: 2,
-                pt: 2
+                pt: 2,
+                '& .MuiTab-root': {
+                  paddingLeft: '24px',
+                  paddingRight: '24px',
+                  position: 'relative',
+                  '&.Mui-selected': {
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: '12px',
+                      right: '12px',
+                      height: '3px',
+                      backgroundColor: '#0b87ac'
+                    }
+                  }
+                },
+                '& .MuiTabs-indicator': {
+                  display: 'none'
+                }
               }}
             >
               <Tab label="Visualizations" />
@@ -1860,7 +1879,32 @@ function SecurityMonitoring() {
           </DialogTitle>
           
           <DialogContent sx={{ p: 3 }}>
-            <Tabs value={chartTab} onChange={(e, newValue) => setChartTab(newValue)} sx={{ mb: 3 }}>
+            <Tabs 
+              value={chartTab} 
+              onChange={(e, newValue) => setChartTab(newValue)} 
+              sx={{ 
+                mb: 3,
+                '& .MuiTab-root': {
+                  paddingLeft: '24px',
+                  paddingRight: '24px',
+                  position: 'relative',
+                  '&.Mui-selected': {
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: '12px',
+                      right: '12px',
+                      height: '3px',
+                      backgroundColor: '#0b87ac'
+                    }
+                  }
+                },
+                '& .MuiTabs-indicator': {
+                  display: 'none'
+                }
+              }}
+            >
               <Tab label="Visualization" />
               <Tab label="Text Analysis" />
             </Tabs>

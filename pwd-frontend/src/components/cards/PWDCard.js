@@ -1001,7 +1001,7 @@ function PWDCard() {
       pdf.text(displayDateIssued, backRightColumnX + backRightColumnWidth * 0.52, detailY + 0.055);
       detailY += lineHeight;
 
-      // SEX and BLOOD TYPE (side by side)
+      // SEX
       pdf.setFontSize(fieldLabelSize);
       pdf.setFont('helvetica', 'bold');
       pdf.text('SEX:', backRightColumnX, detailY);
@@ -1009,14 +1009,6 @@ function PWDCard() {
       pdf.setFontSize(fieldValueSize);
       pdf.setFont('helvetica', 'normal');
       pdf.text(displayGender, backRightColumnX, detailY + 0.055);
-      
-      pdf.setFontSize(fieldLabelSize);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('BLOOD TYPE:', backRightColumnX + backRightColumnWidth * 0.52, detailY);
-      pdf.line(backRightColumnX + backRightColumnWidth * 0.52, detailY + 0.022, backRightColumnX + backRightColumnWidth * 0.95, detailY + 0.022);
-      pdf.setFontSize(fieldValueSize);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(displayBloodType, backRightColumnX + backRightColumnWidth * 0.52, detailY + 0.055);
       detailY += lineHeight;
 
       // CONTACT NO
@@ -1343,7 +1335,6 @@ function PWDCard() {
     const escapedDob = escapeHtml(displayDob);
     const escapedDateIssued = escapeHtml(displayDateIssued);
     const escapedGender = escapeHtml(displayGender);
-    const escapedBloodType = escapeHtml(displayBloodType);
     const escapedContact = escapeHtml(displayContact);
     const escapedGuardian = escapeHtml(displayGuardian);
     const escapedProvince = escapeHtml(provinceValue);
@@ -1677,10 +1668,6 @@ function PWDCard() {
                     <div class="label">SEX:</div>
                     <div class="value">${escapedGender}</div>
                   </div>
-                  <div style="flex:1;">
-                    <div class="label">BLOOD TYPE:</div>
-                    <div class="value">${escapedBloodType}</div>
-                  </div>
                 </div>
                 <div class="detail-field">
                   <div class="label">CONTACT NO:</div>
@@ -1887,7 +1874,6 @@ function PWDCard() {
   const dobValue = formatCardDate(selectedMemberData?.birthDate || selectedMemberData?.dateOfBirth);
   const dateIssuedValue = formatCardDate(selectedMemberData?.cardIssueDate);
   const genderValue = selectedMemberData?.gender || '';
-  const bloodTypeValue = selectedMemberData?.bloodType || '';
   const contactValue = selectedMemberData?.contactNumber || '';
   const guardianValue = selectedMemberData?.emergencyContact || selectedMemberData?.guardianName || '';
   const provinceValue = (selectedMemberData?.province || 'Laguna').toUpperCase();
@@ -1900,7 +1886,6 @@ function PWDCard() {
   const displayDob = withPlaceholder(dobValue);
   const displayDateIssued = withPlaceholder(dateIssuedValue);
   const displayGender = withPlaceholder(genderValue);
-  const displayBloodType = withPlaceholder(bloodTypeValue);
   const displayContact = withPlaceholder(contactValue);
   const displayGuardian = withPlaceholder(guardianValue);
   const flagLogoUrl = LOGO_URLS.flag;
@@ -2093,10 +2078,26 @@ function PWDCard() {
                   textTransform: 'none',
                   fontWeight: 600,
                   fontSize: '0.95rem',
-                  minHeight: 64
+                  minHeight: 64,
+                  paddingLeft: '24px',
+                  paddingRight: '24px',
+                  position: 'relative',
+                  '&.Mui-selected': {
+                    color: '#0b87ac',
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: '12px',
+                      right: '12px',
+                      height: '3px',
+                      backgroundColor: '#0b87ac',
+                      borderRadius: '3px 3px 0 0'
+                    }
+                  }
                 },
-                '& .Mui-selected': {
-                  color: '#0b87ac'
+                '& .MuiTabs-indicator': {
+                  display: 'none'
                 }
               }}
               indicatorColor="primary"
@@ -3120,22 +3121,6 @@ function PWDCard() {
                               {displayGender}
                             </Typography>
                           </Box>
-                          <Box sx={{ flex: 1 }}>
-                            <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: '#111827', letterSpacing: '0.08em' }}>
-                              BLOOD TYPE:
-                            </Typography>
-                            <Typography
-                              sx={{
-                                fontSize: '0.6rem',
-                                fontWeight: 600,
-                                color: '#111827',
-                                borderBottom: '1px solid #111827',
-                                pb: 0.2
-                              }}
-                            >
-                              {displayBloodType}
-                            </Typography>
-                          </Box>
                         </Box>
                         <Box>
                           <Typography sx={{ fontSize: '0.55rem', fontWeight: 700, color: '#111827', letterSpacing: '0.08em' }}>
@@ -3179,16 +3164,15 @@ function PWDCard() {
               <Card elevation={0} sx={{ backgroundColor: 'transparent' }}>
                 <CardContent sx={{ p: 0 }}>
                   <Box sx={{ 
-                    background: '#FFFFFF',
-                    borderRadius: 2,
-                    border: '2px solid #E0E0E0',
-                    p: 1.5,
+                    background: 'transparent',
+                    borderRadius: 3,
+                    border: 'none',
+                    p: 2,
                     width: '100%',
-                    aspectRatio: '85.6 / 54',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                    boxShadow: 'none',
                     display: 'flex',
                     flexDirection: 'column',
-                    overflow: 'hidden'
+                    minHeight: '300px'
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexShrink: 0 }}>
                       <Box sx={{ 
@@ -3252,22 +3236,20 @@ function PWDCard() {
                         <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
                           Name:
                         </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
-                            {selectedMemberData.lastName || ''},
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
-                            {selectedMemberData.firstName || ''},
-                          </Typography>
-                          {selectedMemberData.middleName && selectedMemberData.middleName.trim().toUpperCase() !== 'N/A' && (
-                            <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
-                              {selectedMemberData.middleName},
-                            </Typography>
-                          )}
-                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
-                            {selectedMemberData.suffix || ''}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px', fontWeight: 'bold' }}>
+                          {(() => {
+                            const nameParts = [];
+                            if (selectedMemberData.lastName) nameParts.push(selectedMemberData.lastName);
+                            if (selectedMemberData.firstName) nameParts.push(selectedMemberData.firstName);
+                            if (selectedMemberData.middleName && selectedMemberData.middleName.trim().toUpperCase() !== 'N/A') {
+                              nameParts.push(selectedMemberData.middleName);
+                            }
+                            if (selectedMemberData.suffix && selectedMemberData.suffix.trim() !== '' && selectedMemberData.suffix.trim().toUpperCase() !== 'N/A') {
+                              nameParts.push(selectedMemberData.suffix);
+                            }
+                            return nameParts.join(', ');
+                          })()}
+                        </Typography>
                       </Box>
                       
                       <Box>
@@ -3306,31 +3288,22 @@ function PWDCard() {
                         </Typography>
                       </Box>
                       
-                      <Box sx={{ display: 'flex', gap: 3 }}>
-                        <Box sx={{ flex: 1 }}>
+                      <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                        <Box sx={{ flex: '1 1 auto', minWidth: '150px' }}>
                           <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
                             Contact #:
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px' }}>
-                            {selectedMemberData.contactNumber || '+63 987 654 3210'}
+                            {selectedMemberData.contactNumber || 'N/A'}
                           </Typography>
                         </Box>
                         
-                        <Box sx={{ flex: 1 }}>
+                        <Box sx={{ flex: '1 1 auto', minWidth: '100px' }}>
                           <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
                             Sex:
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px' }}>
-                            {selectedMemberData.gender || 'Male'}
-                          </Typography>
-                        </Box>
-                        
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1A1A1A', mb: 0.5, fontSize: '12px' }}>
-                            Blood Type:
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#1A1A1A', fontSize: '14px' }}>
-                            {selectedMemberData.bloodType || 'O+'}
+                            {selectedMemberData.gender || 'N/A'}
                           </Typography>
                         </Box>
                       </Box>

@@ -327,6 +327,8 @@ class BenefitClaimController extends Controller
             }
 
             // OPTIMIZED: Get all existing claims for this user in a single query
+            // Check ALL existing claims for this member, not just for the benefits in this request
+            // This ensures we catch any duplicate claims regardless of when they were made
             $benefitIds = collect($benefits)->pluck('id')->toArray();
             $existingClaims = BenefitClaim::selectEssential()
                 ->where('pwdID', $member->userID)
@@ -345,11 +347,14 @@ class BenefitClaimController extends Controller
                 $benefitId = $benefit->id;
                 $existingClaim = $existingClaims->get($benefitId);
                 
-                // Check if already claimed
+                // STRICT CHECK: If a claim exists with status 'Claimed', block it completely
+                // This prevents double disbursement regardless of when the original claim was made
                 if ($existingClaim && $existingClaim->status === 'Claimed') {
                     \Illuminate\Support\Facades\Log::warning('Double disbursement attempt blocked', [
                         'member_id' => $member->userID,
+                        'member_name' => $member->firstName . ' ' . $member->lastName,
                         'benefit_id' => $benefitId,
+                        'benefit_title' => $benefit->title ?? $benefit->type ?? 'Benefit',
                         'existing_claim_id' => $existingClaim->id,
                         'existing_claim_date' => $existingClaim->claimDate,
                         'timestamp' => $realTimeNow->toDateTimeString()
@@ -358,10 +363,36 @@ class BenefitClaimController extends Controller
                     $duplicateErrors[] = [
                         'benefit_id' => $benefitId,
                         'benefit_title' => $benefit->title ?? $benefit->type ?? 'Benefit',
-                        'message' => 'This benefit has already been claimed by this applicant',
-                        'previous_claim_date' => $existingClaim->claimDate ? Carbon::parse($existingClaim->claimDate)->format('M d, Y H:i:s') : 'Unknown'
+                        'message' => 'This benefit has already been claimed by this PWD member. Double disbursement is not allowed.',
+                        'previous_claim_date' => $existingClaim->claimDate ? Carbon::parse($existingClaim->claimDate)->format('M d, Y H:i:s') : 'Unknown',
+                        'previous_claim_id' => $existingClaim->id
                     ];
-                    continue;
+                    continue; // Skip this benefit - do not create a new claim
+                }
+                
+                // Additional safety check: Query database directly to ensure no race condition
+                // This catches any claims that might have been created between the initial query and now
+                $directCheck = BenefitClaim::where('pwdID', $member->userID)
+                    ->where('benefitID', $benefitId)
+                    ->where('status', 'Claimed')
+                    ->first();
+                
+                if ($directCheck) {
+                    \Illuminate\Support\Facades\Log::warning('Double disbursement attempt blocked (direct check)', [
+                        'member_id' => $member->userID,
+                        'benefit_id' => $benefitId,
+                        'existing_claim_id' => $directCheck->id,
+                        'timestamp' => $realTimeNow->toDateTimeString()
+                    ]);
+                    
+                    $duplicateErrors[] = [
+                        'benefit_id' => $benefitId,
+                        'benefit_title' => $benefit->title ?? $benefit->type ?? 'Benefit',
+                        'message' => 'This benefit has already been claimed by this PWD member. Double disbursement is not allowed.',
+                        'previous_claim_date' => $directCheck->claimDate ? Carbon::parse($directCheck->claimDate)->format('M d, Y H:i:s') : 'Unknown',
+                        'previous_claim_id' => $directCheck->id
+                    ];
+                    continue; // Skip this benefit - do not create a new claim
                 }
                 
                 if ($existingClaim) {
@@ -416,6 +447,39 @@ class BenefitClaimController extends Controller
                 ]);
             }
             
+            // Update distributed count for each benefit that was claimed
+            // Get unique benefit IDs from claims created to avoid updating the same benefit multiple times
+            $claimedBenefitIds = collect($claimsCreated)->pluck('benefitID')->unique();
+            
+            foreach ($claimedBenefitIds as $benefitId) {
+                try {
+                    $benefit = \App\Models\Benefit::find($benefitId);
+                    if ($benefit) {
+                        // Count actual claimed records for this benefit
+                        $actualClaimedCount = BenefitClaim::where('benefitID', $benefitId)
+                            ->where('status', 'Claimed')
+                            ->count();
+                        
+                        // Update the distributed count
+                        $benefit->update(['distributed' => $actualClaimedCount]);
+                        
+                        \Illuminate\Support\Facades\Log::info('Updated distributed count for benefit', [
+                            'benefit_id' => $benefitId,
+                            'distributed_count' => $actualClaimedCount
+                        ]);
+                        
+                        // Clear benefit cache to reflect updated distributed counts
+                        Cache::forget("benefits:index:Active:" . ($benefit->barangay ?: 'all'));
+                        Cache::forget("benefits:index:all:" . ($benefit->barangay ?: 'all'));
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error updating distributed count for benefit', [
+                        'benefit_id' => $benefitId,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
             // Clear cache for this user's claims
             Cache::forget("benefit_claims:user:{$member->userID}");
             
@@ -423,8 +487,25 @@ class BenefitClaimController extends Controller
             if (!empty($duplicateErrors)) {
                 \Illuminate\Support\Facades\Log::warning('Some benefits were not claimed due to duplicates', [
                     'member_id' => $member->userID,
+                    'member_name' => $member->firstName . ' ' . $member->lastName,
                     'duplicates' => $duplicateErrors
                 ]);
+            }
+
+            // If ALL benefits were duplicates, return an error response
+            if (!empty($duplicateErrors) && count($claimsCreated) === 0 && empty($bulkInsertData)) {
+                $errorMessages = collect($duplicateErrors)->pluck('message')->unique()->implode(' ');
+                return response()->json([
+                    'success' => false,
+                    'error' => 'All benefits have already been claimed by this PWD member. Double disbursement is not allowed.',
+                    'duplicate_errors' => $duplicateErrors,
+                    'member' => [
+                        'userID' => $member->userID,
+                        'firstName' => $member->firstName,
+                        'lastName' => $member->lastName,
+                        'pwd_id' => $member->pwd_id
+                    ]
+                ], 409); // 409 Conflict status code
             }
 
             // Convert benefits to array format
@@ -453,10 +534,10 @@ class BenefitClaimController extends Controller
                 'claim_timestamp' => now()->format('Y-m-d H:i:s')
             ];
 
-            // Include duplicate errors if any
+            // Include duplicate errors if any (partial success case)
             if (!empty($duplicateErrors)) {
                 $response['duplicate_errors'] = $duplicateErrors;
-                $response['warning'] = count($duplicateErrors) . ' benefit(s) were not claimed due to duplicate disbursement prevention.';
+                $response['warning'] = count($duplicateErrors) . ' benefit(s) were not claimed because they have already been claimed by this PWD member. Double disbursement is not allowed.';
             }
 
             return response()->json($response);

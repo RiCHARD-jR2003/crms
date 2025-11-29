@@ -27,6 +27,8 @@ return [
         'https://brown-idol-pharmacies-absolute.trycloudflare.com',
         'https://artist-eliminate-attitude-destiny.trycloudflare.com',
         'https://intranet-pty-talks-lottery.trycloudflare.com',
+        'https://summit-haven-highlight-informal.trycloudflare.com',
+        'https://valium-parenting-asylum-ion.trycloudflare.com',
     ],
 
     'allowed_origins_patterns' => [

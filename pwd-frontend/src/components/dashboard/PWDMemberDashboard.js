@@ -111,21 +111,50 @@ function PWDMemberDashboard() {
         setLoading(true);
         setError(null);
         
-        // Get user's barangay from currentUser
-        const userBarangay = currentUser?.barangay || currentUser?.pwd_member?.barangay;
+        // Get user's barangay from currentUser - try multiple possible locations
+        let userBarangay = currentUser?.barangay || 
+                          currentUser?.pwd_member?.barangay || 
+                          currentUser?.user?.barangay ||
+                          currentUser?.profile?.barangay;
+        
+        // Fetch PWD member profile to get approval date and barangay (fetch this first to get barangay)
+        let profileData = null;
+        try {
+          const profileResponse = await api.get('/pwd-member/profile');
+          profileData = profileResponse;
+          
+          // Get the approval date from created_at or pwd_id_generated_at
+          const approvalDate = profileData?.created_at || profileData?.pwd_id_generated_at;
+          setMemberSinceDate(approvalDate);
+          
+          // Use barangay from profile if not found earlier
+          if (!userBarangay && profileData?.barangay) {
+            userBarangay = profileData.barangay;
+          }
+        } catch (profileError) {
+          console.log('Could not fetch PWD member profile, using fallback date');
+          // Fallback: use current user's created_at if available
+          setMemberSinceDate(currentUser?.created_at);
+        }
+        
         console.log('Dashboard - Current User:', currentUser);
         console.log('Dashboard - User Barangay:', userBarangay);
+        console.log('Dashboard - Profile Data:', profileData);
         
         // Use announcementService to get filtered announcements
-        const filteredAnnouncements = await announcementService.getFilteredForPWDMember(userBarangay);
+        const filteredAnnouncements = userBarangay 
+          ? await announcementService.getFilteredForPWDMember(userBarangay)
+          : [];
         
         console.log('Dashboard - Filtered announcements count:', filteredAnnouncements.length);
+        console.log('Dashboard - User Barangay for filtering:', userBarangay);
         console.log('Dashboard - Filtered announcements:', filteredAnnouncements.map(a => ({ 
-          id: a.id, 
+          id: a.id || a.announcementID, 
           title: a.title, 
           status: a.status, 
           targetAudience: a.targetAudience 
         })));
+        console.log('Dashboard - Full first announcement:', filteredAnnouncements[0]);
         
         // Fetch support tickets for this user
         const ticketsResponse = await api.get('/support-tickets');
@@ -147,20 +176,6 @@ function PWDMemberDashboard() {
         } catch (benefitError) {
           console.error('Error fetching claimed benefits:', benefitError);
           setClaimedBenefits(0);
-        }
-        
-        // Fetch PWD member profile to get approval date
-        try {
-          const profileResponse = await api.get('/pwd-member/profile');
-          const profileData = profileResponse;
-          
-          // Get the approval date from created_at or pwd_id_generated_at
-          const approvalDate = profileData?.created_at || profileData?.pwd_id_generated_at;
-          setMemberSinceDate(approvalDate);
-        } catch (profileError) {
-          console.log('Could not fetch PWD member profile, using fallback date');
-          // Fallback: use current user's created_at if available
-          setMemberSinceDate(currentUser?.created_at);
         }
         
         console.log('Dashboard - Setting announcements state with count:', filteredAnnouncements.length);
@@ -186,11 +201,26 @@ function PWDMemberDashboard() {
 
     const interval = setInterval(async () => {
       try {
-        // Get user's barangay from currentUser
-        const userBarangay = currentUser?.barangay || currentUser?.pwd_member?.barangay;
+        // Get user's barangay from currentUser - try multiple possible locations
+        let userBarangay = currentUser?.barangay || 
+                          currentUser?.pwd_member?.barangay || 
+                          currentUser?.user?.barangay ||
+                          currentUser?.profile?.barangay;
+        
+        // If barangay is still not found, try fetching from profile
+        if (!userBarangay) {
+          try {
+            const profileResponse = await api.get('/pwd-member/profile');
+            userBarangay = profileResponse?.barangay || profileResponse?.data?.barangay;
+          } catch (profileError) {
+            console.warn('Could not fetch barangay from profile:', profileError);
+          }
+        }
         
         // Use announcementService to get filtered announcements
-        const filteredAnnouncements = await announcementService.getFilteredForPWDMember(userBarangay);
+        const filteredAnnouncements = userBarangay 
+          ? await announcementService.getFilteredForPWDMember(userBarangay)
+          : [];
         
         // Fetch support tickets for this user
         const ticketsResponse = await api.get('/support-tickets');
@@ -501,8 +531,8 @@ function PWDMemberDashboard() {
                 }}>
                   {announcements.map((announcement, index) => {
                     console.log('Rendering announcement:', index + 1, announcement.title);
-                    // Use a unique key - combine id and index as fallback
-                    const uniqueKey = announcement.id || `announcement-${index}-${announcement.title}`;
+                    // Use a unique key - combine id and index as fallback (handle both id and announcementID)
+                    const uniqueKey = announcement.id || announcement.announcementID || `announcement-${index}-${announcement.title}`;
                     return (
                     <Paper
                       key={uniqueKey}

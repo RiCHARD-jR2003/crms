@@ -21,9 +21,11 @@ import {
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import AnnouncementIcon from '@mui/icons-material/Announcement';
 import CloseIcon from '@mui/icons-material/Close';
+import CampaignIcon from '@mui/icons-material/Campaign';
 import BarangayPresidentSidebar from '../shared/BarangayPresidentSidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import announcementService from '../../services/announcementService';
+import toastService from '../../services/toastService';
 
 function BarangayPresidentAnnouncement() {
   const { currentUser } = useAuth();
@@ -34,6 +36,8 @@ function BarangayPresidentAnnouncement() {
   const [error, setError] = useState(null);
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [announcingToMembers, setAnnouncingToMembers] = useState(false);
+  const [announcedAnnouncements, setAnnouncedAnnouncements] = useState(new Set());
 
   // Format date as MM/DD/YYYY
   const formatDateMMDDYYYY = (dateString) => {
@@ -46,6 +50,74 @@ function BarangayPresidentAnnouncement() {
     const year = date.getFullYear();
     
     return `${month}/${day}/${year}`;
+  };
+
+  // Format date and time as MM/DD/YYYY HH:MM AM/PM
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    
+    // Format date as MM/DD/YYYY
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    // Format time as HH:MM AM/PM
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    const formattedHours = String(hours).padStart(2, '0');
+    
+    return `${month}/${day}/${year} ${formattedHours}:${minutes} ${ampm}`;
+  };
+
+  // Format announcement content to properly display line breaks, bullets, and numbered lists
+  const formatAnnouncementContent = (content) => {
+    if (!content) return [];
+    
+    // Split by lines and process each line
+    const lines = content.split('\n');
+    const formattedLines = [];
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      
+      // Skip empty lines but keep them for spacing
+      if (!trimmedLine) {
+        formattedLines.push({ type: 'empty', content: '' });
+        return;
+      }
+      
+      // Check for section headers (all caps words followed by colon, or specific patterns)
+      if (trimmedLine.match(/^[A-Z][A-Z\s:]+:$/) || 
+          trimmedLine.match(/^[A-Z\s]{3,}:$/) ||
+          trimmedLine.match(/^(PROGRAM|ELIGIBILITY|IMPORTANT|CLAIMING|VENUE|CONTACT|NOTE):$/i)) {
+        formattedLines.push({ type: 'header', content: trimmedLine });
+        return;
+      }
+      
+      // Check for numbered lists (1., 2., 3., etc. or 1), 2), etc.)
+      if (trimmedLine.match(/^\d+[\.\)]\s/)) {
+        formattedLines.push({ type: 'numbered', content: trimmedLine });
+        return;
+      }
+      
+      // Check for bullet points (•, -, *, or lines starting with spaces and bullet)
+      if (trimmedLine.match(/^[•\-\*]\s/) || 
+          trimmedLine.match(/^[•\-\*]/) ||
+          trimmedLine.match(/^\s+[•\-\*]/)) {
+        formattedLines.push({ type: 'bullet', content: trimmedLine });
+        return;
+      }
+      
+      // Regular text
+      formattedLines.push({ type: 'text', content: trimmedLine });
+    });
+    
+    return formattedLines;
   };
 
   // Fetch announcements from database
@@ -95,6 +167,33 @@ function BarangayPresidentAnnouncement() {
   const handleCloseViewDialog = () => {
     setViewDialog(false);
     setSelectedAnnouncement(null);
+    setAnnouncingToMembers(false);
+  };
+
+  const handleAnnounceToMembers = async () => {
+    if (!selectedAnnouncement) return;
+
+    try {
+      setAnnouncingToMembers(true);
+      const response = await announcementService.announceToMembers(selectedAnnouncement.announcementID);
+      
+      if (response.success) {
+        toastService.success(
+          `Announcement sent successfully! Notifications sent to ${response.notifications_sent} members. ${response.eligibility_notices_sent} eligibility notices sent.`
+        );
+        // Mark this announcement as announced
+        setAnnouncedAnnouncements(prev => new Set([...prev, selectedAnnouncement.announcementID]));
+        // Refresh announcements
+        await fetchAnnouncements();
+      } else {
+        toastService.error(response.message || 'Failed to announce to members');
+      }
+    } catch (error) {
+      console.error('Error announcing to members:', error);
+      toastService.error('Failed to announce to members: ' + (error.message || 'Unknown error'));
+    } finally {
+      setAnnouncingToMembers(false);
+    }
   };
 
   const getPriorityColor = (priority) => {
@@ -278,10 +377,10 @@ function BarangayPresidentAnnouncement() {
                    
                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                      <Typography variant="caption" sx={{ color: '#4CAF50', fontSize: '0.7rem' }}>
-                       Published: {announcement.publishDate}
+                       Published: {formatDateTime(announcement.publishDate)}
                      </Typography>
                      <Typography variant="caption" sx={{ color: '#FF9800', fontSize: '0.7rem' }}>
-                       Expires: {announcement.expiryDate}
+                       Expires: {announcement.expiryDate ? formatDateTime(announcement.expiryDate) : 'N/A'}
                      </Typography>
                    </Box>
                    
@@ -445,13 +544,81 @@ function BarangayPresidentAnnouncement() {
                   >
                     Content
                   </Typography>
-                  <Typography 
-                    variant="body1" 
-                    sx={{ color: '#000000 !important', lineHeight: 1.8, backgroundColor: '#F5F5F5', p: 2, borderRadius: 1 }}
+                  <Box 
+                    sx={{ 
+                      color: '#000000 !important', 
+                      lineHeight: 1.8, 
+                      backgroundColor: '#F5F5F5', 
+                      p: 2, 
+                      borderRadius: 1,
+                      '& .content-header': {
+                        fontWeight: 700,
+                        fontSize: '1.1rem',
+                        color: '#0b87ac',
+                        mt: 2,
+                        mb: 1,
+                        display: 'block'
+                      },
+                      '& .content-bullet': {
+                        display: 'block',
+                        pl: 3,
+                        mb: 0.5,
+                        position: 'relative',
+                        '&::before': {
+                          content: '"•"',
+                          position: 'absolute',
+                          left: '8px',
+                          fontWeight: 700,
+                          color: '#000000'
+                        }
+                      },
+                      '& .content-numbered': {
+                        display: 'block',
+                        pl: 3,
+                        mb: 0.5
+                      },
+                      '& .content-text': {
+                        display: 'block',
+                        mb: 0.5
+                      },
+                      '& .content-empty': {
+                        display: 'block',
+                        height: '0.5rem'
+                      }
+                    }}
                     style={{ color: '#000000' }}
                   >
-                    {selectedAnnouncement.content}
-                  </Typography>
+                    {formatAnnouncementContent(selectedAnnouncement.content).map((item, idx) => {
+                      if (item.type === 'empty') {
+                        return <Box key={idx} className="content-empty" />;
+                      } else if (item.type === 'header') {
+                        return (
+                          <Typography key={idx} className="content-header" component="div" variant="h6" sx={{ color: '#0b87ac !important' }}>
+                            {item.content}
+                          </Typography>
+                        );
+                      } else if (item.type === 'bullet') {
+                        const text = item.content.replace(/^[•\-\*]\s*/, '');
+                        return (
+                          <Typography key={idx} className="content-bullet" component="div" variant="body2" sx={{ color: '#000000 !important' }}>
+                            {text}
+                          </Typography>
+                        );
+                      } else if (item.type === 'numbered') {
+                        return (
+                          <Typography key={idx} className="content-numbered" component="div" variant="body2" sx={{ color: '#000000 !important' }}>
+                            {item.content}
+                          </Typography>
+                        );
+                      } else {
+                        return (
+                          <Typography key={idx} className="content-text" component="div" variant="body2" sx={{ color: '#000000 !important' }}>
+                            {item.content}
+                          </Typography>
+                        );
+                      }
+                    })}
+                  </Box>
                 </Box>
 
                 <Divider sx={{ mb: 3, borderColor: '#E0E0E0' }} />
@@ -496,7 +663,7 @@ function BarangayPresidentAnnouncement() {
                           sx={{ color: '#000000 !important' }}
                           style={{ color: '#000000' }}
                         >
-                          {formatDateMMDDYYYY(selectedAnnouncement.publishDate)}
+                          {formatDateTime(selectedAnnouncement.publishDate)}
                         </Typography>
                       </Box>
                       <Box>
@@ -512,7 +679,7 @@ function BarangayPresidentAnnouncement() {
                           sx={{ color: '#000000 !important' }}
                           style={{ color: '#000000' }}
                         >
-                          {formatDateMMDDYYYY(selectedAnnouncement.expiryDate)}
+                          {selectedAnnouncement.expiryDate ? formatDateTime(selectedAnnouncement.expiryDate) : 'N/A'}
                         </Typography>
                       </Box>
                     </Box>
@@ -581,7 +748,36 @@ function BarangayPresidentAnnouncement() {
               </Box>
             )}
           </DialogContent>
-          <DialogActions sx={{ p: 3, backgroundColor: '#FFFFFF' }}>
+          <DialogActions sx={{ p: 3, backgroundColor: '#FFFFFF', gap: 2 }}>
+            {selectedAnnouncement && selectedAnnouncement.status === 'Active' && !announcedAnnouncements.has(selectedAnnouncement.announcementID) && (
+              <Button 
+                onClick={handleAnnounceToMembers}
+                variant="contained"
+                disabled={announcingToMembers || announcedAnnouncements.has(selectedAnnouncement.announcementID)}
+                startIcon={announcingToMembers ? <CircularProgress size={16} /> : <CampaignIcon />}
+                sx={{ 
+                  bgcolor: '#27AE60',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  color: 'white',
+                  '&:hover': {
+                    bgcolor: '#229954'
+                  },
+                  '&:disabled': {
+                    bgcolor: '#BDC3C7'
+                  }
+                }}
+              >
+                {announcingToMembers ? 'Announcing...' : 'Announce to All Registered Members'}
+              </Button>
+            )}
+            {selectedAnnouncement && announcedAnnouncements.has(selectedAnnouncement.announcementID) && (
+              <Chip 
+                label="Already Announced" 
+                color="success" 
+                sx={{ fontWeight: 600 }}
+              />
+            )}
             <Button 
               onClick={handleCloseViewDialog} 
               variant="contained"

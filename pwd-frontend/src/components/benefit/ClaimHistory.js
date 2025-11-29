@@ -37,6 +37,7 @@ import Staff2Sidebar from '../shared/Staff2Sidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import toastService from '../../services/toastService';
 import FloatingQRScannerButton from '../qr/FloatingQRScannerButton';
+import { formatDateTime } from '../../utils/dateTimeFormatter';
 
 const ClaimHistory = () => {
   const { currentUser } = useAuth();
@@ -486,7 +487,7 @@ const ClaimHistory = () => {
                   {recentClaims.map((claim, index) => (
                     <TableRow key={claim.id || index} hover>
                       <TableCell>
-                        {claim.claimDate ? new Date(claim.claimDate).toLocaleString() : 'N/A'}
+                        {formatDateTime(claim.claimDate || claim.created_at || claim.updated_at)}
                       </TableCell>
                       <TableCell>
                         {claim.member ? (

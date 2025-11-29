@@ -81,18 +81,11 @@ export const announcementService = {
     }
   },
 
-  // Get announcements by audience (using client-side filtering since backend route has issues)
+  // Get announcements by audience
   getByAudience: async (audience) => {
     try {
-      const response = await api.get('/announcements');
-      const announcementsData = response || [];
-      
-      // Filter announcements by audience on the client side
-      const filteredAnnouncements = announcementsData.filter(announcement => 
-        announcement.targetAudience === audience
-      );
-      
-      return filteredAnnouncements;
+      const response = await api.get(`/announcements/audience/${encodeURIComponent(audience)}`);
+      return response;
     } catch (error) {
       console.error('Error fetching announcements by audience:', error);
       toastService.error('Failed to fetch announcements by audience: ' + (error.message || 'Unknown error'));
@@ -100,48 +93,57 @@ export const announcementService = {
     }
   },
 
-  // Get filtered announcements for PWD members - show ALL active announcements
+  // Get filtered announcements for PWD members - only show announcements for their barangay
   getFilteredForPWDMember: async (userBarangay) => {
     try {
-      const response = await api.get('/announcements');
-      const announcementsData = response || [];
+      if (!userBarangay) {
+        console.warn('User barangay not found, returning empty array');
+        return [];
+      }
       
-      console.log('All announcements fetched:', announcementsData.length);
-      console.log('User barangay:', userBarangay);
+      // Use the same getByAudience endpoint to get barangay-specific announcements
+      const response = await api.get(`/announcements/audience/${encodeURIComponent(userBarangay)}`);
       
-      // Filter announcements for PWD Members:
-      // Show ALL active, non-expired announcements regardless of target audience
-      // This allows PWD members to see all available announcements
-      const filteredAnnouncements = announcementsData.filter(announcement => {
-        // First, check if announcement is Active
-        if (announcement.status !== 'Active') {
-          console.log('Skipping announcement (not Active):', announcement.title, 'Status:', announcement.status);
-          return false;
+      // Handle different response structures
+      if (Array.isArray(response)) {
+        return response;
+      } else if (response && response.data) {
+        if (Array.isArray(response.data)) {
+          return response.data;
         }
-        
-        // Check if announcement has expired
-        if (announcement.expiryDate) {
-          const expiryDate = new Date(announcement.expiryDate);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (expiryDate < today) {
-            console.log('Skipping announcement (expired):', announcement.title, 'Expiry:', announcement.expiryDate);
-            return false;
-          }
+        if (Array.isArray(response.data.data)) {
+          return response.data.data;
         }
-        
-        // Include all active, non-expired announcements
-        console.log('Including announcement:', announcement.title, 'Target:', announcement.targetAudience);
-        return true;
-      });
+      }
       
-      console.log('Filtered announcements count:', filteredAnnouncements.length);
-      console.log('Filtered announcements:', filteredAnnouncements.map(a => ({ title: a.title, status: a.status, targetAudience: a.targetAudience })));
-      
-      return filteredAnnouncements;
+      return [];
     } catch (error) {
       console.error('Error fetching filtered announcements for PWD member:', error);
-      toastService.error('Failed to fetch announcements: ' + (error.message || 'Unknown error'));
+      // Don't show error toast for empty announcements - it's normal
+      return [];
+    }
+  },
+
+  // Post a draft announcement (change status from Draft to Active)
+  postAnnouncement: async (id) => {
+    try {
+      const response = await api.post(`/announcements/${id}/post`);
+      return response;
+    } catch (error) {
+      console.error('Error posting announcement:', error);
+      toastService.error('Failed to post announcement: ' + (error.message || 'Unknown error'));
+      throw error;
+    }
+  },
+
+  // Barangay President: Announce to all registered members
+  announceToMembers: async (id) => {
+    try {
+      const response = await api.post(`/announcements/${id}/announce-to-members`);
+      return response;
+    } catch (error) {
+      console.error('Error announcing to members:', error);
+      toastService.error('Failed to announce to members: ' + (error.message || 'Unknown error'));
       throw error;
     }
   }

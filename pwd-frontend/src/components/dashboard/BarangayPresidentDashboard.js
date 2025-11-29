@@ -24,7 +24,11 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon
+  ListItemIcon,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import {
   Dashboard,
@@ -42,13 +46,17 @@ import {
   LocationOn,
   CalendarToday,
   Notifications,
-  BarChart
+  BarChart,
+  Close as CloseIcon,
+  Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import BarangayPresidentSidebar from '../shared/BarangayPresidentSidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import dashboardService from '../../services/dashboardService';
+import announcementService from '../../services/announcementService';
+import toastService from '../../services/toastService';
 import { 
   mainContainerStyles, 
   contentAreaStyles, 
@@ -78,6 +86,10 @@ function BarangayPresidentDashboard() {
   const [recentAnnouncements, setRecentAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [viewDialog, setViewDialog] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [announcingToMembers, setAnnouncingToMembers] = useState(false);
+  const [announcedAnnouncements, setAnnouncedAnnouncements] = useState(new Set());
 
   // Format date as MM/DD/YYYY
   const formatDateMMDDYYYY = (dateString) => {
@@ -164,6 +176,83 @@ function BarangayPresidentDashboard() {
 
     fetchDashboardData();
   }, [currentUser]);
+
+  const handleViewDetails = (announcement) => {
+    setSelectedAnnouncement(announcement);
+    setViewDialog(true);
+  };
+
+  const handleCloseViewDialog = () => {
+    setViewDialog(false);
+    setSelectedAnnouncement(null);
+    setAnnouncingToMembers(false);
+  };
+
+  const handleAnnounceToMembers = async () => {
+    if (!selectedAnnouncement) return;
+
+    try {
+      setAnnouncingToMembers(true);
+      const response = await announcementService.announceToMembers(selectedAnnouncement.announcementID);
+      
+      if (response.success) {
+        toastService.success(
+          `Announcement sent successfully! Notifications sent to ${response.notifications_sent} members. ${response.eligibility_notices_sent} eligibility notices sent.`
+        );
+        // Mark this announcement as announced
+        setAnnouncedAnnouncements(prev => new Set([...prev, selectedAnnouncement.announcementID]));
+        // Refresh announcements
+        await fetchDashboardData();
+        handleCloseViewDialog();
+      } else {
+        toastService.error(response.message || 'Failed to announce to members');
+      }
+    } catch (error) {
+      console.error('Error announcing to members:', error);
+      toastService.error('Failed to announce to members: ' + (error.message || 'Unknown error'));
+    } finally {
+      setAnnouncingToMembers(false);
+    }
+  };
+
+
+  const handleViewDetails = (announcement) => {
+    setSelectedAnnouncement(announcement);
+    setViewDialog(true);
+  };
+
+  const handleCloseViewDialog = () => {
+    setViewDialog(false);
+    setSelectedAnnouncement(null);
+    setAnnouncingToMembers(false);
+  };
+
+  const handleAnnounceToMembers = async () => {
+    if (!selectedAnnouncement) return;
+
+    try {
+      setAnnouncingToMembers(true);
+      const response = await announcementService.announceToMembers(selectedAnnouncement.announcementID);
+      
+      if (response.success) {
+        toastService.success(
+          `Announcement sent successfully! Notifications sent to ${response.notifications_sent} members. ${response.eligibility_notices_sent} eligibility notices sent.`
+        );
+        // Mark this announcement as announced
+        setAnnouncedAnnouncements(prev => new Set([...prev, selectedAnnouncement.announcementID]));
+        // Refresh announcements
+        await fetchDashboardData();
+        handleCloseViewDialog();
+      } else {
+        toastService.error(response.message || 'Failed to announce to members');
+      }
+    } catch (error) {
+      console.error('Error announcing to members:', error);
+      toastService.error('Failed to announce to members: ' + (error.message || 'Unknown error'));
+    } finally {
+      setAnnouncingToMembers(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     if (!status) return '#000000';
@@ -500,7 +589,22 @@ function BarangayPresidentDashboard() {
                   <List sx={{ flex: 1 }}>
                     {recentAnnouncements.map((announcement, index) => (
                       <React.Fragment key={`announcement-${index}`}>
-                        <ListItem sx={{ px: 0, py: 1.5 }}>
+                        <ListItem 
+                          sx={{ 
+                            px: 0, 
+                            py: 1.5,
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: '#F5F5F5',
+                              borderRadius: 1
+                            },
+                            transition: 'background-color 0.2s ease'
+                          }}
+                          onClick={() => {
+                            setSelectedAnnouncement(announcement);
+                            setViewDialog(true);
+                          }}
+                        >
                           <ListItemIcon sx={{ minWidth: 40 }}>
                             <Notifications sx={{ color: '#3498DB', fontSize: 24 }} />
                           </ListItemIcon>
@@ -545,6 +649,130 @@ function BarangayPresidentDashboard() {
             </Card>
           </Grid>
         </Grid>
+
+        {/* Announcement Details Dialog */}
+        <Dialog open={viewDialog} onClose={handleCloseViewDialog} maxWidth="md" fullWidth>
+          <DialogTitle sx={{ 
+            backgroundColor: '#FFFFFF',
+            color: '#000000 !important', 
+            fontWeight: 600,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Campaign sx={{ color: '#0b87ac' }} />
+              <Typography variant="h6" sx={{ color: '#000000 !important' }}>
+                Announcement Details
+              </Typography>
+            </Box>
+            <IconButton onClick={handleCloseViewDialog} sx={{ color: '#000000' }}>
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ backgroundColor: '#FFFFFF !important', color: '#000000 !important' }}>
+            {selectedAnnouncement && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#000000 !important', mb: 2 }}>
+                  {selectedAnnouncement.title}
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+                <Box sx={{ 
+                  color: '#000000 !important', 
+                  lineHeight: 1.8, 
+                  backgroundColor: '#F5F5F5', 
+                  p: 2, 
+                  borderRadius: 1,
+                  mb: 3
+                }}>
+                  {formatAnnouncementContent(selectedAnnouncement.content || '').map((item, idx) => {
+                    if (item.type === 'empty') {
+                      return <Box key={idx} sx={{ height: '0.5rem' }} />;
+                    } else if (item.type === 'header') {
+                      return (
+                        <Typography key={idx} variant="h6" sx={{ color: '#0b87ac !important', mt: 2, mb: 1, fontWeight: 700 }}>
+                          {item.content}
+                        </Typography>
+                      );
+                    } else if (item.type === 'bullet') {
+                      const text = item.content.replace(/^[•\-\*]\s*/, '');
+                      return (
+                        <Typography key={idx} variant="body2" sx={{ color: '#000000 !important', pl: 3, mb: 0.5 }}>
+                          • {text}
+                        </Typography>
+                      );
+                    } else if (item.type === 'numbered') {
+                      return (
+                        <Typography key={idx} variant="body2" sx={{ color: '#000000 !important', pl: 3, mb: 0.5 }}>
+                          {item.content}
+                        </Typography>
+                      );
+                    } else {
+                      return (
+                        <Typography key={idx} variant="body2" sx={{ color: '#000000 !important', mb: 0.5 }}>
+                          {item.content}
+                        </Typography>
+                      );
+                    }
+                  })}
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#666666' }}>
+                    <strong>Target Audience:</strong> {selectedAnnouncement.targetAudience}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#666666' }}>
+                    <strong>Published:</strong> {formatDateTime(selectedAnnouncement.publishDate)}
+                  </Typography>
+                  {selectedAnnouncement.expiryDate && (
+                    <Typography variant="body2" sx={{ color: '#666666' }}>
+                      <strong>Expires:</strong> {formatDateTime(selectedAnnouncement.expiryDate)}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 3, backgroundColor: '#FFFFFF', gap: 2 }}>
+            {selectedAnnouncement && selectedAnnouncement.status === 'Active' && !announcedAnnouncements.has(selectedAnnouncement.announcementID) && (
+              <Button 
+                onClick={handleAnnounceToMembers}
+                variant="contained"
+                disabled={announcingToMembers}
+                startIcon={announcingToMembers ? <CircularProgress size={16} /> : <Campaign />}
+                sx={{ 
+                  bgcolor: '#27AE60',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  color: 'white',
+                  '&:hover': { bgcolor: '#229954' },
+                  '&:disabled': { bgcolor: '#BDC3C7' }
+                }}
+              >
+                {announcingToMembers ? 'Announcing...' : 'Announce to All Registered Members'}
+              </Button>
+            )}
+            {selectedAnnouncement && announcedAnnouncements.has(selectedAnnouncement.announcementID) && (
+              <Chip 
+                label="Already Announced" 
+                color="success" 
+                sx={{ fontWeight: 600 }}
+              />
+            )}
+            <Button 
+              onClick={handleCloseViewDialog} 
+              variant="contained"
+              sx={{ 
+                bgcolor: '#0b87ac',
+                textTransform: 'none',
+                fontWeight: 600,
+                color: 'white',
+                '&:hover': { bgcolor: '#0a6b8a' }
+              }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );

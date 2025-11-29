@@ -8,8 +8,36 @@ const notificationService = {
   async getNotifications() {
     try {
       const response = await api.get('/notifications');
-      if (response.data.success) {
-        return response.data.notifications || [];
+      // Handle different response structures
+      if (response && typeof response === 'object') {
+        // Check if response has data wrapper
+        if (response.data) {
+          if (response.data.success) {
+            return response.data.notifications || response.data.data || [];
+          }
+          // If no success field, check for direct notifications array
+          if (Array.isArray(response.data.notifications)) {
+            return response.data.notifications;
+          }
+          if (Array.isArray(response.data.data)) {
+            return response.data.data;
+          }
+          if (Array.isArray(response.data)) {
+            return response.data;
+          }
+        }
+        // Check if response is direct (no data wrapper)
+        if (response.success) {
+          return response.notifications || response.data || [];
+        }
+        // Check if response is directly an array
+        if (Array.isArray(response)) {
+          return response;
+        }
+        // Check for notifications field directly
+        if (Array.isArray(response.notifications)) {
+          return response.notifications;
+        }
       }
       return [];
     } catch (error) {
@@ -25,8 +53,30 @@ const notificationService = {
   async getUnreadCount() {
     try {
       const response = await api.get('/notifications/unread');
-      if (response.data.success) {
-        return response.data.unread_count || 0;
+      // Handle different response structures
+      if (response && typeof response === 'object') {
+        // Check if response has data wrapper
+        if (response.data) {
+          if (response.data.success) {
+            return response.data.unread_count || 0;
+          }
+          // If no success field, check for direct unread_count
+          if (response.data.unread_count !== undefined) {
+            return response.data.unread_count || 0;
+          }
+        }
+        // Check if response is direct (no data wrapper)
+        if (response.success) {
+          return response.unread_count || 0;
+        }
+        // Check for direct unread_count field
+        if (response.unread_count !== undefined) {
+          return response.unread_count || 0;
+        }
+        // Check for count field
+        if (response.count !== undefined) {
+          return response.count || 0;
+        }
       }
       return 0;
     } catch (error) {
@@ -43,7 +93,22 @@ const notificationService = {
   async markAsRead(notificationId) {
     try {
       const response = await api.post(`/notifications/${notificationId}/mark-read`);
-      return response.data.success || false;
+      // Handle different response structures
+      if (response && typeof response === 'object') {
+        if (response.data) {
+          if (response.data.success !== undefined) {
+            return response.data.success;
+          }
+          // If no success field, check if response.data is truthy (successful response)
+          return true;
+        }
+        if (response.success !== undefined) {
+          return response.success;
+        }
+        // If no success field but response exists, assume success
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Error marking notification as read:', error);
       return false;
@@ -57,7 +122,22 @@ const notificationService = {
   async markAllAsRead() {
     try {
       const response = await api.post('/notifications/mark-all-read');
-      return response.data.success || false;
+      // Handle different response structures
+      if (response && typeof response === 'object') {
+        if (response.data) {
+          if (response.data.success !== undefined) {
+            return response.data.success;
+          }
+          // If no success field, check if response.data is truthy (successful response)
+          return true;
+        }
+        if (response.success !== undefined) {
+          return response.success;
+        }
+        // If no success field but response exists, assume success
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       return false;

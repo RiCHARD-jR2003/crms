@@ -14,6 +14,7 @@ class Announcement extends Model
     
     protected $fillable = [
         'authorID',
+        'benefitID',
         'title',
         'content',
         'type',
@@ -35,5 +36,10 @@ class Announcement extends Model
     public function author()
     {
         return $this->belongsTo(User::class, 'authorID', 'userID');
+    }
+
+    public function benefit()
+    {
+        return $this->belongsTo(Benefit::class, 'benefitID', 'id');
     }
 }

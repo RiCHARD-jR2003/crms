@@ -90,6 +90,7 @@ function PWDRecords() {
     const [orderBy, setOrderBy] = useState('');
     const [order, setOrder] = useState('asc');
     const [applications, setApplications] = useState([]);
+    const [allApplications, setAllApplications] = useState([]); // Store all applications for contact number lookup
     const [pwdMembers, setPwdMembers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -201,18 +202,49 @@ function PWDRecords() {
           
           // Also fetch all applications to get complete data for PWD members
           const allApplicationsResponse = await api.get('/applications');
-          const allApplications = allApplicationsResponse || [];
+          // Handle different response structures
+          let allApplicationsData = [];
+          if (Array.isArray(allApplicationsResponse)) {
+            allApplicationsData = allApplicationsResponse;
+          } else if (allApplicationsResponse && typeof allApplicationsResponse === 'object') {
+            if (Array.isArray(allApplicationsResponse.data)) {
+              allApplicationsData = allApplicationsResponse.data;
+            } else if (Array.isArray(allApplicationsResponse.applications)) {
+              allApplicationsData = allApplicationsResponse.applications;
+            } else if (allApplicationsResponse.success && Array.isArray(allApplicationsResponse.data)) {
+              allApplicationsData = allApplicationsResponse.data;
+            }
+          }
+          console.log('Fetched all applications:', allApplicationsData.length);
+          setAllApplications(allApplicationsData); // Store in state for use in rows transformation
           
           // Fetch PWD members using the service (which now uses fallback endpoint)
           let members = [];
           try {
             const pwdResponse = await pwdMemberService.getAll();
-            members = pwdResponse.data || pwdResponse.members || [];
+            // Handle different response structures
+            if (pwdResponse && typeof pwdResponse === 'object') {
+              if (Array.isArray(pwdResponse)) {
+                members = pwdResponse;
+              } else if (pwdResponse.data && Array.isArray(pwdResponse.data)) {
+                members = pwdResponse.data;
+              } else if (pwdResponse.members && Array.isArray(pwdResponse.members)) {
+                members = pwdResponse.members;
+              } else if (pwdResponse.success && pwdResponse.data && Array.isArray(pwdResponse.data)) {
+                members = pwdResponse.data;
+              }
+            }
             console.log('PWD members fetched successfully:', members.length);
+            console.log('Sample member data:', members[0] ? {
+              userID: members[0].userID,
+              name: `${members[0].firstName} ${members[0].lastName}`,
+              contactNumber: members[0].contactNumber,
+              email: members[0].email
+            } : 'No members');
           } catch (pwdError) {
             console.log('PWD Member service failed, using approved applications directly:', pwdError);
             // If service fails, use approved applications directly
-            const approvedApplications = allApplications.filter(app => app.status === 'Approved');
+            const approvedApplications = allApplicationsData.filter(app => app.status === 'Approved');
             members = approvedApplications.map(app => ({
               id: app.applicationID,
               userID: app.applicationID,
@@ -235,17 +267,33 @@ function PWDRecords() {
           
           // Enhance PWD members with application data
           const enhancedMembers = members.map(member => {
-            // Find the corresponding application by email
-            const correspondingApp = allApplications.find(app => 
-              app.email && member.email && app.email === member.email
-            );
+            // Find the corresponding application using multiple criteria for better matching
+            const correspondingApp = allApplicationsData.find(app => {
+              // Match by pwdID (most reliable if set)
+              if (app.pwdID && member.userID && app.pwdID === member.userID) {
+                return true;
+              }
+              // Match by email
+              if (app.email && member.email && app.email.toLowerCase() === member.email.toLowerCase()) {
+                return true;
+              }
+              // Match by name and email combination
+              if (app.firstName && app.lastName && member.firstName && member.lastName &&
+                  app.firstName.toLowerCase() === member.firstName.toLowerCase() &&
+                  app.lastName.toLowerCase() === member.lastName.toLowerCase() &&
+                  app.email && member.email && app.email.toLowerCase() === member.email.toLowerCase()) {
+                return true;
+              }
+              return false;
+            });
             
             return {
               ...member,
               barangay: correspondingApp?.barangay || member.barangay,
               disabilityType: member.disabilityType || correspondingApp?.disabilityType,
               emergencyContact: member.emergencyContact || correspondingApp?.emergencyContact,
-              contactNumber: member.contactNumber || correspondingApp?.contactNumber,
+              // Prioritize application contact number if member doesn't have one
+              contactNumber: member.contactNumber || correspondingApp?.contactNumber || '',
               email: member.email || correspondingApp?.email
             };
           });
@@ -288,16 +336,40 @@ function PWDRecords() {
         
         // Refresh PWD members using the service
         const allApplicationsResponse = await api.get('/applications');
-        const allApplications = allApplicationsResponse || [];
+        // Handle different response structures
+        let allApplicationsData = [];
+        if (Array.isArray(allApplicationsResponse)) {
+          allApplicationsData = allApplicationsResponse;
+        } else if (allApplicationsResponse && typeof allApplicationsResponse === 'object') {
+          if (Array.isArray(allApplicationsResponse.data)) {
+            allApplicationsData = allApplicationsResponse.data;
+          } else if (Array.isArray(allApplicationsResponse.applications)) {
+            allApplicationsData = allApplicationsResponse.applications;
+          } else if (allApplicationsResponse.success && Array.isArray(allApplicationsResponse.data)) {
+            allApplicationsData = allApplicationsResponse.data;
+          }
+        }
+        setAllApplications(allApplicationsData); // Update state for contact number lookup
         
         let members = [];
         try {
           const pwdResponse = await pwdMemberService.getAll();
-           members = pwdResponse.data || pwdResponse.members || [];
+          // Handle different response structures
+          if (pwdResponse && typeof pwdResponse === 'object') {
+            if (Array.isArray(pwdResponse)) {
+              members = pwdResponse;
+            } else if (pwdResponse.data && Array.isArray(pwdResponse.data)) {
+              members = pwdResponse.data;
+            } else if (pwdResponse.members && Array.isArray(pwdResponse.members)) {
+              members = pwdResponse.members;
+            } else if (pwdResponse.success && pwdResponse.data && Array.isArray(pwdResponse.data)) {
+              members = pwdResponse.data;
+            }
+          }
         } catch (pwdError) {
           console.log('PWD Member service failed, using approved applications directly:', pwdError);
           // If service fails, use approved applications directly
-          const approvedApplications = allApplications.filter(app => app.status === 'Approved');
+          const approvedApplications = allApplicationsData.filter(app => app.status === 'Approved');
           members = approvedApplications.map(app => ({
             id: app.applicationID,
             userID: app.applicationID,
@@ -319,16 +391,33 @@ function PWDRecords() {
         }
         
         const enhancedMembers = members.map(member => {
-          const correspondingApp = allApplications.find(app => 
-            app.email && member.email && app.email === member.email
-          );
+          // Find the corresponding application using multiple criteria for better matching
+          const correspondingApp = allApplicationsData.find(app => {
+            // Match by pwdID (most reliable if set)
+            if (app.pwdID && member.userID && app.pwdID === member.userID) {
+              return true;
+            }
+            // Match by email
+            if (app.email && member.email && app.email.toLowerCase() === member.email.toLowerCase()) {
+              return true;
+            }
+            // Match by name and email combination
+            if (app.firstName && app.lastName && member.firstName && member.lastName &&
+                app.firstName.toLowerCase() === member.firstName.toLowerCase() &&
+                app.lastName.toLowerCase() === member.lastName.toLowerCase() &&
+                app.email && member.email && app.email.toLowerCase() === member.email.toLowerCase()) {
+              return true;
+            }
+            return false;
+          });
           
           return {
             ...member,
             barangay: correspondingApp?.barangay || member.barangay,
             disabilityType: member.disabilityType || correspondingApp?.disabilityType,
             emergencyContact: member.emergencyContact || correspondingApp?.emergencyContact,
-            contactNumber: member.contactNumber || correspondingApp?.contactNumber,
+            // Prioritize application contact number if member doesn't have one
+            contactNumber: member.contactNumber || correspondingApp?.contactNumber || '',
             email: member.email || correspondingApp?.email
           };
         });
@@ -900,7 +989,7 @@ function PWDRecords() {
                       <span class="field-value">${app?.civilStatus || 'N/A'}</span>
                     </div>
                     <div class="field-row">
-                      <span class="field-label">Contact Number:</span>
+                      <span class="field-label">Phone Number:</span>
                       <span class="field-value">${app?.contactNumber || 'N/A'}</span>
                     </div>
                     <div class="field-row">
@@ -963,7 +1052,7 @@ function PWDRecords() {
                       <span class="field-value">${app?.emergencyContact || 'N/A'}</span>
                     </div>
                     <div class="field-row">
-                      <span class="field-label">Contact Number:</span>
+                      <span class="field-label">Phone Number:</span>
                       <span class="field-value">${app?.emergencyPhone || 'N/A'}</span>
                     </div>
                     <div class="field-row">
@@ -1036,18 +1125,111 @@ function PWDRecords() {
 
     // Transform PWD members data for display
     const rows = useMemo(() => {
-      return pwdMembers.map((member, index) => ({
-        id: member.id,
-        pwdId: `PWD-${member.userID}`,
-        name: `${member.firstName} ${member.lastName} ${member.suffix || ''}`.trim(),
-        age: getAgeFromBirthDate(member.birthDate),
-        barangay: member.barangay || 'Not specified',
-        disability: member.disabilityType || 'Not specified',
-        guardian: member.emergencyContact || 'Not provided',
-        contact: member.contactNumber || 'Not provided',
-        status: 'Active' // Default status since it's not in the API response
-      }));
-    }, [pwdMembers]);
+      return pwdMembers.map((member, index) => {
+        // Get contact number - check if it's a valid non-empty string
+        let contactNumber = member.contactNumber;
+        
+        // Debug logging (remove in production)
+        if (!contactNumber || contactNumber.trim() === '') {
+          console.log('Member missing contact number:', {
+            pwdId: `PWD-${member.userID}`,
+            name: `${member.firstName} ${member.lastName}`,
+            email: member.email,
+            memberContactNumber: member.contactNumber
+          });
+        }
+        
+        // If member doesn't have contact number, try to get it from corresponding application
+        // Use allApplications (includes approved ones) instead of just pending applications
+        if ((!contactNumber || contactNumber.trim() === '') && allApplications.length > 0) {
+          const correspondingApp = allApplications.find(app => {
+            // Match by pwdID (most reliable if set)
+            if (app.pwdID && member.userID && String(app.pwdID) === String(member.userID)) {
+              console.log('Matched by pwdID:', app.pwdID, '===', member.userID);
+              return true;
+            }
+            
+            // Normalize names for comparison
+            const normalizeName = (name) => (name || '').trim().toLowerCase();
+            const appFirstName = normalizeName(app.firstName);
+            const appLastName = normalizeName(app.lastName);
+            const memberFirstName = normalizeName(member.firstName);
+            const memberLastName = normalizeName(member.lastName);
+            
+            // Match by exact name (first and last name)
+            if (appFirstName && appLastName && memberFirstName && memberLastName &&
+                appFirstName === memberFirstName && appLastName === memberLastName) {
+              console.log('Matched by exact name:', `${app.firstName} ${app.lastName} === ${member.firstName} ${member.lastName}`);
+              return true;
+            }
+            
+            // Match by email (case-insensitive) - only if both have emails
+            if (app.email && member.email && 
+                app.email.trim().toLowerCase() === member.email.trim().toLowerCase()) {
+              console.log('Matched by email:', app.email, '===', member.email);
+              return true;
+            }
+            
+            // Match by name and email combination (if both have emails)
+            if (appFirstName && appLastName && memberFirstName && memberLastName &&
+                appFirstName === memberFirstName && appLastName === memberLastName &&
+                app.email && member.email && 
+                app.email.trim().toLowerCase() === member.email.trim().toLowerCase()) {
+              console.log('Matched by name+email:', `${app.firstName} ${app.lastName}`, app.email);
+              return true;
+            }
+            
+            return false;
+          });
+          
+          if (correspondingApp) {
+            console.log('Found corresponding app:', {
+              applicationID: correspondingApp.applicationID,
+              contactNumber: correspondingApp.contactNumber,
+              email: correspondingApp.email,
+              pwdID: correspondingApp.pwdID
+            });
+            
+            if (correspondingApp.contactNumber && correspondingApp.contactNumber.trim() !== '') {
+              contactNumber = correspondingApp.contactNumber.trim();
+              console.log('Using contact number from application:', contactNumber);
+            } else {
+              console.log('Application found but contact number is empty');
+            }
+          } else {
+            console.log('No corresponding application found for member:', {
+              pwdId: `PWD-${member.userID}`,
+              name: `${member.firstName} ${member.lastName}`,
+              email: member.email,
+              totalApplications: allApplications.length,
+              sampleApp: allApplications[0] ? {
+                applicationID: allApplications[0].applicationID,
+                pwdID: allApplications[0].pwdID,
+                firstName: allApplications[0].firstName,
+                lastName: allApplications[0].lastName,
+                email: allApplications[0].email,
+                contactNumber: allApplications[0].contactNumber
+              } : null
+            });
+          }
+        }
+        
+        // Final check - if still empty, show N/A
+        contactNumber = (contactNumber && contactNumber.trim() !== '') ? contactNumber.trim() : 'N/A';
+        
+        return {
+          id: member.id,
+          pwdId: `PWD-${member.userID}`,
+          name: `${member.firstName} ${member.lastName} ${member.suffix || ''}`.trim(),
+          age: getAgeFromBirthDate(member.birthDate),
+          barangay: member.barangay || 'Not specified',
+          disability: member.disabilityType || 'Not specified',
+          guardian: member.emergencyContact || 'Not provided',
+          contact: contactNumber,
+          status: 'Active' // Default status since it's not in the API response
+        };
+      });
+    }, [pwdMembers, allApplications]);
 
     // Filter the rows based on current filters
     const filteredRows = useMemo(() => {
@@ -1299,6 +1481,7 @@ function PWDRecords() {
                         mx: 0.5,
                         px: 3,
                         border: '1px solid #E0E0E0',
+                        position: 'relative',
                         '&:hover': {
                           bgcolor: '#F8FAFC',
                           color: '#0b87ac'
@@ -1307,11 +1490,27 @@ function PWDRecords() {
                           color: '#FFFFFF !important',
                           fontWeight: 700,
                           bgcolor: '#0b87ac !important',
-                          border: '1px solid #0b87ac'
+                          border: '1px solid #0b87ac',
+                          '&::after': {
+                            content: '""',
+                            position: 'absolute',
+                            bottom: 0,
+                            left: '8px',
+                            right: '8px',
+                            height: '3px',
+                            backgroundColor: '#0b87ac',
+                            borderRadius: '3px 3px 0 0'
+                          }
                         }
                       },
                       '& .MuiTabs-indicator': {
-                        display: 'none'
+                        backgroundColor: '#0b87ac',
+                        height: 3,
+                        borderRadius: '3px 3px 0 0',
+                        marginLeft: '12px',
+                        marginRight: '12px',
+                        width: 'calc(100% - 24px) !important',
+                        maxWidth: 'calc(100% - 24px)'
                       }
                     }}
                   >
@@ -1811,7 +2010,7 @@ function PWDRecords() {
                                 Guardian Name
                               </TableCell>
                               <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '130px', minWidth: '130px', textAlign: 'center' }}>
-                                Contact No.
+                                Phone Number
                               </TableCell>
                               <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2, width: '100px', minWidth: '100px', textAlign: 'center' }}>
                                 Status
@@ -1872,7 +2071,7 @@ function PWDRecords() {
                                 onClick={() => handleRequestSort('contactNumber')}
                               >
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                                  Contact Number
+                                  Phone Number
                                   <Box sx={{ display: 'flex', flexDirection: 'column', ml: 0.5 }}>
                                     <ArrowUpwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'contactNumber' && order === 'asc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'contactNumber' && order === 'asc' ? 1 : 0.3 }} />
                                     <ArrowDownwardIcon sx={{ fontSize: '0.7rem', color: orderBy === 'contactNumber' && order === 'desc' ? '#0b87ac' : '#BDC3C7', opacity: orderBy === 'contactNumber' && order === 'desc' ? 1 : 0.3, mt: '-4px' }} />
@@ -2317,7 +2516,7 @@ function PWDRecords() {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
-                        Contact Number:
+                        Phone Number:
                       </Typography>
                       <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.contactNumber || 'N/A'}

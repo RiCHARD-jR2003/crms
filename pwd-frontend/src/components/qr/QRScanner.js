@@ -14,7 +14,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  TextField
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -155,6 +162,8 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
   const [allActiveBenefits, setAllActiveBenefits] = useState([]);
   const [selectedBenefitId, setSelectedBenefitId] = useState('');
   const [benefitsLoaded, setBenefitsLoaded] = useState(false);
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [loadingBeneficiaries, setLoadingBeneficiaries] = useState(false);
   const [availableCameras, setAvailableCameras] = useState([]);
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [isUsingBackCamera, setIsUsingBackCamera] = useState(true);
@@ -271,6 +280,102 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
     }
   };
 
+  // Fetch beneficiaries for selected benefit
+  const fetchBeneficiaries = async (benefitId) => {
+    if (!benefitId) {
+      setBeneficiaries([]);
+      return;
+    }
+
+    try {
+      setLoadingBeneficiaries(true);
+      const benefit = allActiveBenefits.find(b => b.id === benefitId);
+      if (!benefit) {
+        setBeneficiaries([]);
+        return;
+      }
+
+      // Get all PWD members
+      const response = await pwdMemberService.getAll();
+      const candidates = [
+        response?.data?.members,
+        response?.members,
+        response?.data,
+        response
+      ];
+      const members = candidates.find((v) => Array.isArray(v)) || [];
+
+      let filteredMembers = [];
+
+      if (benefit.type === 'Financial Assistance') {
+        // Filter by selected barangays
+        const selectedBarangays = benefit.selectedBarangays || [];
+        if (selectedBarangays.length > 0) {
+          filteredMembers = members.filter(member => {
+            const memberBarangay = (member.barangay || member.Barangay || '').toString().trim().toLowerCase();
+            return selectedBarangays.some(b => 
+              (b || '').toString().trim().toLowerCase() === memberBarangay
+            );
+          });
+        } else {
+          filteredMembers = members; // All members if no specific barangays
+        }
+      } else if (benefit.type === 'Birthday Cash Gift') {
+        // Filter by quarter/month and barangay
+        const quarterMonths = {
+          'Q1': [1, 2, 3],
+          'Q2': [4, 5, 6],
+          'Q3': [7, 8, 9],
+          'Q4': [10, 11, 12]
+        };
+        
+        const eligibleMonths = benefit.birthdayMonth ? quarterMonths[benefit.birthdayMonth] : [];
+        
+        filteredMembers = members.filter(member => {
+          if (!member.birthDate) return false;
+          const birthMonth = new Date(member.birthDate).getMonth() + 1;
+          const quarterMatch = eligibleMonths.length === 0 || eligibleMonths.includes(birthMonth);
+
+          // Check barangay if specified
+          if (benefit.barangay && benefit.barangay !== 'All Barangays') {
+            const memberBarangay = (member.barangay || member.Barangay || '').toString().trim().toLowerCase();
+            return quarterMatch && memberBarangay === benefit.barangay.toString().trim().toLowerCase();
+          }
+
+          return quarterMatch;
+        });
+      } else {
+        // For other types, show all members or filter by barangay
+        if (benefit.barangay && benefit.barangay !== 'All Barangays') {
+          filteredMembers = members.filter(member => {
+            const memberBarangay = (member.barangay || member.Barangay || '').toString().trim().toLowerCase();
+            return memberBarangay === benefit.barangay.toString().trim().toLowerCase();
+          });
+        } else {
+          filteredMembers = members;
+        }
+      }
+
+      setBeneficiaries(filteredMembers);
+    } catch (error) {
+      console.error('Error fetching beneficiaries:', error);
+      setBeneficiaries([]);
+      toastService.error('Failed to load beneficiaries');
+    } finally {
+      setLoadingBeneficiaries(false);
+    }
+  };
+
+  // Fetch beneficiaries when benefit is selected
+  useEffect(() => {
+    if (selectedBenefitId && allActiveBenefits.length > 0) {
+      fetchBeneficiaries(selectedBenefitId);
+    } else {
+      setBeneficiaries([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBenefitId]);
+
   const handleStartScanning = () => {
     if (!benefitsLoaded) {
       toastService.error('Please wait for benefits to load');
@@ -353,7 +458,7 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
       // Simple, direct configuration
       const config = {
         fps: isMobile ? 10 : 20,
-        qrbox: { width: 250, height: 250 },
+        qrbox: { width: 350, height: 350 },
         aspectRatio: 1.0,
         disableFlip: false,
       };
@@ -522,13 +627,31 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
           extractedPwdId: pwdId
         });
         
+        // Check if this is an ID QR code (not a benefit claim QR code)
+        const isIDQRCode = validation.data.type === 'PWD_ID';
+        
         setScannedMemberData({
           memberId: memberId,
           pwdId: pwdId,
-          qrCodeHash: validation.data.qrCodeHash || validation.data.qr_code_hash || validation.data.checksum || ''
+          qrCodeHash: validation.data.qrCodeHash || validation.data.qr_code_hash || validation.data.checksum || '',
+          qrCodeType: validation.data.type || 'PWD_BENEFIT_CLAIM',
+          isIDQRCode: isIDQRCode
         });
-        setShowClaimModal(true);
-        setLoading(false);
+        
+        // For ID QR codes, don't show claim modal - just display ID number
+        if (isIDQRCode) {
+          const idNumber = pwdId || validation.data.pwdId || validation.data.pwd_id || memberId;
+          toastService.success(`ID Number: ${idNumber}`);
+          setLoading(false);
+          // Close scanner after showing ID
+          setTimeout(() => {
+            handleClose();
+          }, 2000);
+        } else {
+          // For benefit claim QR codes, show claim modal
+          setShowClaimModal(true);
+          setLoading(false);
+        }
       } else {
         const errorMsg = validation.error || 'Invalid QR code format';
         console.error('QR code validation failed:', errorMsg);
@@ -572,6 +695,12 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
   };
 
   const handleClaimSubmit = async () => {
+    // Don't process ID QR codes as benefit claims
+    if (scannedMemberData?.isIDQRCode) {
+      setShowClaimModal(false);
+      return;
+    }
+    
     if (!claimantType) {
       toastService.error('Please select who will be claiming the card');
       return;
@@ -626,22 +755,51 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
       console.log('Claim response:', response);
 
       if (response.success) {
-        // Enhanced success message with more details
-        const benefitsClaimed = response.benefitsClaimed || 0;
-        const memberName = response.member ? `${response.member.firstName} ${response.member.lastName}` : 'Member';
-        const benefitNames = response.benefits && response.benefits.length > 0
-          ? response.benefits.map(b => b.title || b.type || 'Benefit').join(', ')
-          : '';
-        
-        let successMessage = `✅ Success! ${benefitsClaimed} benefit(s) claimed for ${memberName}`;
-        if (benefitNames && benefitsClaimed > 0) {
-          successMessage += `\n\nBenefits: ${benefitNames}`;
+        // Check for duplicate errors first
+        if (response.duplicate_errors && response.duplicate_errors.length > 0) {
+          // Show warning about duplicates
+          const duplicateMessages = response.duplicate_errors.map(err => 
+            `${err.benefit_title}: ${err.message}`
+          ).join('\n');
+          
+          toastService.warning(
+            response.warning || 'Some benefits could not be claimed due to duplicates.\n' + duplicateMessages,
+            8000
+          );
         }
         
-        // Show green success toast
-        toastService.success(successMessage, 5000);
+        // Enhanced success message with more details
+        const benefitsClaimed = response.benefitsClaimed || 0;
+        // For ID QR codes, don't show personal details
+        let successMessage;
+        if (scannedMemberData.isIDQRCode) {
+          const idNumber = scannedMemberData.pwdId || scannedMemberData.memberId;
+          successMessage = `✅ ID Number: ${idNumber}`;
+        } else {
+          const memberName = response.member ? `${response.member.firstName} ${response.member.lastName}` : 'Member';
+          const benefitNames = response.benefits && response.benefits.length > 0
+            ? response.benefits.map(b => b.title || b.type || 'Benefit').join(', ')
+            : '';
+          
+          if (benefitsClaimed > 0) {
+            successMessage = `✅ Success! ${benefitsClaimed} benefit(s) claimed for ${memberName}`;
+            if (benefitNames) {
+              successMessage += `\n\nBenefits: ${benefitNames}`;
+            }
+          } else {
+            // No benefits were claimed (all were duplicates)
+            successMessage = `⚠️ No new benefits were claimed. All selected benefits have already been claimed.`;
+          }
+        }
         
-        if (onScanSuccess) {
+        // Show success/warning toast
+        if (benefitsClaimed > 0) {
+          toastService.success(successMessage, 5000);
+        } else {
+          toastService.warning(successMessage, 5000);
+        }
+        
+        if (onScanSuccess && benefitsClaimed > 0) {
           onScanSuccess({
             ...scannedMemberData,
             member: response.member,
@@ -650,14 +808,25 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
           });
         }
         
-        // Close modal and scanner after successful claim
+        // Close modal and scanner after claim attempt
         setShowClaimModal(false);
         setTimeout(() => {
           handleClose();
         }, 2500);
       } else if (response.error) {
-        const errorMsg = response.error || 'Failed to claim benefits';
-        toastService.error(errorMsg);
+        // Handle duplicate error (409 Conflict)
+        let errorMsg = response.error || 'Failed to claim benefits';
+        
+        // If there are duplicate errors, show detailed message
+        if (response.duplicate_errors && response.duplicate_errors.length > 0) {
+          const duplicateDetails = response.duplicate_errors.map(err => 
+            `• ${err.benefit_title}: Already claimed on ${err.previous_claim_date || 'Unknown date'}`
+          ).join('\n');
+          
+          errorMsg = `${errorMsg}\n\n${duplicateDetails}`;
+        }
+        
+        toastService.error(errorMsg, 8000);
         setError(errorMsg);
       } else {
         const errorMsg = 'Unexpected response from server. Please check console for details.';
@@ -828,26 +997,122 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
           )}
 
           {selectedBenefitId && (
-            <Box sx={{ 
-              mt: 3, 
-              p: 2, 
-              bgcolor: '#F8F9FA', 
-              borderRadius: 1, 
-              border: '1px solid #E0E0E0',
-              borderLeft: '4px solid #0b87ac'
-            }}>
-              <Typography variant="body2" sx={{ color: '#0b87ac', fontWeight: 600, mb: 0.5 }}>
-                ⚠️ Selected Benefit:
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#2C3E50' }}>
-                {allActiveBenefits.find(b => b.id === selectedBenefitId)?.title || 
-                 allActiveBenefits.find(b => b.id === selectedBenefitId)?.type || 
-                 'Selected Benefit'}
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 1 }}>
-                Only this benefit will be claimed when the QR code is scanned.
-              </Typography>
-            </Box>
+            <>
+              <Box sx={{ 
+                mt: 3, 
+                p: 2, 
+                bgcolor: '#F8F9FA', 
+                borderRadius: 1, 
+                border: '1px solid #E0E0E0',
+                borderLeft: '4px solid #0b87ac'
+              }}>
+                <Typography variant="body2" sx={{ color: '#0b87ac', fontWeight: 600, mb: 0.5 }}>
+                  ⚠️ Selected Benefit:
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#2C3E50' }}>
+                  {allActiveBenefits.find(b => b.id === selectedBenefitId)?.title || 
+                   allActiveBenefits.find(b => b.id === selectedBenefitId)?.type || 
+                   'Selected Benefit'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 1 }}>
+                  Only this benefit will be claimed when the QR code is scanned.
+                </Typography>
+              </Box>
+
+              {/* Beneficiaries Table */}
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '1.1rem' }}>
+                  Eligible Beneficiaries
+                </Typography>
+                {loadingBeneficiaries ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress size={40} sx={{ color: '#0b87ac' }} />
+                  </Box>
+                ) : beneficiaries.length === 0 ? (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 4, 
+                    bgcolor: '#F8F9FA', 
+                    borderRadius: 2, 
+                    border: '2px dashed #E0E0E0' 
+                  }}>
+                    <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                      No eligible beneficiaries found for this benefit.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <TableContainer component={Paper} elevation={0} sx={{ 
+                    border: '1px solid #E0E0E0', 
+                    borderRadius: 2,
+                    maxHeight: 400,
+                    overflow: 'auto'
+                  }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#F8F9FA' }}>
+                          <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.875rem' }}>
+                            #
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.875rem' }}>
+                            PWD ID
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.875rem' }}>
+                            Full Name
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.875rem' }}>
+                            Barangay
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.875rem' }}>
+                            Disability Type
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {beneficiaries.map((member, index) => (
+                          <TableRow 
+                            key={member.id || member.userID || index}
+                            sx={{ 
+                              '&:hover': { bgcolor: '#F8F9FA' },
+                              '&:nth-of-type(even)': { bgcolor: '#FAFAFA' }
+                            }}
+                          >
+                            <TableCell sx={{ color: '#2C3E50', fontSize: '0.875rem' }}>
+                              {index + 1}
+                            </TableCell>
+                            <TableCell sx={{ color: '#2C3E50', fontSize: '0.875rem', fontWeight: 500 }}>
+                              {member.pwd_id || (member.userID ? `PWD-${member.userID}` : 'Not assigned')}
+                            </TableCell>
+                            <TableCell sx={{ color: '#2C3E50', fontSize: '0.875rem' }}>
+                              {(() => {
+                                const parts = [];
+                                if (member.firstName) parts.push(member.firstName);
+                                if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+                                if (member.lastName) parts.push(member.lastName);
+                                if (member.suffix) parts.push(member.suffix);
+                                return parts.join(' ').trim() || 'Name not provided';
+                              })()}
+                            </TableCell>
+                            <TableCell sx={{ color: '#2C3E50', fontSize: '0.875rem' }}>
+                              {member.barangay || member.Barangay || 'Not specified'}
+                            </TableCell>
+                            <TableCell sx={{ color: '#2C3E50', fontSize: '0.875rem' }}>
+                              {member.disabilityType || 'Not specified'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+                {beneficiaries.length > 0 && (
+                  <Box sx={{ mt: 2, p: 2, bgcolor: '#E8F4FD', borderRadius: 2, border: '1px solid #0b87ac' }}>
+                    <Typography variant="body2" sx={{ color: '#0b87ac', fontWeight: 600, textAlign: 'center' }}>
+                      📊 Total Eligible Beneficiaries: {beneficiaries.length}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </>
           )}
 
           {!selectedBenefitId && benefitsLoaded && (
@@ -1003,8 +1268,10 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              width: '200px',
-              height: '200px',
+              width: '350px',
+              height: '350px',
+              maxWidth: '90%',
+              maxHeight: '90%',
               border: '2px solid #3498DB',
               borderRadius: 2,
               zIndex: 1,
@@ -1188,7 +1455,7 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
           px: 3
         }}>
           <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50' }}>
-            Who Will Be Claiming the Card?
+            {scannedMemberData?.isIDQRCode ? 'ID Number' : 'Who Will Be Claiming the Card?'}
           </Typography>
           <IconButton 
             onClick={() => setShowClaimModal(false)}
@@ -1206,6 +1473,27 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
         </DialogTitle>
 
         <DialogContent sx={{ p: 3, bgcolor: '#FFFFFF' }}>
+          {scannedMemberData?.isIDQRCode ? (
+            <Box sx={{ 
+              textAlign: 'center', 
+              py: 4,
+              px: 2
+            }}>
+              <Typography variant="h4" sx={{ 
+                color: '#0b87ac', 
+                fontWeight: 700, 
+                mb: 2,
+                fontFamily: 'monospace',
+                letterSpacing: '2px'
+              }}>
+                {scannedMemberData.pwdId || scannedMemberData.memberId || 'N/A'}
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#7F8C8D', mt: 2 }}>
+                This is the PWD ID Number from the scanned QR code.
+              </Typography>
+            </Box>
+          ) : (
+            <>
           <FormControl fullWidth sx={{ mb: 3 }}>
             <InputLabel id="claimant-type-label">Claimant Type</InputLabel>
             <Select
@@ -1300,6 +1588,8 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
               )}
             </Box>
           )}
+            </>
+          )}
         </DialogContent>
 
         <DialogActions sx={{ 
@@ -1309,44 +1599,66 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
           borderTop: '1px solid #E0E0E0',
           gap: 1
         }}>
-          <Button
-            onClick={() => setShowClaimModal(false)}
-            variant="outlined"
-            sx={{
-              borderColor: '#E0E0E0',
-              color: '#2C3E50',
-              textTransform: 'none',
-              fontWeight: 500,
-              px: 3,
-              '&:hover': {
-                borderColor: '#7F8C8D',
-                backgroundColor: 'rgba(0, 0, 0, 0.04)'
-              }
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleClaimSubmit}
-            variant="contained"
-            disabled={loading}
-            sx={{
-              bgcolor: '#0b87ac',
-              color: '#FFFFFF',
-              textTransform: 'none',
-              fontWeight: 600,
-              px: 4,
-              '&:hover': { 
-                bgcolor: '#0a7699'
-              },
-              '&:disabled': {
-                bgcolor: '#E0E0E0',
-                color: '#7F8C8D'
-              }
-            }}
-          >
-            {loading ? <CircularProgress size={20} color="inherit" /> : 'Submit Claim'}
-          </Button>
+          {scannedMemberData?.isIDQRCode ? (
+            <Button
+              onClick={() => setShowClaimModal(false)}
+              variant="contained"
+              fullWidth
+              sx={{
+                bgcolor: '#0b87ac',
+                color: '#FFFFFF',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 4,
+                '&:hover': { 
+                  bgcolor: '#0a7699'
+                }
+              }}
+            >
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={() => setShowClaimModal(false)}
+                variant="outlined"
+                sx={{
+                  borderColor: '#E0E0E0',
+                  color: '#2C3E50',
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  px: 3,
+                  '&:hover': {
+                    borderColor: '#7F8C8D',
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                  }
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleClaimSubmit}
+                variant="contained"
+                disabled={loading}
+                sx={{
+                  bgcolor: '#0b87ac',
+                  color: '#FFFFFF',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  px: 4,
+                  '&:hover': { 
+                    bgcolor: '#0a7699'
+                  },
+                  '&:disabled': {
+                    bgcolor: '#E0E0E0',
+                    color: '#7F8C8D'
+                  }
+                }}
+              >
+                {loading ? <CircularProgress size={20} color="inherit" /> : 'Submit Claim'}
+              </Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
 

@@ -690,22 +690,114 @@ class AnalyticsService
      */
     public function getComprehensiveAnalytics($dateRange = null, $barangay = null)
     {
-        $startDate = $dateRange ? Carbon::parse($dateRange['start']) : Carbon::now()->subYear();
-        $endDate = $dateRange ? Carbon::parse($dateRange['end']) : Carbon::now();
+        try {
+            $startDate = $dateRange ? Carbon::parse($dateRange['start']) : Carbon::now()->subYear();
+            $endDate = $dateRange ? Carbon::parse($dateRange['end']) : Carbon::now();
 
-        return [
-            'renewal_analytics' => $this->getRenewalAnalytics($startDate, $endDate, $barangay),
-            'document_analytics' => $this->getDocumentComplianceAnalytics($barangay),
-            'processing_time_analytics' => $this->getProcessingTimeAnalytics($startDate, $endDate, $barangay),
-            'comparative_analytics' => $this->getComparativeAnalytics($startDate, $endDate, $barangay),
-            'operational_efficiency' => $this->getOperationalEfficiencyMetrics($startDate, $endDate, $barangay),
-            'actionable_insights' => $this->generateActionableInsights($startDate, $endDate, $barangay),
-            'generated_at' => now(),
-            'analysis_period' => [
-                'start' => $startDate->toDateString(),
-                'end' => $endDate->toDateString()
-            ]
-        ];
+            // Wrap each method call in try-catch to prevent one failure from breaking everything
+            $renewalAnalytics = [];
+            try {
+                $renewalAnalytics = $this->getRenewalAnalytics($startDate, $endDate, $barangay);
+            } catch (\Exception $e) {
+                \Log::error('Error in getRenewalAnalytics: ' . $e->getMessage());
+                $renewalAnalytics = [
+                    'total_members_with_cards' => 0,
+                    'expiring_soon' => 0,
+                    'expired' => 0,
+                    'flagged_for_renewal' => 0,
+                    'renewed' => 0,
+                    'renewal_rate' => 0,
+                    'overdue_renewals' => 0,
+                    'monthly_trends' => [],
+                    'renewal_urgency_score' => 0
+                ];
+            }
+
+            $documentAnalytics = [];
+            try {
+                $documentAnalytics = $this->getDocumentComplianceAnalytics($barangay);
+            } catch (\Exception $e) {
+                \Log::error('Error in getDocumentComplianceAnalytics: ' . $e->getMessage());
+                $documentAnalytics = [
+                    'total_members' => 0,
+                    'required_documents' => 0,
+                    'members_with_complete_docs' => 0,
+                    'members_with_missing_docs' => 0,
+                    'compliance_rate' => 0,
+                    'document_status_breakdown' => [],
+                    'non_compliance_rate' => 0
+                ];
+            }
+
+            $processingTimeAnalytics = [];
+            try {
+                $processingTimeAnalytics = $this->getProcessingTimeAnalytics($startDate, $endDate, $barangay);
+            } catch (\Exception $e) {
+                \Log::error('Error in getProcessingTimeAnalytics: ' . $e->getMessage());
+                $processingTimeAnalytics = [
+                    'avg_processing_time' => 0,
+                    'median_processing_time' => 0,
+                    'min_processing_time' => 0,
+                    'max_processing_time' => 0,
+                    'fast_processing' => 0,
+                    'moderate_processing' => 0,
+                    'slow_processing' => 0,
+                    'very_slow_processing' => 0,
+                    'bottlenecks' => 0
+                ];
+            }
+
+            $comparativeAnalytics = [];
+            try {
+                $comparativeAnalytics = $this->getComparativeAnalytics($startDate, $endDate, $barangay);
+            } catch (\Exception $e) {
+                \Log::error('Error in getComparativeAnalytics: ' . $e->getMessage());
+                $comparativeAnalytics = [
+                    'current_period' => [],
+                    'previous_period' => [],
+                    'growth_rates' => []
+                ];
+            }
+
+            $operationalEfficiency = [];
+            try {
+                $operationalEfficiency = $this->getOperationalEfficiencyMetrics($startDate, $endDate, $barangay);
+            } catch (\Exception $e) {
+                \Log::error('Error in getOperationalEfficiencyMetrics: ' . $e->getMessage());
+                $operationalEfficiency = [
+                    'approval_rate' => 0,
+                    'average_processing_time' => 0,
+                    'document_compliance_rate' => 0,
+                    'renewal_rate' => 0,
+                    'overall_efficiency_score' => 0
+                ];
+            }
+
+            $actionableInsights = [];
+            try {
+                $actionableInsights = $this->generateActionableInsights($startDate, $endDate, $barangay);
+            } catch (\Exception $e) {
+                \Log::error('Error in generateActionableInsights: ' . $e->getMessage());
+                $actionableInsights = [];
+            }
+
+            return [
+                'renewal_analytics' => $renewalAnalytics,
+                'document_analytics' => $documentAnalytics,
+                'processing_time_analytics' => $processingTimeAnalytics,
+                'comparative_analytics' => $comparativeAnalytics,
+                'operational_efficiency' => $operationalEfficiency,
+                'actionable_insights' => $actionableInsights,
+                'generated_at' => now(),
+                'analysis_period' => [
+                    'start' => $startDate->toDateString(),
+                    'end' => $endDate->toDateString()
+                ]
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error in getComprehensiveAnalytics: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
+            throw $e;
+        }
     }
 
     /**
@@ -713,54 +805,90 @@ class AnalyticsService
      */
     private function getRenewalAnalytics($startDate, $endDate, $barangay = null)
     {
-        $query = PWDMember::whereNotNull('cardExpirationDate');
-        
-        if ($barangay) {
-            $query->where('barangay', $barangay);
-        }
+        try {
+            $query = PWDMember::whereNotNull('cardExpirationDate');
+            
+            if ($barangay) {
+                $query->where('barangay', $barangay);
+            }
 
-        $totalMembers = $query->count();
-        $expiringSoon = $query->clone()
-            ->where('cardExpirationDate', '<=', Carbon::now()->addDays(30))
-            ->where('cardExpirationDate', '>', Carbon::now())
-            ->count();
-        
-        $expired = $query->clone()
-            ->where('cardExpirationDate', '<', Carbon::now())
-            ->count();
-        
-        $flaggedForRenewal = $query->clone()
-            ->where('renewal_flag', true)
-            ->count();
-        
-        $renewed = $query->clone()
-            ->whereNotNull('renewal_reminder_sent_at')
-            ->where('cardExpirationDate', '>', Carbon::now())
-            ->count();
+            $totalMembers = $query->count();
+            $expiringSoon = $query->clone()
+                ->where('cardExpirationDate', '<=', Carbon::now()->addDays(30))
+                ->where('cardExpirationDate', '>', Carbon::now())
+                ->count();
+            
+            $expired = $query->clone()
+                ->where('cardExpirationDate', '<', Carbon::now())
+                ->count();
+            
+            // Check if renewal_flag column exists before using it
+            $flaggedForRenewal = 0;
+            try {
+                $flaggedForRenewal = $query->clone()
+                    ->where('renewal_flag', true)
+                    ->count();
+            } catch (\Exception $e) {
+                // Column doesn't exist, skip
+            }
+            
+            // Check if renewal_reminder_sent_at column exists before using it
+            $renewed = 0;
+            try {
+                $renewed = $query->clone()
+                    ->whereNotNull('renewal_reminder_sent_at')
+                    ->where('cardExpirationDate', '>', Carbon::now())
+                    ->count();
+            } catch (\Exception $e) {
+                // Column doesn't exist, skip
+            }
 
         // Calculate renewal rate (members who renewed before expiration)
         $renewalRate = $totalMembers > 0 ? (($renewed / $totalMembers) * 100) : 0;
 
-        // Monthly renewal trends
-        $monthlyRenewals = $query->clone()
-            ->whereNotNull('renewal_reminder_sent_at')
-            ->whereBetween('renewal_reminder_sent_at', [$startDate, $endDate])
-            ->selectRaw('DATE_FORMAT(renewal_reminder_sent_at, "%Y-%m") as month, COUNT(*) as count')
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get();
+            // Monthly renewal trends
+            $monthlyRenewals = [];
+            try {
+                $monthlyRenewals = $query->clone()
+                    ->whereNotNull('renewal_reminder_sent_at')
+                    ->whereBetween('renewal_reminder_sent_at', [$startDate, $endDate])
+                    ->selectRaw('DATE_FORMAT(renewal_reminder_sent_at, "%Y-%m") as month, COUNT(*) as count')
+                    ->groupBy('month')
+                    ->orderBy('month')
+                    ->get();
+            } catch (\Exception $e) {
+                // Column doesn't exist, use empty array
+                $monthlyRenewals = collect([]);
+            }
 
-        return [
-            'total_members_with_cards' => $totalMembers,
-            'expiring_soon' => $expiringSoon,
-            'expired' => $expired,
-            'flagged_for_renewal' => $flaggedForRenewal,
-            'renewed' => $renewed,
-            'renewal_rate' => round($renewalRate, 2),
-            'overdue_renewals' => $expired,
-            'monthly_trends' => $monthlyRenewals,
-            'renewal_urgency_score' => $totalMembers > 0 ? round((($expiringSoon + $expired) / $totalMembers) * 100, 2) : 0
-        ];
+            // Calculate renewal rate (members who renewed before expiration)
+            $renewalRate = $totalMembers > 0 ? (($renewed / $totalMembers) * 100) : 0;
+
+            return [
+                'total_members_with_cards' => $totalMembers,
+                'expiring_soon' => $expiringSoon,
+                'expired' => $expired,
+                'flagged_for_renewal' => $flaggedForRenewal,
+                'renewed' => $renewed,
+                'renewal_rate' => round($renewalRate, 2),
+                'overdue_renewals' => $expired,
+                'monthly_trends' => $monthlyRenewals,
+                'renewal_urgency_score' => $totalMembers > 0 ? round((($expiringSoon + $expired) / $totalMembers) * 100, 2) : 0
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error in getRenewalAnalytics: ' . $e->getMessage());
+            return [
+                'total_members_with_cards' => 0,
+                'expiring_soon' => 0,
+                'expired' => 0,
+                'flagged_for_renewal' => 0,
+                'renewed' => 0,
+                'renewal_rate' => 0,
+                'overdue_renewals' => 0,
+                'monthly_trends' => [],
+                'renewal_urgency_score' => 0
+            ];
+        }
     }
 
     /**
@@ -768,52 +896,87 @@ class AnalyticsService
      */
     private function getDocumentComplianceAnalytics($barangay = null)
     {
-        $requiredDocs = RequiredDocument::where('is_active', true)->count();
-        
-        $query = PWDMember::query();
-        if ($barangay) {
-            $query->where('barangay', $barangay);
-        }
-        
-        $totalMembers = $query->count();
-        
-        // Get members with complete documents
-        $membersWithCompleteDocs = $query->clone()
-            ->whereHas('memberDocuments', function($q) use ($requiredDocs) {
-                $q->where('status', 'approved')
-                  ->groupBy('member_id')
-                  ->havingRaw('COUNT(DISTINCT required_document_id) >= ?', [$requiredDocs]);
-            })
-            ->count();
-        
-        // Get members with missing documents
-        $membersWithMissingDocs = $totalMembers - $membersWithCompleteDocs;
-        
-        // Compliance rate
-        $complianceRate = $totalMembers > 0 ? (($membersWithCompleteDocs / $totalMembers) * 100) : 0;
-        
-        // Document status breakdown
-        $documentStatus = MemberDocument::query()
-            ->when($barangay, function($q) use ($barangay) {
-                $q->whereHas('member', function($memberQuery) use ($barangay) {
-                    $memberQuery->where('barangay', $barangay);
-                });
-            })
-            ->selectRaw('status, COUNT(*) as count')
-            ->groupBy('status')
-            ->get()
-            ->pluck('count', 'status')
-            ->toArray();
+        try {
+            // Check if RequiredDocument model exists
+            $requiredDocs = 0;
+            try {
+                if (class_exists(\App\Models\RequiredDocument::class)) {
+                    $requiredDocs = \App\Models\RequiredDocument::where('is_active', true)->count();
+                }
+            } catch (\Exception $e) {
+                // Model doesn't exist or table doesn't exist
+            }
+            
+            $query = PWDMember::query();
+            if ($barangay) {
+                $query->where('barangay', $barangay);
+            }
+            
+            $totalMembers = $query->count();
+            
+            // Get members with complete documents
+            $membersWithCompleteDocs = 0;
+            try {
+                if ($requiredDocs > 0 && method_exists(PWDMember::class, 'memberDocuments')) {
+                    $membersWithCompleteDocs = $query->clone()
+                        ->whereHas('memberDocuments', function($q) use ($requiredDocs) {
+                            $q->where('status', 'approved')
+                              ->groupBy('member_id')
+                              ->havingRaw('COUNT(DISTINCT required_document_id) >= ?', [$requiredDocs]);
+                        })
+                        ->count();
+                }
+            } catch (\Exception $e) {
+                // Relationship doesn't exist
+            }
+            
+            // Get members with missing documents
+            $membersWithMissingDocs = $totalMembers - $membersWithCompleteDocs;
+            
+            // Compliance rate
+            $complianceRate = $totalMembers > 0 ? (($membersWithCompleteDocs / $totalMembers) * 100) : 0;
+            
+            // Document status breakdown
+            $documentStatus = [];
+            try {
+                if (class_exists(\App\Models\MemberDocument::class)) {
+                    $documentStatus = \App\Models\MemberDocument::query()
+                        ->when($barangay, function($q) use ($barangay) {
+                            $q->whereHas('member', function($memberQuery) use ($barangay) {
+                                $memberQuery->where('barangay', $barangay);
+                            });
+                        })
+                        ->selectRaw('status, COUNT(*) as count')
+                        ->groupBy('status')
+                        ->get()
+                        ->pluck('count', 'status')
+                        ->toArray();
+                }
+            } catch (\Exception $e) {
+                // Model doesn't exist or table doesn't exist
+            }
 
-        return [
-            'total_members' => $totalMembers,
-            'required_documents' => $requiredDocs,
-            'members_with_complete_docs' => $membersWithCompleteDocs,
-            'members_with_missing_docs' => $membersWithMissingDocs,
-            'compliance_rate' => round($complianceRate, 2),
-            'document_status_breakdown' => $documentStatus,
-            'non_compliance_rate' => round(100 - $complianceRate, 2)
-        ];
+            return [
+                'total_members' => $totalMembers,
+                'required_documents' => $requiredDocs,
+                'members_with_complete_docs' => $membersWithCompleteDocs,
+                'members_with_missing_docs' => $membersWithMissingDocs,
+                'compliance_rate' => round($complianceRate, 2),
+                'document_status_breakdown' => $documentStatus,
+                'non_compliance_rate' => round(100 - $complianceRate, 2)
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error in getDocumentComplianceAnalytics: ' . $e->getMessage());
+            return [
+                'total_members' => 0,
+                'required_documents' => 0,
+                'members_with_complete_docs' => 0,
+                'members_with_missing_docs' => 0,
+                'compliance_rate' => 0,
+                'document_status_breakdown' => [],
+                'non_compliance_rate' => 0
+            ];
+        }
     }
 
     /**
@@ -821,60 +984,106 @@ class AnalyticsService
      */
     private function getProcessingTimeAnalytics($startDate, $endDate, $barangay = null)
     {
-        $query = Application::whereBetween('submissionDate', [$startDate, $endDate])
-            ->whereNotNull('approvalDate')
-            ->whereNotNull('submissionDate');
-        
-        if ($barangay) {
-            $query->where('barangay', $barangay);
-        }
+        try {
+            $query = Application::whereBetween('submissionDate', [$startDate, $endDate])
+                ->whereNotNull('approvalDate')
+                ->whereNotNull('submissionDate');
+            
+            if ($barangay) {
+                $query->where('barangay', $barangay);
+            }
 
-        // Calculate processing times
-        $processingTimes = $query->clone()
-            ->selectRaw('DATEDIFF(approvalDate, submissionDate) as processing_days')
-            ->get()
-            ->pluck('processing_days')
-            ->filter();
+            // Calculate processing times - handle SQLite vs MySQL differences
+            try {
+                $processingTimes = $query->clone()
+                    ->selectRaw('DATEDIFF(approvalDate, submissionDate) as processing_days')
+                    ->get()
+                    ->pluck('processing_days')
+                    ->filter();
+            } catch (\Exception $e) {
+                // Fallback for SQLite or other databases
+                $applications = $query->clone()->get();
+                $processingTimes = $applications->map(function($app) {
+                    if ($app->approvalDate && $app->submissionDate) {
+                        $start = Carbon::parse($app->submissionDate);
+                        $end = Carbon::parse($app->approvalDate);
+                        return $start->diffInDays($end);
+                    }
+                    return null;
+                })->filter();
+            }
 
-        $avgProcessingTime = $processingTimes->avg() ?? 0;
-        $medianProcessingTime = $processingTimes->median() ?? 0;
-        $minProcessingTime = $processingTimes->min() ?? 0;
-        $maxProcessingTime = $processingTimes->max() ?? 0;
+            $avgProcessingTime = $processingTimes->avg() ?? 0;
+            $medianProcessingTime = $processingTimes->median() ?? 0;
+            $minProcessingTime = $processingTimes->min() ?? 0;
+            $maxProcessingTime = $processingTimes->max() ?? 0;
 
-        // Processing time distribution
-        $fast = $processingTimes->filter(fn($days) => $days <= 7)->count();
-        $moderate = $processingTimes->filter(fn($days) => $days > 7 && $days <= 15)->count();
-        $slow = $processingTimes->filter(fn($days) => $days > 15 && $days <= 30)->count();
-        $verySlow = $processingTimes->filter(fn($days) => $days > 30)->count();
+            // Processing time distribution
+            $fast = $processingTimes->filter(fn($days) => $days <= 7)->count();
+            $moderate = $processingTimes->filter(fn($days) => $days > 7 && $days <= 15)->count();
+            $slow = $processingTimes->filter(fn($days) => $days > 15 && $days <= 30)->count();
+            $verySlow = $processingTimes->filter(fn($days) => $days > 30)->count();
 
-        // Bottleneck analysis - applications pending for more than 15 days
-        $pendingQuery = Application::where('status', 'Pending Admin Approval')
-            ->orWhere('status', 'Pending Barangay Approval')
+            // Bottleneck analysis - applications pending for more than 15 days
+            $pendingQuery = Application::where(function($q) {
+                $q->where('status', 'Pending Admin Approval')
+                  ->orWhere('status', 'Pending Barangay Approval');
+            })
             ->whereBetween('submissionDate', [$startDate, $endDate]);
-        
-        if ($barangay) {
-            $pendingQuery->where('barangay', $barangay);
+            
+            if ($barangay) {
+                $pendingQuery->where('barangay', $barangay);
+            }
+
+            // Handle long pending applications - use Carbon for SQLite compatibility
+            try {
+                $longPending = $pendingQuery->clone()
+                    ->whereRaw('DATEDIFF(NOW(), submissionDate) > 15')
+                    ->count();
+            } catch (\Exception $e) {
+                // Fallback for SQLite
+                $longPending = $pendingQuery->clone()->get()->filter(function($app) {
+                    if ($app->submissionDate) {
+                        $submissionDate = Carbon::parse($app->submissionDate);
+                        return $submissionDate->diffInDays(now()) > 15;
+                    }
+                    return false;
+                })->count();
+            }
+
+            return [
+                'total_processed' => $processingTimes->count(),
+                'avg_processing_time' => round($avgProcessingTime, 2),
+                'median_processing_time' => round($medianProcessingTime, 2),
+                'min_processing_time' => $minProcessingTime,
+                'max_processing_time' => $maxProcessingTime,
+                'processing_time_distribution' => [
+                    'fast_7_days' => $fast,
+                    'moderate_8_15_days' => $moderate,
+                    'slow_16_30_days' => $slow,
+                    'very_slow_30_plus_days' => $verySlow
+                ],
+                'long_pending_applications' => $longPending,
+                'efficiency_score' => $avgProcessingTime > 0 ? round((15 / max($avgProcessingTime, 15)) * 100, 2) : 0
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error in getProcessingTimeAnalytics: ' . $e->getMessage());
+            return [
+                'total_processed' => 0,
+                'avg_processing_time' => 0,
+                'median_processing_time' => 0,
+                'min_processing_time' => 0,
+                'max_processing_time' => 0,
+                'processing_time_distribution' => [
+                    'fast_7_days' => 0,
+                    'moderate_8_15_days' => 0,
+                    'slow_16_30_days' => 0,
+                    'very_slow_30_plus_days' => 0
+                ],
+                'long_pending_applications' => 0,
+                'efficiency_score' => 0
+            ];
         }
-
-        $longPending = $pendingQuery->clone()
-            ->whereRaw('DATEDIFF(NOW(), submissionDate) > 15')
-            ->count();
-
-        return [
-            'total_processed' => $processingTimes->count(),
-            'avg_processing_time' => round($avgProcessingTime, 2),
-            'median_processing_time' => round($medianProcessingTime, 2),
-            'min_processing_time' => $minProcessingTime,
-            'max_processing_time' => $maxProcessingTime,
-            'processing_time_distribution' => [
-                'fast_7_days' => $fast,
-                'moderate_8_15_days' => $moderate,
-                'slow_16_30_days' => $slow,
-                'very_slow_30_plus_days' => $verySlow
-            ],
-            'long_pending_applications' => $longPending,
-            'efficiency_score' => $avgProcessingTime > 0 ? round((15 / max($avgProcessingTime, 15)) * 100, 2) : 0
-        ];
     }
 
     /**
@@ -882,50 +1091,60 @@ class AnalyticsService
      */
     private function getComparativeAnalytics($startDate, $endDate, $barangay = null)
     {
-        $currentPeriod = [
-            'applications' => $this->getPeriodCount(Application::class, $startDate, $endDate, $barangay),
-            'approvals' => $this->getPeriodCount(Application::class, $startDate, $endDate, $barangay, 'Approved'),
-            'registrations' => $this->getPeriodCount(PWDMember::class, $startDate, $endDate, $barangay),
-            'benefits' => $this->getPeriodCount(BenefitClaim::class, $startDate, $endDate, $barangay)
-        ];
+        try {
+            $currentPeriod = [
+                'applications' => $this->getPeriodCount(Application::class, $startDate, $endDate, $barangay),
+                'approvals' => $this->getPeriodCount(Application::class, $startDate, $endDate, $barangay, 'Approved'),
+                'registrations' => $this->getPeriodCount(PWDMember::class, $startDate, $endDate, $barangay),
+                'benefits' => $this->getPeriodCount(BenefitClaim::class, $startDate, $endDate, $barangay)
+            ];
 
-        // Previous period (same duration before)
-        $periodDuration = $startDate->diffInDays($endDate);
-        $prevStartDate = $startDate->copy()->subDays($periodDuration);
-        $prevEndDate = $startDate->copy();
+            // Previous period (same duration before)
+            $periodDuration = $startDate->diffInDays($endDate);
+            $prevStartDate = $startDate->copy()->subDays($periodDuration);
+            $prevEndDate = $startDate->copy();
 
-        $previousPeriod = [
-            'applications' => $this->getPeriodCount(Application::class, $prevStartDate, $prevEndDate, $barangay),
-            'approvals' => $this->getPeriodCount(Application::class, $prevStartDate, $prevEndDate, $barangay, 'Approved'),
-            'registrations' => $this->getPeriodCount(PWDMember::class, $prevStartDate, $prevEndDate, $barangay),
-            'benefits' => $this->getPeriodCount(BenefitClaim::class, $prevStartDate, $prevEndDate, $barangay)
-        ];
+            $previousPeriod = [
+                'applications' => $this->getPeriodCount(Application::class, $prevStartDate, $prevEndDate, $barangay),
+                'approvals' => $this->getPeriodCount(Application::class, $prevStartDate, $prevEndDate, $barangay, 'Approved'),
+                'registrations' => $this->getPeriodCount(PWDMember::class, $prevStartDate, $prevEndDate, $barangay),
+                'benefits' => $this->getPeriodCount(BenefitClaim::class, $prevStartDate, $prevEndDate, $barangay)
+            ];
 
-        // Calculate changes
-        $changes = [];
-        foreach ($currentPeriod as $key => $current) {
-            $previous = $previousPeriod[$key] ?? 0;
-            $change = $previous > 0 ? ((($current - $previous) / $previous) * 100) : ($current > 0 ? 100 : 0);
-            $changes[$key] = [
-                'current' => $current,
-                'previous' => $previous,
-                'change_percent' => round($change, 2),
-                'change_absolute' => $current - $previous,
-                'trend' => $change > 0 ? 'up' : ($change < 0 ? 'down' : 'stable')
+            // Calculate changes
+            $changes = [];
+            foreach ($currentPeriod as $key => $current) {
+                $previous = $previousPeriod[$key] ?? 0;
+                $change = $previous > 0 ? ((($current - $previous) / $previous) * 100) : ($current > 0 ? 100 : 0);
+                $changes[$key] = [
+                    'current' => $current,
+                    'previous' => $previous,
+                    'change_percent' => round($change, 2),
+                    'change_absolute' => $current - $previous,
+                    'trend' => $change > 0 ? 'up' : ($change < 0 ? 'down' : 'stable')
+                ];
+            }
+
+            return [
+                'current_period' => $currentPeriod,
+                'previous_period' => $previousPeriod,
+                'changes' => $changes,
+                'period_comparison' => [
+                    'current_start' => $startDate->toDateString(),
+                    'current_end' => $endDate->toDateString(),
+                    'previous_start' => $prevStartDate->toDateString(),
+                    'previous_end' => $prevEndDate->toDateString()
+                ]
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error in getComparativeAnalytics: ' . $e->getMessage());
+            return [
+                'current_period' => [],
+                'previous_period' => [],
+                'changes' => [],
+                'period_comparison' => []
             ];
         }
-
-        return [
-            'current_period' => $currentPeriod,
-            'previous_period' => $previousPeriod,
-            'changes' => $changes,
-            'period_comparison' => [
-                'current_start' => $startDate->toDateString(),
-                'current_end' => $endDate->toDateString(),
-                'previous_start' => $prevStartDate->toDateString(),
-                'previous_end' => $prevEndDate->toDateString()
-            ]
-        ];
     }
 
     /**
@@ -953,21 +1172,22 @@ class AnalyticsService
      */
     private function getOperationalEfficiencyMetrics($startDate, $endDate, $barangay = null)
     {
-        // Application approval rate
-        $appsQuery = Application::whereBetween('submissionDate', [$startDate, $endDate]);
-        if ($barangay) {
-            $appsQuery->where('barangay', $barangay);
-        }
-        
-        $totalApps = $appsQuery->count();
-        $approvedApps = $appsQuery->clone()->where('status', 'Approved')->count();
-        $approvalRate = $totalApps > 0 ? (($approvedApps / $totalApps) * 100) : 0;
+        try {
+            // Application approval rate
+            $appsQuery = Application::whereBetween('submissionDate', [$startDate, $endDate]);
+            if ($barangay) {
+                $appsQuery->where('barangay', $barangay);
+            }
+            
+            $totalApps = $appsQuery->count();
+            $approvedApps = $appsQuery->clone()->where('status', 'Approved')->count();
+            $approvalRate = $totalApps > 0 ? (($approvedApps / $totalApps) * 100) : 0;
 
-        // Support ticket resolution rate
-        $ticketsQuery = SupportTicket::whereBetween('created_at', [$startDate, $endDate]);
-        $totalTickets = $ticketsQuery->count();
-        $resolvedTickets = $ticketsQuery->clone()->whereIn('status', ['closed', 'resolved'])->count();
-        $resolutionRate = $totalTickets > 0 ? (($resolvedTickets / $totalTickets) * 100) : 0;
+            // Support ticket resolution rate
+            $ticketsQuery = SupportTicket::whereBetween('created_at', [$startDate, $endDate]);
+            $totalTickets = $ticketsQuery->count();
+            $resolvedTickets = $ticketsQuery->clone()->whereIn('status', ['closed', 'resolved'])->count();
+            $resolutionRate = $totalTickets > 0 ? (($resolvedTickets / $totalTickets) * 100) : 0;
 
         // Benefit claim processing rate
         $benefitsQuery = BenefitClaim::whereBetween('created_at', [$startDate, $endDate]);
@@ -983,17 +1203,31 @@ class AnalyticsService
         // Overall efficiency score (weighted average)
         $efficiencyScore = ($approvalRate * 0.4) + ($resolutionRate * 0.3) + ($claimRate * 0.3);
 
-        return [
-            'approval_rate' => round($approvalRate, 2),
-            'resolution_rate' => round($resolutionRate, 2),
-            'claim_rate' => round($claimRate, 2),
-            'overall_efficiency_score' => round($efficiencyScore, 2),
-            'workload_distribution' => [
-                'applications' => $totalApps,
-                'support_tickets' => $totalTickets,
-                'benefit_claims' => $totalBenefits
-            ]
-        ];
+            return [
+                'approval_rate' => round($approvalRate, 2),
+                'resolution_rate' => round($resolutionRate, 2),
+                'claim_rate' => round($claimRate, 2),
+                'overall_efficiency_score' => round($efficiencyScore, 2),
+                'workload_distribution' => [
+                    'applications' => $totalApps,
+                    'support_tickets' => $totalTickets,
+                    'benefit_claims' => $totalBenefits
+                ]
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error in getOperationalEfficiencyMetrics: ' . $e->getMessage());
+            return [
+                'approval_rate' => 0,
+                'resolution_rate' => 0,
+                'claim_rate' => 0,
+                'overall_efficiency_score' => 0,
+                'workload_distribution' => [
+                    'applications' => 0,
+                    'support_tickets' => 0,
+                    'benefit_claims' => 0
+                ]
+            ];
+        }
     }
 
     /**
@@ -1001,12 +1235,13 @@ class AnalyticsService
      */
     private function generateActionableInsights($startDate, $endDate, $barangay = null)
     {
-        $insights = [];
-        
-        $renewalAnalytics = $this->getRenewalAnalytics($startDate, $endDate, $barangay);
-        $documentAnalytics = $this->getDocumentComplianceAnalytics($barangay);
-        $processingAnalytics = $this->getProcessingTimeAnalytics($startDate, $endDate, $barangay);
-        $efficiencyMetrics = $this->getOperationalEfficiencyMetrics($startDate, $endDate, $barangay);
+        try {
+            $insights = [];
+            
+            $renewalAnalytics = $this->getRenewalAnalytics($startDate, $endDate, $barangay);
+            $documentAnalytics = $this->getDocumentComplianceAnalytics($barangay);
+            $processingAnalytics = $this->getProcessingTimeAnalytics($startDate, $endDate, $barangay);
+            $efficiencyMetrics = $this->getOperationalEfficiencyMetrics($startDate, $endDate, $barangay);
 
         // Renewal insights
         if ($renewalAnalytics['renewal_urgency_score'] > 20) {
@@ -1052,6 +1287,10 @@ class AnalyticsService
             ];
         }
 
-        return $insights;
+            return $insights;
+        } catch (\Exception $e) {
+            \Log::error('Error in generateActionableInsights: ' . $e->getMessage());
+            return [];
+        }
     }
 }

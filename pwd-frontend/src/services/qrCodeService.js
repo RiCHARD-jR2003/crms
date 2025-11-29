@@ -106,7 +106,8 @@ class QRCodeService {
         return { valid: false, error: 'Invalid QR code format' };
       }
 
-      if (qrData.type !== 'PWD_BENEFIT_CLAIM') {
+      // Support both PWD_BENEFIT_CLAIM and PWD_ID types
+      if (qrData.type !== 'PWD_BENEFIT_CLAIM' && qrData.type !== 'PWD_ID') {
         return { valid: false, error: 'Invalid QR code type' };
       }
 

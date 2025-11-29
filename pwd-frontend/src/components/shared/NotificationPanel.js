@@ -217,8 +217,9 @@ function NotificationPanel({ open, onClose }) {
                     </ListItemIcon>
                     <ListItemText
                       primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                           <Typography
+                            component="span"
                             variant="subtitle2"
                             sx={{
                               fontWeight: notification.is_read ? 500 : 700,
@@ -229,6 +230,7 @@ function NotificationPanel({ open, onClose }) {
                           </Typography>
                           {!notification.is_read && (
                             <Box
+                              component="span"
                               sx={{
                                 width: 8,
                                 height: 8,
@@ -240,21 +242,24 @@ function NotificationPanel({ open, onClose }) {
                         </Box>
                       }
                       secondary={
-                        <Box>
+                        <Box component="span">
                           <Typography
+                            component="span"
                             variant="body2"
                             sx={{
                               color: '#616161',
                               mb: 0.5,
                               whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word'
+                              wordBreak: 'break-word',
+                              display: 'block'
                             }}
                           >
                             {notification.message}
                           </Typography>
                           <Typography
+                            component="span"
                             variant="caption"
-                            sx={{ color: '#9E9E9E', fontSize: '0.75rem' }}
+                            sx={{ color: '#9E9E9E', fontSize: '0.75rem', display: 'block' }}
                           >
                             {notificationService.formatTimestamp(
                               notification.created_at || notification.timestamp

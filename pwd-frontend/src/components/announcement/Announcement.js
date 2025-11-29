@@ -81,11 +81,80 @@ const Announcement = () => {
     return `${month}/${day}/${year}`;
   };
 
+  // Format date and time as MM/DD/YYYY HH:MM AM/PM
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    
+    // Format date as MM/DD/YYYY
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    // Format time as HH:MM AM/PM
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    const formattedHours = String(hours).padStart(2, '0');
+    
+    return `${month}/${day}/${year} ${formattedHours}:${minutes} ${ampm}`;
+  };
+
+  // Format announcement content to properly display line breaks, bullets, and numbered lists
+  const formatAnnouncementContent = (content) => {
+    if (!content) return [];
+    
+    // Split by lines and process each line
+    const lines = content.split('\n');
+    const formattedLines = [];
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      
+      // Skip empty lines but keep them for spacing
+      if (!trimmedLine) {
+        formattedLines.push({ type: 'empty', content: '' });
+        return;
+      }
+      
+      // Check for section headers (all caps words followed by colon, or specific patterns)
+      if (trimmedLine.match(/^[A-Z][A-Z\s:]+:$/) || 
+          trimmedLine.match(/^[A-Z\s]{3,}:$/) ||
+          trimmedLine.match(/^(PROGRAM|ELIGIBILITY|IMPORTANT|CLAIMING|VENUE|CONTACT|NOTE):$/i)) {
+        formattedLines.push({ type: 'header', content: trimmedLine });
+        return;
+      }
+      
+      // Check for numbered lists (1., 2., 3., etc. or 1), 2), etc.)
+      if (trimmedLine.match(/^\d+[\.\)]\s/)) {
+        formattedLines.push({ type: 'numbered', content: trimmedLine });
+        return;
+      }
+      
+      // Check for bullet points (•, -, *, or lines starting with spaces and bullet)
+      if (trimmedLine.match(/^[•\-\*]\s/) || 
+          trimmedLine.match(/^[•\-\*]/) ||
+          trimmedLine.match(/^\s+[•\-\*]/)) {
+        formattedLines.push({ type: 'bullet', content: trimmedLine });
+        return;
+      }
+      
+      // Regular text
+      formattedLines.push({ type: 'text', content: trimmedLine });
+    });
+    
+    return formattedLines;
+  };
+
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [postingAnnouncement, setPostingAnnouncement] = useState(null);
   
   // Statistics state
   const [stats, setStats] = useState({
@@ -172,6 +241,64 @@ const Announcement = () => {
     setDeleteDialog(true);
   };
 
+  const handlePostAnnouncement = async (announcement) => {
+    if (!announcement || announcement.status !== 'Draft') {
+      return;
+    }
+
+    // Comprehensive validation for required fields
+    const requiredFields = {
+      'title': 'Title',
+      'content': 'Full Description/Details',
+      'type': 'Announcement Type',
+      'priority': 'Priority Level',
+      'targetAudience': 'Targeted Barangays',
+      'publishDate': 'Date & Time of Announcement'
+    };
+    
+    const missingFields = [];
+    for (const [field, label] of Object.entries(requiredFields)) {
+      if (!announcement[field] || (typeof announcement[field] === 'string' && announcement[field].trim() === '')) {
+        missingFields.push(label);
+      }
+    }
+    
+    // Check content length
+    if (announcement.content && announcement.content.trim().length < 100) {
+      missingFields.push('Content must be at least 100 characters');
+    }
+    
+    // Check if content contains placeholder text
+    if (announcement.content && announcement.content.includes('[TO BE SPECIFIED]')) {
+      missingFields.push('Complete all announcement details (remove all [TO BE SPECIFIED] placeholders)');
+    }
+    
+    if (missingFields.length > 0) {
+      setError(`Cannot post announcement. Missing or incomplete fields: ${missingFields.join(', ')}. Please edit the announcement first.`);
+      return;
+    }
+
+    try {
+      setPostingAnnouncement(announcement.announcementID);
+      const response = await announcementService.postAnnouncement(announcement.announcementID);
+      
+      if (response.success) {
+        setSuccess('Announcement posted successfully!');
+        // Refresh announcements
+        await fetchAnnouncements();
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError(response.message || 'Failed to post announcement');
+      }
+    } catch (error) {
+      console.error('Error posting announcement:', error);
+      setError('Failed to post announcement: ' + (error.message || 'Unknown error'));
+    } finally {
+      setPostingAnnouncement(null);
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     try {
       if (announcementToDelete) {
@@ -201,21 +328,65 @@ const Announcement = () => {
     setSelectedAnnouncement(null);
   };
 
+  // Comprehensive validation function to check if all required fields are filled
+  const isFormValid = () => {
+    // Check all required fields
+    if (!formData.title || formData.title.trim().length < 10) {
+      return false;
+    }
+    
+    if (!formData.content || formData.content.trim().length < 100) {
+      return false;
+    }
+    
+    if (!formData.type) {
+      return false;
+    }
+    
+    if (!formData.priority) {
+      return false;
+    }
+    
+    if (!formData.targetAudience || formData.targetAudience.trim() === '') {
+      return false;
+    }
+    
+    if (!formData.publishDate) {
+      return false;
+    }
+    
+    // Check if content contains placeholder text (for Active status)
+    if (formData.status === 'Active' && formData.content.includes('[TO BE SPECIFIED]')) {
+      return false;
+    }
+    
+    // Validate expiry date if provided
+    if (formData.expiryDate) {
+      const publishDate = new Date(formData.publishDate);
+      const expiryDate = new Date(formData.expiryDate);
+      if (expiryDate < publishDate) {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
   const handleSubmit = async () => {
     try {
       setSubmitting(true);
       setError(null);
       setSuccess(null);
       
-      // Frontend validation
+      // Comprehensive frontend validation
       if (!formData.title || formData.title.trim().length < 10) {
         setError('Title must be at least 10 characters long.');
         setSubmitting(false);
         return;
       }
       
-      if (!formData.content || formData.content.trim().length < 50) {
-        setError('Content must be at least 50 characters long. Please provide detailed information.');
+      if (!formData.content || formData.content.trim().length < 100) {
+        setError('Content must be at least 100 characters long. Please provide detailed information including instructions, eligibility, deadlines, location, and contact details.');
         setSubmitting(false);
         return;
       }
@@ -226,15 +397,37 @@ const Announcement = () => {
         return;
       }
       
+      if (!formData.priority) {
+        setError('Please select a priority level.');
+        setSubmitting(false);
+        return;
+      }
+      
+      if (!formData.targetAudience || formData.targetAudience.trim() === '') {
+        setError('Targeted barangays are required.');
+        setSubmitting(false);
+        return;
+      }
+      
+      if (!formData.publishDate) {
+        setError('Date & time of announcement is required.');
+        setSubmitting(false);
+        return;
+      }
+      
+      // Check if content contains placeholder text (for Active status)
+      if (formData.status === 'Active' && formData.content.includes('[TO BE SPECIFIED]')) {
+        setError('Cannot post announcement with incomplete details. Please remove all [TO BE SPECIFIED] placeholders.');
+        setSubmitting(false);
+        return;
+      }
+      
       // Validate expiry date if provided
       if (formData.expiryDate) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const selectedExpiryDate = new Date(formData.expiryDate);
-        selectedExpiryDate.setHours(0, 0, 0, 0);
-        
-        if (selectedExpiryDate <= today) {
-          setError('Expiry date must be at least tomorrow. Please select a future date.');
+        const publishDate = new Date(formData.publishDate);
+        const expiryDate = new Date(formData.expiryDate);
+        if (expiryDate < publishDate) {
+          setError('Expiry date must be on or after the publish date.');
           setSubmitting(false);
           return;
         }
@@ -245,9 +438,8 @@ const Announcement = () => {
         await announcementService.update(editingAnnouncement.announcementID, formData);
         setSuccess('Announcement updated successfully!');
       } else {
-        // Add new announcement - remove publishDate as it will be set automatically by backend
-        const { publishDate, ...announcementData } = formData;
-        await announcementService.create(announcementData);
+        // Add new announcement - publishDate is now required
+        await announcementService.create(formData);
         setSuccess('Announcement created successfully!');
       }
       
@@ -613,6 +805,37 @@ const Announcement = () => {
                             >
                               <Visibility />
                             </IconButton>
+                            {announcement.status === 'Draft' && (
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handlePostAnnouncement(announcement)}
+                                disabled={
+                                  postingAnnouncement === announcement.announcementID ||
+                                  !announcement.title ||
+                                  !announcement.content ||
+                                  announcement.content.length < 100 ||
+                                  !announcement.type ||
+                                  !announcement.priority ||
+                                  !announcement.targetAudience ||
+                                  !announcement.publishDate ||
+                                  announcement.content.includes('[TO BE SPECIFIED]')
+                                }
+                                sx={{ 
+                                  color: '#27AE60', 
+                                  '&:hover': { bgcolor: 'rgba(39, 174, 96, 0.1)' },
+                                  '&:disabled': { color: '#95A5A6' }
+                                }}
+                                title={
+                                  (!announcement.title || !announcement.content || announcement.content.length < 100 || 
+                                   !announcement.type || !announcement.priority || !announcement.targetAudience || 
+                                   !announcement.publishDate || announcement.content.includes('[TO BE SPECIFIED]'))
+                                    ? "Complete all required fields before posting"
+                                    : "Post Announcement"
+                                }
+                              >
+                                <CheckCircle />
+                              </IconButton>
+                            )}
                             <IconButton 
                               size="small" 
                               onClick={() => handleOpenDialog(announcement)}
@@ -681,14 +904,14 @@ const Announcement = () => {
                             fontWeight: 600, 
                             fontSize: { xs: '0.65rem', sm: '0.7rem' }
                           }}>
-                            Published: {announcement.publishDate}
+                            Published: {formatDateTime(announcement.publishDate)}
                           </Typography>
                           <Typography sx={{ 
                             color: '#FF9800', 
                             fontWeight: 600, 
                             fontSize: { xs: '0.65rem', sm: '0.7rem' }
                           }}>
-                            Expires: {announcement.expiryDate}
+                            Expires: {announcement.expiryDate ? formatDateTime(announcement.expiryDate) : 'N/A'}
                           </Typography>
                         </Box>
                       </Paper>
@@ -1155,7 +1378,7 @@ const Announcement = () => {
                     setPreviewOpen(true);
                   }}
                   variant="outlined"
-                  disabled={!formData.title || !formData.content || formData.title.length < 10 || formData.content.length < 50}
+                  disabled={!isFormValid()}
                   startIcon={<Visibility />}
                   sx={{ 
                     borderColor: '#F39C12',
@@ -1305,13 +1528,81 @@ const Announcement = () => {
                       <Chip label={selectedAnnouncement.priority} size="small" sx={{ bgcolor: getPriorityColor(selectedAnnouncement.priority), color: '#FFFFFF' }} />
                       <Chip label={selectedAnnouncement.targetAudience} size="small" sx={{ bgcolor: '#3498DB', color: '#FFFFFF' }} />
                     </Box>
-                    <Typography variant="body1" sx={{ color: '#2C3E50', lineHeight: 1.8, whiteSpace: 'pre-wrap', mb: 2 }}>
-                      {selectedAnnouncement.content}
-                    </Typography>
+                    <Box sx={{ 
+                      color: '#2C3E50', 
+                      lineHeight: 1.8, 
+                      mb: 2,
+                      fontFamily: 'inherit',
+                      '& .content-header': {
+                        fontWeight: 700,
+                        fontSize: '1.1rem',
+                        color: '#0b87ac',
+                        mt: 2,
+                        mb: 1,
+                        display: 'block'
+                      },
+                      '& .content-bullet': {
+                        display: 'block',
+                        pl: 3,
+                        mb: 0.5,
+                        position: 'relative',
+                        '&::before': {
+                          content: '"•"',
+                          position: 'absolute',
+                          left: '8px',
+                          fontWeight: 700,
+                          color: '#2C3E50'
+                        }
+                      },
+                      '& .content-numbered': {
+                        display: 'block',
+                        pl: 3,
+                        mb: 0.5
+                      },
+                      '& .content-text': {
+                        display: 'block',
+                        mb: 0.5
+                      },
+                      '& .content-empty': {
+                        display: 'block',
+                        height: '0.5rem'
+                      }
+                    }}>
+                      {formatAnnouncementContent(selectedAnnouncement.content).map((item, idx) => {
+                        if (item.type === 'empty') {
+                          return <Box key={idx} className="content-empty" />;
+                        } else if (item.type === 'header') {
+                          return (
+                            <Typography key={idx} className="content-header" component="div" variant="h6">
+                              {item.content}
+                            </Typography>
+                          );
+                        } else if (item.type === 'bullet') {
+                          const text = item.content.replace(/^[•\-\*]\s*/, '');
+                          return (
+                            <Typography key={idx} className="content-bullet" component="div" variant="body2">
+                              {text}
+                            </Typography>
+                          );
+                        } else if (item.type === 'numbered') {
+                          return (
+                            <Typography key={idx} className="content-numbered" component="div" variant="body2">
+                              {item.content}
+                            </Typography>
+                          );
+                        } else {
+                          return (
+                            <Typography key={idx} className="content-text" component="div" variant="body2">
+                              {item.content}
+                            </Typography>
+                          );
+                        }
+                      })}
+                    </Box>
                     <Box sx={{ borderTop: '1px solid #E0E0E0', pt: 2 }}>
                       <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
-                        Publish Date: {formatDateMMDDYYYY(selectedAnnouncement.publishDate || new Date().toISOString().split('T')[0])}
-                        {selectedAnnouncement.expiryDate && ` | Expiry Date: ${formatDateMMDDYYYY(selectedAnnouncement.expiryDate)}`}
+                        Publish Date: {formatDateTime(selectedAnnouncement.publishDate || new Date().toISOString())}
+                        {selectedAnnouncement.expiryDate && ` | Expiry Date: ${formatDateTime(selectedAnnouncement.expiryDate)}`}
                       </Typography>
                     </Box>
                   </Box>
@@ -1479,20 +1770,82 @@ const Announcement = () => {
                       >
                         Content
                       </Typography>
-                      <Typography 
-                        variant="body1" 
+                      <Box 
                         sx={{ 
                           color: '#2C3E50 !important', 
                           lineHeight: 1.8, 
                           backgroundColor: '#FAFAFA', 
                           p: { xs: 1.5, sm: 2 }, 
                           borderRadius: 1,
-                          fontSize: { xs: '0.9rem', sm: '1rem' }
+                          fontSize: { xs: '0.9rem', sm: '1rem' },
+                          '& .content-header': {
+                            fontWeight: 700,
+                            fontSize: '1.1rem',
+                            color: '#0b87ac',
+                            mt: 2,
+                            mb: 1,
+                            display: 'block'
+                          },
+                          '& .content-bullet': {
+                            display: 'block',
+                            pl: 3,
+                            mb: 0.5,
+                            position: 'relative',
+                            '&::before': {
+                              content: '"•"',
+                              position: 'absolute',
+                              left: '8px',
+                              fontWeight: 700,
+                              color: '#2C3E50'
+                            }
+                          },
+                          '& .content-numbered': {
+                            display: 'block',
+                            pl: 3,
+                            mb: 0.5
+                          },
+                          '& .content-text': {
+                            display: 'block',
+                            mb: 0.5
+                          },
+                          '& .content-empty': {
+                            display: 'block',
+                            height: '0.5rem'
+                          }
                         }}
                         style={{ color: '#2C3E50' }}
                       >
-                        {selectedAnnouncement.content}
-                      </Typography>
+                        {formatAnnouncementContent(selectedAnnouncement.content).map((item, idx) => {
+                          if (item.type === 'empty') {
+                            return <Box key={idx} className="content-empty" />;
+                          } else if (item.type === 'header') {
+                            return (
+                              <Typography key={idx} className="content-header" component="div" variant="h6" sx={{ color: '#0b87ac !important' }}>
+                                {item.content}
+                              </Typography>
+                            );
+                          } else if (item.type === 'bullet') {
+                            const text = item.content.replace(/^[•\-\*]\s*/, '');
+                            return (
+                              <Typography key={idx} className="content-bullet" component="div" variant="body2" sx={{ color: '#2C3E50 !important' }}>
+                                {text}
+                              </Typography>
+                            );
+                          } else if (item.type === 'numbered') {
+                            return (
+                              <Typography key={idx} className="content-numbered" component="div" variant="body2" sx={{ color: '#2C3E50 !important' }}>
+                                {item.content}
+                              </Typography>
+                            );
+                          } else {
+                            return (
+                              <Typography key={idx} className="content-text" component="div" variant="body2" sx={{ color: '#2C3E50 !important' }}>
+                                {item.content}
+                              </Typography>
+                            );
+                          }
+                        })}
+                      </Box>
                     </Box>
 
                     <Box sx={{ borderTop: '1px solid #BDC3C7', mb: { xs: 2, sm: 3 } }} />
@@ -1568,7 +1921,7 @@ const Announcement = () => {
                               sx={{ color: 'white !important' }}
                               style={{ color: 'white' }}
                             >
-                              {formatDateMMDDYYYY(selectedAnnouncement.expiryDate)}
+                              {selectedAnnouncement.expiryDate ? formatDateTime(selectedAnnouncement.expiryDate) : 'N/A'}
                             </Typography>
                           </Box>
                         </Box>

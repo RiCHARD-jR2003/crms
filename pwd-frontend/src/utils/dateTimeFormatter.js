@@ -27,7 +27,7 @@ export const formatDateTime = (dateString) => {
     hours = hours ? hours : 12; // the hour '0' should be '12'
     const hoursStr = String(hours).padStart(2, '0');
     
-    return `${month}/${day}/${year} ${hoursStr}:${minutes}:${seconds} ${ampm}`;
+    return `${month}/${day}/${year}, ${hoursStr}:${minutes}:${seconds} ${ampm}`;
   } catch (error) {
     console.error('Error formatting date:', error);
     return 'Invalid Date';

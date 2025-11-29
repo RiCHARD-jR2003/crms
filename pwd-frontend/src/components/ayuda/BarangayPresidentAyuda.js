@@ -66,7 +66,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import benefitService from '../../services/benefitService';
 import { reportsService } from '../../services/reportsService';
 import toastService from '../../services/toastService';
-import { formatDateTime } from '../../utils/dateTimeFormatter';
+import { formatDateTime, formatDate } from '../../utils/dateTimeFormatter';
 
 function BarangayPresidentAyuda() {
   const { currentUser } = useAuth();
@@ -279,13 +279,25 @@ function BarangayPresidentAyuda() {
                   color: '#2C3E50',
                   fontWeight: 600,
                   textTransform: 'none',
-                  fontSize: '1rem'
-                },
-                '& .Mui-selected': {
-                  color: '#27AE60'
+                  fontSize: '1rem',
+                  paddingLeft: '24px',
+                  paddingRight: '24px',
+                  position: 'relative',
+                  '&.Mui-selected': {
+                    color: '#27AE60',
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: '12px',
+                      right: '12px',
+                      height: '3px',
+                      backgroundColor: '#27AE60'
+                    }
+                  }
                 },
                 '& .MuiTabs-indicator': {
-                  bgcolor: '#27AE60'
+                  display: 'none'
                 }
               }}
             >
@@ -398,7 +410,7 @@ function BarangayPresidentAyuda() {
                 </Grid>
               </Grid>
 
-              {/* Benefits Cards */}
+              {/* Benefits Table */}
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '1.2rem' }}>
                 Available Benefits Programs - {barangay}
               </Typography>
@@ -419,27 +431,31 @@ function BarangayPresidentAyuda() {
                   </Typography>
                 </Box>
               ) : (
-                <Grid container spacing={3} sx={{ mb: 3 }}>
-                  {benefits.map((benefit) => (
-                    <Grid item xs={12} sm={6} md={4} key={benefit.id}>
-                      <Card 
-                        elevation={0} 
-                        sx={{ 
-                          border: '1px solid #E0E0E0',
-                          borderRadius: 2,
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          bgcolor: 'white',
-                          '&:hover': { 
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            transform: 'translateY(-2px)',
-                            transition: 'all 0.3s ease'
-                          }
-                        }}
-                      >
-                        <CardContent sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E0E0E0', borderRadius: 2, mb: 3 }}>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#F8F9FA' }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Title</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Amount</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Barangays</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Distribution Date</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Distributed</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Pending</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Status</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '0.95rem' }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {benefits.map((benefit) => (
+                        <TableRow 
+                          key={benefit.id}
+                          sx={{ 
+                            '&:hover': { bgcolor: '#F8F9FA' },
+                            '&:last-child td': { borderBottom: 0 }
+                          }}
+                        >
+                          <TableCell>
                             <Chip 
                               label={benefit.type} 
                               size="small" 
@@ -450,76 +466,75 @@ function BarangayPresidentAyuda() {
                                 fontSize: '0.75rem'
                               }}
                             />
-                          </Box>
-                          <Typography variant="h6" component="h3" sx={{ fontWeight: 600, mb: 1, color: '#2C3E50', fontSize: '1rem' }}>
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 600, color: '#2C3E50' }}>
                             {benefit.title || benefit.benefitType || benefit.type}
-                          </Typography>
-                          <Typography variant="h5" sx={{ fontWeight: 700, color: '#2C3E50', mb: 1 }}>
-                            {benefit.amount}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#2C3E50', mb: 2, lineHeight: 1.5 }}>
-                            {benefit.description}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#2C3E50', display: 'block', mb: 1, fontWeight: 500 }}>
-                            Barangay: {benefit.barangay || 'All Barangays'}
-                          </Typography>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto' }}>
-                            <Box>
-                              <Typography variant="caption" sx={{ color: '#27AE60', fontWeight: 600 }}>
-                                Distributed: {benefit.distributed || 0}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="caption" sx={{ color: '#F39C12', fontWeight: 600 }}>
-                                Pending: {benefit.pending || 0}
-                              </Typography>
-                            </Box>
-                          </Box>
-                          
-                          {/* Status */}
-                          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #E0E0E0' }}>
-                            <Typography variant="caption" sx={{ color: '#2C3E50', fontWeight: 600, mb: 1, display: 'block' }}>
-                              Status:
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                            {benefit.amount || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {benefit.type === 'Financial Assistance' 
+                              ? (benefit.selectedBarangays && benefit.selectedBarangays.length > 0 
+                                  ? benefit.selectedBarangays.join(', ') 
+                                  : 'All Barangays')
+                              : (benefit.barangay || 'All Barangays')
+                            }
+                          </TableCell>
+                          <TableCell>
+                            {benefit.distributionDate 
+                              ? formatDate(benefit.distributionDate) || 'N/A'
+                              : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: '#27AE60', fontWeight: 600 }}>
+                              {benefit.distributed || 0}
                             </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: '#F39C12', fontWeight: 600 }}>
+                              {benefit.pending || 0}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
                             <Chip 
                               label={benefit.status || 'Active'} 
                               size="small" 
                               color={benefit.status === 'Active' ? 'success' : 'default'}
                               sx={{ fontWeight: 600 }}
                             />
-                          </Box>
-                          
-                          {/* Announce Benefit Button (Barangay President only) */}
-                          {benefit.status === 'Active' && (
-                            <Box sx={{ mt: 2 }}>
+                          </TableCell>
+                          <TableCell>
+                            {benefit.status === 'Active' && (
                               <Button
-                                fullWidth
                                 variant="contained"
                                 startIcon={<CampaignIcon />}
                                 onClick={() => handleAnnounceBenefit(benefit.id)}
                                 disabled={announcingBenefit === benefit.id}
+                                size="small"
                                 sx={{
                                   bgcolor: '#3498DB',
                                   '&:hover': { bgcolor: '#2980B9' },
                                   textTransform: 'none',
                                   fontWeight: 600,
-                                  py: 1
+                                  px: 2,
+                                  py: 0.5
                                 }}
                               >
-                                {announcingBenefit === benefit.id ? 'Announcing...' : 'Announce Benefit'}
+                                {announcingBenefit === benefit.id ? 'Announcing...' : 'Announce'}
                               </Button>
-                              {benefit.announced_at && (
-                                <Typography variant="caption" sx={{ color: '#7F8C8D', mt: 1, display: 'block', textAlign: 'center' }}>
-                                  Announced: {formatDateTime(benefit.announced_at)}
-                                </Typography>
-                              )}
-                            </Box>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                            )}
+                            {benefit.announced_at && (
+                              <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 0.5 }}>
+                                {formatDateTime(benefit.announced_at)}
+                              </Typography>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </>
           ) : (

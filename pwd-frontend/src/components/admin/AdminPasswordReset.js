@@ -22,11 +22,13 @@ import {
   TableHead,
   TableRow,
   IconButton,
-  Chip
+  Chip,
+  FormControlLabel,
+  Checkbox,
+  Stack
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { Edit as EditIcon } from '@mui/icons-material';
-import Radio from '@mui/material/Radio';
 import passwordService from '../../services/passwordService';
 import api from '../../services/api';
 
@@ -43,11 +45,49 @@ function AdminPasswordReset({ open, onClose }) {
   const [showPassword, setShowPassword] = useState(false);
   const [validation, setValidation] = useState({ email: '', newPassword: '' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRoles, setSelectedRoles] = useState([]);
 
-  // Filter users based on search term
-  const filteredUsers = users.filter(user => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Get all unique roles from users
+  const allRoles = React.useMemo(() => {
+    const roles = new Set();
+    users.forEach(user => {
+      if (user.role) roles.add(user.role);
+    });
+    return Array.from(roles).sort();
+  }, [users]);
+
+  // Filter users based on search term and selected roles
+  const filteredUsers = React.useMemo(() => {
+    return users.filter(user => {
+      // Search filter
+      const matchesSearch = !searchTerm || 
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.role && user.role.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      // Role filter
+      const matchesRole = selectedRoles.length === 0 || selectedRoles.includes(user.role);
+      
+      return matchesSearch && matchesRole;
+    });
+  }, [users, searchTerm, selectedRoles]);
+
+  const handleRoleFilterChange = (role) => {
+    setSelectedRoles(prev => {
+      if (prev.includes(role)) {
+        return prev.filter(r => r !== role);
+      } else {
+        return [...prev, role];
+      }
+    });
+  };
+
+  const handleSelectAllRoles = () => {
+    if (selectedRoles.length === allRoles.length) {
+      setSelectedRoles([]);
+    } else {
+      setSelectedRoles([...allRoles]);
+    }
+  };
 
   const verifyAdminAuth = async () => {
     try {
@@ -169,15 +209,31 @@ function AdminPasswordReset({ open, onClose }) {
         return candidates.find(a => Array.isArray(a));
       };
 
-      // 1) Fetch standard users (for Barangay Presidents if present)
+      // 1) Fetch standard users (for Admins, Barangay Presidents, Staff, etc.)
       try {
         const resUsers = await api.get('/users');
         const arr = pickArray(resUsers) || [];
         arr.forEach(u => {
+          const email = u.email || u.user?.email;
+          if (!email) return;
+          
           const role = u.role || u.userType || u.type || 'User';
-          if (role?.toLowerCase().includes('barangay')) {
-            combined.push({ email: u.email || u.user?.email, role: 'Barangay President' });
+          let normalizedRole = role;
+          
+          // Normalize role names
+          if (role?.toLowerCase().includes('barangay') || role === 'BarangayPresident') {
+            normalizedRole = 'Barangay President';
+          } else if (role?.toLowerCase().includes('admin') || role === 'Admin' || role === 'SuperAdmin') {
+            normalizedRole = 'Admin';
+          } else if (role?.toLowerCase().includes('staff')) {
+            normalizedRole = role; // Keep Staff1, Staff2, etc.
+          } else if (role?.toLowerCase().includes('front') || role === 'FrontDesk') {
+            normalizedRole = 'Front Desk';
+          } else if (role?.toLowerCase().includes('pwd') || role === 'PWDMember') {
+            normalizedRole = 'PWD Member';
           }
+          
+          combined.push({ email, role: normalizedRole });
         });
       } catch (e) {
         console.warn('Users endpoint not available:', e?.message || e);
@@ -233,6 +289,8 @@ function AdminPasswordReset({ open, onClose }) {
       setError('');
       setSuccess('');
       setUsers([]);
+      setSearchTerm('');
+      setSelectedRoles([]);
       onClose();
     }
   };
@@ -251,12 +309,14 @@ function AdminPasswordReset({ open, onClose }) {
   }, [open]);
 
   const getRoleColor = (role) => {
-    switch (role) {
-      case 'Admin': return 'error';
-      case 'Barangay President': return 'warning';
-      case 'PWD Member': return 'success';
-      default: return 'default';
-    }
+    if (!role) return 'default';
+    const roleLower = role.toLowerCase();
+    if (roleLower.includes('admin')) return 'error';
+    if (roleLower.includes('barangay')) return 'warning';
+    if (roleLower.includes('pwd') || roleLower.includes('member')) return 'success';
+    if (roleLower.includes('staff')) return 'info';
+    if (roleLower.includes('front')) return 'primary';
+    return 'default';
   };
 
   return (
@@ -352,7 +412,7 @@ function AdminPasswordReset({ open, onClose }) {
 
           {/* Users List */}
           <Paper elevation={2} sx={{ p: 3, bgcolor: '#FFFFFF' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
               <Typography variant="h6" sx={{ color: '#2C3E50' }}>
                 All Users
               </Typography>
@@ -381,6 +441,95 @@ function AdminPasswordReset({ open, onClose }) {
                 }}
               />
             </Box>
+            
+            {/* Role Filters */}
+            {allRoles.length > 0 && (
+              <Box sx={{ mb: 2, p: 2, bgcolor: '#F8F9FA', borderRadius: 2, border: '1px solid #E0E0E0' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+                  <Typography variant="subtitle2" sx={{ color: '#2C3E50', fontWeight: 600, mr: 2 }}>
+                    Filter by Role:
+                  </Typography>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={selectedRoles.length === allRoles.length && allRoles.length > 0}
+                        indeterminate={selectedRoles.length > 0 && selectedRoles.length < allRoles.length}
+                        onChange={handleSelectAllRoles}
+                        size="small"
+                        sx={{
+                          color: '#0b87ac',
+                          '&.Mui-checked': {
+                            color: '#0b87ac',
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography variant="body2" sx={{ fontSize: '0.85rem', color: '#7F8C8D' }}>
+                        Select All
+                      </Typography>
+                    }
+                    sx={{ mr: 2 }}
+                  />
+                </Box>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {allRoles.map((role) => (
+                    <FormControlLabel
+                      key={role}
+                      control={
+                        <Checkbox
+                          checked={selectedRoles.includes(role)}
+                          onChange={() => handleRoleFilterChange(role)}
+                          size="small"
+                          sx={{
+                            color: getRoleColor(role) === 'error' ? '#E74C3C' : 
+                                   getRoleColor(role) === 'warning' ? '#F39C12' : 
+                                   getRoleColor(role) === 'success' ? '#27AE60' : '#7F8C8D',
+                            '&.Mui-checked': {
+                              color: getRoleColor(role) === 'error' ? '#E74C3C' : 
+                                     getRoleColor(role) === 'warning' ? '#F39C12' : 
+                                     getRoleColor(role) === 'success' ? '#27AE60' : '#7F8C8D',
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Chip
+                          label={role}
+                          size="small"
+                          color={getRoleColor(role)}
+                          sx={{
+                            height: '24px',
+                            fontSize: '0.75rem',
+                            fontWeight: selectedRoles.includes(role) ? 600 : 400,
+                            opacity: selectedRoles.length > 0 && !selectedRoles.includes(role) ? 0.5 : 1,
+                          }}
+                        />
+                      }
+                    />
+                  ))}
+                </Stack>
+                {selectedRoles.length > 0 && (
+                  <Box sx={{ mt: 1.5 }}>
+                    <Button
+                      size="small"
+                      onClick={() => setSelectedRoles([])}
+                      sx={{
+                        textTransform: 'none',
+                        fontSize: '0.75rem',
+                        color: '#7F8C8D',
+                        '&:hover': {
+                          color: '#E74C3C',
+                          bgcolor: 'transparent',
+                        },
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+            )}
             {loadingUsers ? (
               <Box display="flex" justifyContent="center" p={3}>
                 <CircularProgress />
@@ -396,32 +545,54 @@ function AdminPasswordReset({ open, onClose }) {
                 </Typography>
               </Box>
             ) : (
-              <TableContainer>
-                <Table>
+              <TableContainer sx={{ maxHeight: 400, border: '1px solid #E0E0E0', borderRadius: 1 }}>
+                <Table stickyHeader>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Email</TableCell>
-                      <TableCell>Role</TableCell>
-                      <TableCell>Select</TableCell>
+                      <TableCell sx={{ 
+                        bgcolor: '#F8F9FA', 
+                        fontWeight: 600, 
+                        color: '#2C3E50',
+                        borderBottom: '2px solid #E0E0E0'
+                      }}>
+                        Email
+                      </TableCell>
+                      <TableCell sx={{ 
+                        bgcolor: '#F8F9FA', 
+                        fontWeight: 600, 
+                        color: '#2C3E50',
+                        borderBottom: '2px solid #E0E0E0'
+                      }}>
+                        Role
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {filteredUsers.map((user, index) => (
-                      <TableRow key={user.userID || user.id || `user-${index}`}>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={user.role} 
-                            color={getRoleColor(user.role)}
-                            size="small"
-                          />
+                      <TableRow 
+                        key={user.userID || user.id || `user-${index}`}
+                        onClick={() => handleEditUser(user.email)}
+                        sx={{
+                          cursor: 'pointer',
+                          bgcolor: formData.email === user.email ? '#E3F2FD' : 'transparent',
+                          '&:hover': {
+                            bgcolor: formData.email === user.email ? '#BBDEFB' : '#F8F9FA',
+                          },
+                          '&:last-child td': {
+                            borderBottom: 0,
+                          },
+                          transition: 'background-color 0.2s ease',
+                        }}
+                      >
+                        <TableCell sx={{ color: '#2C3E50', fontSize: '0.9rem' }}>
+                          {user.email}
                         </TableCell>
                         <TableCell>
-                          <Radio
-                            checked={formData.email === user.email}
-                            onChange={() => handleEditUser(user.email)}
-                            color="primary"
+                          <Chip 
+                            label={user.role || 'N/A'} 
+                            color={getRoleColor(user.role)}
                             size="small"
+                            sx={{ fontWeight: 500 }}
                           />
                         </TableCell>
                       </TableRow>
@@ -429,6 +600,16 @@ function AdminPasswordReset({ open, onClose }) {
                   </TableBody>
                 </Table>
               </TableContainer>
+            )}
+            
+            {/* Results Count */}
+            {!loadingUsers && filteredUsers.length > 0 && (
+              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" sx={{ color: '#7F8C8D', fontSize: '0.85rem' }}>
+                  Showing {filteredUsers.length} of {users.length} user{users.length !== 1 ? 's' : ''}
+                  {selectedRoles.length > 0 && ` (filtered by ${selectedRoles.length} role${selectedRoles.length !== 1 ? 's' : ''})`}
+                </Typography>
+              </Box>
             )}
           </Paper>
         </Box>

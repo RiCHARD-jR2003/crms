@@ -86,7 +86,7 @@ class Benefit extends Model
         return $query->select([
             'id', 'title', 'type', 'amount', 'description', 'status',
             'barangay', 'selectedBarangays', 'distributionDate', 'expiryDate',
-            'distributed', 'pending', 'color', 'created_at', 'updated_at', 'announced_at'
+            'distributed', 'pending', 'color', 'created_at', 'updated_at'
         ]);
     }
 }

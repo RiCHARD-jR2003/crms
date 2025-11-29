@@ -332,10 +332,25 @@ const PWDMemberBenefits = () => {
                     textTransform: 'none',
                     fontWeight: 600,
                     fontSize: '0.95rem',
-                    minHeight: 64
+                    minHeight: 64,
+                    paddingLeft: '24px',
+                    paddingRight: '24px',
+                    position: 'relative',
+                    '&.Mui-selected': {
+                      color: '#0b87ac',
+                      '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        bottom: 0,
+                        left: '12px',
+                        right: '12px',
+                        height: '3px',
+                        backgroundColor: '#0b87ac'
+                      }
+                    }
                   },
-                  '& .Mui-selected': {
-                    color: '#0b87ac'
+                  '& .MuiTabs-indicator': {
+                    display: 'none'
                   }
                 }}
                 indicatorColor="primary"

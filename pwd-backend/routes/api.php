@@ -2198,6 +2198,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Benefit routes
     Route::apiResource('benefits', BenefitController::class);
     Route::post('benefits/{id}/announce', [BenefitController::class, 'announceBenefit']); // Barangay President announcement
+    Route::post('announcements/{id}/post', [BenefitController::class, 'postAnnouncement']); // Post draft announcement
+    Route::post('announcements/{id}/announce-to-members', [BenefitController::class, 'announceToMembers']); // Barangay President: Announce to all members
     
     // Benefit Claim routes
     Route::apiResource('benefit-claims', BenefitClaimController::class);

@@ -854,7 +854,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
                   <th>Last Name</th>
                   <th>Disability Type</th>
                   <th>Status</th>
-                  <th>Contact Number</th>
+                  <th>Phone Number</th>
                   <th>Email</th>
                 ` : `
                   <th>Application ID</th>
@@ -863,7 +863,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
                   <th>Disability Type</th>
                   <th>Status</th>
                   <th>Submission Date</th>
-                  <th>Contact Number</th>
+                  <th>Phone Number</th>
                   <th>Email</th>
                 `}
               </tr>
@@ -1232,7 +1232,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
     { id: 'barangay', label: 'Barangay', minWidth: 80 },
     { id: 'disabilityType', label: 'Disability Type', minWidth: 100 },
     { id: 'status', label: 'Status', minWidth: 80 },
-    { id: 'contactNumber', label: 'Contact Number', minWidth: 90 },
+    { id: 'contactNumber', label: 'Phone Number', minWidth: 90 },
     { id: 'email', label: 'Email', minWidth: 120 }
   ] : [
     { id: 'applicationID', label: 'Application ID', minWidth: 60 },
@@ -1242,7 +1242,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
     { id: 'disabilityType', label: 'Disability Type', minWidth: 90 },
     { id: 'status', label: 'Status', minWidth: 100 },
     { id: 'submissionDate', label: 'Submission Date', minWidth: 90 },
-    { id: 'contactNumber', label: 'Contact Number', minWidth: 90 },
+    { id: 'contactNumber', label: 'Phone Number', minWidth: 90 },
     { id: 'email', label: 'Email', minWidth: 110 },
     { id: 'actions', label: 'Actions', minWidth: 150 }
   ];
@@ -1294,10 +1294,21 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
                       borderRadius: '8px 8px 0 0',
                       mx: 0.5,
                       px: 3,
+                      position: 'relative',
                       '&.Mui-selected': {
                         color: '#FFFFFF !important',
                         fontWeight: 700,
-                        bgcolor: '#3498DB !important'
+                        bgcolor: '#3498DB !important',
+                        '&::after': {
+                          content: '""',
+                          position: 'absolute',
+                          bottom: 0,
+                          left: '8px',
+                          right: '8px',
+                          height: '3px',
+                          backgroundColor: '#3498DB',
+                          borderRadius: '3px 3px 0 0'
+                        }
                       }
                     },
                     '& .MuiTabs-indicator': {
@@ -1969,7 +1980,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#34495E', mb: 0.25, fontSize: '0.75rem' }}>
-                        Contact Number:
+                        Phone Number:
                       </Typography>
                       <Typography variant="body1" sx={{ color: '#0b87ac', mb: 0.75, fontSize: '0.85rem' }}>
                         {selectedApplication.contactNumber || 'N/A'}
