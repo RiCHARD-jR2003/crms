@@ -681,29 +681,42 @@ class BenefitController extends Controller
         }
 
         $user = $request->user();
-        if (!$user || !in_array($user->role, ['BarangayPresident', 'Admin'])) {
+        if (!$user || !in_array($user->role, ['BarangayPresident', 'Admin', 'SuperAdmin'])) {
             return response()->json(['message' => 'Unauthorized. Only Barangay Presidents can announce to members'], 403);
         }
 
-        $barangay = $user->barangay;
+        // Get barangay from the barangayPresident relationship for BarangayPresident role
+        $barangay = null;
+        if ($user->role === 'BarangayPresident') {
+            $barangayPresident = $user->barangayPresident;
+            $barangay = $barangayPresident ? $barangayPresident->barangay : null;
+        } elseif (in_array($user->role, ['Admin', 'SuperAdmin'])) {
+            // For Admin/SuperAdmin, get barangay from the announcement's targetAudience
+            $barangay = $announcement->targetAudience;
+        }
+        
         if (!$barangay) {
             return response()->json(['message' => 'Barangay not found for user'], 400);
         }
 
-        // Verify announcement is for this barangay
+        // Verify announcement is for this barangay (or is for all members/barangays)
         $benefit = $announcement->benefit;
         $isForThisBarangay = false;
+        $targetAudience = $announcement->targetAudience ?? '';
         
-        if ($benefit) {
+        // Check if it's a global announcement (All, All Barangays, Members)
+        if (in_array($targetAudience, ['All', 'All Barangays', 'Members'])) {
+            $isForThisBarangay = true;
+        } elseif (strpos($targetAudience, 'Members') !== false || strpos($targetAudience, 'All') !== false) {
+            // Comma-separated list contains Members or All
+            $isForThisBarangay = true;
+        } elseif ($benefit) {
             $selectedBarangays = $benefit->selectedBarangays ?? [];
             if (!empty($selectedBarangays) && is_array($selectedBarangays)) {
                 $isForThisBarangay = in_array($barangay, $selectedBarangays);
             } else {
                 // Check targetAudience if selectedBarangays is empty
-                $targetAudience = $announcement->targetAudience;
-                if ($targetAudience === 'All Barangays') {
-                    $isForThisBarangay = true;
-                } elseif ($targetAudience === $barangay) {
+                if ($targetAudience === $barangay) {
                     $isForThisBarangay = true;
                 } else {
                     // Check if barangay is in comma-separated list
@@ -712,10 +725,8 @@ class BenefitController extends Controller
                 }
             }
         } else {
-            $targetAudience = $announcement->targetAudience;
-            if ($targetAudience === 'All Barangays') {
-                $isForThisBarangay = true;
-            } elseif ($targetAudience === $barangay) {
+            // No benefit attached, just check targetAudience
+            if ($targetAudience === $barangay) {
                 $isForThisBarangay = true;
             } else {
                 // Check if barangay is in comma-separated list
@@ -731,11 +742,28 @@ class BenefitController extends Controller
         try {
             $notificationService = app(\App\Services\NotificationService::class);
             
-            // Get all active PWD members from this barangay
-            $members = \App\Models\PWDMember::where('barangay', $barangay)
-                ->where('status', 'Active')
-                ->with('user')
-                ->get();
+            // Get the actual barangay to query for members
+            // For Barangay Presidents, use their barangay
+            // For Admin/SuperAdmin, we need to determine which members to notify
+            $queryBarangay = null;
+            if ($user->role === 'BarangayPresident') {
+                $queryBarangay = $barangay;
+            }
+            
+            // Get all active PWD members
+            $membersQuery = \App\Models\PWDMember::where('status', 'Active')->with('user');
+            
+            // If we have a specific barangay (Barangay President), filter by it
+            if ($queryBarangay) {
+                $membersQuery->where('barangay', $queryBarangay);
+            } elseif (!in_array($targetAudience, ['All', 'All Barangays', 'Members'])) {
+                // For Admin/SuperAdmin with specific barangay target, filter by target audience
+                $targetBarangays = array_map('trim', explode(',', $targetAudience));
+                $membersQuery->whereIn('barangay', $targetBarangays);
+            }
+            // If targetAudience is All/All Barangays/Members, get all active members
+            
+            $members = $membersQuery->get();
 
             $notificationsSent = 0;
             $eligibilityNoticesSent = 0;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -72,6 +73,7 @@ const PWDMemberSupportDesk = () => {
   
   const { t } = useTranslation();
   const { announcePageChange } = useScreenReader();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [openDialog, setOpenDialog] = useState(false);
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState(null);
@@ -225,6 +227,24 @@ const PWDMemberSupportDesk = () => {
     category: ''
   });
 
+  // Restore selected ticket from URL params after tickets are loaded
+  useEffect(() => {
+    const ticketIdFromUrl = searchParams.get('ticketId');
+    if (ticketIdFromUrl && tickets.length > 0 && !selectedTicketId) {
+      const ticketToSelect = tickets.find(t => t.id === parseInt(ticketIdFromUrl) || t.id === ticketIdFromUrl);
+      if (ticketToSelect) {
+        // Set selected ticket directly to avoid dependency issues
+        setSelectedTicket(ticketToSelect);
+        setSelectedTicketId(ticketToSelect.id);
+        
+        // Join WebSocket room for this ticket
+        if (websocketService.isConnected()) {
+          websocketService.joinTicketRoom(ticketToSelect.id);
+        }
+      }
+    }
+  }, [tickets, searchParams, selectedTicketId]);
+
   useEffect(() => {
     console.log('PWDMemberSupportDesk useEffect running');
     // Announce page load
@@ -312,6 +332,9 @@ const PWDMemberSupportDesk = () => {
   const handleViewTicket = (ticket) => {
     setSelectedTicket(ticket);
     setSelectedTicketId(ticket.id);
+    
+    // Update URL with ticket ID for persistence on refresh
+    setSearchParams({ ticketId: ticket.id });
     
     // Join WebSocket room for this ticket
     if (websocketService.isConnected()) {
@@ -850,13 +873,13 @@ const PWDMemberSupportDesk = () => {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
-                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.ticketNumber')}</TableCell>
-                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.subject')}</TableCell>
-                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.status')}</TableCell>
-                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.priority')}</TableCell>
-                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.category')}</TableCell>
-                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('support.createdAt')}</TableCell>
-                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', py: 2, px: 2 }}>{t('documents.actions')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.3px', py: 1, px: 1 }}>{t('support.ticketNumber')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.3px', py: 1, px: 1 }}>{t('support.subject')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.3px', py: 1, px: 1 }}>{t('support.status')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.3px', py: 1, px: 1 }}>{t('support.priority')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.3px', py: 1, px: 1 }}>{t('support.category')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.3px', py: 1, px: 1 }}>{t('support.createdAt')}</TableCell>
+                  <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.3px', py: 1, px: 1 }}>{t('documents.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -895,13 +918,13 @@ const PWDMemberSupportDesk = () => {
                         }
                       }}
                     >
-                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
+                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.7rem', borderBottom: '1px solid #E0E0E0', py: 1, px: 1 }}>
                         {ticket.ticket_number}
                       </TableCell>
-                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
+                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.7rem', borderBottom: '1px solid #E0E0E0', py: 1, px: 1, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ticket.subject}
                       </TableCell>
-                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
+                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 1, px: 1 }}>
                         <Chip
                           label={formatStatus(ticket.status)}
                           size="small"
@@ -909,15 +932,16 @@ const PWDMemberSupportDesk = () => {
                             backgroundColor: '#E8F5E8',
                             color: '#27AE60',
                             fontWeight: 600,
-                            fontSize: '0.7rem',
-                            height: 22,
+                            fontSize: '0.65rem',
+                            height: 20,
                             '& .MuiChip-label': {
-                              color: '#27AE60'
+                              color: '#27AE60',
+                              px: 0.5
                             }
                           }}
                         />
                       </TableCell>
-                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
+                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 1, px: 1 }}>
                         <Chip
                           label={ticket.priority.toUpperCase()}
                           size="small"
@@ -925,15 +949,16 @@ const PWDMemberSupportDesk = () => {
                             backgroundColor: '#FFF3E0',
                             color: '#F39C12',
                             fontWeight: 600,
-                            fontSize: '0.7rem',
-                            height: 22,
+                            fontSize: '0.65rem',
+                            height: 20,
                             '& .MuiChip-label': {
-                              color: '#F39C12'
+                              color: '#F39C12',
+                              px: 0.5
                             }
                           }}
                         />
                       </TableCell>
-                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
+                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 1, px: 1 }}>
                         <Chip
                           label={ticket.category || 'General'}
                           size="small"
@@ -941,48 +966,65 @@ const PWDMemberSupportDesk = () => {
                             backgroundColor: '#E8F4FD',
                             color: '#3498DB',
                             fontWeight: 600,
-                            fontSize: '0.7rem',
-                            height: 22,
+                            fontSize: '0.65rem',
+                            height: 20,
                             '& .MuiChip-label': {
-                              color: '#3498DB'
+                              color: '#3498DB',
+                              px: 0.5
                             }
                           }}
                         />
                       </TableCell>
-                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.8rem', borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
+                      <TableCell sx={{ color: '#000000', fontWeight: 500, fontSize: '0.7rem', borderBottom: '1px solid #E0E0E0', py: 1, px: 1 }}>
                         {formatDateMMDDYYYY(ticket.created_at)}
                       </TableCell>
-                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                          <Chip
-                            label={selectedTicketId === ticket.id ? 'Selected' : 'Click to view'}
+                      <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 1, px: 1 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'row', gap: 0.5, alignItems: 'center' }}>
+                          <Button
                             size="small"
-                            sx={{
-                              backgroundColor: selectedTicketId === ticket.id ? '#3498DB' : '#F5F5F5',
-                              color: selectedTicketId === ticket.id ? '#FFFFFF' : '#7F8C8D',
-                              fontWeight: 600,
-                              fontSize: '0.7rem',
-                              height: 22
+                            variant={selectedTicketId === ticket.id ? 'contained' : 'outlined'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewTicket(ticket);
                             }}
-                          />
+                            sx={{
+                              backgroundColor: selectedTicketId === ticket.id ? '#3498DB' : 'transparent',
+                              color: selectedTicketId === ticket.id ? '#FFFFFF' : '#3498DB',
+                              borderColor: '#3498DB',
+                              textTransform: 'none',
+                              fontWeight: 600,
+                              fontSize: '0.65rem',
+                              py: 0.25,
+                              px: 1,
+                              minWidth: 50,
+                              '&:hover': {
+                                backgroundColor: selectedTicketId === ticket.id ? '#2980B9' : '#E8F4FD',
+                                borderColor: '#3498DB'
+                              }
+                            }}
+                          >
+                            {selectedTicketId === ticket.id ? 'Viewing' : 'View'}
+                          </Button>
                           {!showArchive && ticket.status !== 'resolved' && (
                             <Button
                               size="small"
-                              variant="outlined"
-                              startIcon={<CheckCircle />}
-                              onClick={() => handleMarkResolved(ticket.id)}
+                              variant="contained"
+                              startIcon={<CheckCircle sx={{ fontSize: '0.85rem' }} />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkResolved(ticket.id);
+                              }}
                               sx={{ 
-                                color: '#27AE60',
-                                borderColor: '#27AE60',
+                                backgroundColor: '#27AE60',
+                                color: '#FFFFFF',
                                 textTransform: 'none',
                                 fontWeight: 600,
-                                fontSize: '0.75rem',
-                                py: 0.5,
+                                fontSize: '0.65rem',
+                                py: 0.25,
                                 px: 1,
+                                minWidth: 70,
                                 '&:hover': {
-                                  backgroundColor: '#27AE60',
-                                  color: '#FFFFFF',
-                                  borderColor: '#27AE60'
+                                  backgroundColor: '#219A52'
                                 }
                               }}
                             >
@@ -1019,15 +1061,15 @@ const PWDMemberSupportDesk = () => {
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'space-between',
-                p: 2,
+                p: 1.5,
                 borderBottom: '1px solid #E0E0E0',
                 bgcolor: '#F8F9FA'
               }}>
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>
                     {selectedTicket?.subject}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                  <Typography variant="caption" sx={{ color: '#7F8C8D', fontSize: '0.75rem' }}>
                     Ticket #{selectedTicket?.ticket_number}
                   </Typography>
                   {/* Connection Status */}
@@ -1080,21 +1122,21 @@ const PWDMemberSupportDesk = () => {
                     <Box key={index} sx={{ 
                       display: 'flex', 
                       justifyContent: message.is_admin ? 'flex-start' : 'flex-end',
-                      mb: 2
+                      mb: 1.5
                     }}>
                       <Box sx={{
-                        maxWidth: '70%',
+                        maxWidth: '75%',
                         display: 'flex',
                         flexDirection: message.is_admin ? 'row' : 'row-reverse',
                         alignItems: 'flex-end',
-                        gap: 1
+                        gap: 0.75
                       }}>
                         {/* Avatar */}
                         <Avatar sx={{ 
-                          width: 32, 
-                          height: 32,
+                          width: 28, 
+                          height: 28,
                           bgcolor: message.is_admin ? '#3498DB' : '#95A5A6',
-                          fontSize: '0.8rem'
+                          fontSize: '0.7rem'
                         }}>
                           {message.is_admin ? 'A' : 'U'}
                         </Avatar>
@@ -1102,16 +1144,16 @@ const PWDMemberSupportDesk = () => {
                         {/* Message bubble */}
                         <Box sx={{
                           bgcolor: message.is_admin ? '#E3F2FD' : '#F5F5F5',
-                          borderRadius: message.is_admin ? '18px 18px 18px 4px' : '18px 18px 4px 18px',
-                          p: 2,
+                          borderRadius: message.is_admin ? '14px 14px 14px 4px' : '14px 14px 4px 14px',
+                          p: 1.5,
                           position: 'relative'
                         }}>
                           {/* Sender name */}
                           <Typography variant="body2" sx={{ 
                             fontWeight: 600, 
                             color: '#2C3E50',
-                            mb: 0.5,
-                            fontSize: '0.8rem'
+                            mb: 0.25,
+                            fontSize: '0.75rem'
                           }}>
                             {message.sender_name || (message.is_admin ? 'Admin' : 'You')}
                           </Typography>
@@ -1119,8 +1161,9 @@ const PWDMemberSupportDesk = () => {
                           {/* Message content */}
                           <Typography variant="body2" sx={{ 
                             color: '#2C3E50',
-                            mb: 1,
-                            whiteSpace: 'pre-wrap'
+                            mb: 0.5,
+                            whiteSpace: 'pre-wrap',
+                            fontSize: '0.8rem'
                           }}>
                             {message.message}
                           </Typography>
@@ -1328,7 +1371,7 @@ const PWDMemberSupportDesk = () => {
               {selectedTicket?.status !== 'resolved' && (
                 <Box sx={{ 
                   borderTop: '1px solid #E0E0E0',
-                  p: 2,
+                  p: 1.5,
                   bgcolor: '#F8F9FA'
                 }}>
                   {/* File Preview */}
@@ -1394,8 +1437,9 @@ const PWDMemberSupportDesk = () => {
                   <TextField
                     fullWidth
                     multiline
-                    rows={3}
+                    rows={2}
                     placeholder={dragOver ? "Drop file here..." : "Type your reply..."}
+                    size="small"
                     value={replyText}
                     onChange={(e) => {
                       setReplyText(e.target.value);
@@ -1423,9 +1467,10 @@ const PWDMemberSupportDesk = () => {
                       }
                     }}
                     sx={{ 
-                      mb: 2,
+                      mb: 1,
                       '& .MuiOutlinedInput-root': {
                         backgroundColor: dragOver ? '#FFFFFF' : 'transparent',
+                        fontSize: '0.85rem',
                         borderColor: dragOver ? '#3498DB' : undefined,
                         transition: 'all 0.2s ease'
                       }
@@ -1436,11 +1481,14 @@ const PWDMemberSupportDesk = () => {
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                     <Button
                       variant="contained"
-                      startIcon={<Reply />}
+                      size="small"
+                      startIcon={<Reply sx={{ fontSize: '1rem' }} />}
                       onClick={handleReply}
                       disabled={!replyText.trim() && !selectedFile}
                       sx={{
                         bgcolor: '#3498DB',
+                        fontSize: '0.8rem',
+                        py: 0.5,
                         '&:hover': { bgcolor: '#2980B9' }
                       }}
                     >
@@ -1487,9 +1535,10 @@ const PWDMemberSupportDesk = () => {
                     />
                     <Button
                       variant="outlined"
-                      startIcon={<AttachFile />}
+                      size="small"
+                      startIcon={<AttachFile sx={{ fontSize: '1rem' }} />}
                       onClick={() => document.getElementById('file-upload-member').click()}
-                      sx={{ borderColor: '#3498DB', color: '#3498DB' }}
+                      sx={{ borderColor: '#3498DB', color: '#3498DB', fontSize: '0.8rem', py: 0.5 }}
                     >
                       {t('support.attachFile')}
                     </Button>

@@ -57,6 +57,7 @@ import { api } from '../../services/api';
 import dashboardService from '../../services/dashboardService';
 import announcementService from '../../services/announcementService';
 import toastService from '../../services/toastService';
+import { formatDateTime } from '../../utils/dateTimeFormatter';
 import { 
   mainContainerStyles, 
   contentAreaStyles, 
@@ -104,117 +105,142 @@ function BarangayPresidentDashboard() {
     return `${month}/${day}/${year}`;
   };
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch PWD members statistics
-        const pwdResponse = await api.get('/pwd-members');
-        // Handle both response formats: {success: true, data: [...]} or direct array
-        const pwdMembers = (pwdResponse?.data && Array.isArray(pwdResponse.data)) 
-          ? pwdResponse.data 
-          : (Array.isArray(pwdResponse) ? pwdResponse : []);
-        
-        // Fetch applications directly from API for recent applications
-        const applicationsResponse = await api.get('/applications');
-        const applications = (applicationsResponse || []).sort((a,b)=>{
-          const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
-          const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
-          return bTime - aTime;
-        });
-        
-        // Filter by barangay - use user's barangay or fallback
-        const targetBarangay = currentUser?.barangay || 'Unknown Barangay';
-        const barangayMembers = pwdMembers.filter(member => member.barangay === targetBarangay);
-        const barangayApplications = applications.filter(app => app.barangay === targetBarangay);
-        
-        // Fetch announcements filtered by barangay
-        const announcementsResponse = await api.get('/announcements');
-        const allAnnouncements = announcementsResponse.data || [];
-        
-        console.log('All announcements:', allAnnouncements);
-        console.log('Target barangay:', targetBarangay);
-        
-        // Filter announcements for this barangay:
-        // 1. Public announcements (targetAudience = 'All')
-        // 2. Barangay-specific announcements (targetAudience matches user's barangay)
-        const filteredAnnouncements = allAnnouncements.filter(announcement => {
-          const targetAudience = announcement.targetAudience;
-          
-          console.log('Announcement:', announcement.title, 'Target:', targetAudience);
-          
-          // Show public announcements
-          if (targetAudience === 'All') return true;
-          
-          // Show barangay-specific announcements
-          if (targetBarangay && targetAudience === targetBarangay) return true;
-          
-          return false;
-        });
-        
-        console.log('Filtered announcements:', filteredAnnouncements);
-        
-        setStats({
-          totalPWDMembers: barangayMembers.length,
-          pendingApplications: barangayApplications.filter(app => app.status === 'Pending Barangay Approval').length,
-          approvedApplications: barangayApplications.filter(app => app.status === 'Approved').length,
-          activeMembers: barangayMembers.filter(member => member.status === 'active').length
-        });
-        
-        setRecentApplications(barangayApplications.slice(0, 5));
-        setRecentAnnouncements(filteredAnnouncements.slice(0, 3));
-        
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setError('Failed to load dashboard data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, [currentUser]);
-
-  const handleViewDetails = (announcement) => {
-    setSelectedAnnouncement(announcement);
-    setViewDialog(true);
-  };
-
-  const handleCloseViewDialog = () => {
-    setViewDialog(false);
-    setSelectedAnnouncement(null);
-    setAnnouncingToMembers(false);
-  };
-
-  const handleAnnounceToMembers = async () => {
-    if (!selectedAnnouncement) return;
-
-    try {
-      setAnnouncingToMembers(true);
-      const response = await announcementService.announceToMembers(selectedAnnouncement.announcementID);
+  // Format announcement content to properly display line breaks, bullets, and numbered lists
+  const formatAnnouncementContent = (content) => {
+    if (!content) return [];
+    
+    // Split by lines and process each line
+    const lines = content.split('\n');
+    const formattedLines = [];
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
       
-      if (response.success) {
-        toastService.success(
-          `Announcement sent successfully! Notifications sent to ${response.notifications_sent} members. ${response.eligibility_notices_sent} eligibility notices sent.`
-        );
-        // Mark this announcement as announced
-        setAnnouncedAnnouncements(prev => new Set([...prev, selectedAnnouncement.announcementID]));
-        // Refresh announcements
-        await fetchDashboardData();
-        handleCloseViewDialog();
-      } else {
-        toastService.error(response.message || 'Failed to announce to members');
+      // Skip empty lines but keep them for spacing
+      if (!trimmedLine) {
+        formattedLines.push({ type: 'empty', content: '' });
+        return;
       }
+      
+      // Check for section headers (all caps words followed by colon, or specific patterns)
+      if (trimmedLine.match(/^[A-Z][A-Z\s:]+:$/) || 
+          trimmedLine.match(/^[A-Z\s]{3,}:$/) ||
+          trimmedLine.match(/^(PROGRAM|ELIGIBILITY|IMPORTANT|CLAIMING|VENUE|CONTACT|NOTE):$/i)) {
+        formattedLines.push({ type: 'header', content: trimmedLine });
+        return;
+      }
+      
+      // Check for numbered lists (1., 2., 3., etc. or 1), 2), etc.)
+      if (trimmedLine.match(/^\d+[\.\)]\s/)) {
+        formattedLines.push({ type: 'numbered', content: trimmedLine });
+        return;
+      }
+      
+      // Check for bullet points (•, -, *, or lines starting with spaces and bullet)
+      if (trimmedLine.match(/^[•\-\*]\s/) || 
+          trimmedLine.match(/^[•\-\*]/) ||
+          trimmedLine.match(/^\s+[•\-\*]/)) {
+        formattedLines.push({ type: 'bullet', content: trimmedLine });
+        return;
+      }
+      
+      // Regular text
+      formattedLines.push({ type: 'text', content: trimmedLine });
+    });
+    
+    return formattedLines;
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch PWD members statistics
+      const pwdResponse = await api.get('/pwd-members');
+      // Handle both response formats: {success: true, data: [...]} or direct array
+      const pwdMembers = (pwdResponse?.data && Array.isArray(pwdResponse.data)) 
+        ? pwdResponse.data 
+        : (Array.isArray(pwdResponse) ? pwdResponse : []);
+      
+      // Fetch applications directly from API for recent applications
+      const applicationsResponse = await api.get('/applications');
+      const applications = (applicationsResponse || []).sort((a,b)=>{
+        const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+        const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+        return bTime - aTime;
+      });
+      
+      // Filter by barangay - use user's barangay or fallback
+      const targetBarangay = currentUser?.barangay || 'Unknown Barangay';
+      const barangayMembers = pwdMembers.filter(member => member.barangay === targetBarangay);
+      const barangayApplications = applications.filter(app => app.barangay === targetBarangay);
+      
+      // Fetch announcements filtered by barangay
+      const announcementsResponse = await api.get('/announcements');
+      // The API returns the array directly, not wrapped in {data: [...]}
+      const allAnnouncements = Array.isArray(announcementsResponse) 
+        ? announcementsResponse 
+        : (announcementsResponse?.data || []);
+      
+      console.log('All announcements:', allAnnouncements);
+      console.log('Target barangay:', targetBarangay);
+      
+      // Filter announcements for this barangay:
+      // 1. Public announcements (targetAudience = 'All' or 'All Barangays')
+      // 2. Barangay-specific announcements (targetAudience matches user's barangay)
+      // 3. Announcements targeting "Members" (should show to all barangays)
+      // 4. Comma-separated targetAudience containing this barangay
+      const filteredAnnouncements = allAnnouncements.filter(announcement => {
+        const targetAudience = announcement.targetAudience || '';
+        const status = announcement.status;
+        
+        // Only show active announcements
+        if (status !== 'Active') return false;
+        
+        console.log('Announcement:', announcement.title, 'Target:', targetAudience, 'Status:', status);
+        
+        // Show public announcements
+        if (targetAudience === 'All' || targetAudience === 'All Barangays') return true;
+        
+        // Show announcements targeting all members
+        if (targetAudience === 'Members' || targetAudience.includes('Members')) return true;
+        
+        // Show barangay-specific announcements (exact match)
+        if (targetBarangay && targetAudience === targetBarangay) return true;
+        
+        // Handle comma-separated targetAudience (multiple barangays selected)
+        if (targetBarangay && targetAudience.includes(',')) {
+          const audiences = targetAudience.split(',').map(a => a.trim());
+          if (audiences.includes(targetBarangay)) return true;
+        }
+        
+        return false;
+      });
+      
+      console.log('Filtered announcements:', filteredAnnouncements);
+      
+      setStats({
+        totalPWDMembers: barangayMembers.length,
+        pendingApplications: barangayApplications.filter(app => app.status === 'Pending Barangay Approval').length,
+        approvedApplications: barangayApplications.filter(app => app.status === 'Approved').length,
+        activeMembers: barangayMembers.filter(member => member.status === 'active').length
+      });
+      
+      setRecentApplications(barangayApplications.slice(0, 5));
+      setRecentAnnouncements(filteredAnnouncements.slice(0, 3));
+      
     } catch (error) {
-      console.error('Error announcing to members:', error);
-      toastService.error('Failed to announce to members: ' + (error.message || 'Unknown error'));
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data');
     } finally {
-      setAnnouncingToMembers(false);
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchDashboardData();
+  }, [currentUser]);
 
   const handleViewDetails = (announcement) => {
     setSelectedAnnouncement(announcement);
@@ -586,45 +612,58 @@ function BarangayPresidentDashboard() {
                 </Box>
                 
                 {recentAnnouncements.length > 0 ? (
-                  <List sx={{ flex: 1 }}>
-                    {recentAnnouncements.map((announcement, index) => (
-                      <React.Fragment key={`announcement-${index}`}>
-                        <ListItem 
-                          sx={{ 
-                            px: 0, 
-                            py: 1.5,
-                            cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: '#F5F5F5',
-                              borderRadius: 1
-                            },
-                            transition: 'background-color 0.2s ease'
-                          }}
-                          onClick={() => {
-                            setSelectedAnnouncement(announcement);
-                            setViewDialog(true);
-                          }}
-                        >
-                          <ListItemIcon sx={{ minWidth: 40 }}>
-                            <Notifications sx={{ color: '#3498DB', fontSize: 24 }} />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={
-                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#2C3E50', fontSize: '1rem' }}>
+                  <TableContainer sx={{ flex: 1 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: 'white', borderBottom: '2px solid #E0E0E0' }}>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', py: 1.5, px: 1 }}>Title</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', py: 1.5, px: 1 }}>Type</TableCell>
+                          <TableCell sx={{ color: '#0b87ac', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', py: 1.5, px: 1 }}>Date</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {recentAnnouncements.map((announcement, index) => (
+                          <TableRow
+                            key={`announcement-${index}`}
+                            sx={{ 
+                              cursor: 'pointer',
+                              bgcolor: index % 2 ? '#F7FBFF' : 'white',
+                              '&:hover': {
+                                bgcolor: '#E8F4F8',
+                                transition: 'background-color 0.2s'
+                              }
+                            }}
+                            onClick={() => {
+                              setSelectedAnnouncement(announcement);
+                              setViewDialog(true);
+                            }}
+                          >
+                            <TableCell sx={{ py: 1.5, px: 1 }}>
+                              <Typography sx={{ fontWeight: 500, color: '#2C3E50', fontSize: '0.85rem', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {announcement.title}
                               </Typography>
-                            }
-                            secondary={
-                              <Typography variant="caption" sx={{ color: '#000000', fontSize: '0.9rem' }}>
-                                {formatDateMMDDYYYY(announcement.created_at)}
-                              </Typography>
-                            }
-                          />
-                        </ListItem>
-                        {index < recentAnnouncements.length - 1 && <Divider />}
-                      </React.Fragment>
-                    ))}
-                  </List>
+                            </TableCell>
+                            <TableCell sx={{ py: 1.5, px: 1 }}>
+                              <Chip
+                                label={announcement.type || 'Notice'}
+                                size="small"
+                                sx={{
+                                  bgcolor: announcement.type === 'Urgent' ? '#E74C3C' : announcement.type === 'Event' ? '#27AE60' : '#3498DB',
+                                  color: '#FFFFFF',
+                                  fontWeight: 600,
+                                  fontSize: '0.65rem',
+                                  height: 22
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ py: 1.5, px: 1, color: '#666', fontSize: '0.75rem' }}>
+                              {formatDateMMDDYYYY(announcement.publishDate || announcement.created_at)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 ) : (
                   <Box sx={{ 
                     flex: 1, 

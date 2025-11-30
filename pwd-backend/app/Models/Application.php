@@ -51,7 +51,9 @@ class Application extends Model
         'status',
         'remarks',
         'expires_at',
-        'reminder_sent'
+        'reminder_sent',
+        'assessment_status',
+        'assessment_pdf_path'
     ];
 
     protected $casts = [
@@ -67,6 +69,11 @@ class Application extends Model
     public function pwdMember()
     {
         return $this->belongsTo(PWDMember::class, 'pwdID', 'userID');
+    }
+
+    public function disabilityAssessment()
+    {
+        return $this->hasOne(DisabilityAssessment::class, 'application_id', 'applicationID');
     }
 
     // Scopes

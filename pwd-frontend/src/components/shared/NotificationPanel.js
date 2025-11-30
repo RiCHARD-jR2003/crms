@@ -7,6 +7,7 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
+  ListItemButton,
   IconButton,
   Badge,
   Divider,
@@ -24,16 +25,111 @@ import {
   SupportAgent as SupportAgentIcon,
   Description as DescriptionIcon,
   Refresh as RefreshIcon,
-  NotificationsActive as NotificationsActiveIcon
+  NotificationsActive as NotificationsActiveIcon,
+  Campaign as CampaignIcon,
+  CardGiftcard as BenefitIcon,
+  Assignment as ApplicationIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import notificationService from '../../services/notificationService';
 import { useAuth } from '../../contexts/AuthContext';
 
 function NotificationPanel({ open, onClose }) {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  // Get navigation path based on notification type and user role
+  const getNotificationPath = (notification) => {
+    const role = currentUser?.role;
+    const type = notification.type;
+    const data = notification.data || {};
+
+    // Define paths based on user role
+    const paths = {
+      // PWD Member paths
+      PWDMember: {
+        announcement: '/dashboard',
+        benefit_eligibility: '/benefits',
+        application_status_change: '/profile',
+        id_claiming: '/profile',
+        support_ticket_reply: '/pwd-support',
+        document_upload: '/documents',
+        renewal_reminder: '/profile',
+        id_ready: '/profile',
+        default: '/dashboard'
+      },
+      // Barangay President paths
+      BarangayPresident: {
+        announcement: '/barangay-president-announcement',
+        application_status_change: '/barangay-president-pwd-records',
+        new_application: '/barangay-president-pwd-records',
+        support_ticket_reply: '/barangay-support',
+        default: '/barangay-president-dashboard'
+      },
+      // Admin paths
+      Admin: {
+        announcement: '/announcement',
+        application_status_change: '/pwd-records',
+        new_application: '/pwd-records',
+        support_ticket_reply: '/admin-support',
+        id_claiming: '/pwd-card',
+        benefit_eligibility: '/ayuda',
+        default: '/admin-dashboard'
+      },
+      // SuperAdmin paths
+      SuperAdmin: {
+        announcement: '/announcement',
+        application_status_change: '/pwd-records',
+        new_application: '/pwd-records',
+        support_ticket_reply: '/admin-support',
+        id_claiming: '/pwd-card',
+        benefit_eligibility: '/ayuda',
+        default: '/admin-dashboard'
+      },
+      // Front Desk paths
+      FrontDesk: {
+        announcement: '/announcement',
+        application_status_change: '/pwd-records',
+        new_application: '/pwd-records',
+        support_ticket_reply: '/frontdesk-support',
+        id_claiming: '/pwd-card',
+        default: '/frontdesk-dashboard'
+      }
+    };
+
+    const rolePaths = paths[role] || paths.PWDMember;
+    let path = rolePaths[type] || rolePaths.default;
+
+    // Add query parameters for specific navigation
+    if (type === 'support_ticket_reply' && data.ticket_id) {
+      path += `?ticketId=${data.ticket_id}`;
+    } else if (type === 'application_status_change' && data.application_id) {
+      path += `?applicationId=${data.application_id}`;
+    } else if (type === 'announcement' && data.announcement_id) {
+      // For announcements, we can add the ID if needed
+      path += `?announcementId=${data.announcement_id}`;
+    }
+
+    return path;
+  };
+
+  // Handle notification click
+  const handleNotificationClick = async (notification) => {
+    // Mark as read first
+    if (!notification.is_read) {
+      await handleMarkAsRead(notification.id);
+    }
+    
+    // Get the navigation path
+    const path = getNotificationPath(notification);
+    
+    // Close the panel and navigate
+    onClose();
+    navigate(path);
+  };
 
   useEffect(() => {
     if (open && currentUser) {
@@ -112,8 +208,10 @@ function NotificationPanel({ open, onClose }) {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'application_status_change':
-        return <InfoIcon color="primary" />;
+      case 'new_application':
+        return <ApplicationIcon color="primary" />;
       case 'id_claiming':
+      case 'id_ready':
         return <CardMembershipIcon color="success" />;
       case 'support_ticket_reply':
         return <SupportAgentIcon color="info" />;
@@ -121,6 +219,10 @@ function NotificationPanel({ open, onClose }) {
         return <DescriptionIcon color="secondary" />;
       case 'renewal_reminder':
         return <RefreshIcon color="warning" />;
+      case 'announcement':
+        return <CampaignIcon sx={{ color: '#F39C12' }} />;
+      case 'benefit_eligibility':
+        return <BenefitIcon color="success" />;
       default:
         return <NotificationsIcon color="action" />;
     }
@@ -201,7 +303,8 @@ function NotificationPanel({ open, onClose }) {
             <List sx={{ p: 0 }}>
               {notifications.map((notification, index) => (
                 <React.Fragment key={notification.id}>
-                  <ListItem
+                  <ListItemButton
+                    onClick={() => handleNotificationClick(notification)}
                     sx={{
                       bgcolor: notification.is_read ? '#FFFFFF' : '#F0F7FF',
                       borderLeft: notification.is_read ? 'none' : '3px solid #1976D2',
@@ -209,7 +312,8 @@ function NotificationPanel({ open, onClose }) {
                         bgcolor: notification.is_read ? '#F5F5F5' : '#E3F2FD'
                       },
                       py: 1.5,
-                      px: 2
+                      px: 2,
+                      cursor: 'pointer'
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 40 }}>
@@ -272,14 +376,17 @@ function NotificationPanel({ open, onClose }) {
                       <Tooltip title="Mark as read">
                         <IconButton
                           size="small"
-                          onClick={() => handleMarkAsRead(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent navigation when clicking the check icon
+                            handleMarkAsRead(notification.id);
+                          }}
                           sx={{ ml: 1 }}
                         >
                           <CheckCircleIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
-                  </ListItem>
+                  </ListItemButton>
                   {index < notifications.length - 1 && <Divider />}
                 </React.Fragment>
               ))}

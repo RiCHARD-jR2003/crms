@@ -62,6 +62,7 @@ import pwdMemberService from '../../services/pwdMemberService';
 import QRCodeService from '../../services/qrCodeService';
 import SuccessModal from '../shared/SuccessModal';
 import { useModal } from '../../hooks/useModal';
+import IDClaimModal from './IDClaimModal';
 import { jsPDF } from 'jspdf';
 import { API_CONFIG } from '../../config/production';
 import toastService from '../../services/toastService';
@@ -253,6 +254,11 @@ function PWDCard() {
   const [claimConfirmOpen, setClaimConfirmOpen] = useState(false);
   const [renewConfirmOpen, setRenewConfirmOpen] = useState(false);
   const [pendingMember, setPendingMember] = useState(null);
+  
+  // Enhanced ID Claim Modal states
+  const [idClaimModalOpen, setIdClaimModalOpen] = useState(false);
+  const [idClaimType, setIdClaimType] = useState('new'); // 'new' or 'renewal'
+  const [selectedMemberForClaim, setSelectedMemberForClaim] = useState(null);
 
   // Tab state
   const [activeTab, setActiveTab] = useState(0);
@@ -1054,7 +1060,7 @@ function PWDCard() {
     }
   };
 
-  // Handle card claim - show confirmation first
+  // Handle card claim - open enhanced claim modal
   const handleClaimCard = (event, member) => {
     event.stopPropagation(); // Prevent row selection
     
@@ -1068,9 +1074,10 @@ function PWDCard() {
       return;
     }
 
-    // Set pending member and show confirmation dialog
-    setPendingMember(member);
-    setClaimConfirmOpen(true);
+    // Open enhanced claim modal
+    setSelectedMemberForClaim(member);
+    setIdClaimType('new');
+    setIdClaimModalOpen(true);
   };
 
   // Confirm card claim
@@ -1111,7 +1118,7 @@ function PWDCard() {
     }
   };
 
-  // Handle card renewal - show confirmation first
+  // Handle card renewal - open enhanced claim modal
   const handleRenewCard = (event, member) => {
     event.stopPropagation(); // Prevent row selection
     
@@ -1125,9 +1132,10 @@ function PWDCard() {
       return;
     }
 
-    // Set pending member and show confirmation dialog
-    setPendingMember(member);
-    setRenewConfirmOpen(true);
+    // Open enhanced claim modal in renewal mode
+    setSelectedMemberForClaim(member);
+    setIdClaimType('renewal');
+    setIdClaimModalOpen(true);
   };
 
   // Confirm card renewal
@@ -1177,6 +1185,28 @@ function PWDCard() {
   const handleRenewCancel = () => {
     setRenewConfirmOpen(false);
     setPendingMember(null);
+  };
+
+  // Handle enhanced claim modal close
+  const handleClaimModalClose = () => {
+    setIdClaimModalOpen(false);
+    setSelectedMemberForClaim(null);
+  };
+
+  // Handle claim success from enhanced modal
+  const handleClaimSuccess = async (response) => {
+    setIdClaimModalOpen(false);
+    setSelectedMemberForClaim(null);
+    
+    // Refresh the members list to update card status
+    await fetchPwdMembers(currentPage, false);
+    
+    showModal({
+      type: 'success',
+      title: idClaimType === 'new' ? 'Card Claimed Successfully' : 'Card Renewed Successfully',
+      message: `Receipt #: ${response.receipt_number}. The member has been notified.`,
+      buttonText: 'OK'
+    });
   };
 
   // Load renewals
@@ -3789,6 +3819,15 @@ function PWDCard() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Enhanced ID Claim Modal */}
+      <IDClaimModal
+        open={idClaimModalOpen}
+        onClose={handleClaimModalClose}
+        member={selectedMemberForClaim}
+        claimType={idClaimType}
+        onSuccess={handleClaimSuccess}
+      />
     </Box>
   );
 }

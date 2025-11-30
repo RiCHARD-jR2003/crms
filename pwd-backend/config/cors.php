@@ -29,6 +29,9 @@ return [
         'https://intranet-pty-talks-lottery.trycloudflare.com',
         'https://summit-haven-highlight-informal.trycloudflare.com',
         'https://valium-parenting-asylum-ion.trycloudflare.com',
+        'https://films-touched-dry-cornwall.trycloudflare.com',
+        'https://jazz-defend-bradley-writing.trycloudflare.com',
+        'https://quiz-written-exhibitions-refresh.trycloudflare.com',
     ],
 
     'allowed_origins_patterns' => [

@@ -22,6 +22,8 @@ use App\Http\Controllers\API\AnalyticsController;
 use App\Http\Controllers\API\DocumentManagementController;
 use App\Http\Controllers\API\IDRenewalController;
 use App\Http\Controllers\API\RenewalController;
+use App\Http\Controllers\API\IDClaimController;
+use App\Http\Controllers\API\DisabilityAssessmentController;
 
 // Language routes
 Route::prefix('language')->group(function () {
@@ -45,6 +47,64 @@ Route::get('/dashboard-stats', [MainDashboardController::class, 'getDashboardSta
 Route::get('/dashboard-monthly', [MainDashboardController::class, 'getMonthlyStats']);
 Route::get('/dashboard-activities', [MainDashboardController::class, 'getRecentActivities']);
 Route::get('/dashboard-coordination', [MainDashboardController::class, 'getBarangayCoordination']);
+
+// Public disability assessment routes (for applicants)
+Route::prefix('public/disability-assessment')->group(function () {
+    Route::get('/reference/{referenceNumber}', [DisabilityAssessmentController::class, 'getByReferenceNumber']);
+    Route::get('/available-dates', [DisabilityAssessmentController::class, 'getAvailableDates']);
+    Route::get('/available-slots/{date}', [DisabilityAssessmentController::class, 'getAvailableSlots']);
+    Route::post('/schedule', [DisabilityAssessmentController::class, 'scheduleAssessment']);
+    Route::post('/submit/{referenceNumber}', [DisabilityAssessmentController::class, 'submitAssessmentForm']);
+});
+
+// Barangay approval route - triggers disability assessment workflow
+Route::post('/applications/{applicationId}/barangay-approve', function (Request $request, $applicationId) {
+    try {
+        // Check if user is barangay president
+        $user = $request->user();
+        if (!$user || !in_array($user->role, ['BarangayPresident', 'Admin', 'SuperAdmin'])) {
+            return response()->json([
+                'error' => 'Unauthorized. Barangay President privileges required.'
+            ], 403);
+        }
+
+        // Find the application
+        $application = \App\Models\Application::find($applicationId);
+        if (!$application) {
+            return response()->json(['error' => 'Application not found'], 404);
+        }
+
+        // Check if application is pending barangay approval
+        if ($application->status !== 'Pending Barangay Approval') {
+            return response()->json([
+                'error' => 'Application is not pending barangay approval',
+                'current_status' => $application->status
+            ], 400);
+        }
+
+        // Update application status to Pending Admin Approval
+        $application->status = 'Pending Admin Approval';
+        $application->assessment_status = 'pending';
+        $application->save();
+
+        // Create disability assessment record and send email
+        $assessmentController = new \App\Http\Controllers\API\DisabilityAssessmentController();
+        $assessment = $assessmentController->createPendingAssessment($application->applicationID);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Application approved by barangay. Disability assessment scheduling email sent to applicant.',
+            'application' => $application,
+            'assessment' => $assessment
+        ]);
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Barangay approval error: ' . $e->getMessage());
+        return response()->json([
+            'error' => 'Failed to approve application',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+})->middleware('auth:sanctum');
 
 // Public application status check route
 Route::get('/application-status/{referenceNumber}', function ($referenceNumber) {
@@ -2341,6 +2401,40 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/settings', [RenewalController::class, 'updateRenewalSettings']);
     });
 
+    // Enhanced ID Claim routes (for new card claims and renewals with full tracking)
+    Route::prefix('id-claims')->group(function () {
+        // List and filter claims
+        Route::get('/', [IDClaimController::class, 'index']);
+        Route::get('/today-scheduled', [IDClaimController::class, 'getTodayScheduled']);
+        Route::get('/member/{memberId}', [IDClaimController::class, 'getByMember']);
+        Route::get('/{id}', [IDClaimController::class, 'show']);
+        
+        // Claim process steps
+        Route::post('/initiate', [IDClaimController::class, 'initiateClaim']);
+        Route::patch('/{id}/status', [IDClaimController::class, 'updateStatus']);
+        Route::post('/{id}/schedule', [IDClaimController::class, 'schedulePickup']);
+        Route::post('/{id}/complete', [IDClaimController::class, 'completeClaim']);
+        Route::post('/{id}/cancel', [IDClaimController::class, 'cancel']);
+        
+        // Receipt
+        Route::get('/{id}/receipt', [IDClaimController::class, 'downloadReceipt']);
+    });
+
+    // Disability Assessment routes
+    Route::prefix('disability-assessments')->group(function () {
+        // Admin/Staff routes
+        Route::get('/', [DisabilityAssessmentController::class, 'index']);
+        Route::get('/today', [DisabilityAssessmentController::class, 'getTodayScheduled']);
+        Route::get('/upcoming', [DisabilityAssessmentController::class, 'getUpcoming']);
+        Route::get('/available-dates', [DisabilityAssessmentController::class, 'getAvailableDates']);
+        Route::get('/available-slots/{date}', [DisabilityAssessmentController::class, 'getAvailableSlots']);
+        Route::get('/{id}', [DisabilityAssessmentController::class, 'show']);
+        Route::post('/schedule', [DisabilityAssessmentController::class, 'scheduleAssessment']);
+        Route::put('/{id}', [DisabilityAssessmentController::class, 'updateAssessment']);
+        Route::post('/{id}/finalize', [DisabilityAssessmentController::class, 'finalizeAssessment']);
+        Route::get('/{id}/download-pdf', [DisabilityAssessmentController::class, 'downloadPDF']);
+    });
+
     // Document Migration routes (Admin only)
     Route::prefix('admin')->group(function () {
         Route::post('/migrate-documents', [App\Http\Controllers\API\DocumentMigrationController::class, 'migrateApplicationDocuments']);
@@ -2568,6 +2662,15 @@ Route::get('/api/test-admin-approve/{applicationId}', function ($applicationId) 
                 'pwdId' => $pwdId,
                 'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login')
             ]);
+
+            // Send welcome notification with card processing info (5-7 business days)
+            $applicantName = trim($application->firstName . ' ' . $application->lastName);
+            \App\Services\NotificationService::notifyNewMemberWelcome(
+                $pwdUser->userID,
+                $applicantName,
+                $pwdId,
+                $application->barangay
+            );
 
             return response()->json([
                 'message' => '✅ ADMIN APPROVAL SUCCESSFUL!',
@@ -2883,6 +2986,15 @@ Route::get('/api/test-approve-application/{applicationId}', function ($applicati
                 'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login')
             ]);
 
+            // Send welcome notification with card processing info (5-7 business days)
+            $applicantName = trim($application->firstName . ' ' . $application->lastName);
+            \App\Services\NotificationService::notifyNewMemberWelcome(
+                $pwdUser->userID,
+                $applicantName,
+                $pwdId,
+                $application->barangay
+            );
+
             return response()->json([
                 'message' => 'Application approved successfully! User account created and email sent.',
                 'application' => [
@@ -3072,15 +3184,27 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
         // Send in-app notification to the new user
         try {
             $applicantName = trim($application->firstName . ' ' . $application->lastName);
+            
+            // Send application status notification
             \App\Services\NotificationService::notifyApplicationStatusChange(
                 $newUser->userID,
                 'Approved',
                 $applicantName,
                 'Your application has been approved. You can now log in to access your PWD member portal.'
             );
-            \Illuminate\Support\Facades\Log::info('Approval notification sent', [
+            
+            // Send detailed welcome notification with card processing info (5-7 business days)
+            \App\Services\NotificationService::notifyNewMemberWelcome(
+                $newUser->userID,
+                $applicantName,
+                $pwdId,
+                $application->barangay
+            );
+            
+            \Illuminate\Support\Facades\Log::info('Approval notifications sent', [
                 'user_id' => $newUser->userID,
-                'application_id' => $application->applicationID
+                'application_id' => $application->applicationID,
+                'pwd_id' => $pwdId
             ]);
         } catch (\Exception $notifError) {
             \Illuminate\Support\Facades\Log::error('Notification sending failed', [

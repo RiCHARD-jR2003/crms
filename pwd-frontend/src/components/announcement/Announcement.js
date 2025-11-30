@@ -21,6 +21,8 @@ import {
   DialogContent,
   DialogActions,
   FormControl,
+  FormControlLabel,
+  Checkbox,
   InputLabel,
   Select,
   MenuItem,
@@ -57,16 +59,56 @@ const Announcement = () => {
   const [viewDialog, setViewDialog] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [confirmCreateDialog, setConfirmCreateDialog] = useState(false); // Confirmation before creating
+  const [publishAllDialog, setPublishAllDialog] = useState(false); // Publish all drafts confirmation
+  const [archiveOldDialog, setArchiveOldDialog] = useState(false); // Archive old confirmation
+  const [processingBulk, setProcessingBulk] = useState(false); // Processing bulk operations
   const [formData, setFormData] = useState({
     title: '',
     content: '',
     type: '',
     priority: '',
-    targetAudience: '',
+    targetAudience: [], // Array for multiple checkbox selection
     status: 'Active',
     publishDate: '', // Will be set automatically by backend
     expiryDate: ''
   });
+
+  // Barangay list for target audience checkboxes
+  const barangayList = [
+    'All', // All barangays
+    'Members', // All PWD members
+    'Baclaran', 'Banay-Banay', 'Banlic', 'Bigaa', 'Butong', 'Casile',
+    'Diezmo', 'Gulod', 'Mamatid', 'Marinig', 'Niugan', 'Pittland',
+    'Pob. Uno', 'Pob. Dos', 'Pob. Tres', 'Pulo', 'Sala', 'San Isidro'
+  ];
+
+  // Handle checkbox change for target audience
+  const handleTargetAudienceChange = (option) => {
+    setFormData(prev => {
+      let newAudience = [...prev.targetAudience];
+      
+      if (option === 'All') {
+        // If "All" is selected, clear everything else and just select "All"
+        if (newAudience.includes('All')) {
+          newAudience = [];
+        } else {
+          newAudience = ['All'];
+        }
+      } else {
+        // Remove "All" if any other option is selected
+        newAudience = newAudience.filter(a => a !== 'All');
+        
+        if (newAudience.includes(option)) {
+          newAudience = newAudience.filter(a => a !== option);
+        } else {
+          newAudience.push(option);
+        }
+      }
+      
+      return { ...prev, targetAudience: newAudience };
+    });
+  };
 
   // Format date as MM/DD/YYYY
   const formatDateMMDDYYYY = (dateString) => {
@@ -155,6 +197,7 @@ const Announcement = () => {
   const [success, setSuccess] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [postingAnnouncement, setPostingAnnouncement] = useState(null);
+  const [modalError, setModalError] = useState(null); // Error shown inside modal
   
   // Statistics state
   const [stats, setStats] = useState({
@@ -164,6 +207,70 @@ const Announcement = () => {
     eventAnnouncements: 0
   });
 
+  // Auto-determine priority based on type and content keywords
+  const determinePriority = (type, content) => {
+    const contentLower = (content || '').toLowerCase();
+    
+    // High priority keywords
+    const highPriorityKeywords = [
+      'urgent', 'emergency', 'immediate', 'critical', 'important', 'deadline',
+      'asap', 'required', 'mandatory', 'alert', 'warning', 'danger',
+      'last day', 'final notice', 'do not miss', 'action required'
+    ];
+    
+    // Medium priority keywords  
+    const mediumPriorityKeywords = [
+      'reminder', 'notice', 'update', 'schedule', 'upcoming', 'soon',
+      'please note', 'attention', 'inform', 'advisory'
+    ];
+    
+    // Type-based priority
+    if (type === 'Emergency') return 'High';
+    if (type === 'Deadline') return 'High';
+    if (type === 'Advisory') return 'Medium';
+    if (type === 'Reminder') return 'Medium';
+    
+    // Content-based priority
+    if (highPriorityKeywords.some(keyword => contentLower.includes(keyword))) {
+      return 'High';
+    }
+    if (mediumPriorityKeywords.some(keyword => contentLower.includes(keyword))) {
+      return 'Medium';
+    }
+    
+    // Default based on type
+    if (type === 'Event' || type === 'Notice') return 'Medium';
+    if (type === 'Information' || type === 'System Update') return 'Low';
+    
+    return 'Low';
+  };
+
+  // Validate expiry date - must be at least tomorrow
+  const validateExpiryDate = (dateStr) => {
+    if (!dateStr) return { valid: false, message: 'Expiry date is required' };
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const expiryDate = new Date(dateStr);
+    expiryDate.setHours(0, 0, 0, 0);
+    
+    if (expiryDate < tomorrow) {
+      return { valid: false, message: 'Expiry date must be at least tomorrow' };
+    }
+    
+    return { valid: true, message: '' };
+  };
+
+  // Get minimum date for expiry (tomorrow)
+  const getMinExpiryDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
 
   // Fetch announcements on component mount
   useEffect(() => {
@@ -212,19 +319,29 @@ const Announcement = () => {
   };
 
   const handleOpenDialog = (announcement = null) => {
+    setModalError(null); // Clear any previous modal errors
     if (announcement) {
       setEditingAnnouncement(announcement);
-      setFormData(announcement);
+      // Convert targetAudience string to array if needed
+      const targetAudienceArray = typeof announcement.targetAudience === 'string'
+        ? announcement.targetAudience.split(',').map(a => a.trim()).filter(a => a)
+        : (announcement.targetAudience || []);
+      setFormData({
+        ...announcement,
+        targetAudience: targetAudienceArray
+      });
     } else {
       setEditingAnnouncement(null);
+      // Set default publish date to today
+      const today = new Date().toISOString().split('T')[0];
       setFormData({
         title: '',
         content: '',
         type: '',
         priority: '',
-        targetAudience: '',
+        targetAudience: [], // Empty array for new announcements
         status: 'Active',
-        publishDate: '', // Will be set automatically by backend
+        publishDate: today,
         expiryDate: ''
       });
     }
@@ -234,6 +351,19 @@ const Announcement = () => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingAnnouncement(null);
+    setModalError(null); // Clear modal errors on close
+  };
+
+  // Handle type change - auto-set priority
+  const handleTypeChange = (newType) => {
+    const newPriority = determinePriority(newType, formData.content);
+    setFormData({ ...formData, type: newType, priority: newPriority });
+  };
+
+  // Handle content change - auto-set priority
+  const handleContentChange = (newContent) => {
+    const newPriority = determinePriority(formData.type, newContent);
+    setFormData({ ...formData, content: newContent, priority: newPriority });
   };
 
   const handleDeleteClick = (announcement) => {
@@ -372,74 +502,90 @@ const Announcement = () => {
     return true;
   };
 
-  const handleSubmit = async () => {
+  // Validate form and show confirmation for new announcements
+  const handleSubmit = () => {
+    setModalError(null);
+    
+    // Comprehensive frontend validation - show errors inside modal
+    if (!formData.title || formData.title.trim().length < 10) {
+      setModalError('Title must be at least 10 characters long.');
+      return;
+    }
+    
+    if (!formData.content || formData.content.trim().length < 100) {
+      setModalError('Content must be at least 100 characters long. Please provide detailed information.');
+      return;
+    }
+    
+    if (!formData.type) {
+      setModalError('Please select an announcement type.');
+      return;
+    }
+    
+    if (!formData.priority) {
+      setModalError('Please select a priority level.');
+      return;
+    }
+    
+    if (!formData.targetAudience || (Array.isArray(formData.targetAudience) && formData.targetAudience.length === 0)) {
+      setModalError('Please select at least one target audience.');
+      return;
+    }
+    
+    // Validate publish date
+    if (!formData.publishDate) {
+      setModalError('Publish date is required.');
+      return;
+    }
+    
+    // Validate expiry date
+    if (!formData.expiryDate) {
+      setModalError('Expiry date is required.');
+      return;
+    }
+    
+    const expiryValidation = validateExpiryDate(formData.expiryDate);
+    if (!expiryValidation.valid) {
+      setModalError(expiryValidation.message);
+      return;
+    }
+    
+    // Check if content contains placeholder text (for Active status)
+    if (formData.status === 'Active' && formData.content.includes('[TO BE SPECIFIED]')) {
+      setModalError('Cannot post announcement with incomplete details. Please remove all [TO BE SPECIFIED] placeholders.');
+      return;
+    }
+    
+    // If editing, submit directly; if creating new, show confirmation
+    if (editingAnnouncement) {
+      performSubmit();
+    } else {
+      setConfirmCreateDialog(true);
+    }
+  };
+
+  // Perform the actual submission
+  const performSubmit = async () => {
     try {
       setSubmitting(true);
-      setError(null);
+      setConfirmCreateDialog(false);
       setSuccess(null);
       
-      // Comprehensive frontend validation
-      if (!formData.title || formData.title.trim().length < 10) {
-        setError('Title must be at least 10 characters long.');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.content || formData.content.trim().length < 100) {
-        setError('Content must be at least 100 characters long. Please provide detailed information including instructions, eligibility, deadlines, location, and contact details.');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.type) {
-        setError('Please select an announcement type.');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.priority) {
-        setError('Please select a priority level.');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.targetAudience || formData.targetAudience.trim() === '') {
-        setError('Targeted barangays are required.');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.publishDate) {
-        setError('Date & time of announcement is required.');
-        setSubmitting(false);
-        return;
-      }
-      
-      // Check if content contains placeholder text (for Active status)
-      if (formData.status === 'Active' && formData.content.includes('[TO BE SPECIFIED]')) {
-        setError('Cannot post announcement with incomplete details. Please remove all [TO BE SPECIFIED] placeholders.');
-        setSubmitting(false);
-        return;
-      }
-      
-      // Validate expiry date if provided
-      if (formData.expiryDate) {
-        const publishDate = new Date(formData.publishDate);
-        const expiryDate = new Date(formData.expiryDate);
-        if (expiryDate < publishDate) {
-          setError('Expiry date must be on or after the publish date.');
-          setSubmitting(false);
-          return;
-        }
-      }
+      // Convert targetAudience array to comma-separated string for backend
+      const submitData = {
+        ...formData,
+        targetAudience: Array.isArray(formData.targetAudience) 
+          ? formData.targetAudience.join(', ') 
+          : formData.targetAudience
+      };
       
       if (editingAnnouncement) {
         // Update existing announcement
-        await announcementService.update(editingAnnouncement.announcementID, formData);
+        await announcementService.update(editingAnnouncement.announcementID, submitData);
         setSuccess('Announcement updated successfully!');
       } else {
         // Add new announcement - publishDate is now required
-        await announcementService.create(formData);
+        await announcementService.create(submitData);
         setSuccess('Announcement created successfully!');
       }
       
@@ -452,10 +598,9 @@ const Announcement = () => {
     } catch (error) {
       console.error('Error saving announcement:', error);
       
-      // Handle duplicate error
+      // Handle duplicate error - show in modal
       if (error.response?.status === 409) {
-        const duplicateInfo = error.response?.data?.duplicate;
-        setError(
+        setModalError(
           error.response?.data?.message || 
           'A similar announcement was posted recently. Please review existing announcements or modify the title/type.'
         );
@@ -463,9 +608,9 @@ const Announcement = () => {
         // Validation errors from backend
         const messages = error.response.data.messages;
         const firstError = Object.values(messages)[0]?.[0] || 'Validation failed';
-        setError(firstError);
+        setModalError(firstError);
       } else {
-        setError(error.response?.data?.error || error.response?.data?.message || 'Failed to save announcement. Please try again.');
+        setModalError(error.response?.data?.error || error.response?.data?.message || 'Failed to save announcement. Please try again.');
       }
     } finally {
       setSubmitting(false);
@@ -488,6 +633,130 @@ const Announcement = () => {
 
   const getStatusColor = (status) => {
     return status === 'Active' ? 'success' : status === 'Draft' ? 'warning' : 'error';
+  };
+
+  // Handle Schedule Announcement - Opens create dialog with Draft status
+  const handleScheduleAnnouncement = () => {
+    setModalError(null);
+    setEditingAnnouncement(null);
+    const today = new Date().toISOString().split('T')[0];
+    setFormData({
+      title: '',
+      content: '',
+      type: '',
+      priority: '',
+      targetAudience: '',
+      status: 'Draft', // Set to Draft for scheduled
+      publishDate: today,
+      expiryDate: ''
+    });
+    setOpenDialog(true);
+  };
+
+  // Get draft announcements
+  const getDraftAnnouncements = () => {
+    return announcements.filter(ann => ann.status === 'Draft');
+  };
+
+  // Get old/expired announcements (expired more than 30 days ago)
+  const getOldAnnouncements = () => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    return announcements.filter(ann => {
+      if (!ann.expiryDate) return false;
+      const expiryDate = new Date(ann.expiryDate);
+      return expiryDate < thirtyDaysAgo;
+    });
+  };
+
+  // Publish all draft announcements
+  const handlePublishAllDrafts = async () => {
+    const drafts = getDraftAnnouncements();
+    if (drafts.length === 0) {
+      setError('No draft announcements to publish.');
+      setPublishAllDialog(false);
+      return;
+    }
+
+    setProcessingBulk(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const draft of drafts) {
+      // Check if draft is complete
+      if (!draft.title || !draft.content || draft.content.length < 100 || 
+          !draft.type || !draft.priority || !draft.targetAudience || 
+          !draft.publishDate || draft.content.includes('[TO BE SPECIFIED]')) {
+        failCount++;
+        continue;
+      }
+
+      try {
+        await announcementService.postAnnouncement(draft.announcementID);
+        successCount++;
+      } catch (error) {
+        console.error('Error publishing draft:', error);
+        failCount++;
+      }
+    }
+
+    setProcessingBulk(false);
+    setPublishAllDialog(false);
+    
+    if (successCount > 0) {
+      setSuccess(`Successfully published ${successCount} announcement(s).${failCount > 0 ? ` ${failCount} failed (incomplete fields).` : ''}`);
+      await fetchAnnouncements();
+    } else {
+      setError(`Failed to publish announcements. ${failCount} announcement(s) have incomplete fields.`);
+    }
+    
+    setTimeout(() => {
+      setSuccess(null);
+      setError(null);
+    }, 5000);
+  };
+
+  // Archive old announcements (set status to Archived)
+  const handleArchiveOld = async () => {
+    const oldAnnouncements = getOldAnnouncements();
+    if (oldAnnouncements.length === 0) {
+      setError('No old announcements to archive (expired more than 30 days ago).');
+      setArchiveOldDialog(false);
+      return;
+    }
+
+    setProcessingBulk(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const announcement of oldAnnouncements) {
+      try {
+        await announcementService.update(announcement.announcementID, {
+          ...announcement,
+          status: 'Archived'
+        });
+        successCount++;
+      } catch (error) {
+        console.error('Error archiving announcement:', error);
+        failCount++;
+      }
+    }
+
+    setProcessingBulk(false);
+    setArchiveOldDialog(false);
+    
+    if (successCount > 0) {
+      setSuccess(`Successfully archived ${successCount} old announcement(s).${failCount > 0 ? ` ${failCount} failed.` : ''}`);
+      await fetchAnnouncements();
+    } else {
+      setError('Failed to archive announcements.');
+    }
+    
+    setTimeout(() => {
+      setSuccess(null);
+      setError(null);
+    }, 5000);
   };
 
   return (
@@ -749,175 +1018,101 @@ const Announcement = () => {
                 }}>
                   CURRENT ANNOUNCEMENTS
                 </Typography>
-                <Grid container spacing={{ xs: 1, sm: 2 }} sx={{ mb: 3 }}>
-                  {announcements.map((announcement) => (
-                    <Grid item xs={12} sm={6} md={4} lg={3} key={announcement.announcementID}>
-                      <Paper 
-                        elevation={0} 
-                        sx={{ 
-                          border: '1px solid #E0E0E0',
-                          borderRadius: 2,
-                          height: { xs: '320px', sm: '300px', md: '280px' }, // Responsive height
-                          width: '100%', // Fixed width
-                          display: 'flex',
-                          flexDirection: 'column',
-                          p: { xs: 1.5, sm: 2 },
-                          bgcolor: 'white',
-                          overflow: 'hidden', // Prevent content overflow
-                          '&:hover': { 
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            transform: 'translateY(-2px)',
-                            transition: 'all 0.3s ease'
-                          }
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#F8F9FA' }}>
+                        <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.8rem' }}>Title</TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.8rem' }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.8rem' }}>Priority</TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.8rem' }}>Target</TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.8rem' }}>Status</TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.8rem' }}>Published</TableCell>
+                        <TableCell sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.8rem' }}>Expires</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {announcements.map((announcement) => (
+                        <TableRow 
+                          key={announcement.announcementID}
+                          onClick={() => handleViewDetails(announcement)}
+                          sx={{ 
+                            cursor: 'pointer',
+                            '&:hover': { 
+                              bgcolor: '#E8F4FD',
+                            },
+                            '&:nth-of-type(even)': {
+                              bgcolor: '#FAFAFA',
+                              '&:hover': { bgcolor: '#E8F4FD' }
+                            }
+                          }}
+                        >
+                          <TableCell sx={{ 
+                            color: '#2C3E50', 
+                            fontWeight: 600, 
+                            fontSize: '0.85rem',
+                            maxWidth: 250,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {announcement.title}
+                          </TableCell>
+                          <TableCell>
                             <Chip 
                               label={announcement.type} 
                               size="small" 
                               sx={{ 
                                 bgcolor: '#3498DB', 
-                                color: '#2C3E50',
+                                color: '#FFFFFF',
                                 fontWeight: 600,
-                                fontSize: { xs: '0.5rem', sm: '0.6rem' },
-                                height: { xs: '18px', sm: '20px' }
+                                fontSize: '0.7rem',
+                                height: '24px'
                               }}
                             />
+                          </TableCell>
+                          <TableCell>
                             <Chip 
                               label={announcement.priority} 
                               size="small" 
                               sx={{ 
-                                bgcolor: getPriorityColor(announcement.priority) === 'success' ? '#27AE60' : 
-                                       getPriorityColor(announcement.priority) === 'warning' ? '#F39C12' : '#E74C3C', 
-                                color: '#2C3E50',
+                                bgcolor: announcement.priority === 'High' ? '#E74C3C' : 
+                                       announcement.priority === 'Medium' ? '#F39C12' : '#27AE60', 
+                                color: '#FFFFFF',
                                 fontWeight: 600,
-                                fontSize: { xs: '0.5rem', sm: '0.6rem' },
-                                height: { xs: '18px', sm: '20px' }
+                                fontSize: '0.7rem',
+                                height: '24px'
                               }}
                             />
-                          </Box>
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            <IconButton 
+                          </TableCell>
+                          <TableCell sx={{ color: '#2C3E50', fontSize: '0.8rem' }}>
+                            {announcement.targetAudience}
+                          </TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={announcement.status} 
                               size="small" 
-                              onClick={() => handleViewDetails(announcement)}
-                              sx={{ color: '#3498DB', '&:hover': { bgcolor: 'rgba(52, 152, 219, 0.1)' } }}
-                            >
-                              <Visibility />
-                            </IconButton>
-                            {announcement.status === 'Draft' && (
-                              <IconButton 
-                                size="small" 
-                                onClick={() => handlePostAnnouncement(announcement)}
-                                disabled={
-                                  postingAnnouncement === announcement.announcementID ||
-                                  !announcement.title ||
-                                  !announcement.content ||
-                                  announcement.content.length < 100 ||
-                                  !announcement.type ||
-                                  !announcement.priority ||
-                                  !announcement.targetAudience ||
-                                  !announcement.publishDate ||
-                                  announcement.content.includes('[TO BE SPECIFIED]')
-                                }
-                                sx={{ 
-                                  color: '#27AE60', 
-                                  '&:hover': { bgcolor: 'rgba(39, 174, 96, 0.1)' },
-                                  '&:disabled': { color: '#95A5A6' }
-                                }}
-                                title={
-                                  (!announcement.title || !announcement.content || announcement.content.length < 100 || 
-                                   !announcement.type || !announcement.priority || !announcement.targetAudience || 
-                                   !announcement.publishDate || announcement.content.includes('[TO BE SPECIFIED]'))
-                                    ? "Complete all required fields before posting"
-                                    : "Post Announcement"
-                                }
-                              >
-                                <CheckCircle />
-                              </IconButton>
-                            )}
-                            <IconButton 
-                              size="small" 
-                              onClick={() => handleOpenDialog(announcement)}
-                              sx={{ color: '#FFFFFF', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
-                            >
-                              <Edit />
-                            </IconButton>
-                            <IconButton 
-                              size="small" 
-                              onClick={() => handleDeleteClick(announcement)}
-                              sx={{ color: '#E74C3C', '&:hover': { bgcolor: 'rgba(231, 76, 60, 0.1)' } }}
-                            >
-                              <Delete />
-                            </IconButton>
-                          </Box>
-                        </Box>
-                        <Typography 
-                          sx={{ 
-                            fontWeight: 700, 
-                            mb: 1, 
-                            color: '#2C3E50', 
-                            fontSize: { xs: '0.9rem', sm: '1rem' },
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            lineHeight: 1.2
-                          }}
-                        >
-                          {announcement.title}
-                        </Typography>
-                        <Typography 
-                          sx={{ 
-                            color: '#2C3E50', 
-                            mb: 1, 
-                            lineHeight: 1.4, 
-                            fontSize: { xs: '0.75rem', sm: '0.8rem' },
-                            overflow: 'hidden',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: 'vertical',
-                            flex: 1,
-                            minHeight: '0'
-                          }}
-                        >
-                          {announcement.content}
-                        </Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                          <Typography sx={{ 
-                            color: '#B0BEC5', 
-                            fontWeight: 500, 
-                            fontSize: { xs: '0.65rem', sm: '0.7rem' }
-                          }}>
-                            Target: {announcement.targetAudience}
-                          </Typography>
-                          <Typography sx={{ 
-                            color: '#B0BEC5', 
-                            fontWeight: 500, 
-                            fontSize: { xs: '0.65rem', sm: '0.7rem' }
-                          }}>
-                            Views: {announcement.views}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto' }}>
-                          <Typography sx={{ 
-                            color: '#4CAF50', 
-                            fontWeight: 600, 
-                            fontSize: { xs: '0.65rem', sm: '0.7rem' }
-                          }}>
-                            Published: {formatDateTime(announcement.publishDate)}
-                          </Typography>
-                          <Typography sx={{ 
-                            color: '#FF9800', 
-                            fontWeight: 600, 
-                            fontSize: { xs: '0.65rem', sm: '0.7rem' }
-                          }}>
-                            Expires: {announcement.expiryDate ? formatDateTime(announcement.expiryDate) : 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  ))}
-                </Grid>
+                              sx={{ 
+                                bgcolor: announcement.status === 'Active' ? '#27AE60' : 
+                                       announcement.status === 'Draft' ? '#F39C12' : '#95A5A6', 
+                                color: '#FFFFFF',
+                                fontWeight: 600,
+                                fontSize: '0.7rem',
+                                height: '24px'
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ color: '#27AE60', fontSize: '0.8rem', fontWeight: 500 }}>
+                            {formatDateTime(announcement.publishDate)}
+                          </TableCell>
+                          <TableCell sx={{ color: '#E67E22', fontSize: '0.8rem', fontWeight: 500 }}>
+                            {announcement.expiryDate ? formatDateTime(announcement.expiryDate) : 'N/A'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </>
             )}
           </Paper>
@@ -939,6 +1134,7 @@ const Announcement = () => {
               <Button 
                 variant="outlined" 
                 startIcon={<Schedule />}
+                onClick={handleScheduleAnnouncement}
                 sx={{ 
                   textTransform: 'none',
                   fontWeight: 600,
@@ -958,6 +1154,8 @@ const Announcement = () => {
               <Button 
                 variant="outlined" 
                 startIcon={<Public />}
+                onClick={() => setPublishAllDialog(true)}
+                disabled={getDraftAnnouncements().length === 0}
                 sx={{ 
                   textTransform: 'none',
                   fontWeight: 600,
@@ -969,14 +1167,20 @@ const Announcement = () => {
                     bgcolor: '#27AE60', 
                     color: '#FFFFFF',
                     borderColor: '#27AE60'
+                  },
+                  '&:disabled': {
+                    borderColor: '#BDC3C7',
+                    color: '#BDC3C7'
                   }
                 }}
               >
-                Publish All Drafts
+                Publish All Drafts ({getDraftAnnouncements().length})
               </Button>
               <Button 
                 variant="outlined" 
                 startIcon={<Delete />}
+                onClick={() => setArchiveOldDialog(true)}
+                disabled={getOldAnnouncements().length === 0}
                 sx={{ 
                   textTransform: 'none',
                   fontWeight: 600,
@@ -988,10 +1192,14 @@ const Announcement = () => {
                     bgcolor: '#E74C3C', 
                     color: '#FFFFFF',
                     borderColor: '#E74C3C'
+                  },
+                  '&:disabled': {
+                    borderColor: '#BDC3C7',
+                    color: '#BDC3C7'
                   }
                 }}
               >
-                Archive Old
+                Archive Old ({getOldAnnouncements().length})
               </Button>
             </Box>
           </Paper>
@@ -1020,6 +1228,16 @@ const Announcement = () => {
                 {editingAnnouncement ? 'Edit Announcement' : 'Create New Announcement'}
               </DialogTitle>
               <DialogContent sx={{ pt: { xs: 2, sm: 3 } }}>
+                {/* Error Alert Inside Modal */}
+                {modalError && (
+                  <Alert 
+                    severity="error" 
+                    sx={{ mb: 2 }}
+                    onClose={() => setModalError(null)}
+                  >
+                    {modalError}
+                  </Alert>
+                )}
                 <Grid container spacing={{ xs: 1, sm: 2 }}>
                   <Grid item xs={12}>
                     <TextField
@@ -1059,14 +1277,14 @@ const Announcement = () => {
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
-                      label="Content (Minimum 50 characters)"
+                      label="Content (Minimum 100 characters)"
                       value={formData.content}
-                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                      onChange={(e) => handleContentChange(e.target.value)}
                       margin="normal"
                       multiline
                       rows={6}
-                      helperText={`${formData.content.length} characters (minimum 50 required)`}
-                      error={formData.content.length > 0 && formData.content.length < 50}
+                      helperText={`${formData.content.length} characters (minimum 100 required). Priority auto-adjusts based on keywords.`}
+                      error={formData.content.length > 0 && formData.content.length < 100}
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           bgcolor: '#FFFFFF',
@@ -1099,7 +1317,7 @@ const Announcement = () => {
                       <Select
                         value={formData.type}
                         label="Type"
-                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        onChange={(e) => handleTypeChange(e.target.value)}
                         sx={{
                           bgcolor: '#FFFFFF',
                           color: '#2C3E50',
@@ -1146,10 +1364,10 @@ const Announcement = () => {
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <FormControl fullWidth margin="normal">
-                      <InputLabel sx={{ color: '#2C3E50' }}>Priority</InputLabel>
+                      <InputLabel sx={{ color: '#2C3E50' }}>Priority (Auto-set)</InputLabel>
                       <Select
                         value={formData.priority}
-                        label="Priority"
+                        label="Priority (Auto-set)"
                         onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                         sx={{
                           bgcolor: '#FFFFFF',
@@ -1191,85 +1409,158 @@ const Announcement = () => {
                     </FormControl>
                   </Grid>
                   <Grid item xs={12}>
-                    <FormControl fullWidth margin="normal">
-                      <InputLabel sx={{ color: '#2C3E50' }}>Target Audience (Barangay)</InputLabel>
-                      <Select
-                        value={formData.targetAudience}
-                        onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            bgcolor: '#FFFFFF',
-                            color: '#2C3E50',
-                            '& fieldset': {
-                              borderColor: '#E0E0E0',
-                            },
-                            '&:hover fieldset': {
-                              borderColor: '#0b87ac',
-                            },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#0b87ac',
-                            },
-                          },
-                          '& .MuiSelect-select': {
-                            color: '#2C3E50',
-                          },
-                        }}
-                        MenuProps={{
-                          PaperProps: {
-                            sx: {
-                              bgcolor: '#FFFFFF',
-                              '& .MuiMenuItem-root': {
-                                color: '#2C3E50',
-                                '&:hover': {
-                                  bgcolor: '#F8F9FA',
-                                },
-                                '&.Mui-selected': {
-                                  bgcolor: '#0b87ac', color: '#FFFFFF'
-                                },
-                              },
-                            },
-                          },
-                        }}
-                      >
-                        <MenuItem value="Baclaran">Baclaran</MenuItem>
-                        <MenuItem value="Banay-Banay">Banay-Banay</MenuItem>
-                        <MenuItem value="Banlic">Banlic</MenuItem>
-                        <MenuItem value="Bigaa">Bigaa</MenuItem>
-                        <MenuItem value="Butong">Butong</MenuItem>
-                        <MenuItem value="Casile">Casile</MenuItem>
-                        <MenuItem value="Diezmo">Diezmo</MenuItem>
-                        <MenuItem value="Gulod">Gulod</MenuItem>
-                        <MenuItem value="Mamatid">Mamatid</MenuItem>
-                        <MenuItem value="Marinig">Marinig</MenuItem>
-                        <MenuItem value="Niugan">Niugan</MenuItem>
-                        <MenuItem value="Pittland">Pittland</MenuItem>
-                        <MenuItem value="Pob. Uno">Pob. Uno</MenuItem>
-                        <MenuItem value="Pob. Dos">Pob. Dos</MenuItem>
-                        <MenuItem value="Pob. Tres">Pob. Tres</MenuItem>
-                        <MenuItem value="Pulo">Pulo</MenuItem>
-                        <MenuItem value="Sala">Sala</MenuItem>
-                        <MenuItem value="San Isidro">San Isidro</MenuItem>
-                      </Select>
-                    </FormControl>
+                    <Box sx={{ mt: 2, p: 2, border: '1px solid #E0E0E0', borderRadius: 1, bgcolor: '#FFFFFF' }}>
+                      <Typography sx={{ color: '#2C3E50', fontWeight: 600, mb: 2, fontSize: '0.9rem' }}>
+                        Target Audience *
+                      </Typography>
+                      <Typography sx={{ color: '#666', fontSize: '0.75rem', mb: 2 }}>
+                        Select one or more target audiences. "All" will broadcast to everyone.
+                      </Typography>
+                      <Grid container spacing={1}>
+                        {barangayList.map((option) => (
+                          <Grid item xs={6} sm={4} md={3} key={option}>
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={formData.targetAudience.includes(option)}
+                                  onChange={() => handleTargetAudienceChange(option)}
+                                  sx={{
+                                    color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : '#0b87ac',
+                                    '&.Mui-checked': {
+                                      color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : '#0b87ac',
+                                    },
+                                  }}
+                                  disabled={option !== 'All' && formData.targetAudience.includes('All')}
+                                />
+                              }
+                              label={
+                                <Typography sx={{ 
+                                  fontSize: '0.8rem', 
+                                  color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : '#2C3E50',
+                                  fontWeight: option === 'All' || option === 'Members' ? 600 : 400
+                                }}>
+                                  {option}
+                                </Typography>
+                              }
+                              sx={{ 
+                                m: 0,
+                                bgcolor: formData.targetAudience.includes(option) 
+                                  ? option === 'All' ? '#E8F5E9' : option === 'Members' ? '#FFF3E0' : '#E3F2FD' 
+                                  : 'transparent',
+                                borderRadius: 1,
+                                px: 1,
+                                transition: 'background-color 0.2s'
+                              }}
+                            />
+                          </Grid>
+                        ))}
+                      </Grid>
+                      {formData.targetAudience.length > 0 && (
+                        <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #E0E0E0' }}>
+                          <Typography sx={{ color: '#666', fontSize: '0.75rem', mb: 1 }}>
+                            Selected: 
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {formData.targetAudience.map(audience => (
+                              <Chip
+                                key={audience}
+                                label={audience}
+                                size="small"
+                                onDelete={() => handleTargetAudienceChange(audience)}
+                                sx={{
+                                  bgcolor: audience === 'All' ? '#27AE60' : audience === 'Members' ? '#F39C12' : '#0b87ac',
+                                  color: '#FFFFFF',
+                                  fontWeight: 600,
+                                  fontSize: '0.7rem',
+                                  '& .MuiChip-deleteIcon': {
+                                    color: '#FFFFFF',
+                                    '&:hover': { color: '#FFD700' }
+                                  }
+                                }}
+                              />
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
                   </Grid>
 
                   <Grid item xs={12} md={6}>
                     <TextField
                       fullWidth
-                      label="Expiry Date"
+                      label="Publish Date *"
                       type="date"
-                      value={formData.expiryDate}
-                      onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+                      value={formData.publishDate}
+                      onChange={(e) => setFormData({ ...formData, publishDate: e.target.value })}
                       margin="normal"
                       InputLabelProps={{ shrink: true }}
                       required
-                      inputProps={{
-                        min: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Tomorrow's date
-                      }}
-                      helperText="Expiry date must be at least tomorrow (cannot be today or previous dates)"
+                      helperText="Date when the announcement will be published"
                       FormHelperTextProps={{
                         sx: {
                           color: '#B0BEC5',
+                          fontSize: '0.75rem'
+                        }
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          bgcolor: '#FFFFFF',
+                          color: '#2C3E50',
+                          '& fieldset': {
+                            borderColor: '#E0E0E0',
+                          },
+                          '&:hover fieldset': {
+                            borderColor: '#0b87ac',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: '#0b87ac',
+                          },
+                        },
+                        '& .MuiInputLabel-root': {
+                          color: '#2C3E50',
+                          '&.Mui-focused': {
+                            color: '#0b87ac',
+                          },
+                        },
+                        '& .MuiInputBase-input': {
+                          color: '#2C3E50',
+                        },
+                        '& .MuiSvgIcon-root': {
+                          color: '#2C3E50'
+                        }
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Expiry Date *"
+                      type="date"
+                      value={formData.expiryDate}
+                      onChange={(e) => {
+                        const validation = validateExpiryDate(e.target.value);
+                        if (!validation.valid && e.target.value) {
+                          setModalError(validation.message);
+                        } else {
+                          setModalError(null);
+                        }
+                        setFormData({ ...formData, expiryDate: e.target.value });
+                      }}
+                      margin="normal"
+                      InputLabelProps={{ shrink: true }}
+                      required
+                      error={!!(formData.expiryDate && !validateExpiryDate(formData.expiryDate).valid)}
+                      inputProps={{
+                        min: getMinExpiryDate()
+                      }}
+                      helperText={
+                        formData.expiryDate && !validateExpiryDate(formData.expiryDate).valid
+                          ? validateExpiryDate(formData.expiryDate).message
+                          : "Expiry date must be at least tomorrow"
+                      }
+                      FormHelperTextProps={{
+                        sx: {
+                          color: formData.expiryDate && !validateExpiryDate(formData.expiryDate).valid ? '#E74C3C' : '#B0BEC5',
                           fontSize: '0.75rem'
                         }
                       }}
@@ -1394,7 +1685,7 @@ const Announcement = () => {
                 <Button 
                   onClick={handleSubmit}
                   variant="contained"
-                  disabled={submitting || !formData.title || !formData.content || formData.title.length < 10 || formData.content.length < 50}
+                  disabled={submitting || !formData.title || !formData.content || formData.title.length < 10 || formData.content.length < 100 || !formData.publishDate}
                   sx={{ 
                     bgcolor: '#3498DB',
                     color: '#FFFFFF',
@@ -1476,6 +1767,271 @@ const Announcement = () => {
                   }}
                 >
                   Delete
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            {/* Create Confirmation Dialog */}
+            <Dialog 
+              open={confirmCreateDialog} 
+              onClose={() => setConfirmCreateDialog(false)}
+              PaperProps={{
+                sx: {
+                  bgcolor: '#FFFFFF',
+                  color: '#2C3E50',
+                  borderRadius: { xs: 0, sm: 2 },
+                  m: { xs: 0, sm: 2 },
+                  minWidth: { xs: '100%', sm: 450 }
+                }
+              }}
+            >
+              <DialogTitle sx={{ 
+                color: '#2C3E50', 
+                fontWeight: 700, 
+                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' },
+                borderBottom: '1px solid #E0E0E0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Warning sx={{ color: '#F39C12' }} />
+                Confirm Create Announcement
+              </DialogTitle>
+              <DialogContent sx={{ pt: { xs: 2, sm: 3 } }}>
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Typography sx={{ fontWeight: 600, mb: 1 }}>
+                    Important: Announcements cannot be edited once posted!
+                  </Typography>
+                  <Typography variant="body2">
+                    Please review all details carefully before confirming. If you need to make changes later, you will need to delete this announcement and create a new one.
+                  </Typography>
+                </Alert>
+                <Box sx={{ bgcolor: '#F8F9FA', p: 2, borderRadius: 1, mb: 2 }}>
+                  <Typography variant="subtitle2" sx={{ color: '#7F8C8D', mb: 1 }}>
+                    Announcement Summary:
+                  </Typography>
+                  <Typography sx={{ fontWeight: 600, color: '#2C3E50', mb: 0.5 }}>
+                    {formData.title}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                    <Chip label={formData.type} size="small" sx={{ bgcolor: '#3498DB', color: '#FFF' }} />
+                    <Chip label={formData.priority} size="small" sx={{ 
+                      bgcolor: formData.priority === 'High' ? '#E74C3C' : 
+                               formData.priority === 'Medium' ? '#F39C12' : '#27AE60', 
+                      color: '#FFF' 
+                    }} />
+                    {Array.isArray(formData.targetAudience) ? (
+                      formData.targetAudience.map((audience) => (
+                        <Chip 
+                          key={audience}
+                          label={audience} 
+                          size="small" 
+                          sx={{ 
+                            bgcolor: audience === 'All' ? '#27AE60' : audience === 'Members' ? '#F39C12' : '#9B59B6', 
+                            color: '#FFF' 
+                          }} 
+                        />
+                      ))
+                    ) : (
+                      <Chip label={formData.targetAudience} size="small" sx={{ bgcolor: '#9B59B6', color: '#FFF' }} />
+                    )}
+                  </Box>
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Expires: {formData.expiryDate}
+                  </Typography>
+                </Box>
+                <Typography sx={{ 
+                  color: '#2C3E50', 
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  fontWeight: 500
+                }}>
+                  Are you sure you want to create this announcement?
+                </Typography>
+              </DialogContent>
+              <DialogActions sx={{ 
+                borderTop: '1px solid #E0E0E0',
+                p: { xs: 1.5, sm: 2 },
+                gap: { xs: 0.5, sm: 1 },
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: { xs: 'stretch', sm: 'center' }
+              }}>
+                <Button 
+                  onClick={() => setConfirmCreateDialog(false)}
+                  sx={{ 
+                    color: '#2C3E50',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    py: { xs: 1.5, sm: 1 },
+                    '&:hover': { bgcolor: '#F8F9FA' }
+                  }}
+                >
+                  Go Back & Review
+                </Button>
+                <Button 
+                  onClick={performSubmit}
+                  variant="contained"
+                  disabled={submitting}
+                  sx={{ 
+                    bgcolor: '#27AE60',
+                    color: '#FFFFFF',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    py: { xs: 1.5, sm: 1 },
+                    '&:hover': { bgcolor: '#219A52' },
+                    '&:disabled': { bgcolor: '#95A5A6' }
+                  }}
+                >
+                  {submitting ? 'Creating...' : 'Yes, Create Announcement'}
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            {/* Publish All Drafts Confirmation Dialog */}
+            <Dialog 
+              open={publishAllDialog} 
+              onClose={() => setPublishAllDialog(false)}
+              PaperProps={{
+                sx: {
+                  bgcolor: '#FFFFFF',
+                  color: '#2C3E50',
+                  borderRadius: { xs: 0, sm: 2 },
+                  m: { xs: 0, sm: 2 },
+                  minWidth: { xs: '100%', sm: 450 }
+                }
+              }}
+            >
+              <DialogTitle sx={{ 
+                color: '#2C3E50', 
+                fontWeight: 700, 
+                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' },
+                borderBottom: '1px solid #E0E0E0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Public sx={{ color: '#27AE60' }} />
+                Publish All Draft Announcements
+              </DialogTitle>
+              <DialogContent sx={{ pt: { xs: 2, sm: 3 } }}>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography sx={{ fontWeight: 600, mb: 1 }}>
+                    You are about to publish {getDraftAnnouncements().length} draft announcement(s).
+                  </Typography>
+                  <Typography variant="body2">
+                    Only announcements with complete information will be published. Incomplete drafts will be skipped.
+                  </Typography>
+                </Alert>
+                <Typography sx={{ 
+                  color: '#2C3E50', 
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  fontWeight: 500
+                }}>
+                  Are you sure you want to publish all draft announcements?
+                </Typography>
+              </DialogContent>
+              <DialogActions sx={{ 
+                borderTop: '1px solid #E0E0E0',
+                p: { xs: 1.5, sm: 2 },
+                gap: { xs: 0.5, sm: 1 }
+              }}>
+                <Button 
+                  onClick={() => setPublishAllDialog(false)}
+                  disabled={processingBulk}
+                  sx={{ 
+                    color: '#2C3E50',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    '&:hover': { bgcolor: '#F8F9FA' }
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handlePublishAllDrafts}
+                  variant="contained"
+                  disabled={processingBulk}
+                  sx={{ 
+                    bgcolor: '#27AE60',
+                    color: '#FFFFFF',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    '&:hover': { bgcolor: '#219A52' },
+                    '&:disabled': { bgcolor: '#95A5A6' }
+                  }}
+                >
+                  {processingBulk ? 'Publishing...' : 'Yes, Publish All'}
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            {/* Archive Old Announcements Confirmation Dialog */}
+            <Dialog 
+              open={archiveOldDialog} 
+              onClose={() => setArchiveOldDialog(false)}
+              PaperProps={{
+                sx: {
+                  bgcolor: '#FFFFFF',
+                  color: '#2C3E50',
+                  borderRadius: { xs: 0, sm: 2 },
+                  m: { xs: 0, sm: 2 },
+                  minWidth: { xs: '100%', sm: 450 }
+                }
+              }}
+            >
+              <DialogTitle sx={{ 
+                color: '#2C3E50', 
+                fontWeight: 700, 
+                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' },
+                borderBottom: '1px solid #E0E0E0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <Delete sx={{ color: '#E74C3C' }} />
+                Archive Old Announcements
+              </DialogTitle>
+              <DialogContent sx={{ pt: { xs: 2, sm: 3 } }}>
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Typography sx={{ fontWeight: 600, mb: 1 }}>
+                    You are about to archive {getOldAnnouncements().length} old announcement(s).
+                  </Typography>
+                  <Typography variant="body2">
+                    This will archive announcements that expired more than 30 days ago. Archived announcements won't be visible to users.
+                  </Typography>
+                </Alert>
+                <Typography sx={{ 
+                  color: '#2C3E50', 
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  fontWeight: 500
+                }}>
+                  Are you sure you want to archive these old announcements?
+                </Typography>
+              </DialogContent>
+              <DialogActions sx={{ 
+                borderTop: '1px solid #E0E0E0',
+                p: { xs: 1.5, sm: 2 },
+                gap: { xs: 0.5, sm: 1 }
+              }}>
+                <Button 
+                  onClick={() => setArchiveOldDialog(false)}
+                  disabled={processingBulk}
+                  sx={{ 
+                    color: '#2C3E50',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    '&:hover': { bgcolor: '#F8F9FA' }
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleArchiveOld}
+                  variant="contained"
+                  disabled={processingBulk}
+                  sx={{ 
+                    bgcolor: '#E74C3C',
+                    color: '#FFFFFF',
+                    fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                    '&:hover': { bgcolor: '#C0392B' },
+                    '&:disabled': { bgcolor: '#95A5A6' }
+                  }}
+                >
+                  {processingBulk ? 'Archiving...' : 'Yes, Archive All'}
                 </Button>
               </DialogActions>
             </Dialog>
@@ -1618,7 +2174,7 @@ const Announcement = () => {
                     handleSubmit();
                   }}
                   variant="contained"
-                  disabled={submitting || !formData.title || !formData.content || formData.title.length < 10 || formData.content.length < 50}
+                  disabled={submitting || !formData.title || !formData.content || formData.title.length < 10 || formData.content.length < 100 || !formData.publishDate}
                   sx={{ bgcolor: '#3498DB', color: '#FFFFFF', '&:hover': { bgcolor: '#2980B9' } }}
                 >
                   {submitting ? 'Publishing...' : 'Publish'}
@@ -1935,8 +2491,54 @@ const Announcement = () => {
                 p: { xs: 2, sm: 3 }, 
                 backgroundColor: '#FFFFFF',
                 borderTop: '1px solid #E0E0E0',
-                justifyContent: 'center'
+                justifyContent: 'space-between'
               }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button 
+                    onClick={() => {
+                      handleCloseViewDialog();
+                      handleOpenDialog(selectedAnnouncement);
+                    }} 
+                    variant="outlined"
+                    startIcon={<Edit />}
+                    sx={{ 
+                      borderColor: '#F39C12',
+                      color: '#F39C12',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                      py: { xs: 1, sm: 0.8 },
+                      '&:hover': {
+                        borderColor: '#E67E22',
+                        bgcolor: 'rgba(243, 156, 18, 0.1)'
+                      }
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      handleCloseViewDialog();
+                      handleDeleteClick(selectedAnnouncement);
+                    }} 
+                    variant="outlined"
+                    startIcon={<Delete />}
+                    sx={{ 
+                      borderColor: '#E74C3C',
+                      color: '#E74C3C',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: { xs: '0.8rem', sm: '0.9rem' },
+                      py: { xs: 1, sm: 0.8 },
+                      '&:hover': {
+                        borderColor: '#C0392B',
+                        bgcolor: 'rgba(231, 76, 60, 0.1)'
+                      }
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </Box>
                 <Button 
                   onClick={handleCloseViewDialog} 
                   variant="contained"

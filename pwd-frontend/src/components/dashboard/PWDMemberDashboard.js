@@ -15,7 +15,18 @@ import {
   useMediaQuery,
   useTheme,
   Container,
-  Chip
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
 } from '@mui/material';
 import {
   Dashboard,
@@ -30,7 +41,8 @@ import {
   ErrorOutline,
   Menu,
   VolumeUp,
-  CardGiftcard
+  CardGiftcard,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
@@ -66,6 +78,19 @@ function PWDMemberDashboard() {
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [memberSinceDate, setMemberSinceDate] = useState(null);
+  const [viewDialog, setViewDialog] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+
+  // Handle announcement click
+  const handleViewAnnouncement = (announcement) => {
+    setSelectedAnnouncement(announcement);
+    setViewDialog(true);
+  };
+
+  const handleCloseViewDialog = () => {
+    setViewDialog(false);
+    setSelectedAnnouncement(null);
+  };
 
   const handleSidebarToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -493,7 +518,7 @@ function PWDMemberDashboard() {
 
 
           {/* Announcements Section - Full Width */}
-          <Card sx={{ ...cardStyles, minHeight: 600, maxHeight: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
+          <Card sx={{ ...cardStyles, minHeight: 400, maxHeight: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column' }}>
             <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3, flexShrink: 0 }}>
                 <Campaign sx={{ color: '#F39C12', fontSize: 24 }} />
@@ -503,189 +528,72 @@ function PWDMemberDashboard() {
               </Box>
           
               {announcements.length > 0 ? (
-                <Box sx={{ 
-                  maxWidth: '800px', 
-                  mx: 'auto', 
-                  width: '100%',
-                  flex: 1,
-                  overflowY: 'auto',
-                  overflowX: 'hidden',
-                  pr: 2,
-                  minHeight: 0,
-                  '&::-webkit-scrollbar': {
-                    width: '10px',
-                  },
-                  '&::-webkit-scrollbar-track': {
-                    backgroundColor: '#f5f5f5',
-                    borderRadius: '5px',
-                  },
-                  '&::-webkit-scrollbar-thumb': {
-                    backgroundColor: '#bdc3c7',
-                    borderRadius: '5px',
-                    '&:hover': {
-                      backgroundColor: '#95a5a6',
-                    },
-                  },
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: '#bdc3c7 #f5f5f5',
-                }}>
-                  {announcements.map((announcement, index) => {
-                    console.log('Rendering announcement:', index + 1, announcement.title);
-                    // Use a unique key - combine id and index as fallback (handle both id and announcementID)
-                    const uniqueKey = announcement.id || announcement.announcementID || `announcement-${index}-${announcement.title}`;
-                    return (
-                    <Paper
-                      key={uniqueKey}
-                      elevation={0}
-                      sx={{
-                        p: 4,
-                        mb: 4,
-                        border: '1px solid #e0e0e0',
-                        borderRadius: 2,
-                        backgroundColor: '#ffffff',
-                        '&:hover': {
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                          transition: 'box-shadow 0.3s ease'
-                        }
-                      }}
-                    >
-                      {/* Announcement Header */}
-                      <Box sx={{ mb: 3, pb: 2, borderBottom: '2px solid #f5f5f5' }}>
-                        <Typography 
-                          variant="h4" 
-                          sx={{ 
-                            fontWeight: 700, 
-                            color: '#2c3e50', 
-                            mb: 2,
-                            lineHeight: 1.3,
-                            fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' }
-                          }}
-                        >
-                          {announcement.title}
-                        </Typography>
-                        
-                        {/* Meta Information */}
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
-                          <Chip
-                            label={`Type: ${announcement.type || 'General'}`}
-                            size="small"
+                <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
+                  <Table size="medium" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ bgcolor: '#F8F9FA', color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', borderBottom: '2px solid #E0E0E0' }}>Title</TableCell>
+                        <TableCell sx={{ bgcolor: '#F8F9FA', color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', borderBottom: '2px solid #E0E0E0', width: 100 }}>Type</TableCell>
+                        <TableCell sx={{ bgcolor: '#F8F9FA', color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', borderBottom: '2px solid #E0E0E0', width: 100 }}>Priority</TableCell>
+                        <TableCell sx={{ bgcolor: '#F8F9FA', color: '#0b87ac', fontWeight: 700, fontSize: '0.85rem', borderBottom: '2px solid #E0E0E0', width: 130 }}>Published</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {announcements.map((announcement, index) => {
+                        const uniqueKey = announcement.id || announcement.announcementID || `announcement-${index}`;
+                        return (
+                          <TableRow
+                            key={uniqueKey}
                             sx={{
-                              backgroundColor: '#E3F2FD',
-                              color: '#1976D2',
-                              fontWeight: 500,
-                              fontSize: '0.75rem'
+                              cursor: 'pointer',
+                              bgcolor: index % 2 ? '#F7FBFF' : 'white',
+                              '&:hover': {
+                                bgcolor: '#E8F4F8',
+                                transition: 'background-color 0.2s'
+                              }
                             }}
-                          />
-                          <Chip
-                            label={`Priority: ${announcement.priority || 'Normal'}`}
-                            size="small"
-                            sx={{
-                              backgroundColor: announcement.priority === 'High' ? '#FFEBEE' : '#F3E5F5',
-                              color: announcement.priority === 'High' ? '#C62828' : '#7B1FA2',
-                              fontWeight: 500,
-                              fontSize: '0.75rem'
-                            }}
-                          />
-                          {announcement.targetAudience !== 'All' && 
-                           announcement.targetAudience !== 'PWD Members' && 
-                           announcement.targetAudience !== 'PWDMember' && (
-                            <Chip
-                              label={`Target: ${announcement.targetAudience}`}
-                              size="small"
-                              sx={{
-                                backgroundColor: '#E8F5E8',
-                                color: '#2E7D32',
-                                fontWeight: 500,
-                                fontSize: '0.75rem'
-                              }}
-                            />
-                          )}
-                          <Chip
-                            label={`Status: ${announcement.status || 'Active'}`}
-                            size="small"
-                            sx={{
-                              backgroundColor: announcement.status === 'Active' ? '#E8F5E8' : '#FFF3E0',
-                              color: announcement.status === 'Active' ? '#2E7D32' : '#F57C00',
-                              fontWeight: 500,
-                              fontSize: '0.75rem'
-                            }}
-                          />
-                        </Box>
-
-                        {/* Dates */}
-                        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                          <Typography variant="body2" sx={{ color: '#6c757d', fontWeight: 500 }}>
-                            Published: {new Date(announcement.created_at).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </Typography>
-                          {announcement.expiryDate && (
-                            <Typography variant="body2" sx={{ color: '#6c757d', fontWeight: 500 }}>
-                              Expires: {new Date(announcement.expiryDate).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-
-                      {/* Announcement Content */}
-                      <Box sx={{ 
-                        backgroundColor: '#fafafa', 
-                        p: 3, 
-                        borderRadius: 2, 
-                        border: '1px solid #f0f0f0',
-                        minHeight: 120
-                      }}>
-                        <Typography 
-                          variant="body1" 
-                          sx={{ 
-                            color: '#2c3e50', 
-                            lineHeight: 1.7,
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            fontSize: '1rem',
-                            fontFamily: 'Arial, sans-serif'
-                          }}
-                        >
-                          {announcement.content || 'No content available.'}
-                        </Typography>
-                      </Box>
-
-                      {/* Read Aloud Button */}
-                      <Box sx={{ mt: 3, textAlign: 'right' }}>
-                        <Button
-                          onClick={() => {
-                            const fullText = `${announcement.title}. ${announcement.content || 'No content available.'}`;
-                            readAloud(fullText);
-                          }}
-                          variant="outlined"
-                          disabled={isReading}
-                          startIcon={<VolumeUp />}
-                          sx={{
-                            borderColor: '#F39C12',
-                            color: '#F39C12',
-                            textTransform: 'none',
-                            fontWeight: 500,
-                            px: 2,
-                            py: 1,
-                            '&:hover': {
-                              borderColor: '#E67E22',
-                              backgroundColor: '#F39C1215'
-                            }
-                          }}
-                        >
-                          {isReading ? t('buttons.reading') : t('buttons.readAloud')}
-                        </Button>
-                      </Box>
-                    </Paper>
-                    );
-                  })}
-                </Box>
+                            onClick={() => handleViewAnnouncement(announcement)}
+                          >
+                            <TableCell sx={{ py: 2 }}>
+                              <Typography sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '0.9rem' }}>
+                                {announcement.title}
+                              </Typography>
+                            </TableCell>
+                            <TableCell sx={{ py: 2 }}>
+                              <Chip
+                                label={announcement.type || 'Notice'}
+                                size="small"
+                                sx={{
+                                  bgcolor: announcement.type === 'Urgent' ? '#E74C3C' : announcement.type === 'Event' ? '#27AE60' : '#3498DB',
+                                  color: '#FFFFFF',
+                                  fontWeight: 600,
+                                  fontSize: '0.7rem',
+                                  height: 24
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ py: 2 }}>
+                              <Chip
+                                label={announcement.priority || 'Medium'}
+                                size="small"
+                                sx={{
+                                  bgcolor: announcement.priority === 'High' ? '#E74C3C' : announcement.priority === 'Medium' ? '#F39C12' : '#27AE60',
+                                  color: '#FFFFFF',
+                                  fontWeight: 600,
+                                  fontSize: '0.7rem',
+                                  height: 24
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ py: 2, color: '#666', fontSize: '0.8rem' }}>
+                              {formatDate(announcement.publishDate || announcement.created_at)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               ) : (
                 <Box sx={{ textAlign: 'center', py: 8 }}>
                   <ErrorOutline sx={{ fontSize: 64, color: '#bdc3c7', mb: 3 }} />
@@ -701,6 +609,144 @@ function PWDMemberDashboard() {
           </Card>
         </Box>
       </Box>
+
+      {/* Announcement Details Dialog */}
+      <Dialog open={viewDialog} onClose={handleCloseViewDialog} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ 
+          backgroundColor: '#FFFFFF',
+          color: '#2C3E50',
+          fontWeight: 600,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: '1px solid #E0E0E0'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Campaign sx={{ color: '#F39C12' }} />
+            <Typography variant="h6" sx={{ color: '#2C3E50', fontWeight: 700 }}>
+              Announcement Details
+            </Typography>
+          </Box>
+          <IconButton onClick={handleCloseViewDialog} sx={{ color: '#666' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ backgroundColor: '#FFFFFF', p: 3 }}>
+          {selectedAnnouncement && (
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: '#2C3E50', mb: 2 }}>
+                {selectedAnnouncement.title}
+              </Typography>
+              
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+                <Chip 
+                  label={selectedAnnouncement.type || 'Notice'} 
+                  size="small" 
+                  sx={{ 
+                    bgcolor: selectedAnnouncement.type === 'Urgent' ? '#E74C3C' : '#3498DB', 
+                    color: '#FFF', 
+                    fontWeight: 600 
+                  }} 
+                />
+                <Chip 
+                  label={selectedAnnouncement.priority || 'Medium'} 
+                  size="small" 
+                  sx={{ 
+                    bgcolor: selectedAnnouncement.priority === 'High' ? '#E74C3C' : selectedAnnouncement.priority === 'Medium' ? '#F39C12' : '#27AE60', 
+                    color: '#FFF', 
+                    fontWeight: 600 
+                  }} 
+                />
+              </Box>
+
+              <Divider sx={{ mb: 3 }} />
+              
+              <Box sx={{ 
+                bgcolor: '#F8F9FA', 
+                p: 3, 
+                borderRadius: 2,
+                mb: 3,
+                border: '1px solid #E0E0E0'
+              }}>
+                <Typography 
+                  sx={{ 
+                    color: '#2C3E50', 
+                    lineHeight: 1.8,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}
+                >
+                  {selectedAnnouncement.content || 'No content available.'}
+                </Typography>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="subtitle2" sx={{ color: '#7F8C8D', fontWeight: 600 }}>
+                    Published
+                  </Typography>
+                  <Typography sx={{ color: '#27AE60', fontWeight: 500 }}>
+                    {formatDate(selectedAnnouncement.publishDate || selectedAnnouncement.created_at)}
+                  </Typography>
+                </Grid>
+                {selectedAnnouncement.expiryDate && (
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="subtitle2" sx={{ color: '#7F8C8D', fontWeight: 600 }}>
+                      Expires
+                    </Typography>
+                    <Typography sx={{ color: '#E67E22', fontWeight: 500 }}>
+                      {formatDate(selectedAnnouncement.expiryDate)}
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ 
+          borderTop: '1px solid #E0E0E0', 
+          p: 2,
+          gap: 2,
+          backgroundColor: '#FFFFFF'
+        }}>
+          {selectedAnnouncement && (
+            <Button
+              onClick={() => {
+                const fullText = `${selectedAnnouncement.title}. ${selectedAnnouncement.content || 'No content available.'}`;
+                readAloud(fullText);
+              }}
+              variant="outlined"
+              disabled={isReading}
+              startIcon={<VolumeUp />}
+              sx={{
+                borderColor: '#F39C12',
+                color: '#F39C12',
+                textTransform: 'none',
+                fontWeight: 500,
+                '&:hover': {
+                  borderColor: '#E67E22',
+                  backgroundColor: '#F39C1215'
+                }
+              }}
+            >
+              {isReading ? t('buttons.reading') : t('buttons.readAloud')}
+            </Button>
+          )}
+          <Button 
+            onClick={handleCloseViewDialog} 
+            variant="contained"
+            sx={{ 
+              bgcolor: '#0b87ac',
+              textTransform: 'none',
+              fontWeight: 600,
+              color: '#FFFFFF',
+              '&:hover': { bgcolor: '#0a6b8a' }
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
       
       {/* Accessibility Settings Floating Button */}
       <AccessibilitySettings />

@@ -72,8 +72,8 @@ class NotificationService
                 $message = "Your application has been approved by the Barangay President and is now pending admin approval.";
                 break;
             case 'Approved':
-                $title = 'Application Approved';
-                $message = "Congratulations! Your PWD application has been approved. Your account has been created and you can now log in to access your PWD member portal.";
+                $title = 'Application Approved - Welcome to PWD Portal!';
+                $message = "Congratulations! Your PWD application has been approved. Your account has been created and you can now log in to access your PWD member portal. Your PWD ID card is being processed and will be ready for claiming in 5-7 business days. You will receive another notification when your card is ready for pickup at the PDAO office.";
                 break;
             case 'For Claiming':
                 $title = 'PWD ID Ready for Claiming';
@@ -169,6 +169,101 @@ class NotificationService
             ->toArray();
 
         return self::createMultiple($adminIds, $type, $title, $message, $data);
+    }
+
+    /**
+     * Send welcome notification to newly approved PWD member with card processing info
+     *
+     * @param int $userId
+     * @param string $memberName
+     * @param string $pwdId
+     * @param string|null $barangay
+     * @return Notification|null
+     */
+    public static function notifyNewMemberWelcome($userId, $memberName, $pwdId, $barangay = null)
+    {
+        $title = '🎉 Welcome to PWD Cabuyao!';
+        
+        $message = "Dear {$memberName},\n\n";
+        $message .= "Welcome to the PWD Cabuyao community! Your registration has been successfully processed.\n\n";
+        $message .= "📋 YOUR PWD ID: {$pwdId}\n\n";
+        $message .= "📅 CARD PROCESSING:\n";
+        $message .= "Your PWD ID card is now being prepared and will be ready for claiming in 5-7 business days.\n\n";
+        $message .= "📍 CLAIMING INSTRUCTIONS:\n";
+        $message .= "• Location: PDAO Office, Cabuyao City Hall\n";
+        $message .= "• Office Hours: Monday to Friday, 8:00 AM - 5:00 PM\n";
+        $message .= "• Required: Bring a valid government-issued ID\n\n";
+        $message .= "You will receive another notification when your card is ready for pickup.\n\n";
+        $message .= "Thank you for registering with us!";
+
+        // Calculate estimated ready date (5-7 business days)
+        $estimatedReadyDate = self::calculateBusinessDays(7);
+
+        return self::create($userId, 'member_welcome', $title, $message, [
+            'member_name' => $memberName,
+            'pwd_id' => $pwdId,
+            'barangay' => $barangay,
+            'processing_days' => '5-7 business days',
+            'estimated_ready_date' => $estimatedReadyDate->format('Y-m-d'),
+            'claiming_location' => 'PDAO Office, Cabuyao City Hall',
+            'office_hours' => 'Monday to Friday, 8:00 AM - 5:00 PM',
+            'timestamp' => now()->toIso8601String()
+        ]);
+    }
+
+    /**
+     * Send notification when PWD card is ready for pickup
+     *
+     * @param int $userId
+     * @param string $memberName
+     * @param string $pwdId
+     * @return Notification|null
+     */
+    public static function notifyCardReadyForPickup($userId, $memberName, $pwdId)
+    {
+        $title = '✅ Your PWD ID Card is Ready!';
+        
+        $message = "Dear {$memberName},\n\n";
+        $message .= "Great news! Your PWD ID card is now ready for claiming.\n\n";
+        $message .= "📋 PWD ID: {$pwdId}\n\n";
+        $message .= "📍 WHERE TO CLAIM:\n";
+        $message .= "PDAO Office, Cabuyao City Hall\n\n";
+        $message .= "🕐 OFFICE HOURS:\n";
+        $message .= "Monday to Friday, 8:00 AM - 5:00 PM\n\n";
+        $message .= "📝 WHAT TO BRING:\n";
+        $message .= "• Valid government-issued ID\n";
+        $message .= "• Authorization letter (if claiming through a representative)\n\n";
+        $message .= "Please claim your card at your earliest convenience.";
+
+        return self::create($userId, 'card_ready_for_pickup', $title, $message, [
+            'member_name' => $memberName,
+            'pwd_id' => $pwdId,
+            'claiming_location' => 'PDAO Office, Cabuyao City Hall',
+            'office_hours' => 'Monday to Friday, 8:00 AM - 5:00 PM',
+            'timestamp' => now()->toIso8601String()
+        ]);
+    }
+
+    /**
+     * Calculate a date that is X business days from now
+     *
+     * @param int $businessDays
+     * @return \Carbon\Carbon
+     */
+    private static function calculateBusinessDays($businessDays)
+    {
+        $date = now();
+        $addedDays = 0;
+
+        while ($addedDays < $businessDays) {
+            $date->addDay();
+            // Skip weekends (Saturday = 6, Sunday = 0)
+            if ($date->dayOfWeek !== 0 && $date->dayOfWeek !== 6) {
+                $addedDays++;
+            }
+        }
+
+        return $date;
     }
 }
 

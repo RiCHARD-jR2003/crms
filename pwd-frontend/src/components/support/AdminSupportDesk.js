@@ -1110,17 +1110,31 @@ const AdminSupportDesk = () => {
                       {formatDateMMDDYYYY(ticket.created_at)}
                     </TableCell>
                     <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2 }}>
-                      <Chip
-                        label={selectedTicketId === ticket.id ? 'Selected' : 'Click to view'}
+                      <Button
                         size="small"
-                        sx={{
-                          backgroundColor: selectedTicketId === ticket.id ? '#3498DB' : '#F5F5F5',
-                          color: selectedTicketId === ticket.id ? '#FFFFFF' : '#7F8C8D',
-                          fontWeight: 600,
-                          fontSize: '0.7rem',
-                          height: 22
+                        variant={selectedTicketId === ticket.id ? 'contained' : 'outlined'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewTicket(ticket);
                         }}
-                      />
+                        sx={{
+                          backgroundColor: selectedTicketId === ticket.id ? '#3498DB' : 'transparent',
+                          color: selectedTicketId === ticket.id ? '#FFFFFF' : '#3498DB',
+                          borderColor: '#3498DB',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          fontSize: '0.75rem',
+                          py: 0.5,
+                          px: 1.5,
+                          minWidth: 90,
+                          '&:hover': {
+                            backgroundColor: selectedTicketId === ticket.id ? '#2980B9' : '#E8F4FD',
+                            borderColor: '#3498DB'
+                          }
+                        }}
+                      >
+                        {selectedTicketId === ticket.id ? 'Viewing' : 'View'}
+                      </Button>
                     </TableCell>
                     </TableRow>
                   ))

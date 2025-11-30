@@ -12,6 +12,45 @@ use Illuminate\Support\Facades\Cache;
 
 class AnnouncementController extends Controller
 {
+    // List of all barangays for cache clearing
+    private $allBarangays = [
+        'Baclaran', 'Banay-Banay', 'Banlic', 'Bigaa', 'Butong', 'Casile',
+        'Diezmo', 'Gulod', 'Mamatid', 'Marinig', 'Niugan', 'Pittland',
+        'Pob. Uno', 'Pob. Dos', 'Pob. Tres', 'Pulo', 'Sala', 'San Isidro'
+    ];
+
+    /**
+     * Helper function to clear announcement cache
+     */
+    private function clearAnnouncementCache($targetAudience = null)
+    {
+        Cache::forget('announcements.all');
+        Cache::forget('announcements.admin');
+        Cache::forget('announcements.Members');
+        Cache::forget('announcements.All');
+        Cache::forget('announcements.All Barangays');
+        
+        if ($targetAudience) {
+            Cache::forget('announcements.' . $targetAudience);
+            
+            // If targetAudience includes "All" or "Members", clear cache for all barangays
+            if ($targetAudience === 'All' || $targetAudience === 'Members' || 
+                $targetAudience === 'All Barangays' ||
+                strpos($targetAudience, 'All') !== false || 
+                strpos($targetAudience, 'Members') !== false) {
+                foreach ($this->allBarangays as $barangay) {
+                    Cache::forget('announcements.' . $barangay);
+                }
+            } elseif (strpos($targetAudience, ',') !== false) {
+                // If targetAudience is comma-separated, clear cache for each barangay
+                $barangays = array_map('trim', explode(',', $targetAudience));
+                foreach ($barangays as $barangay) {
+                    Cache::forget('announcements.' . $barangay);
+                }
+            }
+        }
+    }
+
     public function index()
     {
         // Cache announcements for 10 minutes (infrequently changed)
@@ -125,17 +164,7 @@ class AnnouncementController extends Controller
         $announcement = Announcement::create($data);
         
         // Clear announcements cache
-        Cache::forget('announcements.all');
-        Cache::forget('announcements.admin');
-        Cache::forget('announcements.' . $request->targetAudience);
-        
-        // If targetAudience is comma-separated, clear cache for each barangay
-        if (strpos($request->targetAudience, ',') !== false) {
-            $barangays = array_map('trim', explode(',', $request->targetAudience));
-            foreach ($barangays as $barangay) {
-                Cache::forget('announcements.' . $barangay);
-            }
-        }
+        $this->clearAnnouncementCache($request->targetAudience);
 
         return response()->json([
             'success' => true,
@@ -239,19 +268,7 @@ class AnnouncementController extends Controller
         $announcement->update($updateData);
         
         // Clear announcements cache
-        Cache::forget('announcements.all');
-        Cache::forget('announcements.admin');
-        if ($announcement->targetAudience) {
-            Cache::forget('announcements.' . $announcement->targetAudience);
-            
-            // If targetAudience is comma-separated, clear cache for each barangay
-            if (strpos($announcement->targetAudience, ',') !== false) {
-                $barangays = array_map('trim', explode(',', $announcement->targetAudience));
-                foreach ($barangays as $barangay) {
-                    Cache::forget('announcements.' . $barangay);
-                }
-            }
-        }
+        $this->clearAnnouncementCache($announcement->targetAudience);
 
         return response()->json([
             'success' => true,
@@ -272,19 +289,7 @@ class AnnouncementController extends Controller
         $announcement->delete();
         
         // Clear announcements cache
-        Cache::forget('announcements.all');
-        Cache::forget('announcements.admin');
-        if ($targetAudience) {
-            Cache::forget('announcements.' . $targetAudience);
-            
-            // If targetAudience is comma-separated, clear cache for each barangay
-            if (strpos($targetAudience, ',') !== false) {
-                $barangays = array_map('trim', explode(',', $targetAudience));
-                foreach ($barangays as $barangay) {
-                    Cache::forget('announcements.' . $barangay);
-                }
-            }
-        }
+        $this->clearAnnouncementCache($targetAudience);
 
         return response()->json(['message' => 'Announcement deleted successfully']);
     }
@@ -292,7 +297,8 @@ class AnnouncementController extends Controller
     public function getByAudience($audience)
     {
         // Sort by publishDate (desc) first, then created_at (desc) for latest-first
-        $announcements = Cache::remember('announcements.' . $audience, now()->addMinutes(10), function () use ($audience) {
+        // Cache for only 2 minutes to ensure fresh data
+        $announcements = Cache::remember('announcements.' . $audience, now()->addMinutes(2), function () use ($audience) {
             return Announcement::with('author')
                 ->where('status', 'Active')
                 ->where(function($query) {
@@ -302,20 +308,27 @@ class AnnouncementController extends Controller
                 ->where(function($query) use ($audience) {
                     // Match exact audience
                     $query->where('targetAudience', $audience)
+                          // Match "All" announcements (broadcast to everyone)
+                          ->orWhere('targetAudience', 'All')
                           // Match "All Barangays" announcements
                           ->orWhere('targetAudience', 'All Barangays')
+                          // Match "Members" announcements (all PWD members)
+                          ->orWhere('targetAudience', 'Members')
                           // Match comma-separated audiences that include this barangay
                           ->orWhere('targetAudience', 'LIKE', $audience . ',%')
                           ->orWhere('targetAudience', 'LIKE', '%, ' . $audience . ',%')
                           ->orWhere('targetAudience', 'LIKE', '%, ' . $audience)
-                          ->orWhere('targetAudience', 'LIKE', '%' . $audience . '%');
+                          ->orWhere('targetAudience', 'LIKE', '%' . $audience . '%')
+                          // Match comma-separated that include "Members" or "All"
+                          ->orWhere('targetAudience', 'LIKE', '%Members%')
+                          ->orWhere('targetAudience', 'LIKE', '%All%');
                 })
                 ->orderByRaw('COALESCE(publishDate, created_at) DESC')
                 ->orderBy('created_at', 'DESC')
                 ->get();
         });
         
-        // Additional filtering to ensure exact barangay match (handle comma-separated lists)
+        // Additional filtering to ensure exact match (handle comma-separated lists)
         $filteredAnnouncements = $announcements->filter(function($announcement) use ($audience) {
             $targetAudience = $announcement->targetAudience;
             
@@ -324,14 +337,25 @@ class AnnouncementController extends Controller
                 return true;
             }
             
-            // "All Barangays" - show to everyone (system-wide announcements)
-            if ($targetAudience === 'All Barangays') {
+            // "All" or "All Barangays" - show to everyone (system-wide announcements)
+            if ($targetAudience === 'All' || $targetAudience === 'All Barangays') {
+                return true;
+            }
+            
+            // "Members" - show to all PWD members
+            if ($targetAudience === 'Members') {
                 return true;
             }
             
             // Check if audience is in comma-separated list (for multiple barangays)
             $barangays = array_map('trim', explode(',', $targetAudience));
-            return in_array($audience, $barangays);
+            
+            // Check for this specific barangay, or "Members", or "All"
+            if (in_array($audience, $barangays) || in_array('Members', $barangays) || in_array('All', $barangays)) {
+                return true;
+            }
+            
+            return false;
         });
         
         return response()->json($filteredAnnouncements->values());
