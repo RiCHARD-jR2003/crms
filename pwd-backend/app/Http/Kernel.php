@@ -43,6 +43,7 @@ class Kernel extends HttpKernel
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\SetLocale::class,
+            \App\Http\Middleware\OptimizeResponse::class, // Response optimization
             \App\Http\Middleware\AuditLogMiddleware::class,
             \App\Http\Middleware\SecurityMonitoringMiddleware::class,
         ],

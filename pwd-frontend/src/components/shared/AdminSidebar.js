@@ -11,6 +11,7 @@ import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import SecurityIcon from '@mui/icons-material/Security';
 import DescriptionIcon from '@mui/icons-material/Description';
 import UpdateIcon from '@mui/icons-material/Update';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -337,6 +338,13 @@ function AdminSidebar({ isOpen, onToggle }) {
           label="ID Renewal" 
           path="/renewal-dashboard"
           active={isActive('/renewal-dashboard')}
+        />
+        
+        <SidebarItem 
+          icon={<AssessmentIcon />} 
+          label="Disability Assessment" 
+          path="/disability-assessment"
+          active={isActive('/disability-assessment')}
         />
         
         {/* Benefit Tracking Group */}

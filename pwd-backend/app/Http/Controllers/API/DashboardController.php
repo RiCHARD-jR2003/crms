@@ -89,9 +89,9 @@ class DashboardController extends Controller
                 // Get PWD count for this barangay
                 $pwdCount = \App\Models\PWDMember::where('barangay', $president->barangay)->count();
                 
-                // Get pending applications for this barangay
+                // Get pending applications for this barangay (including For Assessment)
                 $pendingApplications = \App\Models\Application::where('barangay', $president->barangay)
-                    ->whereIn('status', ['Pending Barangay Approval', 'Pending Admin Approval'])
+                    ->whereIn('status', ['Pending Barangay Approval', 'Pending Admin Approval', 'For Assessment'])
                     ->count();
 
                 $contacts[] = [

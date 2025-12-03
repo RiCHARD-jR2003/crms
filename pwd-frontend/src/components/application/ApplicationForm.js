@@ -60,8 +60,76 @@ const steps = [
   'Documents'
 ];
 
-// Maximum file size: 15MB
+// Maximum file size: 15MB per file, and image compression settings
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB in bytes
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB - compress images larger than this
+const IMAGE_QUALITY = 0.7; // JPEG quality for compression
+const MAX_IMAGE_DIMENSION = 1920; // Max width/height for images
+
+// Image compression utility function
+const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    // Only compress images
+    if (!file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+    
+    // Skip compression for small images or non-compressible formats
+    if (file.size <= MAX_IMAGE_SIZE || file.type === 'image/gif') {
+      resolve(file);
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Calculate new dimensions while maintaining aspect ratio
+        let { width, height } = img;
+        if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+          if (width > height) {
+            height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
+            width = MAX_IMAGE_DIMENSION;
+          } else {
+            width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
+            height = MAX_IMAGE_DIMENSION;
+          }
+        }
+        
+        // Create canvas and draw compressed image
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to blob
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              // Create new file with compressed data
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              console.log(`Compressed ${file.name}: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+              resolve(compressedFile);
+            } else {
+              resolve(file); // Return original if compression fails
+            }
+          },
+          'image/jpeg',
+          IMAGE_QUALITY
+        );
+      };
+      img.onerror = () => resolve(file); // Return original if image loading fails
+      img.src = event.target.result;
+    };
+    reader.onerror = () => resolve(file); // Return original if reading fails
+    reader.readAsDataURL(file);
+  });
+};
 
 function ApplicationForm() {
   const navigate = useNavigate();
@@ -380,7 +448,7 @@ function ApplicationForm() {
       return;
     }
 
-    // Validate file size (15MB limit)
+    // Validate file size (15MB limit) before compression
     if (file.size > MAX_FILE_SIZE) {
       const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
       setFileErrors(prev => ({
@@ -390,16 +458,26 @@ function ApplicationForm() {
       return;
     }
 
+    // Compress images to reduce upload size
+    let processedFile = file;
+    if (file.type.startsWith('image/')) {
+      try {
+        processedFile = await compressImage(file);
+      } catch (err) {
+        console.warn('Image compression failed, using original:', err);
+      }
+    }
+
     setFormData(prev => ({ 
       ...prev, 
       documents: { 
         ...prev.documents, 
-        [field]: file 
+        [field]: processedFile 
       } 
     }));
     
     // Save file to IndexedDB for persistence
-    await saveFileToStorage(field, file);
+    await saveFileToStorage(field, processedFile);
   };
 
   // Helper function to get file type
@@ -2105,7 +2183,7 @@ function ApplicationForm() {
                   disabled={submitting || !canProceed}
                   startIcon={submitting ? <CircularProgress size={20} sx={{ color: 'white' }} /> : null}
                   sx={{
-                    backgroundColor: submitting ? '#95a5a6' : '#0b87ac',
+                    backgroundColor: submitting ? '#95a5a6' : '#C41E3A',
                     color: 'white',
                     py: 1.5,
                     px: 4,
@@ -2113,9 +2191,9 @@ function ApplicationForm() {
                     fontWeight: 600,
                     fontSize: '16px',
                     textTransform: 'none',
-                    boxShadow: submitting ? 'none' : '0 4px 12px rgba(11, 135, 172, 0.3)',
+                    boxShadow: submitting ? 'none' : '0 4px 12px rgba(196, 30, 58, 0.3)',
                     '&:hover': {
-                      backgroundColor: submitting ? '#95a5a6' : '#0a6b8a',
+                      backgroundColor: submitting ? '#95a5a6' : '#2C3E50',
                       boxShadow: submitting ? 'none' : '0 6px 16px rgba(11, 135, 172, 0.4)',
                       transform: submitting ? 'none' : 'translateY(-1px)',
                     },
@@ -2301,17 +2379,17 @@ function ApplicationForm() {
               onClick={handleClosePreview}
               variant="contained"
               sx={{
-                backgroundColor: '#0b87ac',
+                backgroundColor: '#C41E3A',
                 color: 'white',
                 py: 0.75,
                 px: 2,
                 borderRadius: 2,
                 fontWeight: 600,
                 textTransform: 'none',
-                boxShadow: '0 4px 12px rgba(11, 135, 172, 0.3)',
+                boxShadow: '0 4px 12px rgba(196, 30, 58, 0.3)',
                 '&:hover': {
-                  backgroundColor: '#0a6b8a',
-                  boxShadow: '0 6px 16px rgba(11, 135, 172, 0.4)',
+                  backgroundColor: '#2C3E50',
+                  boxShadow: '0 6px 16px rgba(44, 62, 80, 0.4)',
                 },
               }}
             >

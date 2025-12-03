@@ -412,7 +412,20 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
       
       setScannedData(qrData);
       
-      // Find member in PWD data
+      // Check if this is an ID QR code (type = 'PWD_ID') - only show ID number, no personal details
+      if (qrData.type === 'PWD_ID') {
+        const idNumber = qrData.pwd_id || qrData.pwdId || qrData.userID || 'Unknown ID';
+        toastService.success(`PWD ID Number: ${idNumber}`);
+        setLoading(false);
+        setIsProcessing(false);
+        // Close scanner after showing ID
+        setTimeout(() => {
+          handleClose();
+        }, 2000);
+        return;
+      }
+      
+      // For benefit claim QR codes, find member in PWD data
       const pwdMembers = await pwdMemberService.getAll();
       const members = pwdMembers.members || [];
       

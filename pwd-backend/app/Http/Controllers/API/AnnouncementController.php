@@ -12,37 +12,39 @@ use Illuminate\Support\Facades\Cache;
 
 class AnnouncementController extends Controller
 {
-    // List of all barangays for cache clearing
+    // List of all barangays for cache clearing (must match frontend naming exactly)
     private $allBarangays = [
         'Baclaran', 'Banay-Banay', 'Banlic', 'Bigaa', 'Butong', 'Casile',
         'Diezmo', 'Gulod', 'Mamatid', 'Marinig', 'Niugan', 'Pittland',
-        'Pob. Uno', 'Pob. Dos', 'Pob. Tres', 'Pulo', 'Sala', 'San Isidro'
+        'Pulo', 'Sala', 'San Isidro',
+        'Barangay I Poblacion', 'Barangay II Poblacion', 'Barangay III Poblacion'
     ];
 
     /**
      * Helper function to clear announcement cache
+     * Now clears ALL caches to ensure fresh data across all dashboards
      */
     private function clearAnnouncementCache($targetAudience = null)
     {
+        // Clear general caches
         Cache::forget('announcements.all');
         Cache::forget('announcements.admin');
         Cache::forget('announcements.Members');
         Cache::forget('announcements.All');
         Cache::forget('announcements.All Barangays');
         
+        // Always clear cache for ALL barangays to ensure fresh data
+        // This prevents stale data issues when announcements target multiple barangays
+        foreach ($this->allBarangays as $barangay) {
+            Cache::forget('announcements.' . $barangay);
+        }
+        
+        // Also clear any specific targetAudience cache if provided
         if ($targetAudience) {
             Cache::forget('announcements.' . $targetAudience);
             
-            // If targetAudience includes "All" or "Members", clear cache for all barangays
-            if ($targetAudience === 'All' || $targetAudience === 'Members' || 
-                $targetAudience === 'All Barangays' ||
-                strpos($targetAudience, 'All') !== false || 
-                strpos($targetAudience, 'Members') !== false) {
-                foreach ($this->allBarangays as $barangay) {
-                    Cache::forget('announcements.' . $barangay);
-                }
-            } elseif (strpos($targetAudience, ',') !== false) {
-                // If targetAudience is comma-separated, clear cache for each barangay
+            // If targetAudience is comma-separated, clear cache for each mentioned barangay
+            if (strpos($targetAudience, ',') !== false) {
                 $barangays = array_map('trim', explode(',', $targetAudience));
                 foreach ($barangays as $barangay) {
                     Cache::forget('announcements.' . $barangay);

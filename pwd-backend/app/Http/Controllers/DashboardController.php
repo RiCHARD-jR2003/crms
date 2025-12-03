@@ -101,13 +101,14 @@ class DashboardController extends Controller
                     $pwdMemberCount = Application::where('status', 'Approved')->count();
                 }
 
-                // Get support tickets count
+                // Get support tickets count (active tickets - excluding resolved to match support page)
                 $supportTicketsCount = 0;
                 $resolvedTicketsCount = 0;
                 try {
-                    $supportTicketsCount = SupportTicket::count();
-                    $resolvedTicketsCount = SupportTicket::whereIn('status', ['resolved', 'closed'])->count();
-                    \Illuminate\Support\Facades\Log::info('Support tickets count:', ['count' => $supportTicketsCount, 'resolved' => $resolvedTicketsCount]);
+                    // Count active tickets (not resolved) - this matches what the support ticket page shows
+                    $supportTicketsCount = SupportTicket::where('status', '!=', 'resolved')->count();
+                    $resolvedTicketsCount = SupportTicket::where('status', 'resolved')->count();
+                    \Illuminate\Support\Facades\Log::info('Support tickets count:', ['active' => $supportTicketsCount, 'resolved' => $resolvedTicketsCount]);
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::error('Error fetching support tickets count:', ['error' => $e->getMessage()]);
                     // Table doesn't exist or has issues, use default value
@@ -148,7 +149,7 @@ class DashboardController extends Controller
 
                 return [
                     'totalPWDMembers' => $pwdMemberCount,
-                    'pendingApplications' => Application::whereIn('status', ['Pending Barangay Approval', 'Pending Admin Approval'])->count(),
+                    'pendingApplications' => Application::whereIn('status', ['Pending Barangay Approval', 'Pending Admin Approval', 'For Assessment'])->count(),
                     'approvedApplications' => Application::where('status', 'Approved')->count(),
                     'activeMembers' => $pwdMemberCount, // All PWD members are considered active
                     'supportTickets' => $supportTicketsCount,

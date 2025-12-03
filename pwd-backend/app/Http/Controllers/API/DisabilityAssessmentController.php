@@ -28,19 +28,22 @@ class DisabilityAssessmentController extends Controller
             $query->where('status', $request->status);
         }
         
-        // Filter by date
-        if ($request->has('date')) {
+        // Filter by date (only if date is provided)
+        if ($request->has('date') && $request->date) {
             $query->whereDate('assessment_date', $request->date);
         }
         
-        // Filter by date range
-        if ($request->has('from_date') && $request->has('to_date')) {
+        // Filter by date range (only if both dates are provided)
+        if ($request->has('from_date') && $request->has('to_date') && $request->from_date && $request->to_date) {
             $query->whereBetween('assessment_date', [$request->from_date, $request->to_date]);
         }
         
-        $assessments = $query->orderBy('assessment_date', 'desc')
+        // Order: pending first (no date), then by date desc, then by slot
+        $assessments = $query->orderByRaw('CASE WHEN assessment_date IS NULL THEN 0 ELSE 1 END')
+            ->orderByRaw('COALESCE(assessment_date, created_at) DESC')
             ->orderBy('slot_number')
-            ->paginate($request->per_page ?? 20);
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->per_page ?? 50);
         
         return response()->json($assessments);
     }
@@ -83,6 +86,19 @@ class DisabilityAssessmentController extends Controller
         $startDate = Carbon::parse($request->start_date ?? today());
         $endDate = Carbon::parse($request->end_date ?? today()->addDays(30));
         
+        // If application_id is provided, limit dates to within the application's holding period
+        $applicationExpiresAt = null;
+        if ($request->has('application_id')) {
+            $application = Application::find($request->application_id);
+            if ($application && $application->expires_at) {
+                $applicationExpiresAt = Carbon::parse($application->expires_at);
+                // Limit end date to application expiry date if it's earlier
+                if ($applicationExpiresAt->isBefore($endDate)) {
+                    $endDate = $applicationExpiresAt;
+                }
+            }
+        }
+        
         $dates = [];
         $currentDate = $startDate->copy();
         
@@ -100,7 +116,10 @@ class DisabilityAssessmentController extends Controller
             $currentDate->addDay();
         }
         
-        return response()->json($dates);
+        return response()->json([
+            'dates' => $dates,
+            'application_expires_at' => $applicationExpiresAt ? $applicationExpiresAt->format('Y-m-d') : null
+        ]);
     }
 
     /**
@@ -143,6 +162,14 @@ class DisabilityAssessmentController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
         
+        // Check if date is a weekend
+        $assessmentDate = Carbon::parse($request->assessment_date);
+        if ($assessmentDate->isWeekend()) {
+            return response()->json([
+                'message' => 'Assessments cannot be scheduled on weekends. Please select a weekday.'
+            ], 400);
+        }
+        
         // Check if slot is available
         $availableSlots = DisabilityAssessment::getAvailableSlots($request->assessment_date);
         if (!in_array($request->slot_number, $availableSlots)) {
@@ -153,6 +180,19 @@ class DisabilityAssessmentController extends Controller
         $application = Application::find($request->application_id);
         if (!$application) {
             return response()->json(['message' => 'Application not found'], 404);
+        }
+        
+        // Check if assessment date is within application holding period
+        if ($application->expires_at) {
+            $assessmentDate = Carbon::parse($request->assessment_date);
+            $expiresAt = Carbon::parse($application->expires_at);
+            
+            if ($assessmentDate->startOfDay()->isAfter($expiresAt->endOfDay())) {
+                return response()->json([
+                    'message' => 'Assessment date must be within the application holding period. The application expires on ' . $expiresAt->format('F j, Y') . '.',
+                    'expires_at' => $expiresAt->format('Y-m-d')
+                ], 400);
+            }
         }
         
         // Check if assessment already exists
@@ -287,6 +327,7 @@ class DisabilityAssessmentController extends Controller
 
     /**
      * Staff/Admin updates assessment
+     * Note: Assessment form can only be edited on the day of the scheduled assessment
      */
     public function updateAssessment(Request $request, $id)
     {
@@ -294,6 +335,48 @@ class DisabilityAssessmentController extends Controller
         
         if (!$assessment) {
             return response()->json(['message' => 'Assessment not found'], 404);
+        }
+        
+        // Check if assessment is already finalized
+        if (in_array($assessment->status, [DisabilityAssessment::STATUS_FINALIZED, DisabilityAssessment::STATUS_UPLOADED])) {
+            return response()->json([
+                'message' => 'This assessment has been finalized and cannot be edited.'
+            ], 400);
+        }
+        
+        // Check if assessment has been scheduled
+        if (!$assessment->assessment_date) {
+            return response()->json([
+                'message' => 'This assessment has not been scheduled yet. Please schedule an appointment first.'
+            ], 400);
+        }
+        
+        // Check if it's the day of the assessment
+        $assessmentDate = Carbon::parse($assessment->assessment_date)->startOfDay();
+        $today = Carbon::today();
+        
+        if (!$assessmentDate->equalTo($today)) {
+            // Allow SuperAdmin to bypass this restriction
+            if ($request->user()->role !== 'SuperAdmin') {
+                $dateFormatted = $assessmentDate->format('F d, Y');
+                
+                if ($assessmentDate->isFuture()) {
+                    return response()->json([
+                        'message' => "This assessment form can only be edited on the day of the scheduled appointment ({$dateFormatted}). Please return on that date to complete the assessment."
+                    ], 400);
+                } else {
+                    return response()->json([
+                        'message' => "The scheduled assessment date ({$dateFormatted}) has passed. Please mark the appointment as missed and reschedule if needed."
+                    ], 400);
+                }
+            }
+        }
+        
+        // Check if status allows editing
+        if (!in_array($assessment->status, [DisabilityAssessment::STATUS_SCHEDULED, DisabilityAssessment::STATUS_COMPLETED])) {
+            return response()->json([
+                'message' => 'This assessment cannot be edited in its current status: ' . $assessment->status
+            ], 400);
         }
         
         $validator = Validator::make($request->all(), [
@@ -351,6 +434,7 @@ class DisabilityAssessmentController extends Controller
 
     /**
      * Finalize assessment and generate PDF
+     * Note: Can only be done on the day of the assessment
      */
     public function finalizeAssessment(Request $request, $id)
     {
@@ -362,6 +446,19 @@ class DisabilityAssessmentController extends Controller
         
         if ($assessment->status !== DisabilityAssessment::STATUS_COMPLETED) {
             return response()->json(['message' => 'Only completed assessments can be finalized'], 400);
+        }
+        
+        // Check if it's the day of the assessment (SuperAdmin can bypass)
+        if ($request->user()->role !== 'SuperAdmin' && $assessment->assessment_date) {
+            $assessmentDate = Carbon::parse($assessment->assessment_date)->startOfDay();
+            $today = Carbon::today();
+            
+            if (!$assessmentDate->equalTo($today)) {
+                $dateFormatted = $assessmentDate->format('F d, Y');
+                return response()->json([
+                    'message' => "Assessment can only be finalized on the scheduled appointment date ({$dateFormatted})."
+                ], 400);
+            }
         }
         
         // Generate PDF
@@ -520,6 +617,434 @@ class DisabilityAssessmentController extends Controller
             Log::info('Assessment scheduling email sent', ['assessment_id' => $assessment->id]);
         } catch (\Exception $e) {
             Log::error('Failed to send assessment scheduling email', [
+                'assessment_id' => $assessment->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Mark assessment as missed
+     */
+    public function markAsMissed(Request $request, $id)
+    {
+        $assessment = DisabilityAssessment::find($id);
+        
+        if (!$assessment) {
+            return response()->json(['message' => 'Assessment not found'], 404);
+        }
+        
+        if ($assessment->status !== DisabilityAssessment::STATUS_SCHEDULED) {
+            return response()->json(['message' => 'Only scheduled assessments can be marked as missed'], 400);
+        }
+        
+        // Mark as missed
+        $assessment->markAsMissed($request->user()->userID);
+        
+        // Update application status
+        $assessment->application->update(['assessment_status' => 'pending']);
+        
+        // Send missed appointment email with reschedule link
+        $this->sendMissedAppointmentEmail($assessment);
+        
+        return response()->json([
+            'message' => 'Assessment marked as missed',
+            'assessment' => $assessment->load('application'),
+            'can_reschedule' => $assessment->canReschedule()
+        ]);
+    }
+
+    /**
+     * Mark attendance as present
+     */
+    public function markAsPresent(Request $request, $id)
+    {
+        $assessment = DisabilityAssessment::find($id);
+        
+        if (!$assessment) {
+            return response()->json(['message' => 'Assessment not found'], 404);
+        }
+        
+        if ($assessment->status !== DisabilityAssessment::STATUS_SCHEDULED) {
+            return response()->json(['message' => 'Only scheduled assessments can be marked as present'], 400);
+        }
+        
+        $assessment->markAsPresent($request->user()->userID);
+        
+        return response()->json([
+            'message' => 'Attendance marked as present',
+            'assessment' => $assessment->load('application')
+        ]);
+    }
+
+    /**
+     * Reschedule assessment (public endpoint via token)
+     */
+    public function rescheduleWithToken(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'token' => 'required|string',
+            'new_date' => 'required|date|after_or_equal:today',
+            'slot_number' => 'required|integer|min:1|max:10'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        
+        // Find assessment by token
+        $assessment = DisabilityAssessment::where('reschedule_token', $request->token)->first();
+        
+        if (!$assessment) {
+            return response()->json(['message' => 'Invalid reschedule link'], 404);
+        }
+        
+        // Check if token is valid
+        if (!$assessment->isRescheduleTokenValid($request->token)) {
+            return response()->json(['message' => 'This reschedule link has expired'], 400);
+        }
+        
+        // Check if can reschedule
+        if (!$assessment->canReschedule()) {
+            return response()->json([
+                'message' => 'You have already used your reschedule opportunity. Please contact the office for assistance.'
+            ], 400);
+        }
+        
+        // Check if date is a weekend
+        $newDate = Carbon::parse($request->new_date);
+        if ($newDate->isWeekend()) {
+            return response()->json([
+                'message' => 'Assessments cannot be scheduled on weekends. Please select a weekday.'
+            ], 400);
+        }
+        
+        // Check if new date is within application holding period
+        $application = Application::find($assessment->application_id);
+        if ($application && $application->expires_at) {
+            $expiresAt = Carbon::parse($application->expires_at);
+            if ($newDate->startOfDay()->isAfter($expiresAt->endOfDay())) {
+                return response()->json([
+                    'message' => 'Assessment date must be within the application holding period. The application expires on ' . $expiresAt->format('F j, Y') . '.',
+                    'expires_at' => $expiresAt->format('Y-m-d')
+                ], 400);
+            }
+        }
+        
+        // Check if new slot is available
+        $availableSlots = DisabilityAssessment::getAvailableSlots($request->new_date);
+        if (!in_array($request->slot_number, $availableSlots)) {
+            return response()->json(['message' => 'This time slot is no longer available'], 400);
+        }
+        
+        // Store original date if not already stored
+        if (!$assessment->original_assessment_date) {
+            $assessment->original_assessment_date = $assessment->assessment_date;
+            $assessment->original_slot_number = $assessment->slot_number;
+        }
+        
+        // Update assessment
+        $assessment->update([
+            'assessment_date' => $request->new_date,
+            'slot_number' => $request->slot_number,
+            'status' => DisabilityAssessment::STATUS_SCHEDULED,
+            'is_missed' => false,
+            'reschedule_count' => $assessment->reschedule_count + 1,
+            'last_rescheduled_at' => now(),
+            'attendance_status' => DisabilityAssessment::ATTENDANCE_PENDING,
+            'reschedule_token' => null, // Invalidate token after use
+            'reschedule_token_expires_at' => null
+        ]);
+        
+        // Update application status
+        $assessment->application->update(['assessment_status' => 'scheduled']);
+        
+        // Send new scheduling confirmation email
+        $this->sendReschedulingConfirmationEmail($assessment);
+        
+        return response()->json([
+            'message' => 'Assessment rescheduled successfully',
+            'assessment' => $assessment->load('application')
+        ]);
+    }
+
+    /**
+     * Admin/staff reschedule assessment
+     */
+    public function rescheduleByAdmin(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'new_date' => 'required|date|after_or_equal:today',
+            'slot_number' => 'required|integer|min:1|max:10',
+            'reason' => 'nullable|string'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        
+        $assessment = DisabilityAssessment::find($id);
+        
+        if (!$assessment) {
+            return response()->json(['message' => 'Assessment not found'], 404);
+        }
+        
+        // Check if assessment can be rescheduled (not finalized/uploaded)
+        if (in_array($assessment->status, [DisabilityAssessment::STATUS_FINALIZED, DisabilityAssessment::STATUS_UPLOADED])) {
+            return response()->json([
+                'message' => 'This assessment has been finalized and cannot be rescheduled.'
+            ], 400);
+        }
+        
+        // Check if date is a weekend
+        $newDate = Carbon::parse($request->new_date);
+        if ($newDate->isWeekend()) {
+            return response()->json([
+                'message' => 'Assessments cannot be scheduled on weekends. Please select a weekday.'
+            ], 400);
+        }
+        
+        // Check if new date is within application holding period
+        $application = Application::find($assessment->application_id);
+        if ($application && $application->expires_at) {
+            $expiresAt = Carbon::parse($application->expires_at);
+            if ($newDate->startOfDay()->isAfter($expiresAt->endOfDay())) {
+                return response()->json([
+                    'message' => 'Assessment date must be within the application holding period. The application expires on ' . $expiresAt->format('F j, Y') . '.',
+                    'expires_at' => $expiresAt->format('Y-m-d')
+                ], 400);
+            }
+        }
+        
+        // Check if new slot is available
+        $availableSlots = DisabilityAssessment::getAvailableSlots($request->new_date);
+        if (!in_array($request->slot_number, $availableSlots)) {
+            return response()->json(['message' => 'This time slot is no longer available'], 400);
+        }
+        
+        // Store original date if not already stored
+        if (!$assessment->original_assessment_date) {
+            $assessment->original_assessment_date = $assessment->assessment_date;
+            $assessment->original_slot_number = $assessment->slot_number;
+        }
+        
+        // Update assessment (admin reschedule doesn't count against user's limit)
+        $assessment->update([
+            'assessment_date' => $request->new_date,
+            'slot_number' => $request->slot_number,
+            'status' => DisabilityAssessment::STATUS_SCHEDULED,
+            'is_missed' => false,
+            'last_rescheduled_at' => now(),
+            'attendance_status' => DisabilityAssessment::ATTENDANCE_PENDING,
+            'assessor_notes' => $assessment->assessor_notes . "\n[Admin Rescheduled: " . now()->format('Y-m-d H:i') . "] " . ($request->reason ?? 'No reason provided')
+        ]);
+        
+        // Update application status
+        $assessment->application->update(['assessment_status' => 'scheduled']);
+        
+        // Send new scheduling confirmation email
+        $this->sendReschedulingConfirmationEmail($assessment);
+        
+        return response()->json([
+            'message' => 'Assessment rescheduled successfully',
+            'assessment' => $assessment->load('application')
+        ]);
+    }
+
+    /**
+     * Get assessment by reschedule token (for public reschedule page)
+     */
+    public function getByRescheduleToken($token)
+    {
+        $assessment = DisabilityAssessment::where('reschedule_token', $token)
+            ->with('application')
+            ->first();
+        
+        if (!$assessment) {
+            return response()->json(['message' => 'Invalid reschedule link'], 404);
+        }
+        
+        if (!$assessment->isRescheduleTokenValid($token)) {
+            return response()->json(['message' => 'This reschedule link has expired'], 400);
+        }
+        
+        if (!$assessment->canReschedule()) {
+            return response()->json([
+                'message' => 'You have already used your reschedule opportunity',
+                'can_reschedule' => false
+            ], 400);
+        }
+        
+        return response()->json([
+            'assessment' => [
+                'id' => $assessment->id,
+                'reference_number' => $assessment->reference_number,
+                'applicant_name' => $assessment->applicant_name,
+                'original_date' => $assessment->original_assessment_date ?? $assessment->assessment_date,
+                'missed_date' => $assessment->assessment_date,
+                'reschedule_count' => $assessment->reschedule_count,
+                'max_reschedule_allowed' => $assessment->max_reschedule_allowed
+            ],
+            'can_reschedule' => true
+        ]);
+    }
+
+    /**
+     * Upload PDF after finalization
+     */
+    public function uploadPDF(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'pdf' => 'required|file|mimes:pdf|max:10240'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        
+        $assessment = DisabilityAssessment::find($id);
+        
+        if (!$assessment) {
+            return response()->json(['message' => 'Assessment not found'], 404);
+        }
+        
+        if (!in_array($assessment->status, [DisabilityAssessment::STATUS_FINALIZED, DisabilityAssessment::STATUS_COMPLETED])) {
+            return response()->json(['message' => 'Assessment must be completed or finalized before uploading PDF'], 400);
+        }
+        
+        // Store PDF
+        $filename = "assessment_{$assessment->reference_number}_uploaded.pdf";
+        $path = $request->file('pdf')->storeAs('assessments/pdfs', $filename, 'public');
+        
+        // Update assessment
+        $assessment->update([
+            'pdf_path' => $path,
+            'status' => DisabilityAssessment::STATUS_UPLOADED
+        ]);
+        
+        // Update application
+        $assessment->application->update([
+            'assessment_status' => 'uploaded',
+            'assessment_pdf_path' => $path
+        ]);
+        
+        return response()->json([
+            'message' => 'PDF uploaded successfully',
+            'assessment' => $assessment->load('application'),
+            'pdf_url' => Storage::disk('public')->url($path)
+        ]);
+    }
+
+    /**
+     * Check missed appointments (to be called by scheduler)
+     */
+    public function checkMissedAppointments()
+    {
+        $missedAssessments = DisabilityAssessment::needsMissedCheck()->get();
+        
+        $processed = 0;
+        foreach ($missedAssessments as $assessment) {
+            $assessment->markAsMissed();
+            $this->sendMissedAppointmentEmail($assessment);
+            $processed++;
+        }
+        
+        return response()->json([
+            'message' => "Processed {$processed} missed appointments",
+            'count' => $processed
+        ]);
+    }
+
+    /**
+     * Get assessment statistics
+     */
+    public function getStatistics()
+    {
+        $stats = [
+            'total' => DisabilityAssessment::count(),
+            'pending' => DisabilityAssessment::where('status', DisabilityAssessment::STATUS_PENDING)->count(),
+            'scheduled' => DisabilityAssessment::where('status', DisabilityAssessment::STATUS_SCHEDULED)->count(),
+            'completed' => DisabilityAssessment::where('status', DisabilityAssessment::STATUS_COMPLETED)->count(),
+            'finalized' => DisabilityAssessment::where('status', DisabilityAssessment::STATUS_FINALIZED)->count(),
+            'uploaded' => DisabilityAssessment::where('status', DisabilityAssessment::STATUS_UPLOADED)->count(),
+            'missed' => DisabilityAssessment::where('status', DisabilityAssessment::STATUS_MISSED)->count(),
+            'rescheduled_count' => DisabilityAssessment::where('reschedule_count', '>', 0)->count(),
+            'today_scheduled' => DisabilityAssessment::today()->count(),
+            'today_slots_remaining' => 10 - DisabilityAssessment::getAppointmentCount(today())
+        ];
+        
+        return response()->json($stats);
+    }
+
+    /**
+     * Send missed appointment email
+     */
+    private function sendMissedAppointmentEmail($assessment)
+    {
+        if (!$assessment->applicant_email) {
+            return;
+        }
+        
+        try {
+            $frontendUrl = config('app.frontend_url', 'http://localhost:3000');
+            $rescheduleLink = null;
+            
+            if ($assessment->canReschedule() && $assessment->reschedule_token) {
+                $rescheduleLink = "{$frontendUrl}/disability-assessment/reschedule/{$assessment->reschedule_token}";
+            }
+            
+            $timeSlots = DisabilityAssessment::getTimeSlots();
+            
+            Mail::send('emails.assessment-missed', [
+                'assessment' => $assessment,
+                'rescheduleLink' => $rescheduleLink,
+                'canReschedule' => $assessment->canReschedule(),
+                'missedDate' => $assessment->assessment_date->format('F d, Y'),
+                'missedTime' => $timeSlots[$assessment->slot_number] ?? 'N/A'
+            ], function ($message) use ($assessment) {
+                $message->to($assessment->applicant_email, $assessment->applicant_name)
+                    ->subject('PWD Application - Missed Disability Assessment Appointment');
+            });
+            
+            $assessment->update(['missed_email_sent_at' => now()]);
+            
+            Log::info('Missed appointment email sent', ['assessment_id' => $assessment->id]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send missed appointment email', [
+                'assessment_id' => $assessment->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Send rescheduling confirmation email
+     */
+    private function sendReschedulingConfirmationEmail($assessment)
+    {
+        if (!$assessment->applicant_email) {
+            return;
+        }
+        
+        try {
+            $frontendUrl = config('app.frontend_url', 'http://localhost:3000');
+            $formLink = "{$frontendUrl}/disability-assessment/form/{$assessment->reference_number}";
+            $timeSlots = DisabilityAssessment::getTimeSlots();
+            
+            Mail::send('emails.assessment-rescheduled', [
+                'assessment' => $assessment,
+                'formLink' => $formLink,
+                'timeSlot' => $timeSlots[$assessment->slot_number] ?? 'TBD',
+                'newDate' => $assessment->assessment_date->format('F d, Y'),
+                'originalDate' => $assessment->original_assessment_date ? $assessment->original_assessment_date->format('F d, Y') : 'N/A'
+            ], function ($message) use ($assessment) {
+                $message->to($assessment->applicant_email, $assessment->applicant_name)
+                    ->subject('PWD Application - Disability Assessment Rescheduled');
+            });
+            
+            Log::info('Rescheduling confirmation email sent', ['assessment_id' => $assessment->id]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send rescheduling confirmation email', [
                 'assessment_id' => $assessment->id,
                 'error' => $e->getMessage()
             ]);

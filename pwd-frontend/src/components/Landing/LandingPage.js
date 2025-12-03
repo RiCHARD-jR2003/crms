@@ -258,6 +258,12 @@ function LandingPage() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState('');
   
+  // Disability Assessment Check state
+  const [assessmentRefNumber, setAssessmentRefNumber] = useState('');
+  const [assessmentData, setAssessmentData] = useState(null);
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+  const [assessmentError, setAssessmentError] = useState('');
+  
   // Navigation state
   const [activeSection, setActiveSection] = useState('home'); // 'home', 'about', 'contact'
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -367,6 +373,53 @@ function LandingPage() {
     }
   };
 
+  // Disability Assessment Check function
+  const handleAssessmentSearch = async () => {
+    if (!assessmentRefNumber.trim()) {
+      setAssessmentError('Please enter an assessment reference number');
+      return;
+    }
+
+    setAssessmentLoading(true);
+    setAssessmentError('');
+    setAssessmentData(null);
+
+    try {
+      const response = await api.get(`/public/disability-assessment/reference/${assessmentRefNumber.trim()}`);
+      
+      if (response) {
+        setAssessmentData(response);
+      } else {
+        setAssessmentError('Assessment not found. Please check your reference number.');
+      }
+    } catch (err) {
+      console.error('Error fetching assessment:', err);
+      if (err.response?.status === 404 || err.message?.includes('not found')) {
+        setAssessmentError('Assessment not found. Please check your reference number (e.g., DA-XXXXXXXX-XXXX).');
+      } else {
+        setAssessmentError('Error checking assessment schedule. Please try again.');
+      }
+    } finally {
+      setAssessmentLoading(false);
+    }
+  };
+
+  const getTimeSlotLabel = (slotNumber) => {
+    const timeSlots = {
+      1: '8:00 AM - 8:30 AM',
+      2: '8:30 AM - 9:00 AM',
+      3: '9:00 AM - 9:30 AM',
+      4: '9:30 AM - 10:00 AM',
+      5: '10:00 AM - 10:30 AM',
+      6: '10:30 AM - 11:00 AM',
+      7: '1:00 PM - 1:30 PM',
+      8: '1:30 PM - 2:00 PM',
+      9: '2:00 PM - 2:30 PM',
+      10: '2:30 PM - 3:00 PM'
+    };
+    return timeSlots[slotNumber] || 'TBD';
+  };
+
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case 'approved':
@@ -375,6 +428,8 @@ function LandingPage() {
       case 'pending admin approval':
       case 'pending barangay approval':
         return '#F39C12';
+      case 'for assessment':
+        return '#1976D2';
       case 'rejected':
         return '#E74C3C';
       case 'expired':
@@ -533,20 +588,23 @@ function LandingPage() {
       {/* Home Section */}
       <Box id="home" sx={{ pt: 4, pb: 10 }}>
         <Container maxWidth="xl">
-          <Grid container spacing={3} sx={{ alignItems: 'center' }}>
-            {/* Left Side - Image */}
-            <Grid item xs={12} md={6}>
+          <Grid container spacing={3} sx={{ alignItems: 'flex-start' }}>
+            {/* Left Side - Image (Sticky) */}
+            <Grid item xs={12} md={6} sx={{ display: { xs: 'none', md: 'block' } }}>
               <Box sx={{ 
+                position: 'sticky',
+                top: 80, // Below the AppBar
                 display: 'flex', 
                 justifyContent: 'center', 
-                alignItems: 'center'
+                alignItems: 'flex-start',
+                pt: 2
               }}>
                 <img 
                   src="/images/diversity-unity.svg" 
                   alt="Diversity and Unity" 
                   style={{ 
                     width: '100%',
-                    maxWidth: '600px',
+                    maxWidth: '500px',
                     height: 'auto'
                   }}
                 />
@@ -555,6 +613,23 @@ function LandingPage() {
 
             {/* Right Side - All Text Content */}
             <Grid item xs={12} md={6}>
+              {/* Mobile Image - Shows only on mobile */}
+              <Box sx={{ 
+                display: { xs: 'flex', md: 'none' }, 
+                justifyContent: 'center', 
+                mb: 3 
+              }}>
+                <img 
+                  src="/images/diversity-unity.svg" 
+                  alt="Diversity and Unity" 
+                  style={{ 
+                    width: '80%',
+                    maxWidth: '300px',
+                    height: 'auto'
+                  }}
+                />
+              </Box>
+              
               <Typography 
                 variant="h3" 
                 sx={{ 
@@ -777,6 +852,172 @@ function LandingPage() {
                             </Alert>
                           </Grid>
                         )}
+                        
+                        {/* Disability Assessment Section */}
+                        {(applicationData.status === 'For Assessment' || applicationData.disabilityAssessment) && (
+                          <Grid item xs={12}>
+                            <Box sx={{ 
+                              mt: 2, 
+                              p: 2, 
+                              bgcolor: '#E8F4FD', 
+                              borderRadius: 2,
+                              border: '1px solid #1976D2'
+                            }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1565C0', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                📋 Disability Assessment Status
+                              </Typography>
+                              
+                              {applicationData.disabilityAssessment ? (
+                                <Box>
+                                  <Grid container spacing={1}>
+                                    <Grid item xs={6}>
+                                      <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                                        Assessment Reference:
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                        {applicationData.disabilityAssessment.reference_number}
+                                      </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                      <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                                        Status:
+                                      </Typography>
+                                      <Chip
+                                        label={
+                                          applicationData.disabilityAssessment.status === 'pending' ? 'Awaiting Schedule' :
+                                          applicationData.disabilityAssessment.status === 'scheduled' ? 'Scheduled' :
+                                          applicationData.disabilityAssessment.status === 'completed' ? 'Completed' :
+                                          applicationData.disabilityAssessment.status === 'finalized' ? 'Finalized' :
+                                          applicationData.disabilityAssessment.status === 'uploaded' ? 'Ready for Approval' :
+                                          applicationData.disabilityAssessment.status === 'missed' ? 'Missed Appointment' :
+                                          applicationData.disabilityAssessment.status === 'rescheduled' ? 'Rescheduled' :
+                                          applicationData.disabilityAssessment.status
+                                        }
+                                        size="small"
+                                        sx={{
+                                          bgcolor: 
+                                            applicationData.disabilityAssessment.status === 'pending' ? '#FFF3E0' :
+                                            applicationData.disabilityAssessment.status === 'scheduled' ? '#E3F2FD' :
+                                            applicationData.disabilityAssessment.status === 'completed' ? '#E8F5E9' :
+                                            applicationData.disabilityAssessment.status === 'finalized' ? '#F3E5F5' :
+                                            applicationData.disabilityAssessment.status === 'uploaded' ? '#E0F2F1' :
+                                            applicationData.disabilityAssessment.status === 'missed' ? '#FFEBEE' :
+                                            applicationData.disabilityAssessment.status === 'rescheduled' ? '#FFF8E1' : '#E0E0E0',
+                                          color:
+                                            applicationData.disabilityAssessment.status === 'pending' ? '#E65100' :
+                                            applicationData.disabilityAssessment.status === 'scheduled' ? '#1565C0' :
+                                            applicationData.disabilityAssessment.status === 'completed' ? '#2E7D32' :
+                                            applicationData.disabilityAssessment.status === 'finalized' ? '#7B1FA2' :
+                                            applicationData.disabilityAssessment.status === 'uploaded' ? '#00695C' :
+                                            applicationData.disabilityAssessment.status === 'missed' ? '#C62828' :
+                                            applicationData.disabilityAssessment.status === 'rescheduled' ? '#F57F17' : '#616161',
+                                          fontWeight: 600
+                                        }}
+                                      />
+                                    </Grid>
+                                    {applicationData.disabilityAssessment.assessment_date && (
+                                      <>
+                                        <Grid item xs={6}>
+                                          <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                                            Scheduled Date:
+                                          </Typography>
+                                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            {new Date(applicationData.disabilityAssessment.assessment_date).toLocaleDateString()}
+                                          </Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                          <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                                            Scheduled Time:
+                                          </Typography>
+                                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            {applicationData.disabilityAssessment.assessment_time || 'TBD'}
+                                          </Typography>
+                                        </Grid>
+                                      </>
+                                    )}
+                                  </Grid>
+                                  
+                                  {applicationData.disabilityAssessment.status === 'pending' && (
+                                    <Alert severity="info" sx={{ mt: 2 }}>
+                                      <Typography variant="body2">
+                                        Your application requires a disability assessment. You will receive an email with instructions to schedule your appointment.
+                                      </Typography>
+                                    </Alert>
+                                  )}
+                                  
+                                  {applicationData.disabilityAssessment.status === 'scheduled' && (
+                                    <Alert severity="warning" sx={{ mt: 2 }}>
+                                      <Typography variant="body2">
+                                        Please attend your scheduled disability assessment. Bring a valid government ID and any relevant medical documents.
+                                      </Typography>
+                                    </Alert>
+                                  )}
+                                  
+                                  {applicationData.disabilityAssessment.status === 'missed' && (
+                                    <Alert severity="error" sx={{ mt: 2 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                        ⚠️ You missed your scheduled assessment appointment.
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ mt: 1 }}>
+                                        {applicationData.disabilityAssessment.can_reschedule 
+                                          ? 'You have been sent an email with a link to reschedule your appointment. Please check your email and reschedule as soon as possible.'
+                                          : 'You have already used your rescheduling opportunity. Please contact the PDAO office directly for assistance.'}
+                                      </Typography>
+                                      {applicationData.disabilityAssessment.reschedule_count > 0 && (
+                                        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#F57F17' }}>
+                                          Rescheduling opportunities used: {applicationData.disabilityAssessment.reschedule_count} / {applicationData.disabilityAssessment.max_reschedule_allowed || 1}
+                                        </Typography>
+                                      )}
+                                    </Alert>
+                                  )}
+                                  
+                                  {applicationData.disabilityAssessment.status === 'rescheduled' && (
+                                    <Alert severity="info" sx={{ mt: 2 }}>
+                                      <Typography variant="body2">
+                                        Your assessment has been rescheduled. Please make sure to attend your new appointment date. This is a rescheduled appointment.
+                                      </Typography>
+                                      {applicationData.disabilityAssessment.reschedule_count > 0 && (
+                                        <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+                                          Note: You have rescheduled {applicationData.disabilityAssessment.reschedule_count} time(s). Further rescheduling may not be available.
+                                        </Typography>
+                                      )}
+                                    </Alert>
+                                  )}
+                                  
+                                  {applicationData.disabilityAssessment.status === 'completed' && (
+                                    <Alert severity="info" sx={{ mt: 2 }}>
+                                      <Typography variant="body2">
+                                        Your assessment has been completed. The staff is now processing your results.
+                                      </Typography>
+                                    </Alert>
+                                  )}
+                                  
+                                  {applicationData.disabilityAssessment.status === 'finalized' && (
+                                    <Alert severity="success" sx={{ mt: 2 }}>
+                                      <Typography variant="body2">
+                                        Your disability assessment has been completed. Your application is now pending final admin approval.
+                                      </Typography>
+                                    </Alert>
+                                  )}
+                                  
+                                  {applicationData.disabilityAssessment.status === 'uploaded' && (
+                                    <Alert severity="success" sx={{ mt: 2 }}>
+                                      <Typography variant="body2">
+                                        Your disability assessment is complete and all documents have been submitted. Your application is awaiting final approval.
+                                      </Typography>
+                                    </Alert>
+                                  )}
+                                </Box>
+                              ) : (
+                                <Alert severity="info">
+                                  <Typography variant="body2">
+                                    Your application is now awaiting disability assessment. You will receive an email with instructions to schedule your assessment appointment.
+                                  </Typography>
+                                </Alert>
+                              )}
+                            </Box>
+                          </Grid>
+                        )}
                       </Grid>
                       
                       {/* Document Re-upload Section for Rejected Applications */}
@@ -790,6 +1031,210 @@ function LandingPage() {
                         />
                       )}
                     </Box>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Disability Assessment Schedule Check Card */}
+              <Card sx={{ bgcolor: 'white', borderRadius: 3, boxShadow: '0 20px 40px rgba(0,0,0,0.1)', mt: 3 }}>
+                <CardContent sx={{ p: 4 }}>
+                  <Typography variant="h5" sx={{ mb: 1, color: '#2C3E50', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    📋 Check Disability Assessment Schedule
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 3, color: '#7F8C8D' }}>
+                    If your application has been endorsed by your barangay, you can check your assessment schedule here.
+                  </Typography>
+
+                  <TextField
+                    fullWidth
+                    label="Assessment Reference Number"
+                    placeholder="Enter your assessment reference (e.g., DA-20251203-XXXX)"
+                    value={assessmentRefNumber}
+                    onChange={(e) => setAssessmentRefNumber(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAssessmentSearch()}
+                    sx={{ mb: 2 }}
+                  />
+
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    onClick={handleAssessmentSearch}
+                    disabled={assessmentLoading}
+                    startIcon={assessmentLoading ? <CircularProgress size={20} /> : <SearchIcon />}
+                    sx={{
+                      bgcolor: '#1565C0',
+                      py: 1.5,
+                      '&:hover': { bgcolor: '#0D47A1' }
+                    }}
+                  >
+                    {assessmentLoading ? 'Checking...' : 'Check Schedule'}
+                  </Button>
+
+                  {assessmentError && (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                      {assessmentError}
+                    </Alert>
+                  )}
+
+                  {assessmentData && (
+                    <Box sx={{ mt: 3 }}>
+                      <Box sx={{ 
+                        p: 3, 
+                        bgcolor: '#E3F2FD', 
+                        borderRadius: 2,
+                        border: '1px solid #1976D2'
+                      }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1565C0', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          📋 Assessment Details
+                        </Typography>
+                        
+                        <Grid container spacing={2}>
+                          <Grid item xs={6}>
+                            <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                              Reference Number:
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {assessmentData.reference_number}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                              Applicant Name:
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {assessmentData.applicant_name}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                              Status:
+                            </Typography>
+                            <Chip
+                              label={
+                                assessmentData.status === 'pending' ? 'Awaiting Schedule' :
+                                assessmentData.status === 'scheduled' ? 'Scheduled' :
+                                assessmentData.status === 'completed' ? 'Assessment Completed' :
+                                assessmentData.status === 'finalized' ? 'Finalized' :
+                                assessmentData.status === 'uploaded' ? 'Ready for Approval' :
+                                assessmentData.status === 'missed' ? 'Missed Appointment' :
+                                assessmentData.status
+                              }
+                              size="small"
+                              sx={{
+                                bgcolor: 
+                                  assessmentData.status === 'pending' ? '#FFF3E0' :
+                                  assessmentData.status === 'scheduled' ? '#E3F2FD' :
+                                  assessmentData.status === 'completed' ? '#E8F5E9' :
+                                  assessmentData.status === 'finalized' ? '#F3E5F5' :
+                                  assessmentData.status === 'uploaded' ? '#E0F2F1' :
+                                  assessmentData.status === 'missed' ? '#FFEBEE' : '#E0E0E0',
+                                color:
+                                  assessmentData.status === 'pending' ? '#E65100' :
+                                  assessmentData.status === 'scheduled' ? '#1565C0' :
+                                  assessmentData.status === 'completed' ? '#2E7D32' :
+                                  assessmentData.status === 'finalized' ? '#7B1FA2' :
+                                  assessmentData.status === 'uploaded' ? '#00695C' :
+                                  assessmentData.status === 'missed' ? '#C62828' : '#616161',
+                                fontWeight: 600
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={6}>
+                            <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                              Disability Type:
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {assessmentData.disability_type || 'N/A'}
+                            </Typography>
+                          </Grid>
+                          
+                          {assessmentData.assessment_date && (
+                            <>
+                              <Grid item xs={6}>
+                                <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                                  Scheduled Date:
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565C0' }}>
+                                  {new Date(assessmentData.assessment_date).toLocaleDateString('en-US', {
+                                    weekday: 'long',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  })}
+                                </Typography>
+                              </Grid>
+                              <Grid item xs={6}>
+                                <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                                  Scheduled Time:
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565C0' }}>
+                                  {getTimeSlotLabel(assessmentData.slot_number)}
+                                </Typography>
+                              </Grid>
+                            </>
+                          )}
+                        </Grid>
+
+                        {assessmentData.status === 'pending' && (
+                          <Alert severity="info" sx={{ mt: 2 }}>
+                            <Typography variant="body2">
+                              <strong>Schedule Your Assessment:</strong> You can schedule your disability assessment appointment using the link sent to your email, or click the button below.
+                            </Typography>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={() => navigate(`/disability-assessment/schedule/${assessmentData.reference_number}`)}
+                              sx={{ mt: 1, bgcolor: '#1565C0', '&:hover': { bgcolor: '#0D47A1' } }}
+                            >
+                              Schedule Now
+                            </Button>
+                          </Alert>
+                        )}
+                        
+                        {assessmentData.status === 'scheduled' && (
+                          <Alert severity="success" sx={{ mt: 2 }}>
+                            <Typography variant="body2">
+                              <strong>Your appointment is confirmed!</strong> Please arrive 15 minutes before your scheduled time.
+                              <br /><br />
+                              <strong>What to bring:</strong>
+                              <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                                <li>Valid Government ID</li>
+                                <li>Medical Certificate (if available)</li>
+                                <li>Previous medical records</li>
+                              </ul>
+                            </Typography>
+                          </Alert>
+                        )}
+                        
+                        {assessmentData.status === 'missed' && (
+                          <Alert severity="error" sx={{ mt: 2 }}>
+                            <Typography variant="body2">
+                              <strong>⚠️ Missed Appointment:</strong> You missed your scheduled assessment. 
+                              {assessmentData.reschedule_count < (assessmentData.max_reschedule_allowed || 1) 
+                                ? ' Please check your email for a rescheduling link or contact the PDAO office.'
+                                : ' Please contact the PDAO office directly for assistance.'}
+                            </Typography>
+                          </Alert>
+                        )}
+                        
+                        {(assessmentData.status === 'completed' || assessmentData.status === 'finalized' || assessmentData.status === 'uploaded') && (
+                          <Alert severity="success" sx={{ mt: 2 }}>
+                            <Typography variant="body2">
+                              <strong>✅ Assessment Complete!</strong> Your disability assessment has been completed. 
+                              Your application is now being processed for final approval.
+                            </Typography>
+                          </Alert>
+                        )}
+                        
+                        <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #BBDEFB' }}>
+                          <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
+                            📍 <strong>Location:</strong> Cabuyao PDAO Office, City Hall Complex
+                            <br />
+                            📞 <strong>Contact:</strong> pdao@cabuyao.gov.ph
+                          </Typography>
+                        </Box>
+                      </Box>
                     </Box>
                   )}
                 </CardContent>

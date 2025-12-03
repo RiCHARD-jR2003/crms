@@ -55,6 +55,10 @@ Route::prefix('public/disability-assessment')->group(function () {
     Route::get('/available-slots/{date}', [DisabilityAssessmentController::class, 'getAvailableSlots']);
     Route::post('/schedule', [DisabilityAssessmentController::class, 'scheduleAssessment']);
     Route::post('/submit/{referenceNumber}', [DisabilityAssessmentController::class, 'submitAssessmentForm']);
+    
+    // Public rescheduling routes (via email token)
+    Route::get('/reschedule/{token}', [DisabilityAssessmentController::class, 'getByRescheduleToken']);
+    Route::post('/reschedule', [DisabilityAssessmentController::class, 'rescheduleWithToken']);
 });
 
 // Barangay approval route - triggers disability assessment workflow
@@ -82,8 +86,8 @@ Route::post('/applications/{applicationId}/barangay-approve', function (Request 
             ], 400);
         }
 
-        // Update application status to Pending Admin Approval
-        $application->status = 'Pending Admin Approval';
+        // Update application status to For Assessment
+        $application->status = 'For Assessment';
         $application->assessment_status = 'pending';
         $application->save();
 
@@ -93,7 +97,7 @@ Route::post('/applications/{applicationId}/barangay-approve', function (Request 
 
         return response()->json([
             'success' => true,
-            'message' => 'Application approved by barangay. Disability assessment scheduling email sent to applicant.',
+            'message' => 'Application approved by barangay. Application now requires disability assessment. Email sent to applicant with scheduling instructions.',
             'application' => $application,
             'assessment' => $assessment
         ]);
@@ -137,6 +141,34 @@ Route::get('/application-status/{referenceNumber}', function ($referenceNumber) 
         $remainingHours = $remainingTime ? round($remainingTime / 3600, 1) : null;
         $remainingDays = $remainingTime ? round($remainingTime / 86400, 1) : null;
         
+        // Get disability assessment information if exists
+        $assessment = \App\Models\DisabilityAssessment::where('application_id', $application->applicationID)->first();
+        $assessmentData = null;
+        
+        if ($assessment) {
+            $timeSlots = \App\Models\DisabilityAssessment::getTimeSlots();
+            $assessmentData = [
+                'reference_number' => $assessment->reference_number,
+                'status' => $assessment->status,
+                'assessment_date' => $assessment->assessment_date?->format('Y-m-d'),
+                'assessment_time' => $timeSlots[$assessment->slot_number] ?? null,
+                'slot_number' => $assessment->slot_number,
+                'scheduling_email_sent_at' => $assessment->scheduling_email_sent_at?->toDateTimeString(),
+                'assessed_at' => $assessment->assessed_at?->toDateTimeString(),
+                'finalized_at' => $assessment->finalized_at?->toDateTimeString(),
+                'pdf_generated' => !empty($assessment->pdf_path),
+                // Missed appointment and rescheduling info
+                'is_missed' => $assessment->is_missed ?? false,
+                'missed_at' => $assessment->missed_at?->toDateTimeString(),
+                'reschedule_count' => $assessment->reschedule_count ?? 0,
+                'max_reschedule_allowed' => $assessment->max_reschedule_allowed ?? 1,
+                'can_reschedule' => ($assessment->reschedule_count ?? 0) < ($assessment->max_reschedule_allowed ?? 1),
+                'original_assessment_date' => $assessment->original_assessment_date?->format('Y-m-d'),
+                'attendance_status' => $assessment->attendance_status ?? 'pending',
+                'last_rescheduled_at' => $assessment->last_rescheduled_at?->toDateTimeString()
+            ];
+        }
+        
         return response()->json([
             'success' => true,
             'application' => [
@@ -148,12 +180,15 @@ Route::get('/application-status/{referenceNumber}', function ($referenceNumber) 
                 'suffix' => $application->suffix,
                 'email' => $application->email,
                 'status' => $application->status,
+                'assessment_status' => $application->assessment_status,
                 'submissionDate' => $application->submissionDate,
                 'expiresAt' => $application->expires_at?->toDateTimeString(),
                 'remainingHours' => $remainingHours,
                 'remainingDays' => $remainingDays,
                 'isExpired' => $application->isExpired(),
                 'remarks' => $application->remarks,
+                // Disability assessment information
+                'disabilityAssessment' => $assessmentData,
                 // Include document paths for rejected applications (allowing re-upload)
                 'canReuploadDocuments' => $application->status === 'Rejected',
                 'documentFields' => [
@@ -1356,6 +1391,58 @@ Route::post('/applications/correction-request', function (Request $request) {
     }
 });
 
+// Update application status route (used by barangay for document resubmission requests)
+Route::put('/applications/{applicationId}/status', function (Request $request, $applicationId) {
+    try {
+        $request->validate([
+            'status' => 'required|string'
+        ]);
+
+        $application = \App\Models\Application::where('applicationID', $applicationId)->first();
+        
+        if (!$application) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Application not found'
+            ], 404);
+        }
+
+        // Update application status
+        $previousStatus = $application->status;
+        $application->status = $request->status;
+        $application->save();
+
+        \Illuminate\Support\Facades\Log::info('Application status updated', [
+            'applicationId' => $applicationId,
+            'previousStatus' => $previousStatus,
+            'newStatus' => $request->status
+        ]);
+
+        // Clear application cache
+        \Illuminate\Support\Facades\Cache::forget('applications.all');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Application status updated successfully',
+            'application' => [
+                'applicationID' => $application->applicationID,
+                'status' => $application->status,
+                'previousStatus' => $previousStatus
+            ]
+        ]);
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Error updating application status', [
+            'applicationId' => $applicationId,
+            'error' => $e->getMessage()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'error' => 'Failed to update application status: ' . $e->getMessage()
+        ], 500);
+    }
+})->middleware('auth:sanctum');
+
 // Get correction request by token (public endpoint, no auth required)
 Route::get('/applications/correction-request/{token}', function ($token) {
     try {
@@ -2424,6 +2511,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('disability-assessments')->group(function () {
         // Admin/Staff routes
         Route::get('/', [DisabilityAssessmentController::class, 'index']);
+        Route::get('/statistics', [DisabilityAssessmentController::class, 'getStatistics']);
         Route::get('/today', [DisabilityAssessmentController::class, 'getTodayScheduled']);
         Route::get('/upcoming', [DisabilityAssessmentController::class, 'getUpcoming']);
         Route::get('/available-dates', [DisabilityAssessmentController::class, 'getAvailableDates']);
@@ -2433,6 +2521,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [DisabilityAssessmentController::class, 'updateAssessment']);
         Route::post('/{id}/finalize', [DisabilityAssessmentController::class, 'finalizeAssessment']);
         Route::get('/{id}/download-pdf', [DisabilityAssessmentController::class, 'downloadPDF']);
+        
+        // Missed appointment and rescheduling routes
+        Route::post('/{id}/mark-missed', [DisabilityAssessmentController::class, 'markAsMissed']);
+        Route::post('/{id}/mark-present', [DisabilityAssessmentController::class, 'markAsPresent']);
+        Route::post('/{id}/reschedule', [DisabilityAssessmentController::class, 'rescheduleByAdmin']);
+        Route::post('/{id}/upload-pdf', [DisabilityAssessmentController::class, 'uploadPDF']);
+        
+        // Scheduler endpoint (for cron jobs)
+        Route::post('/check-missed', [DisabilityAssessmentController::class, 'checkMissedAppointments']);
     });
 
     // Document Migration routes (Admin only)
@@ -3059,11 +3156,49 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
             ], 404);
         }
 
-        // Check if application is in pending status
-        if ($application->status !== 'Pending Admin Approval') {
+        // Check if application is in valid status for admin approval
+        $validStatuses = ['Pending Admin Approval', 'For Assessment'];
+        if (!in_array($application->status, $validStatuses)) {
             return response()->json([
-                'error' => 'Application is not pending admin approval'
+                'error' => 'Application is not ready for admin approval',
+                'current_status' => $application->status
             ], 400);
+        }
+
+        // Check if disability assessment is completed (REQUIRED for approval)
+        $assessment = \App\Models\DisabilityAssessment::where('application_id', $applicationId)->first();
+        if (!$assessment) {
+            return response()->json([
+                'error' => 'Cannot approve application',
+                'message' => 'Disability assessment has not been created for this application.'
+            ], 400);
+        }
+
+        // Check if assessment is finalized with PDF
+        if (!in_array($assessment->status, ['finalized', 'uploaded'])) {
+            return response()->json([
+                'error' => 'Cannot approve application',
+                'message' => 'Disability assessment must be completed and finalized before approval. Current assessment status: ' . $assessment->status
+            ], 400);
+        }
+
+        // Check if assessment PDF exists
+        if (!$assessment->pdf_path) {
+            return response()->json([
+                'error' => 'Cannot approve application',
+                'message' => 'The disability assessment PDF must be generated before final approval. Please finalize the assessment first.'
+            ], 400);
+        }
+
+        // Check attendance status - applicant must have shown up or validly rescheduled
+        if ($assessment->attendance_status === 'absent' || $assessment->is_missed) {
+            // Check if they have rescheduled
+            if ($assessment->reschedule_count === 0) {
+                return response()->json([
+                    'error' => 'Cannot approve application',
+                    'message' => 'The applicant missed their scheduled assessment appointment and has not rescheduled. Please contact the applicant or reschedule the assessment.'
+                ], 400);
+            }
         }
 
         // Check if there's a pending document correction request

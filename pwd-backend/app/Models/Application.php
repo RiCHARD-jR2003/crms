@@ -57,7 +57,7 @@ class Application extends Model
     ];
 
     protected $casts = [
-        'submissionDate' => 'date',
+        'submissionDate' => 'datetime', // Changed from 'date' to preserve time
         'birthDate' => 'date',
         'disabilityDate' => 'date',
         'status' => 'string',
@@ -135,18 +135,26 @@ class Application extends Model
     public function calculateExpiryDate()
     {
         try {
-            $holdingDurationHours = (int) \App\Models\PendingRegistrationPolicySetting::getValue('holding_duration_hours', 72);
+            $holdingDurationHours = (int) \App\Models\PendingRegistrationPolicySetting::getValue('holding_duration_hours', 120);
         } catch (\Exception $e) {
             // If settings table doesn't exist yet, use default value
             \Illuminate\Support\Facades\Log::warning('PendingRegistrationPolicySetting table not found, using default holding duration', [
                 'error' => $e->getMessage()
             ]);
-            $holdingDurationHours = 72; // Default 3 days
+            $holdingDurationHours = 120; // Default 5 days
         }
         
-        $this->expires_at = $this->submissionDate 
-            ? \Carbon\Carbon::parse($this->submissionDate)->addHours($holdingDurationHours)
-            : now()->addHours($holdingDurationHours);
+        // Use submissionDate if available, otherwise use created_at or now()
+        $baseDate = null;
+        if ($this->submissionDate) {
+            $baseDate = \Carbon\Carbon::parse($this->submissionDate);
+        } elseif ($this->created_at) {
+            $baseDate = \Carbon\Carbon::parse($this->created_at);
+        } else {
+            $baseDate = now();
+        }
+        
+        $this->expires_at = $baseDate->copy()->addHours($holdingDurationHours);
         return $this->expires_at;
     }
 
@@ -169,5 +177,49 @@ class Application extends Model
         $reminderTime = $this->expires_at->copy()->subHours($reminderHours);
 
         return now()->greaterThanOrEqualTo($reminderTime) && !$this->isExpired();
+    }
+
+    /**
+     * Scope for selecting only essential columns (performance optimization)
+     */
+    public function scopeSelectEssential($query)
+    {
+        return $query->select([
+            'applicationID', 'referenceNumber', 'pwdID',
+            'firstName', 'lastName', 'middleName', 'suffix',
+            'birthDate', 'gender', 'disabilityType', 'disabilityCause',
+            'barangay', 'email', 'contactNumber', 'emergencyContact',
+            'submissionDate', 'status', 'remarks',
+            'assessment_status', 'created_at', 'updated_at'
+        ]);
+    }
+
+    /**
+     * Scope for recent applications first
+     */
+    public function scopeRecentFirst($query)
+    {
+        return $query->orderBy('submissionDate', 'desc')->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Scope for filtering by barangay
+     */
+    public function scopeForBarangay($query, $barangay)
+    {
+        return $query->where('barangay', $barangay);
+    }
+
+    /**
+     * Scope for pending applications (any pending status)
+     */
+    public function scopePendingAny($query)
+    {
+        return $query->whereIn('status', [
+            'Pending',
+            'Pending Barangay Approval',
+            'Pending Admin Approval',
+            'For Assessment'
+        ]);
     }
 }

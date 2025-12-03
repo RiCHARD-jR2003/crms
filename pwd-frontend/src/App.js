@@ -48,6 +48,9 @@ const ClaimHistory = lazy(() => import('./components/benefit/ClaimHistory'));
 const Announcement = lazy(() => import('./components/announcement/Announcement'));
 const AdminSupportDesk = lazy(() => import('./components/support/AdminSupportDesk'));
 const RenewalDashboard = lazy(() => import('./components/renewal/RenewalDashboard'));
+const DisabilityAssessmentPage = lazy(() => import('./components/assessment/DisabilityAssessmentPage'));
+const PublicReschedulePage = lazy(() => import('./components/assessment/PublicReschedulePage'));
+const PublicSchedulePage = lazy(() => import('./components/assessment/PublicSchedulePage'));
 
 // Barangay President components
 const BarangayPresidentPWDRecords = lazy(() => import('./components/records/BarangayPresidentPWDRecords'));
@@ -576,6 +579,23 @@ function AppContent() {
             <RenewalDashboard />
           </ProtectedRoute>
         } 
+      />
+      <Route 
+        path="/disability-assessment" 
+        element={
+          <ProtectedRoute allowedRoles={['Admin', 'SuperAdmin', 'Staff1']}>
+            <DisabilityAssessmentPage />
+          </ProtectedRoute>
+        } 
+      />
+      {/* Public routes for disability assessment scheduling */}
+      <Route 
+        path="/disability-assessment/schedule/:referenceNumber" 
+        element={<PublicSchedulePage />} 
+      />
+      <Route 
+        path="/disability-assessment/reschedule/:token" 
+        element={<PublicReschedulePage />} 
       />
       <Route 
         path="/announcement" 

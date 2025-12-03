@@ -115,6 +115,20 @@ function BarangayPresidentPWDRecords() {
   const [customReason, setCustomReason] = useState('');
   const [rejectionRemarks, setRejectionRemarks] = useState('');
   const [rejectionConfirmationOpen, setRejectionConfirmationOpen] = useState(false);
+  const [documentsToResubmit, setDocumentsToResubmit] = useState([]);
+  const [submittingDocumentRequest, setSubmittingDocumentRequest] = useState(false);
+  
+  // Available documents for resubmission request
+  const availableDocuments = [
+    { id: 'medicalCertificate', label: 'Medical Certificate', description: 'Medical certificate stating disability type' },
+    { id: 'clinicalAbstract', label: 'Clinical Abstract', description: 'Clinical/Protocol/Behavioral Assessment' },
+    { id: 'voterCertificate', label: "Voter's Certificate/ID", description: 'COMELEC Voter Certificate or Voter ID' },
+    { id: 'birthCertificate', label: 'Birth Certificate', description: 'PSA Birth Certificate (original copy)' },
+    { id: 'barangayCertificate', label: 'Barangay Certificate of Residency', description: 'Certificate of Residency from Barangay' },
+    { id: 'idPictures', label: 'ID Picture', description: '1x1 or 2x2 ID Picture' },
+    { id: 'wholeBodyPicture', label: 'Whole Body Picture', description: 'Full body picture of applicant' },
+    { id: 'affidavit', label: 'Affidavit of Guardianship/Loss', description: 'Affidavit if applicable' }
+  ];
   
   // Approval confirmation state
   const [approvalConfirmationOpen, setApprovalConfirmationOpen] = useState(false);
@@ -558,8 +572,9 @@ function BarangayPresidentPWDRecords() {
     
     try {
       approveDelayRef.current = setTimeout(() => setApproving(true), 700);
-      await api.post(`/applications/${selectedApplication.applicationID}/approve-barangay`, {
-        remarks: 'Approved by Barangay President'
+      // Use the correct barangay-approve route that triggers disability assessment workflow
+      await api.post(`/applications/${selectedApplication.applicationID}/barangay-approve`, {
+        remarks: 'Endorsed by Barangay President'
       });
 
       // Refresh the applications list
@@ -588,6 +603,7 @@ function BarangayPresidentPWDRecords() {
     setRejectionReason('');
     setCustomReason('');
     setRejectionRemarks('');
+    setDocumentsToResubmit([]);
   };
 
   const handleRejectSubmit = () => {
@@ -601,6 +617,12 @@ function BarangayPresidentPWDRecords() {
       return;
     }
     
+    // Validate document selection for document_resubmission
+    if (rejectionReason === 'document_resubmission' && documentsToResubmit.length === 0) {
+      toastService.error('Please select at least one document for resubmission.');
+      return;
+    }
+    
     if (!rejectionRemarks.trim()) {
       toastService.error('Please provide remarks for the rejection.');
       return;
@@ -609,6 +631,17 @@ function BarangayPresidentPWDRecords() {
     // Close rejection modal and show confirmation
     setRejectionModalOpen(false);
     setRejectionConfirmationOpen(true);
+  };
+  
+  // Toggle document selection for resubmission
+  const handleDocumentToggle = (docId) => {
+    setDocumentsToResubmit(prev => {
+      if (prev.includes(docId)) {
+        return prev.filter(id => id !== docId);
+      } else {
+        return [...prev, docId];
+      }
+    });
   };
   
   // Get formatted rejection reason for display
@@ -668,6 +701,43 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
     setRejectionConfirmationOpen(false);
     
     try {
+      // If document resubmission is requested, create a correction request instead of rejecting
+      if (rejectionReason === 'document_resubmission' && documentsToResubmit.length > 0) {
+        setSubmittingDocumentRequest(true);
+        
+        // Create document correction request
+        const correctionResponse = await api.post('/applications/request-correction', {
+          applicationId: selectedApplication.applicationID,
+          documentsToCorrect: documentsToResubmit,
+          notes: rejectionRemarks,
+          requestedBy: currentUser?.userID || 'unknown',
+          requestedByName: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || 'Barangay President'
+        });
+        
+        console.log('Document correction request response:', correctionResponse);
+        
+        // Update application status to "Needs Additional Documents"
+        await api.put(`/applications/${selectedApplication.applicationID}/status`, {
+          status: 'Needs Additional Documents'
+        });
+
+        // Refresh the applications list
+        await fetchData();
+        toastService.success('Document resubmission request sent successfully! The applicant will receive an email with instructions.');
+        
+        // Close modals
+        setViewDetailsOpen(false);
+        setSelectedApplication(null);
+        setPendingAction(null);
+        setRejectionReason('');
+        setCustomReason('');
+        setRejectionRemarks('');
+        setDocumentsToResubmit([]);
+        setSubmittingDocumentRequest(false);
+        return;
+      }
+      
+      // Standard rejection flow
       const rejectionData = {
         remarks: rejectionRemarks,
         rejectionReason: rejectionReason
@@ -698,6 +768,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
       setRejectionReason('');
       setCustomReason('');
       setRejectionRemarks('');
+      setDocumentsToResubmit([]);
     } catch (err) {
       console.error('Error rejecting application:', err);
       console.error('Error details:', {
@@ -708,7 +779,9 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
       });
       
       const errorMessage = err.data?.message || err.message || 'Unknown error';
-      toastService.error('Failed to reject application: ' + errorMessage);
+      toastService.error('Failed to process request: ' + errorMessage);
+    } finally {
+      setSubmittingDocumentRequest(false);
     }
   };
 
@@ -2783,11 +2856,74 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
             />
           )}
 
+          {/* Document Selection (only for "document_resubmission") */}
+          {rejectionReason === 'document_resubmission' && (
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#E74C3C' }}>
+                📄 Select Documents for Resubmission *
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Choose the documents that need to be corrected or resubmitted by the applicant.
+              </Typography>
+              <Box sx={{ 
+                border: '1px solid #E0E0E0', 
+                borderRadius: 2, 
+                p: 2, 
+                maxHeight: '250px', 
+                overflowY: 'auto',
+                bgcolor: '#FAFAFA'
+              }}>
+                {availableDocuments.map((doc) => (
+                  <Box 
+                    key={doc.id}
+                    sx={{ 
+                      display: 'flex', 
+                      alignItems: 'flex-start', 
+                      mb: 1.5,
+                      p: 1,
+                      borderRadius: 1,
+                      bgcolor: documentsToResubmit.includes(doc.id) ? '#FFF3E0' : 'transparent',
+                      '&:hover': { bgcolor: documentsToResubmit.includes(doc.id) ? '#FFE0B2' : '#F5F5F5' },
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleDocumentToggle(doc.id)}
+                  >
+                    <Checkbox
+                      checked={documentsToResubmit.includes(doc.id)}
+                      onChange={() => handleDocumentToggle(doc.id)}
+                      sx={{ 
+                        p: 0, 
+                        mr: 1.5,
+                        color: '#E74C3C',
+                        '&.Mui-checked': { color: '#E74C3C' }
+                      }}
+                    />
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {doc.label}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {doc.description}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+              {documentsToResubmit.length > 0 && (
+                <Box sx={{ mt: 2, p: 1.5, bgcolor: '#E3F2FD', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#1565C0' }}>
+                    <strong>{documentsToResubmit.length}</strong> document(s) selected for resubmission
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+
           <TextField
             fullWidth
             multiline
             rows={4}
-            label="Remarks"
+            label={rejectionReason === 'document_resubmission' ? 'Instructions/Notes for Applicant *' : 'Remarks *'}
             value={rejectionRemarks}
             onChange={(e) => setRejectionRemarks(e.target.value)}
             required
@@ -2795,7 +2931,9 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
             InputLabelProps={{
               shrink: true
             }}
-            placeholder="Please provide detailed remarks for the rejection..."
+            placeholder={rejectionReason === 'document_resubmission' 
+              ? "Provide specific instructions for the applicant on what needs to be corrected..."
+              : "Please provide detailed remarks for the rejection..."}
           />
 
           {/* Preview Message */}
@@ -2863,32 +3001,71 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle sx={{ bgcolor: '#E74C3C', color: '#FFFFFF', fontWeight: 'bold' }}>
-          Confirm Rejection
+        <DialogTitle sx={{ 
+          bgcolor: rejectionReason === 'document_resubmission' ? '#F57C00' : '#E74C3C', 
+          color: '#FFFFFF', 
+          fontWeight: 'bold' 
+        }}>
+          {rejectionReason === 'document_resubmission' ? 'Confirm Document Resubmission Request' : 'Confirm Rejection'}
         </DialogTitle>
         <DialogContent sx={{ mt: 2 }}>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            Are you sure you want to reject this application? This action cannot be undone.
-          </Typography>
-          <Box sx={{ p: 2, bgcolor: '#F8F9FA', borderRadius: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-              Rejection Reason:
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              {getFormattedRejectionReason()}
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-              Remarks:
-            </Typography>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {rejectionRemarks}
-            </Typography>
-          </Box>
+          {rejectionReason === 'document_resubmission' ? (
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                You are about to request document resubmission from the applicant. 
+                They will receive an email with instructions to submit the corrected documents.
+              </Typography>
+              <Box sx={{ p: 2, bgcolor: '#FFF3E0', borderRadius: 1, mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                  📄 Documents Requested for Resubmission:
+                </Typography>
+                <Box sx={{ pl: 2 }}>
+                  {documentsToResubmit.map(docId => {
+                    const doc = availableDocuments.find(d => d.id === docId);
+                    return doc ? (
+                      <Typography key={docId} variant="body2" sx={{ mb: 0.5 }}>
+                        • {doc.label}
+                      </Typography>
+                    ) : null;
+                  })}
+                </Box>
+              </Box>
+              <Box sx={{ p: 2, bgcolor: '#F8F9FA', borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                  Instructions/Notes:
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {rejectionRemarks}
+                </Typography>
+              </Box>
+            </>
+          ) : (
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                Are you sure you want to reject this application? This action cannot be undone.
+              </Typography>
+              <Box sx={{ p: 2, bgcolor: '#F8F9FA', borderRadius: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                  Rejection Reason:
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  {getFormattedRejectionReason()}
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                  Remarks:
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {rejectionRemarks}
+                </Typography>
+              </Box>
+            </>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button
             onClick={() => setRejectionConfirmationOpen(false)}
             variant="outlined"
+            disabled={submittingDocumentRequest}
             sx={{
               borderColor: '#6C757D',
               color: '#6C757D',
@@ -2900,16 +3077,26 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
           <Button
             onClick={handleRejectConfirm}
             variant="contained"
+            disabled={submittingDocumentRequest}
             sx={{
-              bgcolor: '#E74C3C',
+              bgcolor: rejectionReason === 'document_resubmission' ? '#F57C00' : '#E74C3C',
               textTransform: 'none',
               fontWeight: 600,
               '&:hover': {
-                bgcolor: '#C0392B'
+                bgcolor: rejectionReason === 'document_resubmission' ? '#EF6C00' : '#C0392B'
               }
             }}
           >
-            Confirm Rejection
+            {submittingDocumentRequest ? (
+              <>
+                <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
+                Sending Request...
+              </>
+            ) : rejectionReason === 'document_resubmission' ? (
+              'Send Resubmission Request'
+            ) : (
+              'Confirm Rejection'
+            )}
           </Button>
         </DialogActions>
       </Dialog>

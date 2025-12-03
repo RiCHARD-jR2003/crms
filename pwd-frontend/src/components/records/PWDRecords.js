@@ -186,12 +186,13 @@ function PWDRecords() {
         setLoading(true);
         setError(null);
         try {
-          // Fetch applications pending admin approval and barangay approval
+          // Fetch applications pending admin approval, barangay approval, and for assessment
           const adminPendingData = await applicationService.getByStatus('Pending Admin Approval');
           const barangayPendingData = await applicationService.getByStatus('Pending Barangay Approval');
+          const forAssessmentData = await applicationService.getByStatus('For Assessment');
           
-          // Combine both types of pending applications
-          const allPendingApplications = [...adminPendingData, ...barangayPendingData];
+          // Combine all types of pending applications (including For Assessment)
+          const allPendingApplications = [...adminPendingData, ...barangayPendingData, ...forAssessmentData];
         // Sort most recent submissions first
         const sorted = [...allPendingApplications].sort((a, b) => {
           const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;

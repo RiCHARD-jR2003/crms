@@ -48,12 +48,27 @@ class DisabilityAssessment extends Model
         'assessor_notes',
         'applicant_remarks',
         'scheduling_email_sent_at',
-        'reminder_email_sent_at'
+        'reminder_email_sent_at',
+        // Missed appointment and rescheduling fields
+        'is_missed',
+        'missed_at',
+        'missed_email_sent_at',
+        'reschedule_count',
+        'max_reschedule_allowed',
+        'last_rescheduled_at',
+        'original_assessment_date',
+        'original_slot_number',
+        'reschedule_token',
+        'reschedule_token_expires_at',
+        'attendance_status',
+        'attendance_marked_by',
+        'attendance_marked_at'
     ];
 
     protected $casts = [
         'assessment_date' => 'date',
         'disability_onset_date' => 'date',
+        'original_assessment_date' => 'date',
         'functional_limitations' => 'array',
         'assistive_devices_needed' => 'array',
         'assistive_devices_current' => 'array',
@@ -61,7 +76,15 @@ class DisabilityAssessment extends Model
         'finalized_at' => 'datetime',
         'pdf_generated_at' => 'datetime',
         'scheduling_email_sent_at' => 'datetime',
-        'reminder_email_sent_at' => 'datetime'
+        'reminder_email_sent_at' => 'datetime',
+        'is_missed' => 'boolean',
+        'missed_at' => 'datetime',
+        'missed_email_sent_at' => 'datetime',
+        'last_rescheduled_at' => 'datetime',
+        'reschedule_token_expires_at' => 'datetime',
+        'attendance_marked_at' => 'datetime',
+        'reschedule_count' => 'integer',
+        'max_reschedule_allowed' => 'integer'
     ];
 
     // Status constants
@@ -70,6 +93,15 @@ class DisabilityAssessment extends Model
     const STATUS_COMPLETED = 'completed';
     const STATUS_FINALIZED = 'finalized';
     const STATUS_UPLOADED = 'uploaded';
+    const STATUS_MISSED = 'missed';
+    const STATUS_RESCHEDULED = 'rescheduled';
+    const STATUS_CANCELLED = 'cancelled';
+
+    // Attendance status constants
+    const ATTENDANCE_PENDING = 'pending';
+    const ATTENDANCE_PRESENT = 'present';
+    const ATTENDANCE_ABSENT = 'absent';
+    const ATTENDANCE_RESCHEDULED = 'rescheduled';
 
     // Severity constants
     const SEVERITY_MILD = 'mild';
@@ -117,13 +149,21 @@ class DisabilityAssessment extends Model
      */
     public static function getAvailableSlots($date)
     {
+        // Include all active statuses that occupy a slot
+        $activeStatuses = [
+            self::STATUS_SCHEDULED, 
+            self::STATUS_COMPLETED, 
+            self::STATUS_FINALIZED,
+            self::STATUS_UPLOADED
+        ];
+        
         $bookedSlots = self::whereDate('assessment_date', $date)
-            ->whereIn('status', [self::STATUS_SCHEDULED, self::STATUS_COMPLETED, self::STATUS_FINALIZED])
+            ->whereIn('status', $activeStatuses)
             ->pluck('slot_number')
             ->toArray();
         
         $allSlots = range(1, 10);
-        return array_diff($allSlots, $bookedSlots);
+        return array_values(array_diff($allSlots, $bookedSlots));
     }
 
     /**
@@ -131,8 +171,16 @@ class DisabilityAssessment extends Model
      */
     public static function hasAvailableSlots($date)
     {
+        // Include all active statuses that occupy a slot
+        $activeStatuses = [
+            self::STATUS_SCHEDULED, 
+            self::STATUS_COMPLETED, 
+            self::STATUS_FINALIZED,
+            self::STATUS_UPLOADED
+        ];
+        
         $count = self::whereDate('assessment_date', $date)
-            ->whereIn('status', [self::STATUS_SCHEDULED, self::STATUS_COMPLETED, self::STATUS_FINALIZED])
+            ->whereIn('status', $activeStatuses)
             ->count();
         
         return $count < 10;
@@ -152,8 +200,16 @@ class DisabilityAssessment extends Model
      */
     public static function getAppointmentCount($date)
     {
+        // Include all active statuses that occupy a slot
+        $activeStatuses = [
+            self::STATUS_SCHEDULED, 
+            self::STATUS_COMPLETED, 
+            self::STATUS_FINALIZED,
+            self::STATUS_UPLOADED
+        ];
+        
         return self::whereDate('assessment_date', $date)
-            ->whereIn('status', [self::STATUS_SCHEDULED, self::STATUS_COMPLETED, self::STATUS_FINALIZED])
+            ->whereIn('status', $activeStatuses)
             ->count();
     }
 
@@ -203,6 +259,9 @@ class DisabilityAssessment extends Model
             self::STATUS_COMPLETED => 'Assessment Completed',
             self::STATUS_FINALIZED => 'Finalized',
             self::STATUS_UPLOADED => 'PDF Uploaded',
+            self::STATUS_MISSED => 'Missed',
+            self::STATUS_RESCHEDULED => 'Rescheduled',
+            self::STATUS_CANCELLED => 'Cancelled',
             default => ucfirst($this->status)
         };
     }
@@ -218,8 +277,103 @@ class DisabilityAssessment extends Model
             self::STATUS_COMPLETED => 'primary',
             self::STATUS_FINALIZED => 'success',
             self::STATUS_UPLOADED => 'success',
+            self::STATUS_MISSED => 'error',
+            self::STATUS_RESCHEDULED => 'warning',
+            self::STATUS_CANCELLED => 'default',
             default => 'default'
         };
+    }
+
+    /**
+     * Check if applicant can reschedule
+     */
+    public function canReschedule()
+    {
+        $maxAllowed = $this->max_reschedule_allowed ?? 1; // Default to 1 if null
+        return ($this->reschedule_count ?? 0) < $maxAllowed;
+    }
+
+    /**
+     * Check if reschedule token is valid
+     */
+    public function isRescheduleTokenValid($token)
+    {
+        return $this->reschedule_token === $token 
+            && $this->reschedule_token_expires_at 
+            && $this->reschedule_token_expires_at->isFuture();
+    }
+
+    /**
+     * Generate unique reschedule token
+     */
+    public function generateRescheduleToken()
+    {
+        $this->reschedule_token = bin2hex(random_bytes(32));
+        $this->reschedule_token_expires_at = now()->addDays(7); // Token valid for 7 days
+        $this->save();
+        return $this->reschedule_token;
+    }
+
+    /**
+     * Mark as missed appointment
+     */
+    public function markAsMissed($markedBy = null)
+    {
+        $this->update([
+            'status' => self::STATUS_MISSED,
+            'is_missed' => true,
+            'missed_at' => now(),
+            'attendance_status' => self::ATTENDANCE_ABSENT,
+            'attendance_marked_by' => $markedBy,
+            'attendance_marked_at' => now()
+        ]);
+        
+        // Generate reschedule token if they can still reschedule
+        if ($this->canReschedule()) {
+            $this->generateRescheduleToken();
+        }
+        
+        return $this;
+    }
+
+    /**
+     * Mark attendance as present
+     */
+    public function markAsPresent($markedBy = null)
+    {
+        $this->update([
+            'attendance_status' => self::ATTENDANCE_PRESENT,
+            'attendance_marked_by' => $markedBy,
+            'attendance_marked_at' => now()
+        ]);
+        
+        return $this;
+    }
+
+    /**
+     * Get the staff who marked attendance
+     */
+    public function attendanceMarker()
+    {
+        return $this->belongsTo(User::class, 'attendance_marked_by', 'userID');
+    }
+
+    /**
+     * Scope for missed assessments
+     */
+    public function scopeMissed($query)
+    {
+        return $query->where('status', self::STATUS_MISSED);
+    }
+
+    /**
+     * Scope for assessments that need missed appointment check (past scheduled date)
+     */
+    public function scopeNeedsMissedCheck($query)
+    {
+        return $query->where('status', self::STATUS_SCHEDULED)
+            ->whereDate('assessment_date', '<', today())
+            ->where('attendance_status', self::ATTENDANCE_PENDING);
     }
 
     /**

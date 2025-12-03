@@ -3,6 +3,7 @@ import { Box, Typography, Button, Avatar, IconButton, Badge } from '@mui/materia
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -216,6 +217,13 @@ function Staff1Sidebar({ isOpen, onToggle }) {
           label="PWD Records"
           path="/pwd-records"
           active={isActive('/pwd-records')}
+        />
+        
+        <SidebarItem
+          icon={<AssessmentIcon />}
+          label="Disability Assessment"
+          path="/disability-assessment"
+          active={isActive('/disability-assessment')}
         />
       </Box>
 

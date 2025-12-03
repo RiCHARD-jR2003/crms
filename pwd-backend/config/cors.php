@@ -24,14 +24,7 @@ return [
         'http://localhost:5173',
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173',
-        'https://brown-idol-pharmacies-absolute.trycloudflare.com',
-        'https://artist-eliminate-attitude-destiny.trycloudflare.com',
-        'https://intranet-pty-talks-lottery.trycloudflare.com',
-        'https://summit-haven-highlight-informal.trycloudflare.com',
-        'https://valium-parenting-asylum-ion.trycloudflare.com',
-        'https://films-touched-dry-cornwall.trycloudflare.com',
-        'https://jazz-defend-bradley-writing.trycloudflare.com',
-        'https://quiz-written-exhibitions-refresh.trycloudflare.com',
+        'https://elizabeth-microphone-owners-roads.trycloudflare.com',
     ],
 
     'allowed_origins_patterns' => [

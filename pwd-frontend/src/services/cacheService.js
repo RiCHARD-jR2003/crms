@@ -1,21 +1,46 @@
-// API Response Caching Service
+// API Response Caching Service with LRU eviction
 class CacheService {
   constructor() {
     this.cache = new Map();
+    this.maxEntries = 200; // Maximum cache entries
+    this.accessOrder = []; // Track access order for LRU
     this.maxAge = {
       // Short cache for frequently changing data
       dashboard: 30 * 1000, // 30 seconds
-      announcements: 5 * 60 * 1000, // 5 minutes
-      applications: 2 * 60 * 1000, // 2 minutes
+      announcements: 2 * 60 * 1000, // 2 minutes
+      applications: 60 * 1000, // 1 minute
       // Medium cache for moderately changing data
-      pwdMembers: 10 * 60 * 1000, // 10 minutes
-      documents: 15 * 60 * 1000, // 15 minutes
+      pwdMembers: 5 * 60 * 1000, // 5 minutes
+      documents: 10 * 60 * 1000, // 10 minutes
       // Long cache for rarely changing data
       documentTypes: 60 * 60 * 1000, // 1 hour
-      benefits: 30 * 60 * 1000, // 30 minutes
+      benefits: 5 * 60 * 1000, // 5 minutes
+      statistics: 5 * 60 * 1000, // 5 minutes
+      barangays: 60 * 60 * 1000, // 1 hour (static data)
       // Default
-      default: 5 * 60 * 1000, // 5 minutes
+      default: 2 * 60 * 1000, // 2 minutes
     };
+  }
+
+  /**
+   * Track access for LRU eviction
+   */
+  trackAccess(key) {
+    const index = this.accessOrder.indexOf(key);
+    if (index > -1) {
+      this.accessOrder.splice(index, 1);
+    }
+    this.accessOrder.push(key);
+  }
+
+  /**
+   * Evict least recently used entries if cache is full
+   */
+  evictIfNeeded() {
+    while (this.cache.size >= this.maxEntries && this.accessOrder.length > 0) {
+      const oldestKey = this.accessOrder.shift();
+      this.cache.delete(oldestKey);
+    }
   }
 
   /**
@@ -39,16 +64,24 @@ class CacheService {
     const now = Date.now();
     if (now - cached.timestamp > cached.maxAge) {
       this.cache.delete(key);
+      // Remove from access order
+      const index = this.accessOrder.indexOf(key);
+      if (index > -1) this.accessOrder.splice(index, 1);
       return null;
     }
 
+    // Track access for LRU
+    this.trackAccess(key);
     return cached.data;
   }
 
   /**
-   * Set cache data
+   * Set cache data with LRU eviction
    */
   set(key, data, maxAge = null) {
+    // Evict old entries if needed
+    this.evictIfNeeded();
+
     // Determine cache duration based on URL pattern
     let cacheMaxAge = maxAge || this.maxAge.default;
     
@@ -66,6 +99,10 @@ class CacheService {
       cacheMaxAge = this.maxAge.documentTypes;
     } else if (key.includes('/benefits')) {
       cacheMaxAge = this.maxAge.benefits;
+    } else if (key.includes('/statistics') || key.includes('/stats')) {
+      cacheMaxAge = this.maxAge.statistics;
+    } else if (key.includes('/barangays')) {
+      cacheMaxAge = this.maxAge.barangays;
     }
 
     this.cache.set(key, {
@@ -73,6 +110,9 @@ class CacheService {
       timestamp: Date.now(),
       maxAge: maxAge || cacheMaxAge,
     });
+
+    // Track access for LRU
+    this.trackAccess(key);
   }
 
   /**

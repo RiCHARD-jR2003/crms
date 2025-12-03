@@ -122,12 +122,15 @@ function FrontDeskDashboard() {
         // Calculate statistics
         const totalCards = cards.length;
         const pendingCards = cards.filter(card => card.status === 'pending').length;
-        const supportTickets = tickets.filter(ticket => ticket.status === 'open').length;
+        // Count all active tickets (excluding resolved) to match the support ticket page
+        const activeTickets = Array.isArray(tickets) ? tickets.filter(ticket => 
+          ticket.status !== 'resolved'
+        ).length : 0;
         
         setStats({
           totalCards,
           pendingCards,
-          supportTickets,
+          supportTickets: activeTickets,
           announcements: announcements.length
         });
         
@@ -263,7 +266,7 @@ function FrontDeskDashboard() {
                         {stats.supportTickets}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
-                        Open Support Tickets
+                        Active Support Tickets
                       </Typography>
                     </Box>
                   </Box>

@@ -176,49 +176,23 @@ function BarangayPresidentDashboard() {
       const barangayMembers = pwdMembers.filter(member => member.barangay === targetBarangay);
       const barangayApplications = applications.filter(app => app.barangay === targetBarangay);
       
-      // Fetch announcements filtered by barangay
-      const announcementsResponse = await api.get('/announcements');
-      // The API returns the array directly, not wrapped in {data: [...]}
-      const allAnnouncements = Array.isArray(announcementsResponse) 
+      // Fetch announcements filtered by barangay using the proper API endpoint
+      // This uses backend filtering for better performance and consistency
+      const announcementsResponse = await announcementService.getByAudience(targetBarangay);
+      
+      // Handle response format
+      const filteredAnnouncements = Array.isArray(announcementsResponse) 
         ? announcementsResponse 
         : (announcementsResponse?.data || []);
       
-      console.log('All announcements:', allAnnouncements);
-      console.log('Target barangay:', targetBarangay);
+      console.log('Fetched announcements for barangay:', targetBarangay, filteredAnnouncements);
       
-      // Filter announcements for this barangay:
-      // 1. Public announcements (targetAudience = 'All' or 'All Barangays')
-      // 2. Barangay-specific announcements (targetAudience matches user's barangay)
-      // 3. Announcements targeting "Members" (should show to all barangays)
-      // 4. Comma-separated targetAudience containing this barangay
-      const filteredAnnouncements = allAnnouncements.filter(announcement => {
-        const targetAudience = announcement.targetAudience || '';
-        const status = announcement.status;
-        
-        // Only show active announcements
-        if (status !== 'Active') return false;
-        
-        console.log('Announcement:', announcement.title, 'Target:', targetAudience, 'Status:', status);
-        
-        // Show public announcements
-        if (targetAudience === 'All' || targetAudience === 'All Barangays') return true;
-        
-        // Show announcements targeting all members
-        if (targetAudience === 'Members' || targetAudience.includes('Members')) return true;
-        
-        // Show barangay-specific announcements (exact match)
-        if (targetBarangay && targetAudience === targetBarangay) return true;
-        
-        // Handle comma-separated targetAudience (multiple barangays selected)
-        if (targetBarangay && targetAudience.includes(',')) {
-          const audiences = targetAudience.split(',').map(a => a.trim());
-          if (audiences.includes(targetBarangay)) return true;
-        }
-        
-        return false;
+      // Sort by latest first (backend should do this, but ensure on frontend too)
+      filteredAnnouncements.sort((a, b) => {
+        const dateA = new Date(a.publishDate || a.created_at || 0);
+        const dateB = new Date(b.publishDate || b.created_at || 0);
+        return dateB - dateA;
       });
-      
-      console.log('Filtered announcements:', filteredAnnouncements);
       
       setStats({
         totalPWDMembers: barangayMembers.length,

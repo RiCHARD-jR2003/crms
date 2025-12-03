@@ -36,6 +36,14 @@ class DatabaseSeeder extends Seeder
             FrontDeskSeeder::class
         ]);
 
+        // Comprehensive test data (150-200 accounts with all statuses and features)
+        // Uncomment the line below to generate comprehensive test data
+        // $this->call([ComprehensiveTestDataSeeder::class]);
+
+        // Supplementary test data (support tickets, ID claims, complaints, assessments)
+        // Run this after ComprehensiveTestDataSeeder to fill in missing test data
+        // $this->call([SupplementaryTestDataSeeder::class]);
+
         // Uncomment the line below to generate 1000 sample PWD members
         // $this->call([SamplePWDMemberSeeder::class]);
     }
