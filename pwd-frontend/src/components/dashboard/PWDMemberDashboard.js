@@ -92,6 +92,21 @@ function PWDMemberDashboard() {
     setSelectedAnnouncement(null);
   };
 
+  // Listen for custom event from NotificationPanel to open announcement modal
+  useEffect(() => {
+    const handleOpenAnnouncementModal = (event) => {
+      const announcement = event.detail?.announcement;
+      if (announcement) {
+        handleViewAnnouncement(announcement);
+      }
+    };
+
+    window.addEventListener('openAnnouncementModal', handleOpenAnnouncementModal);
+    return () => {
+      window.removeEventListener('openAnnouncementModal', handleOpenAnnouncementModal);
+    };
+  }, []);
+
   const handleSidebarToggle = () => {
     setSidebarOpen(!sidebarOpen);
   };
@@ -172,21 +187,49 @@ function PWDMemberDashboard() {
         console.log('Dashboard - Profile Data structure:', Object.keys(profileData || {}));
         
         // Use announcementService to get filtered announcements
-        // If barangay is not found, try fetching announcements for "Members" (all PWD members)
+        // Fetch announcements for both barangay AND "Members" to include benefit announcements
         let filteredAnnouncements = [];
+        let barangayAnnouncements = [];
+        let membersAnnouncements = [];
+        
+        // Fetch barangay-specific announcements
         if (userBarangay) {
-          filteredAnnouncements = await announcementService.getFilteredForPWDMember(userBarangay);
-        } else {
-          console.warn('User barangay not found, trying to fetch announcements for "Members"');
-          // Fallback: fetch announcements targeted to "Members" (all PWD members)
           try {
-            filteredAnnouncements = await announcementService.getByAudience('Members');
-            console.log('Dashboard - Fetched announcements for "Members":', filteredAnnouncements.length);
+            barangayAnnouncements = await announcementService.getFilteredForPWDMember(userBarangay);
+            console.log('Dashboard - Fetched announcements for barangay:', userBarangay, barangayAnnouncements.length);
           } catch (error) {
-            console.error('Error fetching announcements for Members:', error);
-            filteredAnnouncements = [];
+            console.error('Error fetching announcements for barangay:', error);
           }
         }
+        
+        // Always fetch "Members" announcements to include benefit/ayuda announcements
+        try {
+          membersAnnouncements = await announcementService.getByAudience('Members');
+          console.log('Dashboard - Fetched announcements for "Members":', membersAnnouncements.length);
+        } catch (error) {
+          console.error('Error fetching announcements for Members:', error);
+        }
+        
+        // Merge and deduplicate announcements by ID
+        const announcementMap = new Map();
+        
+        // Add barangay announcements
+        barangayAnnouncements.forEach(ann => {
+          const id = ann.id || ann.announcementID;
+          if (id && !announcementMap.has(id)) {
+            announcementMap.set(id, ann);
+          }
+        });
+        
+        // Add Members announcements (will not overwrite if already exists)
+        membersAnnouncements.forEach(ann => {
+          const id = ann.id || ann.announcementID;
+          if (id && !announcementMap.has(id)) {
+            announcementMap.set(id, ann);
+          }
+        });
+        
+        filteredAnnouncements = Array.from(announcementMap.values());
         
         console.log('Dashboard - Filtered announcements count:', filteredAnnouncements.length);
         console.log('Dashboard - User Barangay for filtering:', userBarangay);
@@ -220,10 +263,19 @@ function PWDMemberDashboard() {
           setClaimedBenefits(0);
         }
         
-        // Ensure announcements are sorted by publishDate (newest first)
+        // Ensure announcements are sorted by publishDate (newest first), then by created_at
         const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) => {
+          // Use publishDate first, fallback to created_at
           const dateA = a.publishDate ? new Date(a.publishDate).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0);
           const dateB = b.publishDate ? new Date(b.publishDate).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0);
+          
+          // If dates are equal, use created_at for tie-breaking
+          if (dateB === dateA) {
+            const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return createdB - createdA; // Newest first
+          }
+          
           return dateB - dateA; // Descending order (newest first)
         });
         
@@ -232,7 +284,8 @@ function PWDMemberDashboard() {
           id: a.id || a.announcementID,
           title: a.title,
           publishDate: a.publishDate,
-          created_at: a.created_at
+          created_at: a.created_at,
+          targetAudience: a.targetAudience
         })));
         setAnnouncements(sortedAnnouncements);
         setSupportTickets(userTickets);
@@ -273,9 +326,57 @@ function PWDMemberDashboard() {
         }
         
         // Use announcementService to get filtered announcements
-        const filteredAnnouncements = userBarangay 
-          ? await announcementService.getFilteredForPWDMember(userBarangay)
-          : [];
+        // Fetch announcements for both barangay AND "Members" to include benefit announcements
+        let barangayAnnouncements = [];
+        let membersAnnouncements = [];
+        
+        // Fetch barangay-specific announcements
+        if (userBarangay) {
+          try {
+            barangayAnnouncements = await announcementService.getFilteredForPWDMember(userBarangay);
+          } catch (error) {
+            console.error('Error fetching announcements for barangay:', error);
+          }
+        }
+        
+        // Always fetch "Members" announcements to include benefit/ayuda announcements
+        try {
+          membersAnnouncements = await announcementService.getByAudience('Members');
+        } catch (error) {
+          console.error('Error fetching announcements for Members:', error);
+        }
+        
+        // Merge and deduplicate announcements by ID
+        const announcementMap = new Map();
+        barangayAnnouncements.forEach(ann => {
+          const id = ann.id || ann.announcementID;
+          if (id && !announcementMap.has(id)) {
+            announcementMap.set(id, ann);
+          }
+        });
+        membersAnnouncements.forEach(ann => {
+          const id = ann.id || ann.announcementID;
+          if (id && !announcementMap.has(id)) {
+            announcementMap.set(id, ann);
+          }
+        });
+        
+        const filteredAnnouncements = Array.from(announcementMap.values());
+        
+        // Sort by publishDate (newest first), then by created_at
+        const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) => {
+          const dateA = a.publishDate ? new Date(a.publishDate).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0);
+          const dateB = b.publishDate ? new Date(b.publishDate).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0);
+          if (dateB === dateA) {
+            const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return createdB - createdA;
+          }
+          return dateB - dateA;
+        });
+        
+        console.log('Dashboard Refresh - Filtered announcements count:', sortedAnnouncements.length);
+        setAnnouncements(sortedAnnouncements);
         
         // Fetch support tickets for this user
         const ticketsResponse = await api.get('/support-tickets');
@@ -299,8 +400,6 @@ function PWDMemberDashboard() {
           setClaimedBenefits(0);
         }
         
-        console.log('Dashboard Refresh - Filtered announcements count:', filteredAnnouncements.length);
-        setAnnouncements(filteredAnnouncements);
         setSupportTickets(userTickets);
         
         console.log('Dashboard data refreshed automatically');
@@ -594,7 +693,10 @@ function PWDMemberDashboard() {
                                 label={announcement.type || 'Notice'}
                                 size="small"
                                 sx={{
-                                  bgcolor: announcement.type === 'Urgent' ? '#E74C3C' : announcement.type === 'Event' ? '#27AE60' : '#3498DB',
+                                  bgcolor: announcement.type === 'Urgent' ? '#E74C3C' : 
+                                          announcement.type === 'Event' ? '#27AE60' : 
+                                          announcement.type === 'Emergency' ? '#E74C3C' :
+                                          '#3498DB',
                                   color: '#FFFFFF',
                                   fontWeight: 600,
                                   fontSize: '0.7rem',
@@ -673,7 +775,8 @@ function PWDMemberDashboard() {
                   label={selectedAnnouncement.type || 'Notice'} 
                   size="small" 
                   sx={{ 
-                    bgcolor: selectedAnnouncement.type === 'Urgent' ? '#E74C3C' : '#3498DB', 
+                    bgcolor: selectedAnnouncement.type === 'Urgent' ? '#E74C3C' : 
+                            selectedAnnouncement.type === 'Event' ? '#27AE60' : '#3498DB', 
                     color: '#FFF', 
                     fontWeight: 600 
                   }} 
@@ -682,11 +785,23 @@ function PWDMemberDashboard() {
                   label={selectedAnnouncement.priority || 'Medium'} 
                   size="small" 
                   sx={{ 
-                    bgcolor: selectedAnnouncement.priority === 'High' ? '#E74C3C' : selectedAnnouncement.priority === 'Medium' ? '#F39C12' : '#27AE60', 
+                    bgcolor: selectedAnnouncement.priority === 'High' ? '#E74C3C' : 
+                            selectedAnnouncement.priority === 'Medium' ? '#F39C12' : '#27AE60', 
                     color: '#FFF', 
                     fontWeight: 600 
                   }} 
                 />
+                {selectedAnnouncement.benefitID && (
+                  <Chip 
+                    label="Benefit Announcement" 
+                    size="small" 
+                    sx={{ 
+                      bgcolor: '#F39C12', 
+                      color: '#FFF', 
+                      fontWeight: 600 
+                    }} 
+                  />
+                )}
               </Box>
 
               <Divider sx={{ mb: 3 }} />

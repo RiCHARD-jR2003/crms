@@ -796,10 +796,11 @@ const Analytics = () => {
           }
         }
         
-        if (comparisonData) {
-          const compTotal = comparisonData.reduce((sum, d) => sum + (d.registrations || 0), 0);
-          const diff = totalRegs - compTotal;
-          const percentDiff = ((diff / compTotal) * 100).toFixed(1);
+        if (comparisonData && comparisonData.comparisonTotal !== undefined) {
+          const diff = totalRegs - comparisonData.comparisonTotal;
+          const percentDiff = comparisonData.comparisonTotal > 0 
+            ? ((diff / comparisonData.comparisonTotal) * 100).toFixed(1)
+            : '0';
           insights.push(`Comparison period shows ${diff > 0 ? 'increase' : 'decrease'} of ${Math.abs(diff)} registrations (${Math.abs(percentDiff)}%)`);
         }
         break;
@@ -2316,58 +2317,54 @@ END OF REPORT
                         <Button
                           variant="contained"
                           onClick={async () => {
-                            // Generate comparison data
+                            // Simple comparison: calculate totals for the comparison date range
                             const startDate = new Date(comparisonDateRange.start);
                             const endDate = new Date(comparisonDateRange.end);
                             
                             const members = window.__analytics_members || [];
-                            const compMembers = members.filter(m => {
-                              const regDate = m?.created_at || m?.createdAt || m?.registration_date || m?.date_registered;
-                              if (!regDate) return false;
-                              const dt = new Date(regDate);
-                              return dt >= startDate && dt <= endDate;
-                            });
                             
                             if (selectedChart?.type === 'monthlyRegistrations') {
-                              const months = [];
-                              const monthsDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24 * 30));
-                              for (let i = monthsDiff; i >= 0; i--) {
-                                const date = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
-                                months.push(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
-                              }
-                              const compData = months.map(month => {
-                                const count = compMembers.reduce((acc, m) => {
-                                  const d = m?.created_at || m?.createdAt || m?.registration_date || m?.date_registered;
-                                  if (d) {
-                                    const ds = new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                                    if (ds === month) return acc + 1;
-                                  }
-                                  return acc;
-                                }, 0);
-                                return { month, registrations: count };
+                              // Count total registrations in comparison period
+                              const compTotal = members.filter(m => {
+                                const regDate = m?.created_at || m?.createdAt || m?.registration_date || m?.date_registered;
+                                if (!regDate) return false;
+                                const dt = new Date(regDate);
+                                return dt >= startDate && dt <= endDate;
+                              }).length;
+                              
+                              // Count total registrations in current period
+                              const currentTotal = selectedChart.data.reduce((sum, d) => sum + (d.registrations || 0), 0);
+                              
+                              // Simple comparison data: just totals
+                              setComparisonData({
+                                currentTotal,
+                                comparisonTotal: compTotal,
+                                currentLabel: 'Current Period',
+                                comparisonLabel: 'Comparison Period'
                               });
-                              setComparisonData(compData);
                             } else if (selectedChart?.type === 'monthlyCardIssuance') {
-                              const months = [];
-                              const monthsDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24 * 30));
-                              for (let i = monthsDiff; i >= 0; i--) {
-                                const date = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
-                                months.push(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
-                              }
-                              const compData = months.map(month => {
-                                const count = compMembers.filter(m => {
-                                  if (m?.pwd_id || m?.pwd_card_number || m?.card_number) {
-                                    const d = m?.pwd_id_generated_at || m?.card_issued_date || m?.card_date || m?.created_at || m?.createdAt;
-                                    if (d) {
-                                      const ds = new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                                      return ds === month;
-                                    }
+                              // Count total cards issued in comparison period
+                              const compTotal = members.filter(m => {
+                                if (m?.pwd_id || m?.pwd_card_number || m?.card_number) {
+                                  const d = m?.pwd_id_generated_at || m?.card_issued_date || m?.card_date || m?.created_at || m?.createdAt;
+                                  if (d) {
+                                    const dt = new Date(d);
+                                    return dt >= startDate && dt <= endDate;
                                   }
-                                  return false;
-                                }).length;
-                                return { month, cards: count };
+                                }
+                                return false;
+                              }).length;
+                              
+                              // Count total cards in current period
+                              const currentTotal = selectedChart.data.reduce((sum, d) => sum + (d.cards || 0), 0);
+                              
+                              // Simple comparison data: just totals
+                              setComparisonData({
+                                currentTotal,
+                                comparisonTotal: compTotal,
+                                currentLabel: 'Current Period',
+                                comparisonLabel: 'Comparison Period'
                               });
-                              setComparisonData(compData);
                             }
                           }}
                           size="small"
@@ -2394,22 +2391,31 @@ END OF REPORT
                 <Box sx={{ height: 400, mb: 2 }}>
                   {selectedChart?.type === 'monthlyRegistrations' && (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={comparisonData ? selectedChart.data.map((d, idx) => {
-                        const compItem = comparisonData[idx];
-                        return {
-                          month: d.month,
-                          current: d.registrations,
-                          comparison: compItem ? compItem.registrations : 0
-                        };
-                      }) : selectedChart.data.map(d => ({ month: d.month, current: d.registrations }))} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
-                        <XAxis dataKey="month" stroke="#7F8C8D" fontSize={12} />
-                        <YAxis stroke="#7F8C8D" fontSize={12} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="current" fill="#3498DB" radius={[4, 4, 0, 0]} name="Current Period" />
-                        {comparisonData && <Bar dataKey="comparison" fill="#1ABC9C" radius={[4, 4, 0, 0]} name="Comparison Period" />}
-                      </BarChart>
+                      {comparisonData ? (
+                        <BarChart 
+                          data={[
+                            { period: comparisonData.currentLabel, value: comparisonData.currentTotal },
+                            { period: comparisonData.comparisonLabel, value: comparisonData.comparisonTotal }
+                          ]} 
+                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                          <XAxis dataKey="period" stroke="#7F8C8D" fontSize={12} />
+                          <YAxis stroke="#7F8C8D" fontSize={12} />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="value" fill="#3498DB" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      ) : (
+                        <BarChart data={selectedChart.data.map(d => ({ month: d.month, registrations: d.registrations }))} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                          <XAxis dataKey="month" stroke="#7F8C8D" fontSize={12} />
+                          <YAxis stroke="#7F8C8D" fontSize={12} />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="registrations" fill="#3498DB" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      )}
                     </ResponsiveContainer>
                   )}
                   {selectedChart?.type === 'topBarangays' && (
@@ -2425,22 +2431,31 @@ END OF REPORT
                   )}
                   {selectedChart?.type === 'monthlyCardIssuance' && (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={comparisonData ? selectedChart.data.map((d, idx) => {
-                        const compItem = comparisonData[idx];
-                        return {
-                          month: d.month,
-                          current: d.cards,
-                          comparison: compItem ? compItem.cards : 0
-                        };
-                      }) : selectedChart.data.map(d => ({ month: d.month, current: d.cards }))} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
-                        <XAxis dataKey="month" stroke="#7F8C8D" fontSize={12} />
-                        <YAxis stroke="#7F8C8D" fontSize={12} />
-                        <Tooltip />
-                        <Legend />
-                        <Line type="monotone" dataKey="current" stroke="#1ABC9C" strokeWidth={3} dot={{ fill: '#1ABC9C', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} name="Current Period" />
-                        {comparisonData && <Line type="monotone" dataKey="comparison" stroke="#E74C3C" strokeWidth={3} dot={{ fill: '#E74C3C', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} name="Comparison Period" />}
-                      </LineChart>
+                      {comparisonData ? (
+                        <BarChart 
+                          data={[
+                            { period: comparisonData.currentLabel, value: comparisonData.currentTotal },
+                            { period: comparisonData.comparisonLabel, value: comparisonData.comparisonTotal }
+                          ]} 
+                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                          <XAxis dataKey="period" stroke="#7F8C8D" fontSize={12} />
+                          <YAxis stroke="#7F8C8D" fontSize={12} />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="value" fill="#1ABC9C" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      ) : (
+                        <LineChart data={selectedChart.data.map(d => ({ month: d.month, cards: d.cards }))} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                          <XAxis dataKey="month" stroke="#7F8C8D" fontSize={12} />
+                          <YAxis stroke="#7F8C8D" fontSize={12} />
+                          <Tooltip />
+                          <Legend />
+                          <Line type="monotone" dataKey="cards" stroke="#1ABC9C" strokeWidth={3} dot={{ fill: '#1ABC9C', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      )}
                     </ResponsiveContainer>
                   )}
                   {selectedChart?.type === 'benefitTypeDistribution' && (
