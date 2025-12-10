@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Paper,
@@ -485,12 +485,55 @@ const Ayuda = () => {
     setOpenDialog(true);
   };
 
+  // Helper: ensure unique benefits using a stable composite key (prefer ids)
+  const dedupeBenefits = useCallback((list) => {
+    const seen = new Set();
+    const unique = [];
+    for (const item of list || []) {
+      const rawDate = item.distributionDate || item.created_at || item.updated_at;
+      const normalizedDate = rawDate ? new Date(rawDate).getTime() : 0;
+      const normalizedTitle = (item.title || item.benefitType || '').trim().toLowerCase();
+      const normalizedBarangay = (item.barangay || 'all').trim().toLowerCase();
+      const normalizedAmount = (() => {
+        const amt = typeof item.amount === 'string' ? item.amount.replace(/[₱,]/g, '') : item.amount;
+        return Number(amt) || 0;
+      })();
+      const key =
+        item.id ??
+        item.benefitID ??
+        item.reference ??
+        `${normalizedTitle}|${normalizedBarangay}|${normalizedAmount}|${normalizedDate}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(item);
+    }
+    return unique;
+  }, []);
+
+  const sortBenefits = (list) => {
+    return [...list].sort((a, b) => {
+      const dateA = new Date(a.created_at || a.distributionDate || a.updated_at || 0);
+      const dateB = new Date(b.created_at || b.distributionDate || b.updated_at || 0);
+      return dateB - dateA; // Most recent first
+    });
+  };
+
+  const applyBenefitsState = (list, persist = true) => {
+    const deduped = dedupeBenefits(list);
+    const sorted = sortBenefits(deduped);
+    setBenefits(sorted);
+    if (persist) {
+      localStorage.setItem('benefits', JSON.stringify(sorted));
+    }
+    return sorted;
+  };
+
   // Load benefits from database and pending schedules from localStorage when component mounts
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load benefits from database and sort by most recent first
-        const benefitsData = await benefitService.getAll();
+        // Load benefits from database (all statuses) and sort by most recent first
+        const benefitsData = await benefitService.getAll(null, 'all');
         console.log('Loading benefits from database:', benefitsData);
         console.log('Benefits data type:', typeof benefitsData);
         console.log('Is array?', Array.isArray(benefitsData));
@@ -568,14 +611,9 @@ const Ayuda = () => {
         });
         
         // Sort by most recent first (created_at or distributionDate)
-        const sortedBenefits = benefitsWithAutoDeactivation.sort((a, b) => {
-          const dateA = new Date(a.created_at || a.distributionDate || a.updated_at || 0);
-          const dateB = new Date(b.created_at || b.distributionDate || b.updated_at || 0);
-          return dateB - dateA; // Most recent first
-        });
+        const sortedBenefits = applyBenefitsState(benefitsWithAutoDeactivation);
         
         console.log('Processed and sorted benefits:', sortedBenefits);
-        setBenefits(sortedBenefits);
 
         // Load pending schedules from localStorage (for now)
         const savedPendingSchedules = localStorage.getItem('pendingSchedules');
@@ -867,7 +905,7 @@ const Ayuda = () => {
         toastService.error('Failed to update benefit program: ' + (error.message || 'Unknown error'));
       }
     } else {
-      // Add new benefit to pending schedules
+      // Create new benefit directly in database
       try {
         // Check if there are eligible members and generate PDF first
         if (eligibleMembers.length > 0) {
@@ -892,36 +930,105 @@ const Ayuda = () => {
           formattedDistributionDate = dateObj.toISOString();
         }
         
-        const newPendingSchedule = {
-          id: pendingSchedules.length > 0 ? Math.max(...pendingSchedules.map(p => p.id), 0) + 1 : 1,
-          name: formData.type, // Use type as name for backward compatibility
+        // Format expiry date
+        let formattedExpiryDate = formData.expiryDate;
+        if (formData.expiryDate) {
+          const dateObj = new Date(formData.expiryDate);
+          dateObj.setHours(23, 59, 59, 999); // Set to end of day
+          formattedExpiryDate = dateObj.toISOString();
+        }
+        
+        // Create benefit data with Pending Approval status
+        const benefitData = {
+          ...formData,
           type: formData.type,
           amount: formData.amount,
           description: formData.description,
           targetRecipients: formData.targetRecipients,
           distributionDate: formattedDistributionDate,
-          expiryDate: formData.expiryDate,
+          expiryDate: formattedExpiryDate,
           barangay: formData.barangay,
           selectedBarangays: formData.selectedBarangays,
           quarter: formData.quarter,
-          quarterly: formData.quarterly,
-          status: 'Pending Approval',
+          birthdayMonth: formData.birthdayMonth,
+          status: 'Pending Approval', // Set to Pending Approval initially
           distributed: 0,
           pending: 0,
           color: getColorForType(formData.type),
-          birthdayMonth: formData.birthdayMonth,
-          submittedDate: new Date().toISOString(),
-          approvalFile: null
+          submittedDate: new Date().toISOString()
+        };
+        
+        // Create benefit in database
+        console.log('Creating benefit in database:', benefitData);
+        const savedBenefitResponse = await benefitService.create(benefitData);
+        console.log('Benefit created successfully:', savedBenefitResponse);
+        
+        const savedBenefit = savedBenefitResponse.data || savedBenefitResponse;
+        
+        // Also add to pending schedules for backward compatibility
+        const newPendingSchedule = {
+          id: savedBenefit.id || (pendingSchedules.length > 0 ? Math.max(...pendingSchedules.map(p => p.id), 0) + 1 : 1),
+          name: formData.type,
+          ...benefitData
         };
         const updatedPendingSchedules = [...pendingSchedules, newPendingSchedule];
         setPendingSchedules(updatedPendingSchedules);
-        // Save to localStorage
         localStorage.setItem('pendingSchedules', JSON.stringify(updatedPendingSchedules));
         
+        // Refresh benefits list immediately to show the new benefit
+        try {
+          const refreshedBenefits = await benefitService.getAll(null, 'all');
+          const benefitsArray = Array.isArray(refreshedBenefits) ? refreshedBenefits : 
+                               (refreshedBenefits?.data || []);
+          
+          // Parse and normalize benefits
+          const parsedBenefits = benefitsArray.map(benefit => {
+            if (benefit.selectedBarangays && typeof benefit.selectedBarangays === 'string') {
+              try {
+                benefit.selectedBarangays = JSON.parse(benefit.selectedBarangays);
+              } catch (e) {
+                benefit.selectedBarangays = [];
+              }
+            }
+            if (!Array.isArray(benefit.selectedBarangays)) {
+              benefit.selectedBarangays = [];
+            }
+            if (benefit.amount && typeof benefit.amount === 'number') {
+              benefit.amount = `₱${benefit.amount.toLocaleString('en-US')}`;
+            }
+            if (!benefit.status) {
+              benefit.status = 'Active';
+            }
+            benefit.distributed = benefit.distributed || 0;
+            benefit.pending = benefit.pending || 0;
+            return benefit;
+          });
+          
+          // Sort by most recent first
+          const sortedBenefits = parsedBenefits.sort((a, b) => {
+            const dateA = new Date(a.created_at || a.distributionDate || a.updated_at || 0);
+            const dateB = new Date(b.created_at || b.distributionDate || b.updated_at || 0);
+            return dateB - dateA;
+          });
+          
+          setBenefits(sortedBenefits);
+          localStorage.setItem('benefits', JSON.stringify(sortedBenefits));
+        } catch (refreshError) {
+          console.error('Error refreshing benefits after creation:', refreshError);
+          // Fallback: add to local state if refresh fails
+          const newBenefit = {
+            ...benefitData,
+            id: savedBenefit.id || (benefits.length > 0 ? Math.max(...benefits.map(b => b.id), 0) + 1 : 1)
+          };
+          const updatedBenefits = [...benefits, newBenefit];
+          setBenefits(updatedBenefits);
+          localStorage.setItem('benefits', JSON.stringify(updatedBenefits));
+        }
+        
         if (eligibleMembers.length > 0) {
-          toastService.success('Benefit program submitted for approval! Please print the generated PDF and get the required signatures before the program can be approved.');
+          toastService.success('Benefit program created successfully! Please print the generated PDF and get the required signatures before the program can be approved.');
         } else {
-          toastService.success('Benefit program submitted for approval!');
+          toastService.success('Benefit program created successfully! It is now pending approval.');
         }
       } catch (error) {
         console.error('Error creating benefit:', error);
@@ -1076,15 +1183,32 @@ const Ayuda = () => {
         
         const savedBenefit = savedBenefitResponse.data || savedBenefitResponse;
         
+        // Ensure status is set to Active if not provided
+        if (!savedBenefit.status) {
+          savedBenefit.status = 'Active';
+        }
+        
         // Add to active benefits with the database ID
         const approvedBenefit = {
           ...approvedBenefitData,
-          id: savedBenefit.id || savedBenefit.benefitID || (benefits.length > 0 ? Math.max(...benefits.map(b => b.id), 0) + 1 : 1)
+          id: savedBenefit.id || savedBenefit.benefitID || (benefits.length > 0 ? Math.max(...benefits.map(b => b.id), 0) + 1 : 1),
+          status: savedBenefit.status || 'Active'
         };
-
-        const updatedBenefits = [...benefits, approvedBenefit];
-        setBenefits(updatedBenefits);
-        localStorage.setItem('benefits', JSON.stringify(updatedBenefits));
+        
+        // Refresh benefits list immediately to show the new benefit
+        try {
+          const refreshedBenefits = await benefitService.getAll(null, 'all');
+          const benefitsArray = Array.isArray(refreshedBenefits) ? refreshedBenefits : 
+                               (refreshedBenefits?.data || []);
+          applyBenefitsState(benefitsArray);
+          // Jump to Active tab so user sees it immediately
+          setActiveTab(0);
+        } catch (refreshError) {
+          console.error('Error refreshing benefits after creation:', refreshError);
+          // Fallback: add to local state if refresh fails, but still dedupe and sort
+          applyBenefitsState([...benefits, approvedBenefit]);
+          setActiveTab(0);
+        }
 
         // Remove from pending schedules
         const updatedPendingSchedules = pendingSchedules.filter(p => p.id !== selectedPendingSchedule.id);
@@ -1796,9 +1920,27 @@ const Ayuda = () => {
           </Grid>
 
           {/* Benefits Table */}
-          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#2C3E50', fontSize: '1.2rem' }}>
-            Available Benefits Programs
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#2C3E50', fontSize: '1.2rem' }}>
+              Available Benefits Programs
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => handleOpenDialog()}
+              sx={{ 
+                bgcolor: '#27AE60', 
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                py: 1,
+                borderRadius: 2,
+                '&:hover': { bgcolor: '#229954' } 
+              }}
+            >
+              Add Benefit
+            </Button>
+          </Box>
           {benefits.length === 0 ? (
             <Box sx={{ 
               textAlign: 'center', 

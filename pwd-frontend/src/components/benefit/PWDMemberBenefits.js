@@ -196,7 +196,7 @@ const PWDMemberBenefits = () => {
       }
 
       // Get the API base URL
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'http://localhost:8000/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com/api';
       const token = localStorage.getItem('auth.token');
       let tokenValue = '';
       

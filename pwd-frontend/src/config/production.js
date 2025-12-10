@@ -1,40 +1,19 @@
-// Production API Configuration
-// Update these URLs to match your Hostinger domain
-
-const PRODUCTION_CONFIG = {
-  // Cloudflare tunnel (live frontend)
-  API_BASE_URL: 'https://reasoning-adaptive-angel-girls.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://reasoning-adaptive-angel-girls.trycloudflare.com',
-  
-  // Example configurations for different domains:
-  // API_BASE_URL: 'https://pwdmanagement.yourdomain.com/api',
-  // STORAGE_BASE_URL: 'https://pwdmanagement.yourdomain.com',
-  
-  // Or if using subdirectories:
-  // API_BASE_URL: 'https://yourdomain.com/pwd-backend/api',
-  // STORAGE_BASE_URL: 'https://yourdomain.com/pwd-backend',
-};
-
-// Network Development Configuration (accessible from other PCs)
-const NETWORK_CONFIG = {
-  API_BASE_URL: 'http://192.168.0.126:8000/api',
-  STORAGE_BASE_URL: 'http://192.168.0.126:8000',
-};
-
-// Development Configuration (localhost only)
-const DEVELOPMENT_CONFIG = {
-  API_BASE_URL: 'http://127.0.0.1:8000/api',
-  STORAGE_BASE_URL: 'http://127.0.0.1:8000',
-};
-
-// Cloudflare Tunnel Configuration (for accessing from other devices)
+// Cloudflare Tunnel Configuration
 const CLOUDFLARE_TUNNEL_CONFIG = {
-  // Backend API through Cloudflare tunnel
-  API_BASE_URL: 'https://reasoning-adaptive-angel-girls.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://reasoning-adaptive-angel-girls.trycloudflare.com',
+  API_BASE_URL: 'https://may-acceptable-fitting-exit.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://may-acceptable-fitting-exit.trycloudflare.com',
 };
 
-// Export configuration - Change this to CLOUDFLARE_TUNNEL_CONFIG when using Cloudflare tunnels
+// Production API Configuration (using tunnel)
+const PRODUCTION_CONFIG = CLOUDFLARE_TUNNEL_CONFIG;
+
+// Network Development Configuration (using tunnel)
+const NETWORK_CONFIG = CLOUDFLARE_TUNNEL_CONFIG;
+
+// Development Configuration (using tunnel)
+const DEVELOPMENT_CONFIG = CLOUDFLARE_TUNNEL_CONFIG;
+
+// Export configuration - always use tunnel
 export const API_CONFIG = CLOUDFLARE_TUNNEL_CONFIG;
 
 // Instructions for updating:

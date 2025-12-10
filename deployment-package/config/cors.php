@@ -19,7 +19,14 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://remind-ignored-putting-laid.trycloudflare.com',
+        'https://deemed-treatment-founder-retention.trycloudflare.com',
+        'https://otherwise-editor-judy-panel.trycloudflare.com', // New frontend tunnel
+        '*',
+    ],
 
     'allowed_origins_patterns' => [],
 

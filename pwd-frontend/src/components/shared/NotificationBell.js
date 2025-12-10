@@ -40,7 +40,7 @@ function NotificationBell() {
 
   const handleClose = () => {
     setPanelOpen(false);
-    // Refresh count when closing panel
+    // Refresh count when closing panel to ensure accuracy
     fetchUnreadCount();
   };
 

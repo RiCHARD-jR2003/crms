@@ -8,15 +8,23 @@ const notificationService = {
   async getNotifications() {
     try {
       const response = await api.get('/notifications');
+      console.log('Notification API response:', response);
+      
       // Handle different response structures
       if (response && typeof response === 'object') {
         // Check if response has data wrapper
         if (response.data) {
           if (response.data.success) {
-            return response.data.notifications || response.data.data || [];
+            const notifications = response.data.notifications || response.data.data || [];
+            console.log('Notifications fetched:', notifications.length, 'notifications');
+            if (response.data.debug) {
+              console.log('Debug info:', response.data.debug);
+            }
+            return notifications;
           }
           // If no success field, check for direct notifications array
           if (Array.isArray(response.data.notifications)) {
+            console.log('Notifications fetched (direct array):', response.data.notifications.length);
             return response.data.notifications;
           }
           if (Array.isArray(response.data.data)) {
@@ -39,9 +47,15 @@ const notificationService = {
           return response.notifications;
         }
       }
+      console.warn('No notifications found in response');
       return [];
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       return [];
     }
   },
@@ -145,7 +159,70 @@ const notificationService = {
   },
 
   /**
-   * Format notification timestamp for display
+   * Get date/time string in Philippine Time (Asia/Manila, UTC+8)
+   * @param {string|Date} timestamp - ISO 8601 timestamp or Date object
+   * @returns {string} Formatted date/time string in Philippine Time
+   */
+  getPhilippineTimeString(timestamp) {
+    if (!timestamp) return null;
+    
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return null;
+      
+      // Use Intl.DateTimeFormat to get Philippine Time
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      
+      return formatter.format(date);
+    } catch (error) {
+      console.error('Error getting Philippine Time string:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Get current Philippine Time as Date object
+   * @returns {Date} Current date/time in Philippine Time
+   */
+  getCurrentPhilippineTime() {
+    try {
+      const now = new Date();
+      const phTimeString = this.getPhilippineTimeString(now);
+      if (!phTimeString) return now;
+      
+      // Parse the PH time string to create a Date object
+      // Format: MM/DD/YYYY, HH:mm:ss
+      const [datePart, timePart] = phTimeString.split(', ');
+      const [month, day, year] = datePart.split('/');
+      const [hours, minutes, seconds] = timePart.split(':');
+      
+      // Create date representing Philippine Time
+      // Note: This creates a date in local timezone but represents PH time
+      return new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hours),
+        parseInt(minutes),
+        parseInt(seconds)
+      );
+    } catch (error) {
+      console.error('Error getting current Philippine Time:', error);
+      return new Date();
+    }
+  },
+
+  /**
+   * Format notification timestamp for display in Philippine Time
    * @param {string} timestamp - ISO 8601 timestamp
    * @returns {string}
    */
@@ -154,8 +231,12 @@ const notificationService = {
     
     try {
       const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return 'Just now';
+      
       const now = new Date();
-      const diffMs = now - date;
+      
+      // Calculate difference in milliseconds
+      const diffMs = now.getTime() - date.getTime();
       const diffMins = Math.floor(diffMs / 60000);
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
@@ -169,18 +250,53 @@ const notificationService = {
       } else if (diffDays < 7) {
         return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
       } else {
-        // Format as date
-        return date.toLocaleDateString('en-US', {
+        // Format as date with Philippine Time
+        const formatted = date.toLocaleString('en-US', {
+          timeZone: 'Asia/Manila',
           month: 'short',
           day: 'numeric',
           year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
           hour: 'numeric',
-          minute: '2-digit'
+          minute: '2-digit',
+          hour12: true
         });
+        return formatted + ' (PH Time)';
       }
     } catch (error) {
       console.error('Error formatting timestamp:', error);
       return 'Unknown time';
+    }
+  },
+
+  /**
+   * Format full date and time in Philippine Time
+   * @param {string} timestamp - ISO 8601 timestamp
+   * @returns {string} Formatted as MM/DD/YYYY HH:mm AM/PM (PH Time)
+   */
+  formatDateTimePH(timestamp) {
+    if (!timestamp) return 'N/A';
+    
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return 'N/A';
+      
+      // Format using Philippine Time zone
+      const formatted = date.toLocaleString('en-US', {
+        timeZone: 'Asia/Manila',
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      
+      // Convert to MM/DD/YYYY HH:mm AM/PM format
+      const [datePart, timePart] = formatted.split(', ');
+      return `${datePart} ${timePart} (PH Time)`;
+    } catch (error) {
+      console.error('Error formatting date time:', error);
+      return 'Invalid Date';
     }
   },
 

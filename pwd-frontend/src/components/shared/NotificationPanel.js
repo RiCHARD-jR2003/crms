@@ -28,7 +28,8 @@ import {
   NotificationsActive as NotificationsActiveIcon,
   Campaign as CampaignIcon,
   CardGiftcard as BenefitIcon,
-  Assignment as ApplicationIcon
+  Assignment as ApplicationIcon,
+  Event as EventIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import notificationService from '../../services/notificationService';
@@ -53,12 +54,20 @@ function NotificationPanel({ open, onClose }) {
       PWDMember: {
         announcement: '/dashboard',
         benefit_eligibility: '/benefits',
+        benefit_announcement: '/benefits',
         application_status_change: '/profile',
+        new_application: '/profile',
         id_claiming: '/profile',
+        id_ready: '/profile',
+        id_claimed: '/profile',
+        card_ready_for_pickup: '/profile',
+        member_welcome: '/profile',
         support_ticket_reply: '/pwd-support',
         document_upload: '/documents',
+        document_review: '/documents',
         renewal_reminder: '/profile',
-        id_ready: '/profile',
+        id_renewal: '/profile',
+        assessment_finalized: '/profile',
         default: '/dashboard'
       },
       // Barangay President paths
@@ -67,6 +76,9 @@ function NotificationPanel({ open, onClose }) {
         application_status_change: '/barangay-president-pwd-records',
         new_application: '/barangay-president-pwd-records',
         support_ticket_reply: '/barangay-support',
+        benefit_announcement: '/barangay-president-announcement',
+        benefit_created: '/barangay-president-ayuda', // Navigate to Ayuda page to announce benefit
+        assessment_finalized: '/barangay-president-pwd-records',
         default: '/barangay-president-dashboard'
       },
       // Admin paths
@@ -76,7 +88,14 @@ function NotificationPanel({ open, onClose }) {
         new_application: '/pwd-records',
         support_ticket_reply: '/admin-support',
         id_claiming: '/pwd-card',
+        id_renewal: '/pwd-records',
         benefit_eligibility: '/ayuda',
+        benefit_announcement: '/ayuda',
+        document_upload: '/document-management',
+        document_review: '/document-management',
+        assessment_scheduled: '/disability-assessment',
+        assessment_rescheduled: '/disability-assessment',
+        assessment_finalized: '/disability-assessment',
         default: '/admin-dashboard'
       },
       // SuperAdmin paths
@@ -86,7 +105,14 @@ function NotificationPanel({ open, onClose }) {
         new_application: '/pwd-records',
         support_ticket_reply: '/admin-support',
         id_claiming: '/pwd-card',
+        id_renewal: '/pwd-records',
         benefit_eligibility: '/ayuda',
+        benefit_announcement: '/ayuda',
+        document_upload: '/document-management',
+        document_review: '/document-management',
+        assessment_scheduled: '/disability-assessment',
+        assessment_rescheduled: '/disability-assessment',
+        assessment_finalized: '/disability-assessment',
         default: '/admin-dashboard'
       },
       // Front Desk paths
@@ -97,6 +123,26 @@ function NotificationPanel({ open, onClose }) {
         support_ticket_reply: '/frontdesk-support',
         id_claiming: '/pwd-card',
         default: '/frontdesk-dashboard'
+      },
+      // Staff1 paths
+      Staff1: {
+        announcement: '/announcement',
+        application_status_change: '/pwd-masterlist',
+        new_application: '/pwd-masterlist',
+        support_ticket_reply: '/admin-support',
+        id_claiming: '/pwd-card',
+        document_upload: '/document-management',
+        document_review: '/document-management',
+        id_renewal: '/pwd-masterlist',
+        default: '/pwd-masterlist'
+      },
+      // Staff2 paths
+      Staff2: {
+        announcement: '/announcement',
+        benefit_eligibility: '/staff2-ayuda',
+        benefit_announcement: '/staff2-ayuda',
+        support_ticket_reply: '/admin-support',
+        default: '/staff2-ayuda'
       }
     };
 
@@ -106,11 +152,18 @@ function NotificationPanel({ open, onClose }) {
     // Add query parameters for specific navigation
     if (type === 'support_ticket_reply' && data.ticket_id) {
       path += `?ticketId=${data.ticket_id}`;
-    } else if (type === 'application_status_change' && data.application_id) {
+    } else if ((type === 'application_status_change' || type === 'new_application') && data.application_id) {
       path += `?applicationId=${data.application_id}`;
-    } else if (type === 'announcement' && data.announcement_id) {
-      // For announcements, we can add the ID if needed
+    } else if ((type === 'announcement' || type === 'benefit_announcement') && data.announcement_id) {
       path += `?announcementId=${data.announcement_id}`;
+    } else if ((type === 'benefit_eligibility' || type === 'benefit_created') && data.benefit_id) {
+      path += `?benefitId=${data.benefit_id}`;
+    } else if (type === 'document_review' && data.document_id) {
+      path += `?documentId=${data.document_id}`;
+    } else if (type === 'id_renewal' && data.renewal_id) {
+      path += `?renewalId=${data.renewal_id}`;
+    } else if ((type === 'id_claiming' || type === 'id_ready' || type === 'id_claimed') && data.claim_id) {
+      path += `?claimId=${data.claim_id}`;
     }
 
     return path;
@@ -149,16 +202,20 @@ function NotificationPanel({ open, onClose }) {
   const fetchNotifications = async () => {
     setLoading(true);
     try {
+      console.log('Fetching notifications for user:', currentUser?.username, 'Role:', currentUser?.role, 'UserID:', currentUser?.userID);
       const data = await notificationService.getNotifications();
+      console.log('Received notifications:', data.length, 'items');
       // Ensure notifications are sorted by created_at descending (latest first)
       const sorted = data.sort((a, b) => {
         const dateA = new Date(a.created_at || a.timestamp || 0);
         const dateB = new Date(b.created_at || b.timestamp || 0);
         return dateB - dateA;
       });
+      console.log('Sorted notifications:', sorted.length);
       setNotifications(sorted);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      console.error('Error details:', error.response?.data || error.message);
     } finally {
       setLoading(false);
     }
@@ -177,6 +234,7 @@ function NotificationPanel({ open, onClose }) {
     try {
       const success = await notificationService.markAsRead(notificationId);
       if (success) {
+        // Update local state
         setNotifications(prev => 
           prev.map(n => 
             n.id === notificationId 
@@ -184,7 +242,8 @@ function NotificationPanel({ open, onClose }) {
               : n
           )
         );
-        setUnreadCount(prev => Math.max(0, prev - 1));
+        // Refresh unread count from server to ensure accuracy
+        await fetchUnreadCount();
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
@@ -195,10 +254,12 @@ function NotificationPanel({ open, onClose }) {
     try {
       const success = await notificationService.markAllAsRead();
       if (success) {
+        // Update local state
         setNotifications(prev => 
           prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
         );
-        setUnreadCount(0);
+        // Refresh unread count from server to ensure accuracy
+        await fetchUnreadCount();
       }
     } catch (error) {
       console.error('Error marking all as read:', error);
@@ -212,17 +273,35 @@ function NotificationPanel({ open, onClose }) {
         return <ApplicationIcon color="primary" />;
       case 'id_claiming':
       case 'id_ready':
+      case 'id_claimed':
+      case 'id_claim_initiated':
+      case 'card_ready_for_pickup':
+      case 'card_claimed':
+      case 'card_renewed':
         return <CardMembershipIcon color="success" />;
       case 'support_ticket_reply':
         return <SupportAgentIcon color="info" />;
       case 'document_upload':
+      case 'document_review':
         return <DescriptionIcon color="secondary" />;
       case 'renewal_reminder':
+      case 'id_renewal':
+      case 'renewal_submitted':
+      case 'renewal_approved':
+      case 'renewal_rejected':
         return <RefreshIcon color="warning" />;
       case 'announcement':
+      case 'benefit_announcement':
+      case 'benefit_created':
         return <CampaignIcon sx={{ color: '#F39C12' }} />;
       case 'benefit_eligibility':
         return <BenefitIcon color="success" />;
+      case 'member_welcome':
+        return <NotificationsActiveIcon color="success" />;
+      case 'assessment_scheduled':
+      case 'assessment_rescheduled':
+      case 'assessment_finalized':
+        return <EventIcon sx={{ color: '#9C27B0' }} />; // Purple icon for assessment events
       default:
         return <NotificationsIcon color="action" />;
     }

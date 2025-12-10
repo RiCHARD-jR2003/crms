@@ -15,7 +15,12 @@ class WebSocketService {
   // Get WebSocket URL based on environment
   getWebSocketUrl() {
     const baseUrl = API_CONFIG.API_BASE_URL.replace('/api', '');
-    return baseUrl.replace('http', 'ws') + '/ws';
+    // Convert https to wss, http to ws
+    if (baseUrl.startsWith('https://')) {
+      return baseUrl.replace('https://', 'wss://') + '/ws';
+    } else {
+      return baseUrl.replace('http://', 'ws://') + '/ws';
+    }
   }
 
   // Get authentication token

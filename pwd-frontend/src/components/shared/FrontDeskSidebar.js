@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supportService } from '../../services/supportService';
 import toastService from '../../services/toastService';
 import ChangePassword from '../auth/ChangePassword';
+import NotificationBell from './NotificationBell';
 
 function FrontDeskSidebar({ isOpen, onToggle }) {
   const navigate = useNavigate();
@@ -195,6 +196,7 @@ function FrontDeskSidebar({ isOpen, onToggle }) {
               {currentUser?.email}
             </Typography>
           </Box>
+          <NotificationBell />
         </Box>
       </Box>
 

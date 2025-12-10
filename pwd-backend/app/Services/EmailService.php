@@ -31,6 +31,16 @@ class EmailService
      */
     public function sendApplicationApprovalEmail($data)
     {
+        // Calculate claim date if approval_date is provided, otherwise use current date
+        $approvalDate = isset($data['approval_date']) 
+            ? \Carbon\Carbon::parse($data['approval_date']) 
+            : \Carbon\Carbon::today();
+        
+        // Calculate 14 business days from approval date (excluding weekends and holidays)
+        $claimDate = \App\Services\HolidayService::addBusinessDays($approvalDate, 14);
+        $claimDateFormatted = $claimDate->format('F d, Y');
+        $claimDateShort = $claimDate->format('M d, Y');
+
         $emailData = [
             'firstName' => $data['firstName'],
             'lastName' => $data['lastName'],
@@ -38,7 +48,9 @@ class EmailService
             'username' => $data['username'],
             'password' => $data['password'],
             'pwdId' => $data['pwdId'],
-            'loginUrl' => $data['loginUrl'] ?? config('app.frontend_url', 'http://localhost:3000/login')
+            'loginUrl' => $data['loginUrl'] ?? config('app.frontend_url', 'http://localhost:3000/login'),
+            'claimDate' => $data['claimDate'] ?? $claimDateFormatted,
+            'claimDateShort' => $data['claimDateShort'] ?? $claimDateShort
         ];
 
         $subject = 'PWD Application Approved - Account Created';

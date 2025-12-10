@@ -56,6 +56,7 @@ import { supportService } from '../../services/supportService';
 import { filePreviewService } from '../../services/filePreviewService';
 import { api } from '../../services/api';
 import websocketService from '../../services/websocketService';
+import { API_CONFIG } from '../../config/production';
 
 // Maximum file size: 2MB
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
@@ -370,11 +371,11 @@ const AdminSupportDesk = () => {
       }
 
       setSendingMessage(true);
+      // Create a temporary message ID for status tracking (declare outside try block)
+      const tempMessageId = `temp_${Date.now()}`;
+      
       try {
         setLoading(true);
-        
-        // Create a temporary message ID for status tracking
-        const tempMessageId = `temp_${Date.now()}`;
         
         // Set status to sending
         updateMessageStatus(tempMessageId, 'sending');
@@ -1334,7 +1335,7 @@ const AdminSupportDesk = () => {
                                   border: '1px solid #E0E0E0'
                                 }}>
                                   <img
-                                    src={`http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/image`}
+                                    src={`${API_CONFIG?.API_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`}
                                     alt={message.attachment_name}
                                     style={{
                                       maxWidth: '250px',
@@ -1347,17 +1348,20 @@ const AdminSupportDesk = () => {
                                     }}
                                     onClick={() => handlePreviewFile(message)}
                                     onError={(e) => {
-                                      console.error('Image failed to load:', `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/image`);
+                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
+                                      console.error('Image failed to load:', imageUrl);
                                       console.error('Message data:', message);
                                       console.error('Image element:', e.target);
                                       console.error('Error event:', e);
                                       e.target.style.display = 'none';
                                     }}
                                     onLoad={() => {
-                                      console.log('Image loaded successfully:', `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/image`);
+                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
+                                      console.log('Image loaded successfully:', imageUrl);
                                     }}
                                     onLoadStart={() => {
-                                      console.log('Image loading started:', `http://127.0.0.1:8000/api/support-tickets/messages/${message.id}/image`);
+                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
+                                      console.log('Image loading started:', imageUrl);
                                     }}
                                   />
                                   <Box sx={{ 

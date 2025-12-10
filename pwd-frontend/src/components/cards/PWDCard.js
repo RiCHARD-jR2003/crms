@@ -387,7 +387,8 @@ function PWDCard() {
         
         return {
           id: member.pwd_id || `PWD-2025-${String(index + 1).padStart(6, '0')}`,
-          memberId: member.id || member.userID, // Database ID for API calls
+          memberId: member.userID || member.id, // userID is preferred for API calls (backend expects userID)
+          userID: member.userID || member.id, // Ensure userID is available
           name: (() => {
           const parts = [];
           if (member.firstName) parts.push(member.firstName);
@@ -1234,7 +1235,7 @@ function PWDCard() {
 
   const handleViewRenewalFile = async (renewalId, type) => {
     try {
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'http://localhost:8000/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com/api';
       let token = null;
       
       try {

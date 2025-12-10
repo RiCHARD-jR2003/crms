@@ -180,12 +180,15 @@ function BarangayPresidentDashboard() {
       // This uses backend filtering for better performance and consistency
       const announcementsResponse = await announcementService.getByAudience(targetBarangay);
       
-      // Handle response format
+      // Handle response format - ensure we get an array
       const filteredAnnouncements = Array.isArray(announcementsResponse) 
         ? announcementsResponse 
         : (announcementsResponse?.data || []);
       
-      console.log('Fetched announcements for barangay:', targetBarangay, filteredAnnouncements);
+      console.log('Fetched announcements for barangay:', targetBarangay);
+      console.log('Announcements response:', announcementsResponse);
+      console.log('Filtered announcements array:', filteredAnnouncements);
+      console.log('Number of announcements:', filteredAnnouncements.length);
       
       // Sort by latest first (backend should do this, but ensure on frontend too)
       filteredAnnouncements.sort((a, b) => {

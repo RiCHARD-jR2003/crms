@@ -113,6 +113,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    // Show loading toast
+    toastService.process.signingOut();
+    
     try {
       await api.post('/logout', {});
     } catch (_) {
@@ -122,6 +125,10 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('auth.currentUser');
     localStorage.removeItem('auth.token');
     await api.clearToken();
+    
+    // Dismiss loading toast and show success
+    toastService.dismiss();
+    toastService.process.signedOut();
   };
 
   const updateUser = (updatedUser) => {

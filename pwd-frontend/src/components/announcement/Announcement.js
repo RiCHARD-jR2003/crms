@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Paper,
@@ -28,7 +28,8 @@ import {
   MenuItem,
   IconButton,
   Alert,
-  Badge
+  Badge,
+  InputAdornment
 } from '@mui/material';
 import {
   Campaign,
@@ -43,12 +44,16 @@ import {
   Public,
   PriorityHigh,
   Close,
-  Menu as MenuIcon
+  Menu as MenuIcon,
+  CalendarToday as CalendarIcon,
+  Search,
+  FilterList
 } from '@mui/icons-material';
 import AdminSidebar from '../shared/AdminSidebar';
 import FrontDeskSidebar from '../shared/FrontDeskSidebar';
 import { useAuth } from '../../contexts/AuthContext';
 import announcementService from '../../services/announcementService';
+import { formatDate, formatDateTimeShort } from '../../utils/dateTimeFormatter';
 
 const Announcement = () => {
   const { currentUser } = useAuth();
@@ -78,6 +83,7 @@ const Announcement = () => {
   const barangayList = [
     'All', // All barangays
     'Members', // All PWD members
+    'Barangay President', // Barangay Presidents
     'Baclaran', 'Banay-Banay', 'Banlic', 'Bigaa', 'Butong', 'Casile',
     'Diezmo', 'Gulod', 'Mamatid', 'Marinig', 'Niugan', 'Pittland',
     'Pob. Uno', 'Pob. Dos', 'Pob. Tres', 'Pulo', 'Sala', 'San Isidro'
@@ -110,39 +116,78 @@ const Announcement = () => {
     });
   };
 
-  // Format date as MM/DD/YYYY
-  const formatDateMMDDYYYY = (dateString) => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return null;
+  // Refs for native date inputs
+  const publishDateInputRef = useRef(null);
+  const expiryDateInputRef = useRef(null);
+
+  // Use centralized date formatting utilities
+  // formatDateMMDDYYYY is an alias for formatDate from dateTimeFormatter
+  const formatDateMMDDYYYY = formatDate;
+  const formatDateTime = formatDateTimeShort;
+
+  // Parse MM/DD/YYYY to ISO format (YYYY-MM-DD)
+  const parseDateMMDDYYYY = (dateString) => {
+    if (!dateString) return '';
+    // Remove any non-digit characters except slashes
+    const cleaned = dateString.replace(/[^\d/]/g, '');
     
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
+    // Check if it matches mm/dd/yyyy format
+    const mmddyyyyMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mmddyyyyMatch) {
+      const [, month, day, year] = mmddyyyyMatch;
+      const monthNum = parseInt(month, 10);
+      const dayNum = parseInt(day, 10);
+      const yearNum = parseInt(year, 10);
+      
+      // Validate month and day
+      if (monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+        // Return ISO format for storage
+        return `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+      }
+    }
     
-    return `${month}/${day}/${year}`;
+    // If already in ISO format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString;
+    }
+    
+    return '';
   };
 
-  // Format date and time as MM/DD/YYYY HH:MM AM/PM
-  const formatDateTime = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'N/A';
+  // Format date input as user types (mm/dd/yyyy)
+  const handleDateInputChange = (field, value) => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
     
-    // Format date as MM/DD/YYYY
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
+    let formatted = '';
+    if (digits.length > 0) {
+      // Add first two digits (month)
+      formatted = digits.substring(0, 2);
+      if (digits.length > 2) {
+        // Add slash and next two digits (day)
+        formatted += '/' + digits.substring(2, 4);
+        if (digits.length > 4) {
+          // Add slash and remaining digits (year, max 4)
+          formatted += '/' + digits.substring(4, 8);
+        }
+      }
+    }
     
-    // Format time as HH:MM AM/PM
-    let hours = date.getHours();
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12; // the hour '0' should be '12'
-    const formattedHours = String(hours).padStart(2, '0');
-    
-    return `${month}/${day}/${year} ${formattedHours}:${minutes} ${ampm}`;
+    // Update the display value (store formatted mm/dd/yyyy)
+    setFormData(prev => ({ ...prev, [field]: formatted }));
+  };
+
+  // Handle calendar icon click - open native date picker
+  const handleCalendarClick = (field) => {
+    if (field === 'publishDate') {
+      if (publishDateInputRef.current) {
+        publishDateInputRef.current.showPicker();
+      }
+    } else if (field === 'expiryDate') {
+      if (expiryDateInputRef.current) {
+        expiryDateInputRef.current.showPicker();
+      }
+    }
   };
 
   // Format announcement content to properly display line breaks, bullets, and numbered lists
@@ -207,6 +252,13 @@ const Announcement = () => {
     eventAnnouncements: 0
   });
 
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterPriority, setFilterPriority] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterTarget, setFilterTarget] = useState('all');
+
   // Auto-determine priority based on type and content keywords
   const determinePriority = (type, content) => {
     const contentLower = (content || '').toLowerCase();
@@ -249,13 +301,19 @@ const Announcement = () => {
   const validateExpiryDate = (dateStr) => {
     if (!dateStr) return { valid: false, message: 'Expiry date is required' };
     
+    // Convert mm/dd/yyyy to ISO if needed
+    const isoDate = parseDateMMDDYYYY(dateStr) || dateStr;
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    const expiryDate = new Date(dateStr);
+    const expiryDate = new Date(isoDate);
+    if (isNaN(expiryDate.getTime())) {
+      return { valid: false, message: 'Invalid date format' };
+    }
     expiryDate.setHours(0, 0, 0, 0);
     
     if (expiryDate < tomorrow) {
@@ -328,11 +386,14 @@ const Announcement = () => {
         : (announcement.targetAudience || []);
       setFormData({
         ...announcement,
-        targetAudience: targetAudienceArray
+        targetAudience: targetAudienceArray,
+        // Convert ISO dates to mm/dd/yyyy format for display
+        publishDate: announcement.publishDate ? formatDateMMDDYYYY(announcement.publishDate) : '',
+        expiryDate: announcement.expiryDate ? formatDateMMDDYYYY(announcement.expiryDate) : ''
       });
     } else {
       setEditingAnnouncement(null);
-      // Set default publish date to today
+      // Set default publish date to today (formatted as mm/dd/yyyy)
       const today = new Date().toISOString().split('T')[0];
       setFormData({
         title: '',
@@ -341,7 +402,7 @@ const Announcement = () => {
         priority: '',
         targetAudience: [], // Empty array for new announcements
         status: 'Active',
-        publishDate: today,
+        publishDate: formatDateMMDDYYYY(today), // Format as mm/dd/yyyy
         expiryDate: ''
       });
     }
@@ -477,7 +538,10 @@ const Announcement = () => {
       return false;
     }
     
-    if (!formData.targetAudience || formData.targetAudience.trim() === '') {
+    // Check if targetAudience is an array with at least one item
+    if (!formData.targetAudience || 
+        (Array.isArray(formData.targetAudience) && formData.targetAudience.length === 0) ||
+        (typeof formData.targetAudience === 'string' && formData.targetAudience.trim() === '')) {
       return false;
     }
     
@@ -572,11 +636,46 @@ const Announcement = () => {
       setSuccess(null);
       
       // Convert targetAudience array to comma-separated string for backend
+      // Convert mm/dd/yyyy dates to ISO datetime format (YYYY-MM-DD HH:mm:ss) for backend
+      // Preserve original time if editing, otherwise use current time
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      
+      // If editing, try to preserve original time from the announcement
+      let publishDateTime = formData.publishDate;
+      let expiryDateTime = formData.expiryDate;
+      
+      if (formData.publishDate) {
+        if (editingAnnouncement && editingAnnouncement.publishDate) {
+          // Preserve original time from database
+          const originalDate = new Date(editingAnnouncement.publishDate);
+          const originalTime = `${String(originalDate.getHours()).padStart(2, '0')}:${String(originalDate.getMinutes()).padStart(2, '0')}:${String(originalDate.getSeconds()).padStart(2, '0')}`;
+          publishDateTime = `${parseDateMMDDYYYY(formData.publishDate)} ${originalTime}`;
+        } else {
+          // New announcement - use current time
+          publishDateTime = `${parseDateMMDDYYYY(formData.publishDate)} ${currentTime}`;
+        }
+      }
+      
+      if (formData.expiryDate) {
+        if (editingAnnouncement && editingAnnouncement.expiryDate) {
+          // Preserve original time from database
+          const originalDate = new Date(editingAnnouncement.expiryDate);
+          const originalTime = `${String(originalDate.getHours()).padStart(2, '0')}:${String(originalDate.getMinutes()).padStart(2, '0')}:${String(originalDate.getSeconds()).padStart(2, '0')}`;
+          expiryDateTime = `${parseDateMMDDYYYY(formData.expiryDate)} ${originalTime}`;
+        } else {
+          // New announcement - set to end of day
+          expiryDateTime = `${parseDateMMDDYYYY(formData.expiryDate)} 23:59:59`;
+        }
+      }
+      
       const submitData = {
         ...formData,
         targetAudience: Array.isArray(formData.targetAudience) 
           ? formData.targetAudience.join(', ') 
-          : formData.targetAudience
+          : formData.targetAudience,
+        publishDate: publishDateTime,
+        expiryDate: expiryDateTime
       };
       
       if (editingAnnouncement) {
@@ -668,6 +767,53 @@ const Announcement = () => {
       const expiryDate = new Date(ann.expiryDate);
       return expiryDate < thirtyDaysAgo;
     });
+  };
+
+  // Filter announcements based on search query and filters
+  const getFilteredAnnouncements = () => {
+    let filtered = [...announcements];
+
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(ann => 
+        ann.title?.toLowerCase().includes(query) ||
+        ann.content?.toLowerCase().includes(query) ||
+        ann.targetAudience?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply type filter
+    if (filterType !== 'all') {
+      filtered = filtered.filter(ann => ann.type === filterType);
+    }
+
+    // Apply priority filter
+    if (filterPriority !== 'all') {
+      filtered = filtered.filter(ann => ann.priority === filterPriority);
+    }
+
+    // Apply status filter
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(ann => ann.status === filterStatus);
+    }
+
+    // Apply target audience filter
+    if (filterTarget !== 'all') {
+      filtered = filtered.filter(ann => {
+        const target = ann.targetAudience || '';
+        return target.toLowerCase().includes(filterTarget.toLowerCase());
+      });
+    }
+
+    // Sort by most recently posted (publishDate or created_at) - always maintain this order
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.publishDate || a.created_at || 0);
+      const dateB = new Date(b.publishDate || b.created_at || 0);
+      return dateB - dateA; // Latest first (descending order)
+    });
+
+    return filtered;
   };
 
   // Publish all draft announcements
@@ -838,38 +984,38 @@ const Announcement = () => {
             </Box>
 
             {/* Summary Cards */}
-            <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ justifyContent: 'flex-start' }}>
+            <Grid container spacing={{ xs: 1.5, sm: 2 }} sx={{ justifyContent: 'flex-start' }}>
               <Grid item xs={12} sm={6} md={3}>
                 <Paper elevation={0} sx={{ 
                   border: '1px solid #E0E0E0', 
                   bgcolor: 'white',
                   borderRadius: 2,
-                  p: 3,
+                  p: 1.5,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
                   width: '100%',
                   height: '100%',
-                  minHeight: '140px',
+                  minHeight: '90px',
                   '&:hover': { 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     transform: 'translateY(-2px)',
                     transition: 'all 0.3s ease'
                   }
                 }}>
-                  <Notifications sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#3498DB', mb: 1 }} />
+                  <Notifications sx={{ fontSize: { xs: 20, sm: 24, md: 28 }, color: '#3498DB', mb: 0.5 }} />
                   <Typography variant="h4" sx={{ 
                     fontWeight: 700, 
                     color: '#2C3E50', 
-                    mb: 1,
-                    fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2rem' }
+                    mb: 0.5,
+                    fontSize: { xs: '1.2rem', sm: '1.4rem', md: '1.6rem' }
                   }}>
                     {stats.activeAnnouncements}
                   </Typography>
                   <Typography variant="body2" sx={{ 
                     color: '#2C3E50', 
                     fontWeight: 500,
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
+                    fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' }
                   }}>
                     Active Announcements
                   </Typography>
@@ -880,32 +1026,32 @@ const Announcement = () => {
                   border: '1px solid #E0E0E0', 
                   bgcolor: 'white',
                   borderRadius: 2,
-                  p: 3,
+                  p: 1.5,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
                   width: '100%',
                   height: '100%',
-                  minHeight: '140px',
+                  minHeight: '90px',
                   '&:hover': { 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     transform: 'translateY(-2px)',
                     transition: 'all 0.3s ease'
                   }
                 }}>
-                  <Public sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#27AE60', mb: 1 }} />
+                  <Public sx={{ fontSize: { xs: 20, sm: 24, md: 28 }, color: '#27AE60', mb: 0.5 }} />
                   <Typography variant="h4" sx={{ 
                     fontWeight: 700, 
                     color: '#2C3E50', 
-                    mb: 1,
-                    fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2rem' }
+                    mb: 0.5,
+                    fontSize: { xs: '1.2rem', sm: '1.4rem', md: '1.6rem' }
                   }}>
                     {stats.totalViews.toLocaleString()}
                   </Typography>
                   <Typography variant="body2" sx={{ 
                     color: '#2C3E50', 
                     fontWeight: 500,
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
+                    fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' }
                   }}>
                     Total Views
                   </Typography>
@@ -916,32 +1062,32 @@ const Announcement = () => {
                   border: '1px solid #E0E0E0', 
                   bgcolor: 'white',
                   borderRadius: 2,
-                  p: 3,
+                  p: 1.5,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
                   width: '100%',
                   height: '100%',
-                  minHeight: '140px',
+                  minHeight: '90px',
                   '&:hover': { 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     transform: 'translateY(-2px)',
                     transition: 'all 0.3s ease'
                   }
                 }}>
-                  <PriorityHigh sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#E74C3C', mb: 1 }} />
+                  <PriorityHigh sx={{ fontSize: { xs: 20, sm: 24, md: 28 }, color: '#E74C3C', mb: 0.5 }} />
                   <Typography variant="h4" sx={{ 
                     fontWeight: 700, 
                     color: '#2C3E50', 
-                    mb: 1,
-                    fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2rem' }
+                    mb: 0.5,
+                    fontSize: { xs: '1.2rem', sm: '1.4rem', md: '1.6rem' }
                   }}>
                     {stats.highPriority}
                   </Typography>
                   <Typography variant="body2" sx={{ 
                     color: '#2C3E50', 
                     fontWeight: 500,
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
+                    fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' }
                   }}>
                     High Priority
                   </Typography>
@@ -952,32 +1098,32 @@ const Announcement = () => {
                   border: '1px solid #E0E0E0', 
                   bgcolor: 'white',
                   borderRadius: 2,
-                  p: 3,
+                  p: 1.5,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
                   width: '100%',
                   height: '100%',
-                  minHeight: '140px',
+                  minHeight: '90px',
                   '&:hover': { 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     transform: 'translateY(-2px)',
                     transition: 'all 0.3s ease'
                   }
                 }}>
-                  <Campaign sx={{ fontSize: { xs: 32, sm: 36, md: 40 }, color: '#9B59B6', mb: 1 }} />
+                  <Campaign sx={{ fontSize: { xs: 20, sm: 24, md: 28 }, color: '#9B59B6', mb: 0.5 }} />
                   <Typography variant="h4" sx={{ 
                     fontWeight: 700, 
                     color: '#2C3E50', 
-                    mb: 1,
-                    fontSize: { xs: '1.5rem', sm: '1.8rem', md: '2rem' }
+                    mb: 0.5,
+                    fontSize: { xs: '1.2rem', sm: '1.4rem', md: '1.6rem' }
                   }}>
                     {stats.eventAnnouncements}
                   </Typography>
                   <Typography variant="body2" sx={{ 
                     color: '#2C3E50', 
                     fontWeight: 500,
-                    fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.875rem' }
+                    fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' }
                   }}>
                     Event Announcements
                   </Typography>
@@ -1010,14 +1156,217 @@ const Announcement = () => {
             {/* Announcements Grid */}
             {!loading && !error && (
               <>
-                <Typography sx={{ 
-                  fontWeight: 600, 
-                  mb: 2, 
-                  color: '#2C3E50', 
-                  fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' }
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography sx={{ 
+                    fontWeight: 600, 
+                    color: '#2C3E50', 
+                    fontSize: { xs: '1rem', sm: '1.1rem', md: '1.2rem' }
+                  }}>
+                    CURRENT ANNOUNCEMENTS
+                  </Typography>
+                  <Typography sx={{ 
+                    color: '#7F8C8D', 
+                    fontSize: '0.85rem',
+                    fontWeight: 500
+                  }}>
+                    {getFilteredAnnouncements().length} of {announcements.length} announcements
+                  </Typography>
+                </Box>
+
+                {/* Search and Filter Section */}
+                <Paper elevation={0} sx={{
+                  p: 2,
+                  mb: 2,
+                  border: '1px solid #E0E0E0',
+                  borderRadius: 2,
+                  bgcolor: '#F8F9FA'
                 }}>
-                  CURRENT ANNOUNCEMENTS
-                </Typography>
+                  <Grid container spacing={2} alignItems="center">
+                    {/* Search Input */}
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Search by title, content, or target..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Search sx={{ color: '#7F8C8D' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={{
+                          bgcolor: 'white',
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: '#E0E0E0',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#3498DB',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#3498DB',
+                            },
+                          },
+                        }}
+                      />
+                    </Grid>
+
+                    {/* Type Filter */}
+                    <Grid item xs={6} md={2}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel sx={{ fontSize: '0.85rem' }}>Type</InputLabel>
+                        <Select
+                          value={filterType}
+                          onChange={(e) => setFilterType(e.target.value)}
+                          label="Type"
+                          sx={{
+                            bgcolor: 'white',
+                            fontSize: '0.85rem',
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E0E0E0',
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3498DB',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3498DB',
+                            },
+                          }}
+                        >
+                          <MenuItem value="all">All Types</MenuItem>
+                          <MenuItem value="Emergency">Emergency</MenuItem>
+                          <MenuItem value="Notice">Notice</MenuItem>
+                          <MenuItem value="Event">Event</MenuItem>
+                          <MenuItem value="Information">Information</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    {/* Priority Filter */}
+                    <Grid item xs={6} md={2}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel sx={{ fontSize: '0.85rem' }}>Priority</InputLabel>
+                        <Select
+                          value={filterPriority}
+                          onChange={(e) => setFilterPriority(e.target.value)}
+                          label="Priority"
+                          sx={{
+                            bgcolor: 'white',
+                            fontSize: '0.85rem',
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E0E0E0',
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3498DB',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3498DB',
+                            },
+                          }}
+                        >
+                          <MenuItem value="all">All Priorities</MenuItem>
+                          <MenuItem value="High">High</MenuItem>
+                          <MenuItem value="Medium">Medium</MenuItem>
+                          <MenuItem value="Low">Low</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    {/* Status Filter */}
+                    <Grid item xs={6} md={2}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel sx={{ fontSize: '0.85rem' }}>Status</InputLabel>
+                        <Select
+                          value={filterStatus}
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                          label="Status"
+                          sx={{
+                            bgcolor: 'white',
+                            fontSize: '0.85rem',
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E0E0E0',
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3498DB',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3498DB',
+                            },
+                          }}
+                        >
+                          <MenuItem value="all">All Status</MenuItem>
+                          <MenuItem value="Active">Active</MenuItem>
+                          <MenuItem value="Draft">Draft</MenuItem>
+                          <MenuItem value="Archived">Archived</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    {/* Target Audience Filter */}
+                    <Grid item xs={6} md={2}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel sx={{ fontSize: '0.85rem' }}>Target</InputLabel>
+                        <Select
+                          value={filterTarget}
+                          onChange={(e) => setFilterTarget(e.target.value)}
+                          label="Target"
+                          sx={{
+                            bgcolor: 'white',
+                            fontSize: '0.85rem',
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E0E0E0',
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3498DB',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#3498DB',
+                            },
+                          }}
+                        >
+                          <MenuItem value="all">All Targets</MenuItem>
+                          <MenuItem value="All">All</MenuItem>
+                          <MenuItem value="Members">Members</MenuItem>
+                          <MenuItem value="Barangay President">Barangay President</MenuItem>
+                          {barangayList.filter(b => !['All', 'Members', 'Barangay President'].includes(b)).map(barangay => (
+                            <MenuItem key={barangay} value={barangay}>{barangay}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+
+                  {/* Clear Filters Button */}
+                  {(searchQuery || filterType !== 'all' || filterPriority !== 'all' || filterStatus !== 'all' || filterTarget !== 'all') && (
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setFilterType('all');
+                          setFilterPriority('all');
+                          setFilterStatus('all');
+                          setFilterTarget('all');
+                        }}
+                        sx={{
+                          textTransform: 'none',
+                          color: '#E74C3C',
+                          fontSize: '0.8rem',
+                          '&:hover': {
+                            bgcolor: '#E74C3C',
+                            color: 'white'
+                          }
+                        }}
+                      >
+                        Clear All Filters
+                      </Button>
+                    </Box>
+                  )}
+                </Paper>
+
                 <TableContainer>
                   <Table size="small">
                     <TableHead>
@@ -1032,7 +1381,16 @@ const Announcement = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {announcements.map((announcement) => (
+                      {getFilteredAnnouncements().length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
+                            <Typography sx={{ color: '#7F8C8D', fontSize: '0.9rem' }}>
+                              No announcements found matching your search criteria.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        getFilteredAnnouncements().map((announcement) => (
                         <TableRow 
                           key={announcement.announcementID}
                           onClick={() => handleViewDetails(announcement)}
@@ -1109,7 +1467,8 @@ const Announcement = () => {
                             {announcement.expiryDate ? formatDateTime(announcement.expiryDate) : 'N/A'}
                           </TableCell>
                         </TableRow>
-                      ))}
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </TableContainer>
@@ -1425,9 +1784,9 @@ const Announcement = () => {
                                   checked={formData.targetAudience.includes(option)}
                                   onChange={() => handleTargetAudienceChange(option)}
                                   sx={{
-                                    color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : '#0b87ac',
+                                    color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : option === 'Barangay President' ? '#9B59B6' : '#0b87ac',
                                     '&.Mui-checked': {
-                                      color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : '#0b87ac',
+                                      color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : option === 'Barangay President' ? '#9B59B6' : '#0b87ac',
                                     },
                                   }}
                                   disabled={option !== 'All' && formData.targetAudience.includes('All')}
@@ -1436,8 +1795,8 @@ const Announcement = () => {
                               label={
                                 <Typography sx={{ 
                                   fontSize: '0.8rem', 
-                                  color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : '#2C3E50',
-                                  fontWeight: option === 'All' || option === 'Members' ? 600 : 400
+                                  color: option === 'All' ? '#27AE60' : option === 'Members' ? '#F39C12' : option === 'Barangay President' ? '#9B59B6' : '#2C3E50',
+                                  fontWeight: option === 'All' || option === 'Members' || option === 'Barangay President' ? 600 : 400
                                 }}>
                                   {option}
                                 </Typography>
@@ -1445,7 +1804,7 @@ const Announcement = () => {
                               sx={{ 
                                 m: 0,
                                 bgcolor: formData.targetAudience.includes(option) 
-                                  ? option === 'All' ? '#E8F5E9' : option === 'Members' ? '#FFF3E0' : '#E3F2FD' 
+                                  ? option === 'All' ? '#E8F5E9' : option === 'Members' ? '#FFF3E0' : option === 'Barangay President' ? '#F3E5F5' : '#E3F2FD' 
                                   : 'transparent',
                                 borderRadius: 1,
                                 px: 1,
@@ -1468,7 +1827,7 @@ const Announcement = () => {
                                 size="small"
                                 onDelete={() => handleTargetAudienceChange(audience)}
                                 sx={{
-                                  bgcolor: audience === 'All' ? '#27AE60' : audience === 'Members' ? '#F39C12' : '#0b87ac',
+                                  bgcolor: audience === 'All' ? '#27AE60' : audience === 'Members' ? '#F39C12' : audience === 'Barangay President' ? '#9B59B6' : '#0b87ac',
                                   color: '#FFFFFF',
                                   fontWeight: 600,
                                   fontSize: '0.7rem',
@@ -1486,112 +1845,209 @@ const Announcement = () => {
                   </Grid>
 
                   <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Publish Date *"
-                      type="date"
-                      value={formData.publishDate}
-                      onChange={(e) => setFormData({ ...formData, publishDate: e.target.value })}
-                      margin="normal"
-                      InputLabelProps={{ shrink: true }}
-                      required
-                      helperText="Date when the announcement will be published"
-                      FormHelperTextProps={{
-                        sx: {
-                          color: '#B0BEC5',
-                          fontSize: '0.75rem'
-                        }
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          bgcolor: '#FFFFFF',
-                          color: '#2C3E50',
-                          '& fieldset': {
-                            borderColor: '#E0E0E0',
+                    <Box sx={{ position: 'relative' }}>
+                      {/* Hidden native date input */}
+                      <input
+                        type="date"
+                        ref={publishDateInputRef}
+                        style={{
+                          position: 'absolute',
+                          opacity: 0,
+                          pointerEvents: 'none',
+                          width: 0,
+                          height: 0
+                        }}
+                        value={formData.publishDate ? parseDateMMDDYYYY(formData.publishDate) : ''}
+                        onChange={(e) => {
+                          const isoDate = e.target.value;
+                          if (isoDate) {
+                            const formattedDate = formatDateMMDDYYYY(isoDate);
+                            handleDateInputChange('publishDate', formattedDate);
+                          } else {
+                            handleDateInputChange('publishDate', '');
+                          }
+                        }}
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                      <TextField
+                        fullWidth
+                        type="text"
+                        label="Publish Date *"
+                        value={formData.publishDate ?? ''}
+                        onChange={(e) => handleDateInputChange('publishDate', e.target.value)}
+                        margin="normal"
+                        InputLabelProps={{ shrink: true }}
+                        required
+                        placeholder="mm/dd/yyyy"
+                        helperText="Format: mm/dd/yyyy - Date when the announcement will be published"
+                        FormHelperTextProps={{
+                          sx: {
+                            color: '#B0BEC5',
+                            fontSize: '0.75rem'
+                          }
+                        }}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => handleCalendarClick('publishDate')}
+                                edge="end"
+                                sx={{
+                                  color: '#666',
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                                    color: '#0b87ac'
+                                  }
+                                }}
+                                aria-label="Open date picker"
+                              >
+                                <CalendarIcon />
+                              </IconButton>
+                            </InputAdornment>
+                          )
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& fieldset': {
+                              borderColor: '#E0E0E0',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#0b87ac',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#0b87ac',
+                            },
                           },
-                          '&:hover fieldset': {
-                            borderColor: '#0b87ac',
+                          '& .MuiInputLabel-root': {
+                            color: '#2C3E50',
+                            '&.Mui-focused': {
+                              color: '#0b87ac',
+                            },
                           },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#0b87ac',
-                          },
-                        },
-                        '& .MuiInputLabel-root': {
-                          color: '#2C3E50',
-                          '&.Mui-focused': {
-                            color: '#0b87ac',
-                          },
-                        },
-                        '& .MuiInputBase-input': {
-                          color: '#2C3E50',
-                        },
-                        '& .MuiSvgIcon-root': {
-                          color: '#2C3E50'
-                        }
-                      }}
-                    />
+                          '& .MuiInputBase-input': {
+                            color: '#2C3E50',
+                          }
+                        }}
+                      />
+                    </Box>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Expiry Date *"
-                      type="date"
-                      value={formData.expiryDate}
-                      onChange={(e) => {
-                        const validation = validateExpiryDate(e.target.value);
-                        if (!validation.valid && e.target.value) {
-                          setModalError(validation.message);
-                        } else {
-                          setModalError(null);
+                    <Box sx={{ position: 'relative' }}>
+                      {/* Hidden native date input */}
+                      <input
+                        type="date"
+                        ref={expiryDateInputRef}
+                        style={{
+                          position: 'absolute',
+                          opacity: 0,
+                          pointerEvents: 'none',
+                          width: 0,
+                          height: 0
+                        }}
+                        value={formData.expiryDate ? parseDateMMDDYYYY(formData.expiryDate) : ''}
+                        onChange={(e) => {
+                          const isoDate = e.target.value;
+                          if (isoDate) {
+                            const formattedDate = formatDateMMDDYYYY(isoDate);
+                            handleDateInputChange('expiryDate', formattedDate);
+                            // Validate expiry date
+                            const validation = validateExpiryDate(isoDate);
+                            if (!validation.valid) {
+                              setModalError(validation.message);
+                            } else {
+                              setModalError(null);
+                            }
+                          } else {
+                            handleDateInputChange('expiryDate', '');
+                            setModalError(null);
+                          }
+                        }}
+                        min={getMinExpiryDate()}
+                      />
+                      <TextField
+                        fullWidth
+                        type="text"
+                        label="Expiry Date *"
+                        value={formData.expiryDate ?? ''}
+                        onChange={(e) => {
+                          handleDateInputChange('expiryDate', e.target.value);
+                          // Validate when user types
+                          if (e.target.value && e.target.value.length >= 10) {
+                            const isoDate = parseDateMMDDYYYY(e.target.value);
+                            if (isoDate) {
+                              const validation = validateExpiryDate(isoDate);
+                              if (!validation.valid) {
+                                setModalError(validation.message);
+                              } else {
+                                setModalError(null);
+                              }
+                            }
+                          }
+                        }}
+                        margin="normal"
+                        InputLabelProps={{ shrink: true }}
+                        required
+                        placeholder="mm/dd/yyyy"
+                        error={!!(formData.expiryDate && !validateExpiryDate(parseDateMMDDYYYY(formData.expiryDate) || formData.expiryDate).valid)}
+                        helperText={
+                          formData.expiryDate && !validateExpiryDate(parseDateMMDDYYYY(formData.expiryDate) || formData.expiryDate).valid
+                            ? validateExpiryDate(parseDateMMDDYYYY(formData.expiryDate) || formData.expiryDate).message
+                            : "Format: mm/dd/yyyy - Expiry date must be at least tomorrow"
                         }
-                        setFormData({ ...formData, expiryDate: e.target.value });
-                      }}
-                      margin="normal"
-                      InputLabelProps={{ shrink: true }}
-                      required
-                      error={!!(formData.expiryDate && !validateExpiryDate(formData.expiryDate).valid)}
-                      inputProps={{
-                        min: getMinExpiryDate()
-                      }}
-                      helperText={
-                        formData.expiryDate && !validateExpiryDate(formData.expiryDate).valid
-                          ? validateExpiryDate(formData.expiryDate).message
-                          : "Expiry date must be at least tomorrow"
-                      }
-                      FormHelperTextProps={{
-                        sx: {
-                          color: formData.expiryDate && !validateExpiryDate(formData.expiryDate).valid ? '#E74C3C' : '#B0BEC5',
-                          fontSize: '0.75rem'
-                        }
-                      }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          bgcolor: '#FFFFFF',
-                          color: '#2C3E50',
-                          '& fieldset': {
-                            borderColor: '#E0E0E0',
+                        FormHelperTextProps={{
+                          sx: {
+                            color: formData.expiryDate && !validateExpiryDate(parseDateMMDDYYYY(formData.expiryDate) || formData.expiryDate).valid ? '#E74C3C' : '#B0BEC5',
+                            fontSize: '0.75rem'
+                          }
+                        }}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => handleCalendarClick('expiryDate')}
+                                edge="end"
+                                sx={{
+                                  color: '#666',
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                                    color: '#0b87ac'
+                                  }
+                                }}
+                                aria-label="Open date picker"
+                              >
+                                <CalendarIcon />
+                              </IconButton>
+                            </InputAdornment>
+                          )
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            bgcolor: '#FFFFFF',
+                            color: '#2C3E50',
+                            '& fieldset': {
+                              borderColor: '#E0E0E0',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#0b87ac',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#0b87ac',
+                            },
                           },
-                          '&:hover fieldset': {
-                            borderColor: '#0b87ac',
+                          '& .MuiInputLabel-root': {
+                            color: '#2C3E50',
+                            '&.Mui-focused': {
+                              color: '#0b87ac',
+                            },
                           },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#0b87ac',
-                          },
-                        },
-                        '& .MuiInputLabel-root': {
-                          color: '#2C3E50',
-                          '&.Mui-focused': {
-                            color: '#0b87ac',
-                          },
-                        },
-                        '& .MuiInputBase-input': {
-                          color: '#2C3E50',
-                        },
-                        '& .MuiSvgIcon-root': {
-                          color: '#2C3E50'
-                        }
-                      }}
-                    />
+                          '& .MuiInputBase-input': {
+                            color: '#2C3E50',
+                          }
+                        }}
+                      />
+                    </Box>
                   </Grid>
                   <Grid item xs={12}>
                     <FormControl fullWidth margin="normal">

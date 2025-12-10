@@ -33,7 +33,6 @@ import {
   Close as CloseIcon,
   CloudUpload as UploadIcon,
   Person as PersonIcon,
-  Event as EventIcon,
   CheckCircle as CheckIcon,
   Assignment as AssignmentIcon,
   Camera as CameraIcon,
@@ -42,7 +41,7 @@ import {
 import idClaimService from '../../services/idClaimService';
 import toastService from '../../services/toastService';
 
-const steps = ['Initiate Claim', 'Schedule Pickup', 'Claimant Info', 'Complete'];
+const steps = ['Initiate Claim', 'Claimant Info', 'Complete'];
 
 const IDClaimModal = ({ 
   open, 
@@ -55,12 +54,6 @@ const IDClaimModal = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null);
-  
-  // Schedule state
-  const [pickupDate, setPickupDate] = useState('');
-  const [pickupTime, setPickupTime] = useState('');
-  const [schedulingNotes, setSchedulingNotes] = useState('');
-  const [skipScheduling, setSkipScheduling] = useState(false);
   
   // Claimant info state
   const [claimantType, setClaimantType] = useState('');
@@ -81,10 +74,6 @@ const IDClaimModal = ({
     setLoading(false);
     setError(null);
     setClaim(null);
-    setPickupDate('');
-    setPickupTime('');
-    setSchedulingNotes('');
-    setSkipScheduling(false);
     setClaimantType('');
     setClaimantName('');
     setClaimantRelationship('');
@@ -103,71 +92,97 @@ const IDClaimModal = ({
       setLoading(true);
       setError(null);
       
-      const response = await idClaimService.initiateClaim(member.memberId || member.userID, claimType);
+      // Validate member data
+      if (!member) {
+        const errorMsg = 'Member information is missing. Cannot initiate claim.';
+        setError(errorMsg);
+        toastService.error(errorMsg);
+        return;
+      }
+
+      // Try multiple possible ID fields (member structure may vary)
+      // Priority: userID (what backend expects) > memberId > id > userId
+      const memberId = member.userID || 
+                      member.userId ||
+                      member.memberId || 
+                      member.id ||
+                      member.member_id;
+      
+      if (!memberId) {
+        console.error('Member object structure:', member);
+        const errorMsg = `Member ID is missing. Available fields: ${Object.keys(member).join(', ')}. Cannot initiate claim.`;
+        setError(errorMsg);
+        toastService.error(errorMsg);
+        return;
+      }
+
+      console.log('Initiating claim with:', {
+        memberId: memberId,
+        claimType: claimType,
+        member: member,
+        memberKeys: Object.keys(member || {})
+      });
+      
+      const response = await idClaimService.initiateClaim(memberId, claimType);
+      
+      console.log('Initiate claim response:', response);
       
       if (response?.success) {
         setClaim(response.claim);
         toastService.success('Claim initiated successfully');
-        setActiveStep(1);
+        setActiveStep(1); // Go directly to Claimant Info (skip Schedule Pickup)
       } else {
-        throw new Error(response?.message || 'Failed to initiate claim');
+        // Extract error message from response
+        const errorMessage = response?.message || 
+                            response?.error || 
+                            (response?.errors ? Object.values(response.errors).flat().join(', ') : null) ||
+                            'Failed to initiate claim';
+        console.error('Claim initiation failed:', {
+          response: response,
+          errorMessage: errorMessage
+        });
+        throw new Error(errorMessage);
       }
     } catch (err) {
-      setError(err.message || 'Failed to initiate claim');
-      toastService.error(err.message || 'Failed to initiate claim');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 2: Schedule pickup (optional)
-  const handleSchedulePickup = async () => {
-    if (skipScheduling) {
-      // Skip scheduling, move to next step
-      try {
-        setLoading(true);
-        await idClaimService.updateStatus(claim.id, 'ready_for_pickup');
-        setActiveStep(2);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    if (!pickupDate) {
-      setError('Please select a pickup date');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const scheduleData = {
-        scheduled_pickup_date: pickupDate,
-        scheduled_pickup_time: pickupTime || null,
-        scheduling_notes: schedulingNotes
-      };
-
-      const response = await idClaimService.schedulePickup(claim.id, scheduleData);
+      // Extract detailed error message
+      let errorMessage = 'Failed to initiate claim';
       
-      if (response?.success) {
-        setClaim(response.claim);
-        toastService.success('Pickup scheduled successfully');
-        setActiveStep(2);
-      } else {
-        throw new Error(response?.message || 'Failed to schedule pickup');
+      // Handle different error formats
+      if (err.data) {
+        // Error from api.js (fetch-based)
+        errorMessage = err.data?.message || 
+                      err.data?.error ||
+                      (err.data?.errors ? Object.values(err.data.errors).flat().join(', ') : null) ||
+                      err.message ||
+                      errorMessage;
+      } else if (err.response?.data) {
+        // Axios error with response
+        errorMessage = err.response.data?.message || 
+                      err.response.data?.error ||
+                      (err.response.data?.errors ? Object.values(err.response.data.errors).flat().join(', ') : null) ||
+                      err.message ||
+                      errorMessage;
+      } else if (err.message) {
+        errorMessage = err.message;
       }
-    } catch (err) {
-      setError(err.message || 'Failed to schedule pickup');
+      
+      console.error('Error initiating claim:', {
+        error: err,
+        member: member,
+        memberId: member?.memberId || member?.userID || member?.id,
+        claimType: claimType,
+        errorData: err.data || err.response?.data,
+        errorStatus: err.status || err.response?.status
+      });
+      
+      setError(errorMessage);
+      toastService.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // Step 3: Record claimant info and complete
+  // Step 2: Record claimant info and complete
   const handleCompleteClaim = async () => {
     if (!claimantType) {
       setError('Please select who is claiming the card');
@@ -204,7 +219,7 @@ const IDClaimModal = ({
       if (response?.success) {
         setClaim(response.claim);
         toastService.success(`Claim completed! Receipt #: ${response.receipt_number}`);
-        setActiveStep(3);
+        setActiveStep(2);
         
         // Call success callback after a short delay
         setTimeout(() => {
@@ -297,76 +312,7 @@ const IDClaimModal = ({
           </Box>
         );
 
-      case 1: // Schedule Pickup
-        return (
-          <Box sx={{ p: 2 }}>
-            <Alert severity="success" sx={{ mb: 3 }}>
-              Claim initiated successfully! Now you can schedule a pickup appointment.
-            </Alert>
-
-            <FormControlLabel
-              control={
-                <Radio
-                  checked={skipScheduling}
-                  onChange={() => setSkipScheduling(true)}
-                />
-              }
-              label="Mark as Ready for Pickup (Walk-in)"
-            />
-            
-            <FormControlLabel
-              control={
-                <Radio
-                  checked={!skipScheduling}
-                  onChange={() => setSkipScheduling(false)}
-                />
-              }
-              label="Schedule a specific pickup date/time"
-            />
-
-            {!skipScheduling && (
-              <Box sx={{ mt: 3 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      required
-                      type="date"
-                      label="Pickup Date"
-                      value={pickupDate}
-                      onChange={(e) => setPickupDate(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                      inputProps={{ min: new Date().toISOString().split('T')[0] }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      type="time"
-                      label="Pickup Time (Optional)"
-                      value={pickupTime}
-                      onChange={(e) => setPickupTime(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Notes for Member"
-                      multiline
-                      rows={2}
-                      value={schedulingNotes}
-                      onChange={(e) => setSchedulingNotes(e.target.value)}
-                      placeholder="e.g., Please bring valid ID and 2x2 photo"
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-            )}
-          </Box>
-        );
-
-      case 2: // Claimant Info
+      case 1: // Claimant Info
         return (
           <Box sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
@@ -510,7 +456,7 @@ const IDClaimModal = ({
           </Box>
         );
 
-      case 3: // Complete
+      case 2: // Complete
         return (
           <Box sx={{ p: 2, textAlign: 'center' }}>
             <CheckIcon sx={{ fontSize: 80, color: 'success.main', mb: 2 }} />
@@ -546,9 +492,8 @@ const IDClaimModal = ({
   const getStepButtonText = () => {
     switch (activeStep) {
       case 0: return 'Start Claim Process';
-      case 1: return skipScheduling ? 'Mark Ready for Pickup' : 'Schedule Pickup';
-      case 2: return 'Complete Claim';
-      case 3: return 'Close';
+      case 1: return 'Complete Claim';
+      case 2: return 'Close';
       default: return 'Next';
     }
   };
@@ -556,9 +501,8 @@ const IDClaimModal = ({
   const handleStepAction = () => {
     switch (activeStep) {
       case 0: return handleInitiateClaim();
-      case 1: return handleSchedulePickup();
-      case 2: return handleCompleteClaim();
-      case 3: return handleClose();
+      case 1: return handleCompleteClaim();
+      case 2: return handleClose();
       default: return null;
     }
   };
@@ -601,7 +545,7 @@ const IDClaimModal = ({
       </DialogContent>
 
       <DialogActions sx={{ p: 2 }}>
-        {activeStep > 0 && activeStep < 3 && (
+        {activeStep > 0 && activeStep < 2 && (
           <Button 
             onClick={() => setActiveStep(prev => prev - 1)} 
             disabled={loading}
@@ -610,7 +554,7 @@ const IDClaimModal = ({
           </Button>
         )}
         <Box sx={{ flex: 1 }} />
-        {activeStep < 3 && (
+        {activeStep < 2 && (
           <Button onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
@@ -618,7 +562,7 @@ const IDClaimModal = ({
         <Button
           variant="contained"
           onClick={handleStepAction}
-          disabled={loading || (activeStep === 2 && !claimantType)}
+          disabled={loading || (activeStep === 1 && !claimantType)}
           startIcon={loading ? <CircularProgress size={20} /> : null}
         >
           {loading ? 'Processing...' : getStepButtonText()}

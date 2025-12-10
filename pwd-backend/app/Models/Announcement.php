@@ -28,8 +28,8 @@ class Announcement extends Model
     ];
 
     protected $casts = [
-        'publishDate' => 'date',
-        'expiryDate' => 'date'
+        'publishDate' => 'datetime', // Changed to datetime to preserve time component
+        'expiryDate' => 'datetime'  // Changed to datetime to preserve time component
     ];
 
     // Relationships

@@ -117,6 +117,7 @@ function BarangayPresidentPWDRecords() {
   const [rejectionConfirmationOpen, setRejectionConfirmationOpen] = useState(false);
   const [documentsToResubmit, setDocumentsToResubmit] = useState([]);
   const [submittingDocumentRequest, setSubmittingDocumentRequest] = useState(false);
+  const [rejectingApplication, setRejectingApplication] = useState(false);
   
   // Available documents for resubmission request
   const availableDocuments = [
@@ -738,6 +739,9 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
       }
       
       // Standard rejection flow
+      setRejectingApplication(true);
+      toastService.info('Rejecting application, please wait...', 3000);
+      
       const rejectionData = {
         remarks: rejectionRemarks,
         rejectionReason: rejectionReason
@@ -782,6 +786,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
       toastService.error('Failed to process request: ' + errorMessage);
     } finally {
       setSubmittingDocumentRequest(false);
+      setRejectingApplication(false);
     }
   };
 
@@ -2890,15 +2895,20 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
                   >
                     <Checkbox
                       checked={documentsToResubmit.includes(doc.id)}
-                      onChange={() => handleDocumentToggle(doc.id)}
+                      onChange={(e) => {
+                        e.stopPropagation(); // Prevent double-toggle
+                        handleDocumentToggle(doc.id);
+                      }}
+                      onClick={(e) => e.stopPropagation()} // Prevent Box onClick from firing
                       sx={{ 
                         p: 0, 
                         mr: 1.5,
                         color: '#E74C3C',
-                        '&.Mui-checked': { color: '#E74C3C' }
+                        '&.Mui-checked': { color: '#E74C3C' },
+                        pointerEvents: 'auto' // Ensure checkbox is clickable
                       }}
                     />
-                    <Box>
+                    <Box sx={{ flex: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {doc.label}
                       </Typography>
@@ -3077,7 +3087,7 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
           <Button
             onClick={handleRejectConfirm}
             variant="contained"
-            disabled={submittingDocumentRequest}
+            disabled={submittingDocumentRequest || rejectingApplication}
             sx={{
               bgcolor: rejectionReason === 'document_resubmission' ? '#F57C00' : '#E74C3C',
               textTransform: 'none',
@@ -3091,6 +3101,11 @@ Thank you for your interest in Cabuyao PDAO RMS.`;
               <>
                 <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
                 Sending Request...
+              </>
+            ) : rejectingApplication ? (
+              <>
+                <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
+                Rejecting Application...
               </>
             ) : rejectionReason === 'document_resubmission' ? (
               'Send Resubmission Request'

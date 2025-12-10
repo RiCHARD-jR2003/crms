@@ -67,6 +67,7 @@ import { reportsService } from '../../services/reportsService';
 import pwdMemberService from '../../services/pwdMemberService';
 import { applicationService } from '../../services/applicationService';
 import benefitService from '../../services/benefitService';
+import { api } from '../../services/api';
 // import suggestionsService from '../../services/suggestionsService';
 import {
   LineChartComponent,
@@ -196,6 +197,7 @@ const Reports = () => {
     topPerformingBarangays: [],
     serviceEfficiency: {},
     yearOverYearGrowth: {},
+    assessmentMetrics: null,
     achievements: [],
     challenges: [],
     recommendations: []
@@ -1119,17 +1121,118 @@ const Reports = () => {
         .sort((a, b) => b.performanceScore - a.performanceScore)
         .slice(0, 5);
       
-      // Service efficiency metrics
+      // Fetch assessment data for PWD-specific metrics
+      let assessments = [];
+      let assessmentMetrics = {
+        totalAssessments: 0,
+        completedAssessments: 0,
+        scheduledAssessments: 0,
+        pendingAssessments: 0,
+        finalizedAssessments: 0,
+        completionRate: 0,
+        averageProcessingDays: 0
+      };
+      
+      try {
+        const assessmentsResponse = await api.get('/disability-assessments?per_page=1000');
+        assessments = assessmentsResponse.data?.data || assessmentsResponse.data || [];
+        
+        // Calculate assessment metrics
+        assessmentMetrics.totalAssessments = assessments.length;
+        assessmentMetrics.completedAssessments = assessments.filter(a => 
+          a.status === 'completed' || a.status === 'finalized'
+        ).length;
+        assessmentMetrics.scheduledAssessments = assessments.filter(a => 
+          a.status === 'scheduled'
+        ).length;
+        assessmentMetrics.pendingAssessments = assessments.filter(a => 
+          a.status === 'pending'
+        ).length;
+        assessmentMetrics.finalizedAssessments = assessments.filter(a => 
+          a.status === 'finalized'
+        ).length;
+        
+        // Calculate completion rate
+        if (assessmentMetrics.totalAssessments > 0) {
+          assessmentMetrics.completionRate = 
+            (assessmentMetrics.completedAssessments / assessmentMetrics.totalAssessments) * 100;
+        }
+        
+        // Calculate average processing time (from application to assessment completion)
+        const completedAssessmentsWithDates = assessments.filter(a => 
+          (a.status === 'completed' || a.status === 'finalized') && 
+          a.finalized_at && 
+          a.application?.created_at
+        );
+        
+        if (completedAssessmentsWithDates.length > 0) {
+          const totalDays = completedAssessmentsWithDates.reduce((sum, a) => {
+            const appDate = new Date(a.application.created_at);
+            const finalDate = new Date(a.finalized_at);
+            const days = Math.ceil((finalDate - appDate) / (1000 * 60 * 60 * 24));
+            return sum + days;
+          }, 0);
+          assessmentMetrics.averageProcessingDays = Math.round(totalDays / completedAssessmentsWithDates.length);
+        }
+      } catch (error) {
+        console.warn('Could not fetch assessment data:', error);
+      }
+      
+      // Calculate application processing times
+      const approvedApplicationsWithDates = currentYearApplications.filter(app => 
+        (app.status === 'Approved' || app.status === 'approved') && 
+        app.created_at && 
+        app.updated_at
+      );
+      
+      let averageApplicationProcessingDays = 0;
+      if (approvedApplicationsWithDates.length > 0) {
+        const totalDays = approvedApplicationsWithDates.reduce((sum, app) => {
+          const createdDate = new Date(app.created_at);
+          const updatedDate = new Date(app.updated_at);
+          const days = Math.ceil((updatedDate - createdDate) / (1000 * 60 * 60 * 24));
+          return sum + days;
+        }, 0);
+        averageApplicationProcessingDays = Math.round(totalDays / approvedApplicationsWithDates.length);
+      }
+      
+      // Calculate ID card issuance efficiency (time from approval to card issuance)
+      const membersWithCardDates = currentYearMembers.filter(m => 
+        m.pwd_id && 
+        m.pwd_id_generated_at && 
+        m.applications && 
+        m.applications.length > 0 &&
+        m.applications[0].updated_at
+      );
+      
+      let averageCardIssuanceDays = 0;
+      if (membersWithCardDates.length > 0) {
+        const totalDays = membersWithCardDates.reduce((sum, m) => {
+          const approvalDate = new Date(m.applications[0].updated_at);
+          const cardDate = new Date(m.pwd_id_generated_at);
+          const days = Math.ceil((cardDate - approvalDate) / (1000 * 60 * 60 * 24));
+          return sum + Math.max(0, days); // Ensure non-negative
+        }, 0);
+        averageCardIssuanceDays = Math.round(totalDays / membersWithCardDates.length);
+      }
+      
+      // Service efficiency metrics - Enhanced with PWD-specific metrics
       const serviceEfficiency = {
         registrationRate: totalRegistrations / 12, // per month
-        cardIssuanceRate: (totalCardsIssued / totalRegistrations) * 100, // percentage
-        benefitDistributionRate: (totalBenefitsDistributed / totalRegistrations) * 100, // percentage
-        applicationProcessingRate: (totalApplications / totalRegistrations) * 100, // percentage
+        cardIssuanceRate: totalRegistrations > 0 ? (totalCardsIssued / totalRegistrations) * 100 : 0, // percentage
+        benefitDistributionRate: totalRegistrations > 0 ? (totalBenefitsDistributed / totalRegistrations) * 100 : 0, // percentage
+        applicationProcessingRate: totalRegistrations > 0 ? (totalApplications / totalRegistrations) * 100 : 0, // percentage
         complaintResolutionRate: complaints.length > 0 ? 
-          (complaints.filter(c => c.status === 'resolved').length / complaints.length) * 100 : 100
+          (complaints.filter(c => c.status === 'resolved').length / complaints.length) * 100 : 100,
+        // PWD-specific metrics
+        assessmentCompletionRate: assessmentMetrics.completionRate,
+        averageApplicationProcessingDays: averageApplicationProcessingDays,
+        averageCardIssuanceDays: averageCardIssuanceDays,
+        averageAssessmentProcessingDays: assessmentMetrics.averageProcessingDays
       };
       
       // Calculate year-over-year growth based on actual data
+      // Only calculate if there's sufficient historical data (at least 10 records in previous year)
       const currentYearData = {
         registrations: currentYearMembers.length,
         cardsIssued: currentYearMembers.filter(m => m.pwd_id).length,
@@ -1146,17 +1249,22 @@ const Reports = () => {
         complaints: previousYearComplaints.length
       };
       
+      // Determine if we have sufficient historical data for meaningful comparison
+      const hasSufficientHistoricalData = previousYearData.registrations >= 10 || 
+                                         previousYearData.applications >= 10;
+      
       const yearOverYearGrowth = {
-        registrations: previousYearData.registrations > 0 ? 
-          ((currentYearData.registrations - previousYearData.registrations) / previousYearData.registrations) * 100 : 0,
-        cardsIssued: previousYearData.cardsIssued > 0 ? 
-          ((currentYearData.cardsIssued - previousYearData.cardsIssued) / previousYearData.cardsIssued) * 100 : 0,
-        benefitsDistributed: previousYearData.benefitsDistributed > 0 ? 
-          ((currentYearData.benefitsDistributed - previousYearData.benefitsDistributed) / previousYearData.benefitsDistributed) * 100 : 0,
-        applications: previousYearData.applications > 0 ? 
-          ((currentYearData.applications - previousYearData.applications) / previousYearData.applications) * 100 : 0,
-        complaints: previousYearData.complaints > 0 ? 
-          ((currentYearData.complaints - previousYearData.complaints) / previousYearData.complaints) * 100 : 0
+        registrations: (hasSufficientHistoricalData && previousYearData.registrations > 0) ? 
+          ((currentYearData.registrations - previousYearData.registrations) / previousYearData.registrations) * 100 : null,
+        cardsIssued: (hasSufficientHistoricalData && previousYearData.cardsIssued > 0) ? 
+          ((currentYearData.cardsIssued - previousYearData.cardsIssued) / previousYearData.cardsIssued) * 100 : null,
+        benefitsDistributed: (hasSufficientHistoricalData && previousYearData.benefitsDistributed > 0) ? 
+          ((currentYearData.benefitsDistributed - previousYearData.benefitsDistributed) / previousYearData.benefitsDistributed) * 100 : null,
+        applications: (hasSufficientHistoricalData && previousYearData.applications > 0) ? 
+          ((currentYearData.applications - previousYearData.applications) / previousYearData.applications) * 100 : null,
+        complaints: (hasSufficientHistoricalData && previousYearData.complaints > 0) ? 
+          ((currentYearData.complaints - previousYearData.complaints) / previousYearData.complaints) * 100 : null,
+        hasSufficientData: hasSufficientHistoricalData
       };
       
       // Generate achievements, challenges, and recommendations
@@ -1196,6 +1304,7 @@ const Reports = () => {
         topPerformingBarangays,
         serviceEfficiency,
         yearOverYearGrowth,
+        assessmentMetrics,
         achievements,
         challenges,
         recommendations
@@ -3128,6 +3237,7 @@ const Reports = () => {
       topPerformingBarangays,
       serviceEfficiency,
       yearOverYearGrowth,
+      assessmentMetrics,
       achievements,
       challenges,
       recommendations
@@ -3162,9 +3272,15 @@ const Reports = () => {
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Total Registrations
                 </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  +{yearOverYearGrowth.registrations || 0}% vs {year-1}
-                </Typography>
+                {yearOverYearGrowth.hasSufficientData && yearOverYearGrowth.registrations !== null ? (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {yearOverYearGrowth.registrations >= 0 ? '+' : ''}{yearOverYearGrowth.registrations.toFixed(1)}% vs {year-1}
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    Baseline year
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -3184,9 +3300,15 @@ const Reports = () => {
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Cards Issued
                 </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  +{yearOverYearGrowth.cardsIssued || 0}% vs {year-1}
-                </Typography>
+                {yearOverYearGrowth.hasSufficientData && yearOverYearGrowth.cardsIssued !== null ? (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {yearOverYearGrowth.cardsIssued >= 0 ? '+' : ''}{yearOverYearGrowth.cardsIssued.toFixed(1)}% vs {year-1}
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {serviceEfficiency.cardIssuanceRate.toFixed(1)}% issuance rate
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -3206,9 +3328,15 @@ const Reports = () => {
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Benefits Distributed
                 </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  +{yearOverYearGrowth.benefitsDistributed || 0}% vs {year-1}
-                </Typography>
+                {yearOverYearGrowth.hasSufficientData && yearOverYearGrowth.benefitsDistributed !== null ? (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {yearOverYearGrowth.benefitsDistributed >= 0 ? '+' : ''}{yearOverYearGrowth.benefitsDistributed.toFixed(1)}% vs {year-1}
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {serviceEfficiency.benefitDistributionRate.toFixed(1)}% distribution rate
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -3228,9 +3356,15 @@ const Reports = () => {
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Applications Processed
                 </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  +{yearOverYearGrowth.applications || 0}% vs {year-1}
-                </Typography>
+                {yearOverYearGrowth.hasSufficientData && yearOverYearGrowth.applications !== null ? (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {yearOverYearGrowth.applications >= 0 ? '+' : ''}{yearOverYearGrowth.applications.toFixed(1)}% vs {year-1}
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {serviceEfficiency.applicationProcessingRate.toFixed(1)}% processing rate
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -3250,9 +3384,15 @@ const Reports = () => {
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Complaints Received
                 </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  {yearOverYearGrowth.complaints || 0}% vs {year-1}
-                </Typography>
+                {yearOverYearGrowth.hasSufficientData && yearOverYearGrowth.complaints !== null ? (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {yearOverYearGrowth.complaints >= 0 ? '+' : ''}{yearOverYearGrowth.complaints.toFixed(1)}% vs {year-1}
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {serviceEfficiency.complaintResolutionRate.toFixed(1)}% resolution rate
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -3334,6 +3474,69 @@ const Reports = () => {
             </Table>
           </TableContainer>
         </Paper>
+
+        {/* PWD-Specific Operational Efficiency Metrics */}
+        {assessmentMetrics && assessmentMetrics.totalAssessments > 0 && (
+          <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white', border: '2px solid #0b87ac' }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#2C3E50' }}>
+              PWD-Specific Operational Metrics
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#F8FAFC', borderRadius: 2 }}>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#9C27B0', mb: 1 }}>
+                    {assessmentMetrics.totalAssessments}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Total Assessments
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#F8FAFC', borderRadius: 2 }}>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#27AE60', mb: 1 }}>
+                    {assessmentMetrics.completionRate.toFixed(1)}%
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Assessment Completion Rate
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#F8FAFC', borderRadius: 2 }}>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#E67E22', mb: 1 }}>
+                    {serviceEfficiency.averageApplicationProcessingDays || 0}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Avg. Application Processing (days)
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#F8FAFC', borderRadius: 2 }}>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#3498DB', mb: 1 }}>
+                    {serviceEfficiency.averageCardIssuanceDays || 0}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                    Avg. Card Issuance Time (days)
+                  </Typography>
+                </Box>
+              </Grid>
+              {serviceEfficiency.averageAssessmentProcessingDays > 0 && (
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#F8FAFC', borderRadius: 2 }}>
+                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#9C27B0', mb: 1 }}>
+                      {serviceEfficiency.averageAssessmentProcessingDays}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#7F8C8D' }}>
+                      Avg. Assessment Processing (days)
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
+            </Grid>
+          </Paper>
+        )}
 
         {/* Service Efficiency Metrics */}
         <Paper sx={{ p: 3, mb: 3, borderRadius: 3, bgcolor: 'white' }}>

@@ -78,11 +78,21 @@ export const applicationService = {
   getByStatus: async (status) => {
     try {
       const response = await api.get(`/applications/status/${encodeURIComponent(status)}`);
-      return response;
+      // Ensure we always return an array
+      if (Array.isArray(response)) {
+        return response;
+      } else if (response && Array.isArray(response.data)) {
+        return response.data;
+      } else {
+        console.warn('Unexpected response format from getByStatus:', response);
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching applications by status:', error);
-      toastService.error('Failed to fetch applications by status: ' + (error.message || 'Unknown error'));
-      throw error;
+      // Don't show toast for every error, just log it
+      // toastService.error('Failed to fetch applications by status: ' + (error.message || 'Unknown error'));
+      // Return empty array instead of throwing to prevent crashes
+      return [];
     }
   }
 };

@@ -11,7 +11,25 @@ const STORAGE_BASE_URL = API_CONFIG.STORAGE_BASE_URL;
 async function getStoredToken() {
   try {
     const raw = localStorage.getItem('auth.token');
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    
+    // Try to parse as JSON first
+    try {
+      const parsed = JSON.parse(raw);
+      // If it's already a string, return it directly
+      // If it's an object with a token property, extract it
+      if (typeof parsed === 'string') {
+        return parsed;
+      } else if (parsed && parsed.token) {
+        return parsed.token;
+      } else if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+      return parsed;
+    } catch (e) {
+      // If parsing fails, treat it as a plain string token
+      return raw;
+    }
   } catch (_) {
     localStorage.removeItem('auth.token');
     return null;
@@ -27,8 +45,21 @@ const pendingRequests = new Map();
 
 async function request(path, { method = 'GET', headers = {}, body, auth = true, skipCache = false, cacheDuration = null } = {}) {
   const token = auth ? await getStoredToken() : null;
+  
+  // Ensure token is a string for Authorization header
+  let tokenString = null;
+  if (token) {
+    if (typeof token === 'string') {
+      tokenString = token;
+    } else if (token && token.token) {
+      tokenString = token.token;
+    } else if (token && typeof token === 'object') {
+      // Try to stringify if it's an object
+      tokenString = JSON.stringify(token);
+    }
+  }
 
-  const finalHeaders = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers };
+  const finalHeaders = { ...(tokenString ? { Authorization: `Bearer ${tokenString}` } : {}), ...headers };
 
   // If sending FormData, let React Native handle the Content-Type
   const usingFormData = isFormData(body);

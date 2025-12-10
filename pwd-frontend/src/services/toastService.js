@@ -1,7 +1,7 @@
 // src/services/toastService.js
 import { createRoot } from 'react-dom/client';
 import React from 'react';
-import { Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography } from '@mui/material';
+import { Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, CircularProgress } from '@mui/material';
 
 class ToastService {
   constructor() {
@@ -81,6 +81,83 @@ class ToastService {
     this.showSnackbar(message, 'info', duration);
   }
 
+  // Loading toast with progress indicator
+  loading(message, duration = 0) {
+    this.ensureInitialized();
+    this.showLoadingSnackbar(message, duration);
+  }
+
+  // Process-specific toast methods
+  process = {
+    // Application processes
+    submittingApplication: () => this.loading('Submitting application, please wait...'),
+    applicationSubmitted: () => this.success('Application submitted successfully!'),
+    applicationSubmissionFailed: (error) => this.error(`Failed to submit application: ${error}`),
+
+    // Approval processes
+    approvingApplication: () => this.loading('Approving application, please wait...'),
+    applicationApproved: () => this.success('Application approved successfully!'),
+    applicationApprovalFailed: (error) => this.error(`Failed to approve application: ${error}`),
+
+    // Rejection processes
+    rejectingApplication: () => this.loading('Rejecting application, please wait...'),
+    applicationRejected: () => this.success('Application rejected successfully!'),
+    applicationRejectionFailed: (error) => this.error(`Failed to reject application: ${error}`),
+
+    // Document processes
+    uploadingDocument: () => this.loading('Uploading document, please wait...'),
+    documentUploaded: () => this.success('Document uploaded successfully!'),
+    documentUploadFailed: (error) => this.error(`Failed to upload document: ${error}`),
+
+    // Status update processes
+    updatingStatus: () => this.loading('Updating status, please wait...'),
+    statusUpdated: () => this.success('Status updated successfully!'),
+    statusUpdateFailed: (error) => this.error(`Failed to update status: ${error}`),
+
+    // Profile processes
+    updatingProfile: () => this.loading('Updating profile, please wait...'),
+    profileUpdated: () => this.success('Profile updated successfully!'),
+    profileUpdateFailed: (error) => this.error(`Failed to update profile: ${error}`),
+
+    // Authentication processes
+    signingIn: () => this.loading('Signing in, please wait...'),
+    signedIn: () => this.success('Signed in successfully!'),
+    signInFailed: (error) => this.error(`Sign in failed: ${error}`),
+
+    signingOut: () => this.loading('Signing out, please wait...'),
+    signedOut: () => this.success('Signed out successfully!'),
+
+    // Password processes
+    changingPassword: () => this.loading('Changing password, please wait...'),
+    passwordChanged: () => this.success('Password changed successfully!'),
+    passwordChangeFailed: (error) => this.error(`Failed to change password: ${error}`),
+
+    // Email verification
+    sendingVerification: () => this.loading('Sending verification email, please wait...'),
+    verificationSent: () => this.success('Verification email sent successfully!'),
+    verificationFailed: (error) => this.error(`Failed to send verification: ${error}`),
+
+    // Data loading processes
+    loadingData: () => this.loading('Loading data, please wait...'),
+    dataLoaded: () => this.success('Data loaded successfully!'),
+    dataLoadFailed: (error) => this.error(`Failed to load data: ${error}`),
+
+    // Save processes
+    saving: () => this.loading('Saving changes, please wait...'),
+    saved: () => this.success('Changes saved successfully!'),
+    saveFailed: (error) => this.error(`Failed to save changes: ${error}`),
+
+    // Delete processes
+    deleting: () => this.loading('Deleting, please wait...'),
+    deleted: () => this.success('Deleted successfully!'),
+    deleteFailed: (error) => this.error(`Failed to delete: ${error}`),
+
+    // Generic processes
+    processing: (action) => this.loading(`${action}, please wait...`),
+    processCompleted: (action) => this.success(`${action} completed successfully!`),
+    processFailed: (action, error) => this.error(`${action} failed: ${error}`)
+  }
+
   showSnackbar(message, severity = 'success', duration = 4000) {
     if (!this.initialized) {
       console.warn('Toast service not initialized, falling back to console');
@@ -124,6 +201,68 @@ class ToastService {
     } catch (error) {
       console.error('Error showing snackbar:', error);
       console.log(`[${severity.toUpperCase()}] ${message}`);
+    }
+  }
+
+  showLoadingSnackbar(message, duration = 0) {
+    if (!this.initialized) {
+      console.warn('Toast service not initialized, falling back to console');
+      console.log(`[LOADING] ${message}`);
+      return;
+    }
+
+    try {
+      const LoadingSnackbarComponent = () => {
+        const [open, setOpen] = React.useState(true);
+
+        const handleClose = () => {
+          if (duration > 0) {
+            setOpen(false);
+            setTimeout(() => {
+              if (this.snackbarRoot) {
+                this.snackbarRoot.render(null);
+              }
+            }, 300);
+          }
+        };
+
+        return (
+          <Snackbar
+            open={open}
+            autoHideDuration={duration > 0 ? duration : null}
+            onClose={handleClose}
+            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            sx={{ pointerEvents: 'auto' }}
+          >
+            <Alert 
+              severity="info"
+              sx={{ 
+                width: '100%', 
+                pointerEvents: 'auto',
+                '& .MuiAlert-icon': {
+                  display: 'none'
+                }
+              }}
+              icon={
+                <CircularProgress 
+                  size={20} 
+                  sx={{ 
+                    color: '#1976d2',
+                    mr: 1
+                  }} 
+                />
+              }
+            >
+              {message}
+            </Alert>
+          </Snackbar>
+        );
+      };
+
+      this.snackbarRoot.render(<LoadingSnackbarComponent />);
+    } catch (error) {
+      console.error('Error showing loading snackbar:', error);
+      console.log(`[LOADING] ${message}`);
     }
   }
 
@@ -230,6 +369,13 @@ class ToastService {
         () => resolve(false)
       );
     });
+  }
+
+  // Dismiss current toast (useful for dismissing loading toasts)
+  dismiss() {
+    if (this.snackbarRoot) {
+      this.snackbarRoot.render(null);
+    }
   }
 
   // Cleanup method

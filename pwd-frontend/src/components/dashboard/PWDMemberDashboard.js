@@ -152,9 +152,12 @@ function PWDMemberDashboard() {
           const approvalDate = profileData?.created_at || profileData?.pwd_id_generated_at;
           setMemberSinceDate(approvalDate);
           
-          // Use barangay from profile if not found earlier
-          if (!userBarangay && profileData?.barangay) {
-            userBarangay = profileData.barangay;
+          // Use barangay from profile if not found earlier - check multiple possible locations
+          if (!userBarangay) {
+            userBarangay = profileData?.barangay || 
+                          profileData?.data?.barangay ||
+                          profileData?.pwd_member?.barangay ||
+                          profileData?.user?.barangay;
           }
         } catch (profileError) {
           console.log('Could not fetch PWD member profile, using fallback date');
@@ -165,11 +168,25 @@ function PWDMemberDashboard() {
         console.log('Dashboard - Current User:', currentUser);
         console.log('Dashboard - User Barangay:', userBarangay);
         console.log('Dashboard - Profile Data:', profileData);
+        console.log('Dashboard - Profile Data barangay:', profileData?.barangay);
+        console.log('Dashboard - Profile Data structure:', Object.keys(profileData || {}));
         
         // Use announcementService to get filtered announcements
-        const filteredAnnouncements = userBarangay 
-          ? await announcementService.getFilteredForPWDMember(userBarangay)
-          : [];
+        // If barangay is not found, try fetching announcements for "Members" (all PWD members)
+        let filteredAnnouncements = [];
+        if (userBarangay) {
+          filteredAnnouncements = await announcementService.getFilteredForPWDMember(userBarangay);
+        } else {
+          console.warn('User barangay not found, trying to fetch announcements for "Members"');
+          // Fallback: fetch announcements targeted to "Members" (all PWD members)
+          try {
+            filteredAnnouncements = await announcementService.getByAudience('Members');
+            console.log('Dashboard - Fetched announcements for "Members":', filteredAnnouncements.length);
+          } catch (error) {
+            console.error('Error fetching announcements for Members:', error);
+            filteredAnnouncements = [];
+          }
+        }
         
         console.log('Dashboard - Filtered announcements count:', filteredAnnouncements.length);
         console.log('Dashboard - User Barangay for filtering:', userBarangay);
@@ -203,8 +220,21 @@ function PWDMemberDashboard() {
           setClaimedBenefits(0);
         }
         
-        console.log('Dashboard - Setting announcements state with count:', filteredAnnouncements.length);
-        setAnnouncements(filteredAnnouncements);
+        // Ensure announcements are sorted by publishDate (newest first)
+        const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) => {
+          const dateA = a.publishDate ? new Date(a.publishDate).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0);
+          const dateB = b.publishDate ? new Date(b.publishDate).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0);
+          return dateB - dateA; // Descending order (newest first)
+        });
+        
+        console.log('Dashboard - Setting announcements state with count:', sortedAnnouncements.length);
+        console.log('Dashboard - Announcements sorted (newest first):', sortedAnnouncements.map(a => ({
+          id: a.id || a.announcementID,
+          title: a.title,
+          publishDate: a.publishDate,
+          created_at: a.created_at
+        })));
+        setAnnouncements(sortedAnnouncements);
         setSupportTickets(userTickets);
         
       } catch (error) {

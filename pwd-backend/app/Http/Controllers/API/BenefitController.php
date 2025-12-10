@@ -21,17 +21,18 @@ class BenefitController extends Controller
         $status = $request->get('status', 'Active');
         $cacheKey = "benefits:index:{$status}:" . ($barangay ?: 'all');
         
-        // Cache for 5 minutes (300 seconds) - frequently accessed data
-        $benefits = Cache::remember($cacheKey, 300, function() use ($request, $status) {
+        // NOTE: caching was causing delays in showing newly approved benefits.
+        // We disable caching here for freshness.
             try {
                 // Use selectEssential for performance, but ensure we get all necessary fields
                 $query = Benefit::selectEssential();
                 
                 // Filter by status (default to Active if not specified)
-                // Always filter by status to ensure we get the right benefits
+            if ($status && $status !== 'all') {
                 $query->where('status', $status);
+            }
                 
-                Log::info('Fetching benefits', [
+            Log::info('Fetching benefits (no cache)', [
                     'status_filter' => $status,
                     'barangay_filter' => $request->get('barangay')
                 ]);
@@ -45,25 +46,21 @@ class BenefitController extends Controller
                 }
                 
                 // Limit results for performance (pagination can be added if needed)
-                $results = $query->limit(1000)->get();
+            $benefits = $query->limit(1000)->get();
                 
-                Log::info('Benefits fetched successfully', [
-                    'count' => $results->count(),
+            Log::info('Benefits fetched successfully (no cache)', [
+                'count' => $benefits->count(),
                     'status_filter' => $status,
-                    'first_benefit_id' => $results->first() ? $results->first()->id : null,
-                    'first_benefit_status' => $results->first() ? $results->first()->status : null
+                'first_benefit_id' => $benefits->first() ? $benefits->first()->id : null,
+                'first_benefit_status' => $benefits->first() ? $benefits->first()->status : null
                 ]);
-                
-                // Return the collection (Laravel will automatically convert to JSON array)
-                return $results;
             } catch (\Exception $e) {
                 Log::error('Error fetching benefits: ' . $e->getMessage(), [
                     'trace' => $e->getTraceAsString(),
                     'status_filter' => $status
                 ]);
-                return collect([]);
+            $benefits = collect([]);
             }
-        });
         
         // Convert to array and handle selectedBarangays
         // Use map instead of transform to avoid modifying cached collection
@@ -174,15 +171,28 @@ class BenefitController extends Controller
         $benefit = Benefit::create($benefitData);
 
         $draftAnnouncementCreated = false;
-        // If benefit is being approved (status is Active and approvedDate is set), create draft announcement
-        // Also create if status is Active (even without approvedDate, as it might be set later)
-        if ($benefit->status === 'Active' && (isset($benefitData['approvedDate']) || $benefit->approvedDate)) {
+        // Always create draft announcement when benefit is created (regardless of status)
+        // This ensures barangay presidents can see and announce benefits
             try {
                 // Check if announcement already exists for this benefit
                 $existingAnnouncement = Announcement::where('benefitID', $benefit->id)->first();
                 if (!$existingAnnouncement) {
-                    $this->createDraftAnnouncementForBenefit($benefit, $request->user());
+                $announcement = $this->createDraftAnnouncementForBenefit($benefit, $request->user());
                     $draftAnnouncementCreated = true;
+                
+                Log::info('Draft announcement created for benefit', [
+                    'benefit_id' => $benefit->id,
+                    'announcement_id' => $announcement->announcementID,
+                    'target_audience' => $announcement->targetAudience,
+                    'status' => $announcement->status
+                ]);
+                
+                // Clear announcement cache for the target audience to ensure it appears immediately
+                $announcementController = app(\App\Http\Controllers\API\AnnouncementController::class);
+                $reflection = new \ReflectionClass($announcementController);
+                $clearCacheMethod = $reflection->getMethod('clearAnnouncementCache');
+                $clearCacheMethod->setAccessible(true);
+                $clearCacheMethod->invoke($announcementController, $announcement->targetAudience);
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to create draft announcement for benefit: ' . $e->getMessage(), [
@@ -191,16 +201,99 @@ class BenefitController extends Controller
                 ]);
                 // Don't fail the benefit creation if announcement creation fails
             }
+
+        // Notify Barangay Presidents for each barangay in selectedBarangays
+        try {
+            $barangaysToNotify = [];
+            
+            // Collect barangays from selectedBarangays
+            if ($benefit->selectedBarangays && is_array($benefit->selectedBarangays)) {
+                $barangaysToNotify = array_merge($barangaysToNotify, $benefit->selectedBarangays);
+            }
+            
+            // Also include single barangay if set
+            if ($benefit->barangay && $benefit->barangay !== 'All' && $benefit->barangay !== 'All Barangays') {
+                if (!in_array($benefit->barangay, $barangaysToNotify)) {
+                    $barangaysToNotify[] = $benefit->barangay;
+                }
+            }
+            
+            // Remove duplicates
+            $barangaysToNotify = array_unique($barangaysToNotify);
+            
+            // Notify each barangay president
+            $notificationService = app(\App\Services\NotificationService::class);
+            $notifiedPresidents = [];
+            
+            foreach ($barangaysToNotify as $barangay) {
+                $barangayPresidents = \App\Models\BarangayPresident::where('barangay', $barangay)
+                    ->pluck('userID')
+                    ->toArray();
+                
+                foreach ($barangayPresidents as $presidentUserId) {
+                    if (!in_array($presidentUserId, $notifiedPresidents)) {
+                        $distributionDate = $benefit->distributionDate 
+                            ? Carbon::parse($benefit->distributionDate)->format('M d, Y')
+                            : 'To be announced';
+                        
+                        $notificationService::create(
+                            $presidentUserId,
+                            'benefit_created',
+                            'New Benefit Available for Your Barangay',
+                            "A new benefit '{$benefit->title}' ({$benefit->amount}) has been added for {$barangay}. Distribution Date: {$distributionDate}. Please review and announce this benefit to your barangay members.",
+                            [
+                                'benefit_id' => $benefit->id,
+                                'benefit_title' => $benefit->title,
+                                'benefit_type' => $benefit->type,
+                                'benefit_amount' => $benefit->amount,
+                                'barangay' => $barangay,
+                                'distribution_date' => $benefit->distributionDate,
+                                'expiry_date' => $benefit->expiryDate,
+                                'created_at' => $benefit->created_at->toDateTimeString(),
+                                'action_required' => 'announce'
+                            ],
+                            false // Don't notify SuperAdmin about this notification
+                        );
+                        
+                        $notifiedPresidents[] = $presidentUserId;
+                    }
+                }
+            }
+            
+            Log::info('Barangay Presidents notified about new benefit', [
+                'benefit_id' => $benefit->id,
+                'barangays' => $barangaysToNotify,
+                'presidents_notified' => count($notifiedPresidents)
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to notify barangay presidents about new benefit', [
+                'benefit_id' => $benefit->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // Don't fail benefit creation if notification fails
         }
 
-        // Clear relevant caches
-        Cache::forget("benefits:index:Active:all");
-        Cache::forget("benefits:index:Active:{$benefit->barangay}");
-        if ($benefit->selectedBarangays) {
+        // Clear ALL relevant caches (for all statuses, not just Active)
+        // Clear cache for all statuses to ensure new benefits appear regardless of status
+        $statuses = ['Active', 'Pending', 'Inactive', 'Draft', 'all'];
+        foreach ($statuses as $status) {
+            Cache::forget("benefits:index:{$status}:all");
+            if ($benefit->barangay) {
+                Cache::forget("benefits:index:{$status}:{$benefit->barangay}");
+            }
+            if ($benefit->selectedBarangays && is_array($benefit->selectedBarangays)) {
             foreach ($benefit->selectedBarangays as $barangay) {
-                Cache::forget("benefits:index:Active:{$barangay}");
+                    Cache::forget("benefits:index:{$status}:{$barangay}");
             }
         }
+        }
+        
+        // Also clear the simple benefits route cache if it exists
+        Cache::forget('benefits-simple');
+        
+        // Clear cache for 'all' status specifically (used when fetching all benefits)
+        Cache::forget("benefits:index:all:all");
 
         Log::info('Benefit created', [
             'benefit_id' => $benefit->id,
@@ -330,6 +423,84 @@ class BenefitController extends Controller
                 return response()->json(['message' => 'No barangays selected for this benefit'], 400);
             }
 
+            // Find or create announcement for this benefit
+            $announcement = Announcement::where('benefitID', $benefit->id)->first();
+            
+            if (!$announcement) {
+                // Create announcement if it doesn't exist
+                $announcement = $this->createDraftAnnouncementForBenefit($benefit, $request->user());
+                Log::info('Created announcement for benefit when announcing', [
+                    'benefit_id' => $benefit->id,
+                    'announcement_id' => $announcement->announcementID
+                ]);
+            }
+            
+            // Ensure announcement is Active and targetAudience includes all selected barangays and "Members"
+            $targetAudienceArray = array_map('trim', explode(',', $announcement->targetAudience ?? ''));
+            
+            // Add all selected barangays to targetAudience
+            foreach ($selectedBarangays as $barangay) {
+                $barangayFound = false;
+                foreach ($targetAudienceArray as $ta) {
+                    if (strcasecmp(trim($ta), $barangay) === 0) {
+                        $barangayFound = true;
+                        break;
+                    }
+                }
+                if (!$barangayFound) {
+                    $targetAudienceArray[] = $barangay;
+                }
+            }
+            
+            // Add "Members" if not present
+            $membersFound = false;
+            foreach ($targetAudienceArray as $ta) {
+                if (strcasecmp(trim($ta), 'Members') === 0) {
+                    $membersFound = true;
+                    break;
+                }
+            }
+            if (!$membersFound) {
+                $targetAudienceArray[] = 'Members';
+            }
+            
+            // Update announcement to Active status and set targetAudience
+            $announcement->status = 'Active';
+            $announcement->targetAudience = implode(', ', array_unique($targetAudienceArray));
+            $announcement->publishDate = $announcement->publishDate ?: now()->toDateString();
+            $announcement->save();
+            
+            Log::info('Updated announcement when benefit announced', [
+                'announcement_id' => $announcement->announcementID,
+                'benefit_id' => $benefit->id,
+                'target_audience' => $announcement->targetAudience,
+                'status' => $announcement->status
+            ]);
+            
+            // CRITICAL: Clear all announcement caches to ensure PWD members see the announcement immediately
+            $announcementController = app(\App\Http\Controllers\API\AnnouncementController::class);
+            $reflection = new \ReflectionClass($announcementController);
+            $clearCacheMethod = $reflection->getMethod('clearAnnouncementCache');
+            $clearCacheMethod->setAccessible(true);
+            
+            // Clear cache for each barangay
+            foreach ($selectedBarangays as $barangay) {
+                $clearCacheMethod->invoke($announcementController, $barangay);
+            }
+            
+            // Clear cache for "Members" (so all PWD members see it)
+            $clearCacheMethod->invoke($announcementController, 'Members');
+            
+            // Clear cache for the updated targetAudience
+            $clearCacheMethod->invoke($announcementController, $announcement->targetAudience);
+            
+            // Also clear general caches
+            Cache::forget('announcements.all');
+            Cache::forget('announcements.admin');
+            Cache::forget('announcements.Members');
+            Cache::forget('announcements.All');
+            Cache::forget('announcements.All Barangays');
+
             // Get all PWD members from selected barangays - optimized query
             $members = \App\Models\PWDMember::whereIn('barangay', $selectedBarangays)
                 ->where('status', 'Active')
@@ -351,6 +522,7 @@ class BenefitController extends Controller
                         "A new benefit '{$benefit->title}' ({$benefit->amount}) is now available for claiming. Distribution Date: " . Carbon::parse($benefit->distributionDate)->format('M d, Y'),
                         [
                             'benefit_id' => $benefit->id,
+                            'announcement_id' => $announcement->announcementID,
                             'benefit_title' => $benefit->title,
                             'benefit_amount' => $benefit->amount,
                             'distribution_date' => $benefit->distributionDate,
@@ -367,9 +539,41 @@ class BenefitController extends Controller
                 'announced_at' => $announcementTime,
                 'updated_at' => $announcementTime
             ]);
+            
+            // CRITICAL: Clear ALL announcement caches to ensure PWD members see the announcement immediately
+            $announcementController = app(\App\Http\Controllers\API\AnnouncementController::class);
+            $reflection = new \ReflectionClass($announcementController);
+            $clearCacheMethod = $reflection->getMethod('clearAnnouncementCache');
+            $clearCacheMethod->setAccessible(true);
+            
+            // Clear cache for the updated targetAudience (which includes barangays and "Members")
+            $clearCacheMethod->invoke($announcementController, $announcement->targetAudience);
+            
+            // Clear cache for each barangay individually (both regular and BP cache)
+            foreach ($selectedBarangays as $barangay) {
+                $clearCacheMethod->invoke($announcementController, $barangay);
+                Cache::forget('announcements.' . $barangay);
+                Cache::forget('announcements.' . $barangay . '.bp');
+            }
+            
+            // Clear cache for "Members" (critical - ensures all PWD members see it)
+            $clearCacheMethod->invoke($announcementController, 'Members');
+            Cache::forget('announcements.Members');
+            
+            // Clear general caches
+            Cache::forget('announcements.All');
+            Cache::forget('announcements.All Barangays');
+            Cache::forget('announcements.all');
+            Cache::forget('announcements.admin');
+            
+            Log::info('Cleared announcement caches after benefit announcement', [
+                'barangays' => $selectedBarangays,
+                'target_audience' => $announcement->targetAudience
+            ]);
 
             Log::info('Benefit announced', [
                 'benefit_id' => $benefit->id,
+                'announcement_id' => $announcement->announcementID,
                 'barangays' => $selectedBarangays,
                 'notifications_sent' => $notificationsSent,
                 'announced_at' => $announcementTime->toDateTimeString()
@@ -379,6 +583,7 @@ class BenefitController extends Controller
                 'success' => true,
                 'message' => "Benefit announced successfully to {$notificationsSent} qualified applicants",
                 'notifications_sent' => $notificationsSent,
+                'announcement_id' => $announcement->announcementID,
                 'announced_at' => $announcementTime->format('Y-m-d H:i:s')
             ]);
 
@@ -647,16 +852,23 @@ class BenefitController extends Controller
         Cache::forget('announcements.all');
         Cache::forget('announcements.admin');
         
-        // Clear cache for the target audience
+        // Clear cache for the target audience (both regular and barangay president cache)
         Cache::forget('announcements.' . $announcement->targetAudience);
+        Cache::forget('announcements.' . $announcement->targetAudience . '.bp');
         
         // If targetAudience is comma-separated, clear cache for each barangay
         if (strpos($announcement->targetAudience, ',') !== false) {
             $barangays = array_map('trim', explode(',', $announcement->targetAudience));
             foreach ($barangays as $barangay) {
                 Cache::forget('announcements.' . $barangay);
+                Cache::forget('announcements.' . $barangay . '.bp');
             }
         }
+        
+        // Also clear general caches
+        Cache::forget('announcements.Members');
+        Cache::forget('announcements.All');
+        Cache::forget('announcements.All Barangays');
 
         return response()->json([
             'success' => true,
@@ -740,6 +952,92 @@ class BenefitController extends Controller
         }
 
         try {
+            // CRITICAL: Update announcement FIRST before sending notifications
+            // This ensures the announcement appears in the PWD member dashboard
+            $originalTargetAudience = $announcement->targetAudience;
+            $originalStatus = $announcement->status;
+            $targetAudienceArray = array_map('trim', explode(',', $announcement->targetAudience ?? ''));
+            $needsUpdate = false;
+            
+            // Check if barangay is already in the list (case-insensitive)
+            $barangayFound = false;
+            foreach ($targetAudienceArray as $ta) {
+                if (strcasecmp(trim($ta), $barangay) === 0) {
+                    $barangayFound = true;
+                    break;
+                }
+            }
+            
+            // Check if "Members" is in the list (case-insensitive)
+            $membersFound = false;
+            foreach ($targetAudienceArray as $ta) {
+                if (strcasecmp(trim($ta), 'Members') === 0) {
+                    $membersFound = true;
+                    break;
+                }
+            }
+            
+            // Add barangay if not found
+            if (!$barangayFound) {
+                $targetAudienceArray[] = $barangay;
+                $needsUpdate = true;
+            }
+            
+            // Add "Members" if not found (so PWD members can see it)
+            if (!$membersFound) {
+                $targetAudienceArray[] = 'Members';
+                $needsUpdate = true;
+            }
+            
+            // Update announcement if needed
+            if ($needsUpdate || $announcement->status !== 'Active') {
+                $announcement->targetAudience = implode(', ', array_unique($targetAudienceArray));
+                $announcement->status = 'Active';
+                $announcement->publishDate = $announcement->publishDate ?: now()->toDateString();
+                $announcement->save();
+                
+                Log::info('Updated announcement when announcing to members', [
+                    'announcement_id' => $announcement->announcementID,
+                    'announcement_title' => $announcement->title,
+                    'barangay' => $barangay,
+                    'original_target_audience' => $originalTargetAudience,
+                    'new_target_audience' => $announcement->targetAudience,
+                    'original_status' => $originalStatus,
+                    'new_status' => $announcement->status
+                ]);
+            }
+            
+            // Clear cache BEFORE sending notifications to ensure fresh data
+            Cache::forget('announcements.' . $barangay);
+            Cache::forget('announcements.' . $barangay . '.bp');
+            Cache::forget('announcements.All Barangays');
+            Cache::forget('announcements.All Barangays.bp');
+            Cache::forget('announcements.all');
+            Cache::forget('announcements.admin');
+            Cache::forget('announcements.Members');
+            Cache::forget('announcements.All');
+            
+            // Clear cache for original and updated targetAudience
+            if ($originalTargetAudience) {
+                Cache::forget('announcements.' . $originalTargetAudience);
+                Cache::forget('announcements.' . $originalTargetAudience . '.bp');
+                $originalBarangays = array_map('trim', explode(',', $originalTargetAudience));
+                foreach ($originalBarangays as $targetBarangay) {
+                    Cache::forget('announcements.' . $targetBarangay);
+                    Cache::forget('announcements.' . $targetBarangay . '.bp');
+                }
+            }
+            
+            if ($announcement->targetAudience) {
+                Cache::forget('announcements.' . $announcement->targetAudience);
+                Cache::forget('announcements.' . $announcement->targetAudience . '.bp');
+                $updatedBarangays = array_map('trim', explode(',', $announcement->targetAudience));
+                foreach ($updatedBarangays as $targetBarangay) {
+                    Cache::forget('announcements.' . $targetBarangay);
+                    Cache::forget('announcements.' . $targetBarangay . '.bp');
+                }
+            }
+            
             $notificationService = app(\App\Services\NotificationService::class);
             
             // Get the actual barangay to query for members
@@ -801,15 +1099,6 @@ class BenefitController extends Controller
                     }
                 }
             }
-
-            // Clear announcement cache for this barangay to ensure fresh data
-            Cache::forget('announcements.' . $barangay);
-            // Also clear cache for "All Barangays" in case it's a system-wide announcement
-            Cache::forget('announcements.All Barangays');
-            
-            // Update announcement to mark it as announced by this barangay
-            // Store announced barangays in a JSON field or create a pivot table
-            // For now, we'll just return success
 
             return response()->json([
                 'success' => true,

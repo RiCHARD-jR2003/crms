@@ -4,10 +4,23 @@ import { api } from './api';
 import toastService from './toastService';
 
 const benefitService = {
-  // Get all benefits (with optional barangay filter)
-  getAll: async (barangay = null) => {
+  // Get all benefits (with optional barangay filter and status filter)
+  getAll: async (barangay = null, status = 'all') => {
     try {
-      const url = barangay ? `/benefits?barangay=${encodeURIComponent(barangay)}` : '/benefits';
+      let url = '/benefits';
+      const params = [];
+      if (barangay) {
+        params.push(`barangay=${encodeURIComponent(barangay)}`);
+      }
+      if (status && status !== 'all') {
+        params.push(`status=${encodeURIComponent(status)}`);
+      } else {
+        // Fetch all benefits regardless of status
+        params.push('status=all');
+      }
+      if (params.length > 0) {
+        url += '?' + params.join('&');
+      }
       const response = await api.get(url);
       // Sort by most recent first (created_at or distributionDate)
       const sorted = Array.isArray(response) ? response.sort((a, b) => {

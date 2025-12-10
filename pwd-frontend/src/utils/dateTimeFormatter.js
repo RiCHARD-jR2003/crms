@@ -1,7 +1,32 @@
 /**
  * Standardized Date/Time Formatting Utility
+ * All dates are formatted as MM/DD/YYYY across the entire system
  * Format: MM/DD/YYYY HH:mm:ss AM/PM
  */
+
+/**
+ * Format date only: MM/DD/YYYY
+ * This is the standard date format used across all system features/functions/user types
+ * @param {string|Date} dateString - Date string or Date object
+ * @returns {string} Formatted date string in MM/DD/YYYY format
+ */
+export const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${month}/${day}/${year}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Invalid Date';
+  }
+};
 
 /**
  * Format date and time in standard format: MM/DD/YYYY HH:mm:ss AM/PM
@@ -35,11 +60,11 @@ export const formatDateTime = (dateString) => {
 };
 
 /**
- * Format date only: MM/DD/YYYY
+ * Format date and time without seconds: MM/DD/YYYY HH:mm AM/PM
  * @param {string|Date} dateString - Date string or Date object
  * @returns {string} Formatted date string
  */
-export const formatDate = (dateString) => {
+export const formatDateTimeShort = (dateString) => {
   if (!dateString) return 'N/A';
   
   try {
@@ -50,12 +75,25 @@ export const formatDate = (dateString) => {
     const day = String(date.getDate()).padStart(2, '0');
     const year = date.getFullYear();
     
-    return `${month}/${day}/${year}`;
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    const hoursStr = String(hours).padStart(2, '0');
+    
+    return `${month}/${day}/${year} ${hoursStr}:${minutes} ${ampm}`;
   } catch (error) {
     console.error('Error formatting date:', error);
     return 'Invalid Date';
   }
 };
+
+/**
+ * Alias for formatDate - for backward compatibility
+ * Format date as MM/DD/YYYY
+ */
+export const formatDateMMDDYYYY = formatDate;
 
 /**
  * Format time only: HH:mm:ss AM/PM

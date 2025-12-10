@@ -229,21 +229,6 @@ function AdminSidebar({ isOpen, onToggle }) {
             </Typography>
           </Box>
         </Box>
-        
-        {/* Hamburger Menu Button - Hidden on mobile, show on desktop */}
-        <IconButton
-          onClick={onToggle}
-          sx={{
-            display: { xs: 'none', md: 'flex' }, // Hide on mobile, show on desktop
-            color: '#566573',
-            '&:hover': {
-              backgroundColor: '#E8F0FE',
-              color: '#0b87ac'
-            }
-          }}
-        >
-          {isOpen ? <CloseIcon /> : <Menu />}
-        </IconButton>
       </Box>
 
       {/* User Info */}

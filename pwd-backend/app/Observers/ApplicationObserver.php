@@ -19,6 +19,42 @@ class ApplicationObserver
     }
 
     /**
+     * Handle the Application "created" event.
+     *
+     * @param  \App\Models\Application  $application
+     * @return void
+     */
+    public function created(Application $application)
+    {
+        // Notify admins about new application
+        try {
+            $applicantName = trim(($application->firstName ?? '') . ' ' . ($application->lastName ?? ''));
+            NotificationService::notifyAdmins(
+                'new_application',
+                'New PWD Application Submitted',
+                "A new PWD application has been submitted by {$applicantName} from {$application->barangay}. Application ID: {$application->applicationID}",
+                [
+                    'application_id' => $application->applicationID,
+                    'applicant_name' => $applicantName,
+                    'barangay' => $application->barangay,
+                    'email' => $application->email,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            );
+
+            Log::info('Admin notification sent for new application', [
+                'application_id' => $application->applicationID,
+                'applicant_name' => $applicantName
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending admin notification for new application', [
+                'application_id' => $application->applicationID,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
      * Handle the Application "updated" event.
      *
      * @param  \App\Models\Application  $application
@@ -33,6 +69,11 @@ class ApplicationObserver
 
             // Handle status change notifications
             $this->handleStatusChange($application, $oldStatus, $newStatus);
+
+            // Notify admins when application needs admin approval
+            if ($newStatus === 'Pending Admin Approval') {
+                $this->notifyAdminsForPendingApproval($application);
+            }
 
             // Special handling for "For Claiming" status
             if ($newStatus === 'For Claiming') {
@@ -72,6 +113,32 @@ class ApplicationObserver
                     $applicantName,
                     $application->remarks ?? null
                 );
+
+                // Notify other admins about application status changes (approved/rejected)
+                if (in_array($newStatus, ['Approved', 'Rejected', 'For Claiming'])) {
+                    try {
+                        NotificationService::notifyAdmins(
+                            'application_status_change',
+                            "Application {$newStatus}",
+                            "Application from {$applicantName} ({$application->barangay}) has been {$newStatus}. Application ID: {$application->applicationID}" . ($application->remarks ? " Remarks: {$application->remarks}" : ''),
+                            [
+                                'application_id' => $application->applicationID,
+                                'applicant_name' => $applicantName,
+                                'barangay' => $application->barangay,
+                                'email' => $application->email,
+                                'old_status' => $oldStatus,
+                                'new_status' => $newStatus,
+                                'remarks' => $application->remarks,
+                                'timestamp' => now()->toIso8601String()
+                            ]
+                        );
+                    } catch (\Exception $e) {
+                        Log::error('Error sending admin notification for application status change', [
+                            'application_id' => $application->applicationID,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                }
 
                 Log::info('Status change notification sent', [
                     'application_id' => $application->applicationID,
@@ -175,6 +242,42 @@ class ApplicationObserver
                 'application_id' => $application->applicationID,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+    /**
+     * Notify admins when application is pending admin approval
+     *
+     * @param Application $application
+     * @return void
+     */
+    protected function notifyAdminsForPendingApproval(Application $application)
+    {
+        try {
+            $applicantName = trim(($application->firstName ?? '') . ' ' . ($application->lastName ?? ''));
+            NotificationService::notifyAdmins(
+                'new_application',
+                'Application Pending Admin Approval',
+                "Application from {$applicantName} ({$application->barangay}) is now pending admin approval. Application ID: {$application->applicationID}",
+                [
+                    'application_id' => $application->applicationID,
+                    'applicant_name' => $applicantName,
+                    'barangay' => $application->barangay,
+                    'email' => $application->email,
+                    'status' => 'Pending Admin Approval',
+                    'timestamp' => now()->toIso8601String()
+                ]
+            );
+
+            Log::info('Admin notification sent for pending approval', [
+                'application_id' => $application->applicationID,
+                'applicant_name' => $applicantName
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending admin notification for pending approval', [
+                'application_id' => $application->applicationID,
+                'error' => $e->getMessage()
             ]);
         }
     }
