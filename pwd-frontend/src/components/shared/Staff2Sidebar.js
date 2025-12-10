@@ -13,6 +13,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import toastService from '../../services/toastService';
 import ChangePassword from '../auth/ChangePassword';
+import NotificationBell from './NotificationBell';
 
 function Staff2Sidebar({ isOpen, onToggle }) {
   const navigate = useNavigate();
@@ -172,6 +173,7 @@ function Staff2Sidebar({ isOpen, onToggle }) {
               {currentUser?.email}
             </Typography>
           </Box>
+          <NotificationBell />
         </Box>
       </Box>
 

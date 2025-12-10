@@ -361,29 +361,63 @@ Route::get('/check-user-status/{email}', function ($email) {
 
 
 // Get applications by status
-Route::get('/applications/status/{status}', function ($status) {
+Route::get('/applications/status/{status}', function (Request $request, $status) {
     try {
-        $applications = \App\Models\Application::where('status', urldecode($status))->get();
+        // Decode the status parameter
+        $decodedStatus = urldecode($status);
         
-        // Add pending correction request status to each application
+        // Get applications with the specified status
+        $applications = \App\Models\Application::where('status', $decodedStatus)->get();
+        
+        // Add pending correction request status and assessment info to each application
         $applicationsWithCorrections = $applications->map(function ($application) {
-            $pendingCorrection = \App\Models\DocumentCorrectionRequest::where('application_id_string', $application->applicationID)
-                ->where('status', 'pending')
-                ->where('expires_at', '>', now())
-                ->first();
-            
-            $application->has_pending_correction = $pendingCorrection ? true : false;
+            try {
+                $pendingCorrection = \App\Models\DocumentCorrectionRequest::where('application_id_string', $application->applicationID)
+                    ->where('status', 'pending')
+                    ->where('expires_at', '>', now())
+                    ->first();
+                
+                $application->has_pending_correction = $pendingCorrection ? true : false;
+                
+                // Add assessment information for approval checking
+                $assessment = \App\Models\DisabilityAssessment::where('application_id', $application->applicationID)
+                    ->orWhere('application_id', $application->id)
+                    ->first();
+                
+                if ($assessment) {
+                    $application->assessment_status = $assessment->status;
+                    $application->assessment_pdf_path = $assessment->pdf_path;
+                } else {
+                    $application->assessment_status = null;
+                    $application->assessment_pdf_path = null;
+                }
+            } catch (\Exception $e) {
+                // If correction request query fails, just set to false
+                \Illuminate\Support\Facades\Log::warning('Failed to check correction request for application', [
+                    'application_id' => $application->applicationID,
+                    'error' => $e->getMessage()
+                ]);
+                $application->has_pending_correction = false;
+                $application->assessment_status = null;
+                $application->assessment_pdf_path = null;
+            }
             return $application;
         });
         
         return response()->json($applicationsWithCorrections);
     } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => $e->getMessage()
-        ], 500);
+        \Illuminate\Support\Facades\Log::error('Error fetching applications by status', [
+            'status' => $status,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+        
+        // Return empty array instead of 500 error to prevent frontend crashes
+        return response()->json([], 200);
     }
-});
+})->middleware('auth:sanctum');
 
 // Get all applications (adjusting for singular table name) - Optimized with caching and eager loading
 Route::get('/applications', function () {
@@ -958,9 +992,195 @@ Route::get('/benefits-simple', function () {
 
 Route::post('/benefits-simple', function (Request $request) {
     try {
-        $benefit = \App\Models\Benefit::create($request->all());
+        $benefitData = $request->all();
+        
+        // Set status to Active by default if not provided
+        if (!isset($benefitData['status'])) {
+            $benefitData['status'] = 'Active';
+        }
+        
+        // Set created_at and updated_at if not provided
+        if (!isset($benefitData['created_at'])) {
+            $benefitData['created_at'] = now();
+        }
+        if (!isset($benefitData['updated_at'])) {
+            $benefitData['updated_at'] = now();
+        }
+        
+        $benefit = \App\Models\Benefit::create($benefitData);
+        
+        // Always create draft announcement when benefit is created
+        $draftAnnouncementCreated = false;
+        try {
+            $existingAnnouncement = \App\Models\Announcement::where('benefitID', $benefit->id)->first();
+            if (!$existingAnnouncement) {
+                // Determine target audience based on selected barangays
+                $selectedBarangays = [];
+                $targetAudience = 'All Barangays';
+                if (isset($benefitData['selectedBarangays']) && is_array($benefitData['selectedBarangays']) && count($benefitData['selectedBarangays']) > 0) {
+                    $selectedBarangays = $benefitData['selectedBarangays'];
+                    $targetAudience = implode(', ', $selectedBarangays);
+                } elseif (isset($benefitData['barangay']) && $benefitData['barangay'] !== 'All' && $benefitData['barangay'] !== 'All Barangays') {
+                    $selectedBarangays = [$benefitData['barangay']];
+                    $targetAudience = $benefitData['barangay'];
+                }
+                
+                // Generate announcement title
+                $benefitType = $benefit->type ?? 'Financial Assistance';
+                $barangaysText = count($selectedBarangays) > 0 
+                    ? implode(', ', $selectedBarangays) 
+                    : 'All Barangays';
+                $title = "New {$benefitType} Available for {$barangaysText}";
+                
+                // Format dates
+                $distributionDate = isset($benefitData['distributionDate']) && $benefitData['distributionDate']
+                    ? \Carbon\Carbon::parse($benefitData['distributionDate'])
+                    : null;
+                $expiryDate = isset($benefitData['expiryDate']) && $benefitData['expiryDate']
+                    ? \Carbon\Carbon::parse($benefitData['expiryDate'])
+                    : null;
+                
+                // Create draft announcement
+                $announcement = \App\Models\Announcement::create([
+                    'authorID' => 1, // System/Admin
+                    'benefitID' => $benefit->id,
+                    'title' => $title,
+                    'content' => $benefit->description ?? 'A new benefit program is now available for claiming.',
+                    'type' => 'Event',
+                    'category' => 'Ayuda Program',
+                    'priority' => 'High',
+                    'targetAudience' => $targetAudience,
+                    'status' => 'Draft', // Created as Draft for barangay president to review and post
+                    'publishDate' => now()->toDateString(),
+                    'expiryDate' => $expiryDate ? $expiryDate->toDateString() : null,
+                    'views' => 0
+                ]);
+                
+                $draftAnnouncementCreated = true;
+                
+                \Illuminate\Support\Facades\Log::info('Draft announcement created for benefit (simple route)', [
+                    'benefit_id' => $benefit->id,
+                    'announcement_id' => $announcement->announcementID,
+                    'target_audience' => $announcement->targetAudience,
+                    'status' => $announcement->status
+                ]);
+                
+                // Clear announcement cache for the target audience to ensure it appears immediately
+                $announcementController = app(\App\Http\Controllers\API\AnnouncementController::class);
+                $reflection = new \ReflectionClass($announcementController);
+                $clearCacheMethod = $reflection->getMethod('clearAnnouncementCache');
+                $clearCacheMethod->setAccessible(true);
+                $clearCacheMethod->invoke($announcementController, $announcement->targetAudience);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to create draft announcement for benefit (simple route)', [
+                'benefit_id' => $benefit->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // Don't fail benefit creation if announcement creation fails
+        }
+        
+        // Notify Barangay Presidents for each barangay in selectedBarangays
+        try {
+            $barangaysToNotify = [];
+            
+            // Collect barangays from selectedBarangays
+            if (isset($benefitData['selectedBarangays']) && is_array($benefitData['selectedBarangays'])) {
+                $barangaysToNotify = array_merge($barangaysToNotify, $benefitData['selectedBarangays']);
+            }
+            
+            // Also include single barangay if set
+            if (isset($benefitData['barangay']) && $benefitData['barangay'] !== 'All' && $benefitData['barangay'] !== 'All Barangays') {
+                if (!in_array($benefitData['barangay'], $barangaysToNotify)) {
+                    $barangaysToNotify[] = $benefitData['barangay'];
+                }
+            }
+            
+            // Remove duplicates
+            $barangaysToNotify = array_unique($barangaysToNotify);
+            
+            // Notify each barangay president
+            $notificationService = app(\App\Services\NotificationService::class);
+            $notifiedPresidents = [];
+            
+            foreach ($barangaysToNotify as $barangay) {
+                $barangayPresidents = \App\Models\BarangayPresident::where('barangay', $barangay)
+                    ->pluck('userID')
+                    ->toArray();
+                
+                foreach ($barangayPresidents as $presidentUserId) {
+                    if (!in_array($presidentUserId, $notifiedPresidents)) {
+                        $distributionDate = isset($benefitData['distributionDate']) && $benefitData['distributionDate']
+                            ? \Carbon\Carbon::parse($benefitData['distributionDate'])->format('M d, Y')
+                            : 'To be announced';
+                        
+                        $notificationService::create(
+                            $presidentUserId,
+                            'benefit_created',
+                            'New Benefit Available for Your Barangay',
+                            "A new benefit '{$benefit->title}' ({$benefit->amount}) has been added for {$barangay}. Distribution Date: {$distributionDate}. Please review and announce this benefit to your barangay members.",
+                            [
+                                'benefit_id' => $benefit->id,
+                                'benefit_title' => $benefit->title,
+                                'benefit_type' => $benefit->type,
+                                'benefit_amount' => $benefit->amount,
+                                'barangay' => $barangay,
+                                'distribution_date' => $benefit->distributionDate,
+                                'expiry_date' => $benefit->expiryDate,
+                                'created_at' => $benefit->created_at->toDateTimeString(),
+                                'action_required' => 'announce'
+                            ],
+                            false // Don't notify SuperAdmin about this notification
+                        );
+                        
+                        $notifiedPresidents[] = $presidentUserId;
+                    }
+                }
+            }
+            
+            \Illuminate\Support\Facades\Log::info('Barangay Presidents notified about new benefit (simple route)', [
+                'benefit_id' => $benefit->id,
+                'barangays' => $barangaysToNotify,
+                'presidents_notified' => count($notifiedPresidents)
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to notify barangay presidents about new benefit (simple route)', [
+                'benefit_id' => $benefit->id,
+                'error' => $e->getMessage()
+            ]);
+            // Don't fail benefit creation if notification fails
+        }
+        
+        // Clear ALL benefit caches to ensure new benefit appears
+        $statuses = ['Active', 'Pending', 'Inactive', 'Draft', 'all'];
+        foreach ($statuses as $status) {
+            \Illuminate\Support\Facades\Cache::forget("benefits:index:{$status}:all");
+            if (isset($benefitData['barangay']) && $benefitData['barangay']) {
+                \Illuminate\Support\Facades\Cache::forget("benefits:index:{$status}:{$benefitData['barangay']}");
+            }
+            if (isset($benefitData['selectedBarangays']) && is_array($benefitData['selectedBarangays'])) {
+                foreach ($benefitData['selectedBarangays'] as $barangay) {
+                    \Illuminate\Support\Facades\Cache::forget("benefits:index:{$status}:{$barangay}");
+                }
+            }
+        }
+        
+        // Also clear the simple benefits route cache if it exists
+        \Illuminate\Support\Facades\Cache::forget('benefits-simple');
+        
+        \Illuminate\Support\Facades\Log::info('Benefit created via simple route', [
+            'benefit_id' => $benefit->id,
+            'title' => $benefit->title,
+            'status' => $benefit->status
+        ]);
+        
         return response()->json($benefit, 201);
     } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Error creating benefit via simple route', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
         return response()->json(['error' => $e->getMessage()], 500);
     }
 });
@@ -1040,11 +1260,28 @@ Route::get('/pwd-member/profile', function (Request $request) {
             return response()->json(['error' => 'PWD Member not found'], 404);
         }
         
-        // Get barangay from approved application
+        // Get barangay from approved application, or from any application, or from PWDMember model
         $approvedApplication = $pwdMember->applications()
             ->where('status', 'Approved')
             ->latest()
             ->first();
+        
+        // If no approved application, try to get barangay from any application
+        $barangay = null;
+        if ($approvedApplication) {
+            $barangay = $approvedApplication->barangay;
+        } else {
+            // Try to get from any application
+            $anyApplication = $pwdMember->applications()->latest()->first();
+            if ($anyApplication && $anyApplication->barangay) {
+                $barangay = $anyApplication->barangay;
+            }
+        }
+        
+        // If still no barangay, try to get from PWDMember model directly
+        if (!$barangay && $pwdMember->barangay) {
+            $barangay = $pwdMember->barangay;
+        }
         
         // Ensure QR code is generated if it doesn't exist
         if (empty($pwdMember->qr_code_data)) {
@@ -1070,7 +1307,7 @@ Route::get('/pwd-member/profile', function (Request $request) {
             'gender' => $pwdMember->gender,
             'disabilityType' => $pwdMember->disabilityType,
             'pwd_id' => $pwdMember->pwd_id,
-            'barangay' => $approvedApplication ? $approvedApplication->barangay : null,
+            'barangay' => $barangay,
             'created_at' => $pwdMember->created_at,
             'qr_code_data' => $pwdMember->qr_code_data,
             'qr_code_generated_at' => $pwdMember->qr_code_generated_at,
@@ -1888,6 +2125,87 @@ Route::post('/applications', function (Request $request) {
             $data['barangayCertificate'] = $barangayCertPath;
         }
 
+        // Delete old rejected applications for the same applicant (Option B: New Application)
+        // This ensures that if applicant chooses to create a new application instead of re-uploading,
+        // the old rejected application is removed to prevent duplicate detection issues
+        try {
+            $email = $request->email;
+            $contactNumber = $request->contactNumber ?? $request->phoneNumber ?? null;
+            
+            // Build query to find rejected applications matching email OR contact number
+            $oldRejectedApplications = \App\Models\Application::where('status', 'Rejected')
+                ->where(function($query) use ($email, $contactNumber) {
+                    if ($email) {
+                        $query->where('email', $email);
+                    }
+                    if ($contactNumber) {
+                        if ($email) {
+                            $query->orWhere('contactNumber', $contactNumber);
+                        } else {
+                            $query->where('contactNumber', $contactNumber);
+                        }
+                    }
+                });
+            
+            $rejectedApps = $oldRejectedApplications->get();
+            
+            if ($rejectedApps->count() > 0) {
+                \Illuminate\Support\Facades\Log::info('Deleting old rejected applications before creating new one', [
+                    'email' => $email,
+                    'contact_number' => $contactNumber,
+                    'rejected_applications_count' => $rejectedApps->count(),
+                    'rejected_application_ids' => $rejectedApps->pluck('applicationID')->toArray()
+                ]);
+                
+                // Delete associated files from storage before deleting applications
+                $deletedCount = 0;
+                foreach ($rejectedApps as $rejectedApp) {
+                    $documentFields = [
+                        'medicalCertificate', 'clinicalAbstract', 'voterCertificate',
+                        'birthCertificate', 'wholeBodyPicture', 'affidavit',
+                        'barangayCertificate', 'idPictures'
+                    ];
+                    
+                    foreach ($documentFields as $field) {
+                        if ($rejectedApp->$field) {
+                            try {
+                                \Illuminate\Support\Facades\Storage::disk('public')->delete($rejectedApp->$field);
+                            } catch (\Exception $fileException) {
+                                \Illuminate\Support\Facades\Log::warning('Failed to delete file for rejected application', [
+                                    'application_id' => $rejectedApp->applicationID,
+                                    'field' => $field,
+                                    'file_path' => $rejectedApp->$field,
+                                    'error' => $fileException->getMessage()
+                                ]);
+                            }
+                        }
+                    }
+                    
+                    // Delete the application model
+                    try {
+                        $rejectedApp->delete();
+                        $deletedCount++;
+                    } catch (\Exception $deleteException) {
+                        \Illuminate\Support\Facades\Log::error('Failed to delete rejected application', [
+                            'application_id' => $rejectedApp->applicationID,
+                            'error' => $deleteException->getMessage()
+                        ]);
+                    }
+                }
+                
+                \Illuminate\Support\Facades\Log::info('Old rejected applications deleted successfully', [
+                    'deleted_count' => $deletedCount,
+                    'email' => $email
+                ]);
+            }
+        } catch (\Exception $deleteException) {
+            // Log error but don't fail the new application creation
+            \Illuminate\Support\Facades\Log::error('Failed to delete old rejected applications', [
+                'error' => $deleteException->getMessage(),
+                'trace' => $deleteException->getTraceAsString()
+            ]);
+        }
+
         \Illuminate\Support\Facades\Log::info('Creating application with data', [
             'data' => $data
         ]);
@@ -2554,31 +2872,58 @@ Route::middleware('auth:sanctum')->group(function () {
             try {
                 $user = $request->user();
                 
+                if (!$user) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'User not authenticated'
+                    ], 401);
+                }
+                
+                // Log for debugging
+                \Illuminate\Support\Facades\Log::info('Fetching notifications', [
+                    'user_id' => $user->userID,
+                    'user_role' => $user->role,
+                    'username' => $user->username
+                ]);
+                
                 // Ensure proper sorting: latest first (descending by created_at, then by id as tiebreaker)
                 $notifications = \App\Models\Notification::forUser($user->userID)
                     ->orderBy('created_at', 'desc')
                     ->orderBy('id', 'desc') // Secondary sort for consistent ordering
-                    ->get()
-                    ->map(function ($notification) {
-                        // Ensure timestamps are properly formatted
-                        return [
-                            'id' => $notification->id,
-                            'user_id' => $notification->user_id,
-                            'type' => $notification->type,
-                            'title' => $notification->title,
-                            'message' => $notification->message,
-                            'data' => $notification->data,
-                            'is_read' => $notification->is_read,
-                            'read_at' => $notification->read_at ? $notification->read_at->toIso8601String() : null,
-                            'created_at' => $notification->created_at->toIso8601String(),
-                            'updated_at' => $notification->updated_at->toIso8601String(),
-                            'timestamp' => $notification->created_at->toIso8601String() // Alias for frontend compatibility
-                        ];
-                    });
+                    ->get();
+                
+                \Illuminate\Support\Facades\Log::info('Notifications fetched', [
+                    'user_id' => $user->userID,
+                    'count' => $notifications->count()
+                ]);
+                
+                $formattedNotifications = $notifications->map(function ($notification) {
+                    // Ensure timestamps are properly formatted
+                    return [
+                        'id' => $notification->id,
+                        'user_id' => $notification->user_id,
+                        'type' => $notification->type,
+                        'title' => $notification->title,
+                        'message' => $notification->message,
+                        'data' => $notification->data,
+                        'is_read' => $notification->is_read,
+                        'read_at' => $notification->read_at ? $notification->read_at->toIso8601String() : null,
+                        'created_at' => $notification->created_at->toIso8601String(), // UTC ISO format for consistency
+                        'updated_at' => $notification->updated_at->toIso8601String(), // UTC ISO format for consistency
+                        'timestamp' => $notification->created_at->toIso8601String(), // Alias for frontend compatibility (UTC)
+                        'ph_time' => $notification->created_at->setTimezone('Asia/Manila')->format('Y-m-d H:i:s'), // Philippine Time for display
+                        'ph_time_formatted' => $notification->created_at->setTimezone('Asia/Manila')->format('M d, Y h:i A') // Formatted Philippine Time
+                    ];
+                });
                 
                 return response()->json([
                     'success' => true,
-                    'notifications' => $notifications
+                    'notifications' => $formattedNotifications,
+                    'debug' => [
+                        'user_id' => $user->userID,
+                        'user_role' => $user->role,
+                        'total_count' => $formattedNotifications->count()
+                    ]
                 ]);
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error('Failed to fetch notifications', [
@@ -2593,6 +2938,39 @@ Route::middleware('auth:sanctum')->group(function () {
                 ], 500);
             }
         });
+        
+        // Test route to create a notification for SuperAdmin (for debugging)
+        Route::post('/test-superadmin', function (Request $request) {
+            try {
+                $user = $request->user();
+                if (!$user || $user->role !== 'SuperAdmin') {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Only SuperAdmin can create test notifications'
+                    ], 403);
+                }
+                
+                // Create a test notification
+                $notification = \App\Services\NotificationService::create(
+                    $user->userID,
+                    'announcement',
+                    'Test Notification for SuperAdmin',
+                    'This is a test notification to verify SuperAdmin notification system is working.',
+                    ['test' => true, 'timestamp' => now()->toIso8601String()]
+                );
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Test notification created',
+                    'notification' => $notification
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        })->middleware('auth:sanctum');
 
         Route::get('/unread', function (Request $request) {
             try {
@@ -2678,6 +3056,7 @@ Route::get('/api/test-email/{email}', function ($email) {
     try {
         $emailService = new \App\Services\EmailService();
         
+        // Use today's date as approval date to calculate claim date
         $result = $emailService->sendApplicationApprovalEmail([
             'firstName' => 'Test',
             'lastName' => 'User',
@@ -2685,14 +3064,16 @@ Route::get('/api/test-email/{email}', function ($email) {
             'username' => $email,
             'password' => 'test123',
             'pwdId' => 'PWD-000001',
-            'loginUrl' => 'http://localhost:3000/login'
+            'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login'),
+            'approval_date' => now()->toDateString() // Include approval date for claim date calculation
         ]);
 
         return response()->json([
             'message' => 'Email test completed',
             'email' => $email,
             'sent' => $result,
-            'from' => 'sarinonhoelivan29@gmail.com'
+            'from' => 'sarinonhoelivan29@gmail.com',
+            'approval_date' => now()->toDateString()
         ]);
 
     } catch (\Exception $e) {
@@ -3166,7 +3547,11 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
         }
 
         // Check if disability assessment is completed (REQUIRED for approval)
-        $assessment = \App\Models\DisabilityAssessment::where('application_id', $applicationId)->first();
+        // Try both application_id and applicationID fields to find the assessment
+        $assessment = \App\Models\DisabilityAssessment::where('application_id', $applicationId)
+            ->orWhere('application_id', $application->id)
+            ->first();
+            
         if (!$assessment) {
             return response()->json([
                 'error' => 'Cannot approve application',
@@ -3174,21 +3559,30 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
             ], 400);
         }
 
-        // Check if assessment is finalized with PDF
-        if (!in_array($assessment->status, ['finalized', 'uploaded'])) {
+        // Check if assessment is finalized with PDF (allow completed status if PDF exists)
+        if (!in_array($assessment->status, ['finalized', 'uploaded', 'completed'])) {
             return response()->json([
                 'error' => 'Cannot approve application',
                 'message' => 'Disability assessment must be completed and finalized before approval. Current assessment status: ' . $assessment->status
             ], 400);
         }
 
-        // Check if assessment PDF exists
+        // Check if assessment PDF exists (required for approval)
         if (!$assessment->pdf_path) {
             return response()->json([
                 'error' => 'Cannot approve application',
-                'message' => 'The disability assessment PDF must be generated before final approval. Please finalize the assessment first.'
+                'message' => 'The disability assessment PDF must be generated or uploaded before final approval. Please finalize or upload the assessment PDF first.'
             ], 400);
         }
+        
+        // Log approval attempt for debugging
+        \Illuminate\Support\Facades\Log::info('Admin approval attempt', [
+            'application_id' => $applicationId,
+            'application_status' => $application->status,
+            'assessment_id' => $assessment->id,
+            'assessment_status' => $assessment->status,
+            'has_pdf' => !empty($assessment->pdf_path)
+        ]);
 
         // Check attendance status - applicant must have shown up or validly rescheduled
         if ($assessment->attendance_status === 'absent' || $assessment->is_missed) {
@@ -3244,6 +3638,7 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
         $pwdMember->emergencyRelationship = $application->emergencyRelationship;
         $pwdMember->pwd_id = $pwdId;
         $pwdMember->status = 'Active';
+        $pwdMember->approval_date = now()->toDateString(); // Set approval date
         $pwdMember->save();
         
         // Generate and store QR code for the new PWD member
@@ -3296,6 +3691,12 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
             ]);
         }
 
+        // Calculate claim date (14 business days from approval, excluding weekends and holidays)
+        $approvalDate = \Carbon\Carbon::parse($pwdMember->approval_date);
+        $claimDate = \App\Services\HolidayService::addBusinessDays($approvalDate, 14);
+        $claimDateFormatted = $claimDate->format('F d, Y'); // e.g., "January 15, 2025"
+        $claimDateShort = $claimDate->format('M d, Y'); // e.g., "Jan 15, 2025"
+
         // Send approval email
         $emailSent = false;
         try {
@@ -3306,7 +3707,9 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
                 'username' => $application->email,
                 'password' => $randomPassword,
                 'pwdId' => $pwdId,
-                'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login')
+                'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login'),
+                'claimDate' => $claimDateFormatted,
+                'claimDateShort' => $claimDateShort
             ], function ($message) use ($application) {
                 $message->to($application->email)
                         ->subject('PWD Application Approved - Your Account Details');

@@ -25,6 +25,15 @@ return [
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173',
         'https://elizabeth-microphone-owners-roads.trycloudflare.com',
+        'https://happens-acceptable-architect-bumper.trycloudflare.com',
+        'https://wherever-newark-kenneth-sku.trycloudflare.com',
+        'https://landscapes-buys-treasury-hat.trycloudflare.com',
+        'https://strategies-labour-cage-membrane.trycloudflare.com',
+        'https://vitamin-fine-hip-experiencing.trycloudflare.com',
+        'https://prozac-invitations-lucy-visits.trycloudflare.com',
+        'https://remind-ignored-putting-laid.trycloudflare.com',
+        'https://deemed-treatment-founder-retention.trycloudflare.com',
+        'https://otherwise-editor-judy-panel.trycloudflare.com', // New frontend tunnel
     ],
 
     'allowed_origins_patterns' => [

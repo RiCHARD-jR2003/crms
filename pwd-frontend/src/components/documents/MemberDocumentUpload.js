@@ -47,6 +47,7 @@ import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
 import { documentService } from '../../services/documentService';
 import { filePreviewService } from '../../services/filePreviewService';
+import toastService from '../../services/toastService';
 import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { 
@@ -396,6 +397,9 @@ function MemberDocumentUpload() {
     setUploading(true);
     setError(null);
     setSuccess(null);
+    
+    // Show loading toast
+    toastService.process.uploadingDocument();
 
     try {
       const formData = new FormData();
@@ -406,12 +410,18 @@ function MemberDocumentUpload() {
       const response = await api.post('/documents/upload', formData);
 
       if (response.success) {
+        // Dismiss loading toast and show success
+        toastService.dismiss();
+        toastService.process.documentUploaded();
         setSuccess('Document uploaded successfully!');
         await fetchDocuments();
         handleDialogClose();
       }
     } catch (error) {
       console.error('Error uploading document:', error);
+      // Dismiss loading toast and show error
+      toastService.dismiss();
+      toastService.process.documentUploadFailed(error.response?.data?.message || 'Failed to upload document');
       setError(error.response?.data?.message || 'Failed to upload document');
     } finally {
       setUploading(false);

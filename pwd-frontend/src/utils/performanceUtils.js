@@ -307,7 +307,7 @@ export const formatNumber = memoize((num) => {
 });
 
 /**
- * Format date efficiently
+ * Format date efficiently - Always returns MM/DD/YYYY format
  */
 export const formatDate = memoize((dateString, format = 'short') => {
   if (!dateString) return '';
@@ -315,11 +315,12 @@ export const formatDate = memoize((dateString, format = 'short') => {
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '';
 
-  const options = format === 'short' 
-    ? { month: '2-digit', day: '2-digit', year: 'numeric' }
-    : { month: 'long', day: 'numeric', year: 'numeric' };
-
-  return date.toLocaleDateString('en-US', options);
+  // Always format as MM/DD/YYYY regardless of format parameter
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${month}/${day}/${year}`;
 });
 
 export default {

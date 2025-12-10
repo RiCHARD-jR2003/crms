@@ -72,16 +72,28 @@ class IDClaimController extends Controller
             ], 422);
         }
 
-        // Find member
+        // Find member - try userID first, then database id
         $member = PWDMember::where('userID', $request->member_id)->first();
         if (!$member) {
+            // Try finding by database id
             $member = PWDMember::find($request->member_id);
+        }
+        
+        // If still not found, try to find by any matching field
+        if (!$member) {
+            $member = PWDMember::where('id', $request->member_id)
+                ->orWhere('userID', $request->member_id)
+                ->first();
         }
 
         if (!$member) {
+            \Illuminate\Support\Facades\Log::warning('Member not found for ID claim initiation', [
+                'requested_member_id' => $request->member_id,
+                'claim_type' => $request->claim_type
+            ]);
             return response()->json([
                 'success' => false,
-                'message' => 'PWD Member not found'
+                'message' => 'PWD Member not found. Please ensure the member exists and try again.'
             ], 404);
         }
 
@@ -125,16 +137,40 @@ class IDClaimController extends Controller
             ]);
 
             // Create notification for member
-            Notification::create([
-                'user_id' => $member->userID,
-                'type' => 'id_claim_initiated',
-                'title' => $request->claim_type === 'new' ? 'ID Claim Started' : 'ID Renewal Started',
-                'message' => 'Your PWD ID ' . ($request->claim_type === 'new' ? 'claim' : 'renewal') . ' has been initiated. Please wait for further instructions.',
-                'data' => [
+            \App\Services\NotificationService::create(
+                $member->userID,
+                'id_claim_initiated',
+                $request->claim_type === 'new' ? 'ID Claim Started' : 'ID Renewal Started',
+                'Your PWD ID ' . ($request->claim_type === 'new' ? 'claim' : 'renewal') . ' has been initiated. Please wait for further instructions.',
+                [
                     'claim_id' => $claim->id,
                     'claim_type' => $request->claim_type
                 ]
-            ]);
+            );
+
+            // Notify admins about new ID claim initiated
+            try {
+                $memberName = trim(($member->firstName ?? '') . ' ' . ($member->lastName ?? ''));
+                \App\Services\NotificationService::notifyAdmins(
+                    'id_claiming',
+                    'New ID Claim Initiated',
+                    "A new ID " . ($request->claim_type === 'new' ? 'claim' : 'renewal') . " has been initiated for {$memberName} (PWD ID: {$member->pwd_id ?? 'N/A'}). Claim ID: {$claim->id}",
+                    [
+                        'claim_id' => $claim->id,
+                        'claim_type' => $request->claim_type,
+                        'member_id' => $member->userID,
+                        'member_name' => $memberName,
+                        'pwd_id' => $member->pwd_id ?? 'N/A',
+                        'processed_by' => $request->user()->userID,
+                        'timestamp' => now()->toIso8601String()
+                    ]
+                );
+            } catch (\Exception $notifError) {
+                \Illuminate\Support\Facades\Log::error('Failed to send admin notification for ID claim', [
+                    'claim_id' => $claim->id,
+                    'error' => $notifError->getMessage()
+                ]);
+            }
 
             DB::commit();
 
@@ -146,9 +182,15 @@ class IDClaimController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
+            \Illuminate\Support\Facades\Log::error('Error initiating ID claim', [
+                'member_id' => $request->member_id,
+                'claim_type' => $request->claim_type,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to initiate claim',
+                'message' => 'Failed to initiate claim: ' . $e->getMessage(),
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -379,6 +421,32 @@ class IDClaimController extends Controller
                 "Your PWD ID card has been successfully claimed. Receipt #: {$updateData['receipt_number']}. Card expires on " . $expirationDate->format('F d, Y') . "."
             );
 
+            // Notify admins about ID claim completion
+            try {
+                $memberName = trim(($member->firstName ?? '') . ' ' . ($member->lastName ?? ''));
+                \App\Services\NotificationService::notifyAdmins(
+                    'id_claimed',
+                    'ID Claim Completed',
+                    "ID claim has been completed for {$memberName} (PWD ID: {$member->pwd_id ?? 'N/A'}). Receipt #: {$updateData['receipt_number']}. Claim ID: {$claim->id}",
+                    [
+                        'claim_id' => $claim->id,
+                        'member_id' => $member->userID,
+                        'member_name' => $memberName,
+                        'pwd_id' => $member->pwd_id ?? 'N/A',
+                        'receipt_number' => $updateData['receipt_number'],
+                        'claim_type' => $claim->claim_type,
+                        'released_by' => $request->user()->userID,
+                        'expiration_date' => $expirationDate->format('Y-m-d'),
+                        'timestamp' => now()->toIso8601String()
+                    ]
+                );
+            } catch (\Exception $notifError) {
+                \Illuminate\Support\Facades\Log::error('Failed to send admin notification for ID claim completion', [
+                    'claim_id' => $claim->id,
+                    'error' => $notifError->getMessage()
+                ]);
+            }
+
             // Send email confirmation
             $this->sendClaimCompletionEmail($claim, $updateData['receipt_number'], $expirationDate);
 
@@ -539,16 +607,16 @@ class IDClaimController extends Controller
     private function notifyMember($claim, $type, $title, $message)
     {
         try {
-            Notification::create([
-                'user_id' => $claim->member_id,
-                'type' => $type,
-                'title' => $title,
-                'message' => $message,
-                'data' => [
+            \App\Services\NotificationService::create(
+                $claim->member_id,
+                $type,
+                $title,
+                $message,
+                [
                     'claim_id' => $claim->id,
                     'claim_type' => $claim->claim_type
                 ]
-            ]);
+            );
         } catch (\Exception $e) {
             \Log::warning('Failed to create notification: ' . $e->getMessage());
         }

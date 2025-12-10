@@ -6,13 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\DisabilityAssessment;
 use App\Models\Application;
 use App\Models\User;
+use App\Models\BarangayPresident;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Barryvdh\DomPDF\Facade\Pdf as PDF;
 
 class DisabilityAssessmentController extends Controller
 {
@@ -198,13 +200,27 @@ class DisabilityAssessmentController extends Controller
         // Check if assessment already exists
         $existingAssessment = DisabilityAssessment::where('application_id', $application->applicationID)->first();
         if ($existingAssessment) {
-            // Update existing assessment
-            $existingAssessment->update([
+            // Update existing assessment - preserve disability_type if not already set
+            $updateData = [
                 'assessment_date' => $request->assessment_date,
                 'slot_number' => $request->slot_number,
                 'status' => DisabilityAssessment::STATUS_SCHEDULED
-            ]);
+            ];
             
+            // If disability_type is not set, populate from application
+            if (empty($existingAssessment->disability_type) && !empty($application->disabilityType)) {
+                $updateData['disability_type'] = $application->disabilityType;
+            }
+            // If disability_cause is not set, populate from application
+            if (empty($existingAssessment->disability_cause) && !empty($application->disabilityCause)) {
+                $updateData['disability_cause'] = $application->disabilityCause;
+            }
+            // If disability_onset_date is not set, populate from application
+            if (empty($existingAssessment->disability_onset_date) && !empty($application->disabilityDate)) {
+                $updateData['disability_onset_date'] = $application->disabilityDate;
+            }
+            
+            $existingAssessment->update($updateData);
             $assessment = $existingAssessment;
         } else {
             // Create new assessment
@@ -228,6 +244,9 @@ class DisabilityAssessmentController extends Controller
         
         // Send scheduling email
         $this->sendSchedulingEmail($assessment);
+        
+        // Notify admins about scheduled assessment
+        $this->notifyAdminsAboutScheduledAssessment($assessment);
         
         return response()->json([
             'message' => 'Assessment scheduled successfully',
@@ -438,57 +457,169 @@ class DisabilityAssessmentController extends Controller
      */
     public function finalizeAssessment(Request $request, $id)
     {
-        $assessment = DisabilityAssessment::with('application')->find($id);
-        
-        if (!$assessment) {
-            return response()->json(['message' => 'Assessment not found'], 404);
-        }
-        
-        if ($assessment->status !== DisabilityAssessment::STATUS_COMPLETED) {
-            return response()->json(['message' => 'Only completed assessments can be finalized'], 400);
-        }
-        
-        // Check if it's the day of the assessment (SuperAdmin can bypass)
-        if ($request->user()->role !== 'SuperAdmin' && $assessment->assessment_date) {
-            $assessmentDate = Carbon::parse($assessment->assessment_date)->startOfDay();
-            $today = Carbon::today();
+        try {
+            // Load assessment with application and related data
+            $assessment = DisabilityAssessment::with(['application', 'assessor', 'finalizer'])->find($id);
             
-            if (!$assessmentDate->equalTo($today)) {
-                $dateFormatted = $assessmentDate->format('F d, Y');
+            if (!$assessment) {
                 return response()->json([
-                    'message' => "Assessment can only be finalized on the scheduled appointment date ({$dateFormatted})."
-                ], 400);
+                    'success' => false,
+                    'message' => 'Assessment not found'
+                ], 404);
             }
+            
+            // Ensure application is loaded
+            if (!$assessment->application) {
+                Log::error('Assessment application not found', [
+                    'assessment_id' => $id,
+                    'application_id' => $assessment->application_id
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Application not found for this assessment. Cannot finalize without application data.'
+                ], 404);
+            }
+            
+            // Auto-mark as completed if not already completed (for PDF generation)
+            if ($assessment->status !== DisabilityAssessment::STATUS_COMPLETED) {
+                $assessment->update([
+                    'status' => DisabilityAssessment::STATUS_COMPLETED,
+                    'assessed_by' => $request->user()->userID,
+                    'assessed_at' => now()
+                ]);
+                $assessment->refresh();
+            }
+            
+            // Allow finalization regardless of date (removed date restriction for PDF generation)
+            
+            // Generate PDF with error handling
+            try {
+                $pdf = $this->generateAssessmentPDF($assessment);
+            } catch (\Exception $e) {
+                Log::error('Failed to generate assessment PDF', [
+                    'assessment_id' => $id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                return response()->json([
+                    'message' => 'Failed to generate PDF. Please check the assessment data and try again.',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+            
+            // Save PDF with error handling
+            try {
+                $filename = "assessment_{$assessment->reference_number}.pdf";
+                $path = "assessments/pdfs/{$filename}";
+                
+                // Ensure directory exists
+                $directory = dirname(storage_path('app/public/' . $path));
+                if (!is_dir($directory)) {
+                    mkdir($directory, 0755, true);
+                }
+                
+                Storage::disk('public')->put($path, $pdf->output());
+            } catch (\Exception $e) {
+                Log::error('Failed to save assessment PDF', [
+                    'assessment_id' => $id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                return response()->json([
+                    'message' => 'Failed to save PDF. Please try again.',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+            
+            // Update assessment in database
+            try {
+                $assessment->update([
+                    'status' => DisabilityAssessment::STATUS_FINALIZED,
+                    'finalized_by' => $request->user()->userID,
+                    'finalized_at' => now(),
+                    'pdf_path' => $path,
+                    'pdf_generated_at' => now()
+                ]);
+                
+                // Refresh to get updated data
+                $assessment->refresh();
+            } catch (\Exception $e) {
+                Log::error('Failed to update assessment status', [
+                    'assessment_id' => $id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                return response()->json([
+                    'message' => 'Failed to update assessment status. PDF was generated but status update failed.',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+            
+            // Update application status in database
+            try {
+                $application = $assessment->application;
+                $application->update([
+                    'assessment_status' => 'finalized',
+                    'assessment_pdf_path' => $path,
+                    'status' => 'Pending Admin Approval' // Set to Pending Admin Approval so it's ready for approval
+                ]);
+                
+                Log::info('Application status updated after assessment finalization - ready for approval', [
+                    'application_id' => $application->applicationID,
+                    'assessment_id' => $id,
+                    'new_status' => 'Pending Admin Approval'
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to update application status', [
+                    'application_id' => $assessment->application_id,
+                    'assessment_id' => $id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                // Don't fail the request if application update fails, but log it
+            }
+            
+            // Send notifications to relevant users
+            try {
+                $this->sendFinalizationNotifications($assessment, $request->user());
+            } catch (\Exception $e) {
+                Log::error('Failed to send finalization notifications', [
+                    'assessment_id' => $id,
+                    'error' => $e->getMessage()
+                ]);
+                // Don't fail the request if notifications fail
+            }
+            
+            // Get the PDF URL
+            $pdfUrl = Storage::disk('public')->url($path);
+            
+            // If URL doesn't start with http, make it absolute
+            if (!str_starts_with($pdfUrl, 'http')) {
+                $baseUrl = config('app.url', 'http://localhost:8000');
+                $pdfUrl = rtrim($baseUrl, '/') . '/' . ltrim($pdfUrl, '/');
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Assessment finalized successfully. PDF generated.',
+                'assessment' => $assessment->load(['application', 'assessor', 'finalizer']),
+                'pdf_url' => $pdfUrl,
+                'pdf_path' => $path
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Unexpected error in finalizeAssessment', [
+                'assessment_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'An unexpected error occurred while finalizing the assessment.',
+                'error' => $e->getMessage()
+            ], 500);
         }
-        
-        // Generate PDF
-        $pdf = $this->generateAssessmentPDF($assessment);
-        
-        // Save PDF
-        $filename = "assessment_{$assessment->reference_number}.pdf";
-        $path = "assessments/pdfs/{$filename}";
-        Storage::disk('public')->put($path, $pdf->output());
-        
-        // Update assessment
-        $assessment->update([
-            'status' => DisabilityAssessment::STATUS_FINALIZED,
-            'finalized_by' => $request->user()->userID,
-            'finalized_at' => now(),
-            'pdf_path' => $path,
-            'pdf_generated_at' => now()
-        ]);
-        
-        // Update application status
-        $assessment->application->update([
-            'assessment_status' => 'finalized',
-            'assessment_pdf_path' => $path
-        ]);
-        
-        return response()->json([
-            'message' => 'Assessment finalized successfully',
-            'assessment' => $assessment->load(['application', 'assessor', 'finalizer']),
-            'pdf_url' => Storage::disk('public')->url($path)
-        ]);
     }
 
     /**
@@ -545,17 +676,36 @@ class DisabilityAssessmentController extends Controller
      */
     private function generateAssessmentPDF($assessment)
     {
-        $data = [
-            'assessment' => $assessment,
-            'application' => $assessment->application,
-            'timeSlots' => DisabilityAssessment::getTimeSlots(),
-            'generatedAt' => now()->format('F d, Y h:i A')
-        ];
+        // Ensure application is loaded
+        if (!$assessment->relationLoaded('application')) {
+            $assessment->load('application');
+        }
         
-        $pdf = PDF::loadView('pdfs.disability-assessment', $data);
-        $pdf->setPaper('letter', 'portrait');
+        if (!$assessment->application) {
+            throw new \Exception('Application not found for this assessment. Cannot generate PDF.');
+        }
         
-        return $pdf;
+        try {
+            $data = [
+                'assessment' => $assessment,
+                'application' => $assessment->application,
+                'timeSlots' => DisabilityAssessment::getTimeSlots(),
+                'generatedAt' => now()->format('F d, Y h:i A')
+            ];
+            
+            // Use PDF generator - use app() helper to resolve the facade
+            $pdf = app('dompdf.wrapper')->loadView('pdfs.disability-assessment', $data);
+            $pdf->setPaper('letter', 'portrait');
+            
+            return $pdf;
+        } catch (\Exception $e) {
+            Log::error('Error in generateAssessmentPDF', [
+                'assessment_id' => $assessment->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -587,6 +737,119 @@ class DisabilityAssessmentController extends Controller
             Log::error('Failed to send assessment invite email', [
                 'assessment_id' => $assessment->id,
                 'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Send notifications when assessment is finalized
+     */
+    private function sendFinalizationNotifications($assessment, $finalizedBy)
+    {
+        try {
+            $application = $assessment->application;
+            $applicantName = $assessment->applicant_name;
+            $finalizerName = $finalizedBy->username ?? 'Admin';
+            
+            // Notify the applicant (PWD Member) if they have a user account
+            if ($application && $application->pwdID) {
+                try {
+                    NotificationService::create(
+                        $application->pwdID,
+                        'assessment_finalized',
+                        'Disability Assessment Finalized',
+                        "Your disability assessment (Ref: {$assessment->reference_number}) has been finalized. The assessment PDF is now available for review.",
+                        [
+                            'assessment_id' => $assessment->id,
+                            'reference_number' => $assessment->reference_number,
+                            'applicant_name' => $applicantName,
+                            'finalized_by' => $finalizerName,
+                            'finalized_at' => $assessment->finalized_at ? $assessment->finalized_at->toIso8601String() : null,
+                            'pdf_path' => $assessment->pdf_path,
+                            'timestamp' => now()->toIso8601String()
+                        ]
+                    );
+                } catch (\Exception $e) {
+                    Log::error('Failed to notify applicant about assessment finalization', [
+                        'assessment_id' => $assessment->id,
+                        'pwd_id' => $application->pwdID,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            // Notify all Admins and SuperAdmins
+            try {
+                NotificationService::notifyAdmins(
+                    'assessment_finalized',
+                    'Disability Assessment Finalized',
+                    "Disability assessment for {$applicantName} (Ref: {$assessment->reference_number}) has been finalized by {$finalizerName}. The assessment PDF is ready for review.",
+                    [
+                        'assessment_id' => $assessment->id,
+                        'reference_number' => $assessment->reference_number,
+                        'applicant_name' => $applicantName,
+                        'application_id' => $application->applicationID ?? null,
+                        'finalized_by' => $finalizedBy->userID,
+                        'finalizer_name' => $finalizerName,
+                        'finalized_at' => $assessment->finalized_at?->toIso8601String(),
+                        'pdf_path' => $assessment->pdf_path,
+                        'timestamp' => now()->toIso8601String()
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::error('Failed to notify admins about assessment finalization', [
+                    'assessment_id' => $assessment->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+            
+            // Notify Barangay President if application has a barangay
+            if ($application && $application->barangay) {
+                try {
+                    // Use BarangayPresident model directly to avoid relationship issues
+                    $barangayPresidents = BarangayPresident::where('barangay', $application->barangay)
+                        ->pluck('userID')
+                        ->toArray();
+                    
+                    if (!empty($barangayPresidents)) {
+                        NotificationService::createMultiple(
+                            $barangayPresidents,
+                            'assessment_finalized',
+                            'Disability Assessment Finalized',
+                            "Disability assessment for {$applicantName} from {$application->barangay} (Ref: {$assessment->reference_number}) has been finalized. The assessment PDF is ready for review.",
+                            [
+                                'assessment_id' => $assessment->id,
+                                'reference_number' => $assessment->reference_number,
+                                'applicant_name' => $applicantName,
+                                'barangay' => $application->barangay,
+                                'application_id' => $application->applicationID ?? null,
+                                'finalized_by' => $finalizedBy->userID,
+                                'finalizer_name' => $finalizerName,
+                                'finalized_at' => $assessment->finalized_at ? $assessment->finalized_at->toIso8601String() : null,
+                                'pdf_path' => $assessment->pdf_path,
+                                'timestamp' => now()->toIso8601String()
+                            ]
+                        );
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Failed to notify barangay president about assessment finalization', [
+                        'assessment_id' => $assessment->id,
+                        'barangay' => $application->barangay ?? 'N/A',
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                }
+            }
+            
+            Log::info('Finalization notifications sent successfully', [
+                'assessment_id' => $assessment->id,
+                'reference_number' => $assessment->reference_number
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending finalization notifications', [
+                'assessment_id' => $assessment->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
         }
     }
@@ -762,6 +1025,9 @@ class DisabilityAssessmentController extends Controller
         // Send new scheduling confirmation email
         $this->sendReschedulingConfirmationEmail($assessment);
         
+        // Notify admins about rescheduled assessment (applicant rescheduled via token)
+        $this->notifyAdminsAboutRescheduledAssessment($assessment, true);
+        
         return response()->json([
             'message' => 'Assessment rescheduled successfully',
             'assessment' => $assessment->load('application')
@@ -845,6 +1111,9 @@ class DisabilityAssessmentController extends Controller
         // Send new scheduling confirmation email
         $this->sendReschedulingConfirmationEmail($assessment);
         
+        // Notify admins about rescheduled assessment (applicant rescheduled)
+        $this->notifyAdminsAboutRescheduledAssessment($assessment, true);
+        
         return response()->json([
             'message' => 'Assessment rescheduled successfully',
             'assessment' => $assessment->load('application')
@@ -922,14 +1191,29 @@ class DisabilityAssessmentController extends Controller
             'status' => DisabilityAssessment::STATUS_UPLOADED
         ]);
         
-        // Update application
-        $assessment->application->update([
-            'assessment_status' => 'uploaded',
-            'assessment_pdf_path' => $path
-        ]);
+        // Load application relationship if not loaded
+        if (!$assessment->relationLoaded('application')) {
+            $assessment->load('application');
+        }
+        
+        // Update application status to make it ready for approval
+        if ($assessment->application) {
+            $assessment->application->update([
+                'assessment_status' => 'uploaded',
+                'assessment_pdf_path' => $path,
+                'status' => 'Pending Admin Approval' // Set to Pending Admin Approval so it's ready for approval
+            ]);
+            
+            Log::info('Application status updated after PDF upload - ready for approval', [
+                'application_id' => $assessment->application->applicationID,
+                'assessment_id' => $id,
+                'new_status' => 'Pending Admin Approval'
+            ]);
+        }
         
         return response()->json([
-            'message' => 'PDF uploaded successfully',
+            'success' => true,
+            'message' => 'PDF uploaded successfully. Application is now ready for approval.',
             'assessment' => $assessment->load('application'),
             'pdf_url' => Storage::disk('public')->url($path)
         ]);
@@ -1045,6 +1329,97 @@ class DisabilityAssessmentController extends Controller
             Log::info('Rescheduling confirmation email sent', ['assessment_id' => $assessment->id]);
         } catch (\Exception $e) {
             Log::error('Failed to send rescheduling confirmation email', [
+                'assessment_id' => $assessment->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Notify admins about scheduled assessment
+     */
+    private function notifyAdminsAboutScheduledAssessment($assessment)
+    {
+        try {
+            $timeSlots = DisabilityAssessment::getTimeSlots();
+            $timeSlot = $timeSlots[$assessment->slot_number] ?? 'TBD';
+            $assessmentDate = Carbon::parse($assessment->assessment_date)->format('F d, Y');
+            
+            NotificationService::notifyAdmins(
+                'assessment_scheduled',
+                'Disability Assessment Scheduled',
+                "A disability assessment has been scheduled for {$assessment->applicant_name} (Ref: {$assessment->reference_number}). Date: {$assessmentDate} at {$timeSlot}",
+                [
+                    'assessment_id' => $assessment->id,
+                    'reference_number' => $assessment->reference_number,
+                    'applicant_name' => $assessment->applicant_name,
+                    'application_id' => $assessment->application_id,
+                    'assessment_date' => $assessment->assessment_date,
+                    'slot_number' => $assessment->slot_number,
+                    'time_slot' => $timeSlot,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            );
+            
+            Log::info('Admin notification sent for scheduled assessment', [
+                'assessment_id' => $assessment->id,
+                'reference_number' => $assessment->reference_number
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send admin notification for scheduled assessment', [
+                'assessment_id' => $assessment->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Notify admins about rescheduled assessment
+     */
+    private function notifyAdminsAboutRescheduledAssessment($assessment, $isApplicantReschedule = false)
+    {
+        try {
+            $timeSlots = DisabilityAssessment::getTimeSlots();
+            $timeSlot = $timeSlots[$assessment->slot_number] ?? 'TBD';
+            $newDate = Carbon::parse($assessment->assessment_date)->format('F d, Y');
+            $originalDate = $assessment->original_assessment_date 
+                ? Carbon::parse($assessment->original_assessment_date)->format('F d, Y') 
+                : 'N/A';
+            
+            $rescheduledBy = $isApplicantReschedule ? 'applicant' : 'admin';
+            $title = 'Disability Assessment Rescheduled';
+            $message = "A disability assessment has been rescheduled for {$assessment->applicant_name} (Ref: {$assessment->reference_number}). ";
+            $message .= "New Date: {$newDate} at {$timeSlot}";
+            if ($originalDate !== 'N/A') {
+                $message .= " (Originally: {$originalDate})";
+            }
+            $message .= ". Rescheduled by: " . ($isApplicantReschedule ? 'Applicant' : 'Admin');
+            
+            NotificationService::notifyAdmins(
+                'assessment_rescheduled',
+                $title,
+                $message,
+                [
+                    'assessment_id' => $assessment->id,
+                    'reference_number' => $assessment->reference_number,
+                    'applicant_name' => $assessment->applicant_name,
+                    'application_id' => $assessment->application_id,
+                    'new_assessment_date' => $assessment->assessment_date,
+                    'original_assessment_date' => $assessment->original_assessment_date,
+                    'slot_number' => $assessment->slot_number,
+                    'time_slot' => $timeSlot,
+                    'rescheduled_by' => $rescheduledBy,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            );
+            
+            Log::info('Admin notification sent for rescheduled assessment', [
+                'assessment_id' => $assessment->id,
+                'reference_number' => $assessment->reference_number,
+                'rescheduled_by' => $rescheduledBy
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send admin notification for rescheduled assessment', [
                 'assessment_id' => $assessment->id,
                 'error' => $e->getMessage()
             ]);

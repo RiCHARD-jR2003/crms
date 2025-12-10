@@ -17,6 +17,7 @@ import {
   DialogActions
 } from '@mui/material';
 import passwordService from '../../services/passwordService';
+import toastService from '../../services/toastService';
 
 function ChangePassword({ open, onClose }) {
   const [formData, setFormData] = useState({
@@ -66,12 +67,18 @@ function ChangePassword({ open, onClose }) {
         return;
       }
 
+      // Show loading toast
+      toastService.process.changingPassword();
+
       const result = await passwordService.changePassword(
         formData.currentPassword,
         formData.newPassword,
         formData.confirmPassword
       );
 
+      // Dismiss loading toast and show success
+      toastService.dismiss();
+      toastService.process.passwordChanged();
       setSuccess('Password changed successfully!');
       
       // Clear form
@@ -88,6 +95,9 @@ function ChangePassword({ open, onClose }) {
       }, 2000);
 
     } catch (err) {
+      // Dismiss loading toast and show error
+      toastService.dismiss();
+      toastService.process.passwordChangeFailed(err.error || 'Failed to change password. Please try again.');
       setError(err.error || 'Failed to change password. Please try again.');
     } finally {
       setLoading(false);

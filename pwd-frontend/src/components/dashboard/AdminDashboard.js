@@ -124,8 +124,6 @@ function AdminDashboard() {
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [disabilityLoading, setDisabilityLoading] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState(null);
-  const [migrating, setMigrating] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [cardDetailsData, setCardDetailsData] = useState([]);
@@ -497,44 +495,6 @@ function AdminDashboard() {
     );
   };
 
-  // Document migration functions
-  const fetchMigrationStatus = async () => {
-    try {
-      const response = await api.get('/admin/migration-status');
-      if (response.success) {
-        setMigrationStatus(response.data);
-      }
-    } catch (error) {
-      console.error('Error fetching migration status:', error);
-    }
-  };
-
-  const handleMigrateDocuments = async () => {
-    const confirmed = await toastService.confirmAsync(
-      'Confirm Document Migration',
-      'This will migrate all application documents to the member documents system. Are you sure you want to continue?'
-    );
-    
-    if (!confirmed) {
-      return;
-    }
-
-    setMigrating(true);
-    try {
-      const response = await api.post('/admin/migrate-documents');
-      if (response.success) {
-        toastService.success(`Migration completed successfully!\nMigrated ${response.data.migrated_documents} documents\nSkipped ${response.data.skipped_applications} applications`);
-        await fetchMigrationStatus();
-      } else {
-        toastService.error('Migration failed: ' + response.message);
-      }
-    } catch (error) {
-      console.error('Error migrating documents:', error);
-      toastService.error('Migration failed: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setMigrating(false);
-    }
-  };
 
 
   const getActivityIcon = (iconType) => {
@@ -602,7 +562,6 @@ function AdminDashboard() {
           }
         }
         setStats(finalStats);
-        await fetchMigrationStatus();
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
         // Keep default values if API fails
@@ -1773,58 +1732,6 @@ function AdminDashboard() {
         </Card>
       </Grid>
 
-      {/* Document Migration Section */}
-      <Grid item xs={12}>
-        <Card sx={cardStyles}>
-          <CardContent sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <SettingsIcon sx={{ color: '#E74C3C', fontSize: 24 }} />
-              <Typography sx={{ fontWeight: 700, color: '#2C3E50', fontSize: '1.2rem' }}>
-                Document Migration
-              </Typography>
-            </Box>
-            
-            <Typography variant="body2" sx={{ color: '#000000', mb: 3 }}>
-              Migrate application documents to the member documents system. This will make documents submitted during the application process visible in the "My Documents" section.
-            </Typography>
-
-            {migrationStatus && (
-              <Box sx={{ mb: 3, p: 2, backgroundColor: '#F8F9FA', borderRadius: 2 }}>
-                <Typography variant="body2" sx={{ color: '#000000', mb: 1 }}>
-                  <strong>Migration Status:</strong>
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
-                  • Approved Applications: {migrationStatus.approved_applications}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
-                  • Total Member Documents: {migrationStatus.total_member_documents}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#000000' }}>
-                  • Required Documents: {migrationStatus.required_documents}
-                </Typography>
-              </Box>
-            )}
-
-            <Button
-              variant="contained"
-              onClick={handleMigrateDocuments}
-              disabled={migrating}
-              startIcon={migrating ? <CircularProgress size={20} /> : <SettingsIcon />}
-              sx={{
-                bgcolor: '#E74C3C',
-                color: 'white',
-                textTransform: 'none',
-                fontWeight: 600,
-                px: 3,
-                '&:hover': { bgcolor: '#C0392B' },
-                '&:disabled': { bgcolor: '#BDC3C7' }
-              }}
-            >
-              {migrating ? 'Migrating Documents...' : 'Migrate Application Documents'}
-            </Button>
-          </CardContent>
-        </Card>
-      </Grid>
     </Grid>
   );
 

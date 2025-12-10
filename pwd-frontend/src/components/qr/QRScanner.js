@@ -814,20 +814,38 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
           handleClose();
         }, 2500);
       } else if (response.error) {
-        // Handle duplicate error (409 Conflict)
+        // Handle different error types
         let errorMsg = response.error || 'Failed to claim benefits';
         
-        // If there are duplicate errors, show detailed message
-        if (response.duplicate_errors && response.duplicate_errors.length > 0) {
+        // Handle date validation errors
+        if (response.error_type === 'not_scheduled' || response.error_type === 'expired' || response.error_type === 'date_validation_failed') {
+          // Show user-friendly date validation error
+          if (response.date_errors && response.date_errors.length > 0) {
+            const dateErrorDetails = response.date_errors.map(err => 
+              `• ${err.benefit_title}: ${err.error}`
+            ).join('\n');
+            errorMsg = `${errorMsg}\n\n${dateErrorDetails}`;
+          } else if (response.distribution_date || response.expiry_date) {
+            // Single benefit date error
+            errorMsg = response.error;
+          }
+          
+          toastService.error(errorMsg, 10000); // Show longer for date errors
+          setError(errorMsg);
+        } else if (response.duplicate_errors && response.duplicate_errors.length > 0) {
+          // Handle duplicate error (409 Conflict)
           const duplicateDetails = response.duplicate_errors.map(err => 
             `• ${err.benefit_title}: Already claimed on ${err.previous_claim_date || 'Unknown date'}`
           ).join('\n');
           
           errorMsg = `${errorMsg}\n\n${duplicateDetails}`;
+          toastService.error(errorMsg, 8000);
+          setError(errorMsg);
+        } else {
+          // Generic error
+          toastService.error(errorMsg, 8000);
+          setError(errorMsg);
         }
-        
-        toastService.error(errorMsg, 8000);
-        setError(errorMsg);
       } else {
         const errorMsg = 'Unexpected response from server. Please check console for details.';
         setError(errorMsg);

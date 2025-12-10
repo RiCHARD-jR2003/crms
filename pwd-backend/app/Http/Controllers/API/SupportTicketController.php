@@ -185,6 +185,30 @@ class SupportTicketController extends Controller
 
             SupportTicketMessage::create($messageData);
 
+            // Notify admins about new support ticket
+            try {
+                $memberName = trim(($pwdMember->firstName ?? '') . ' ' . ($pwdMember->lastName ?? ''));
+                \App\Services\NotificationService::notifyAdmins(
+                    'support_ticket_reply',
+                    'New Support Ticket Created',
+                    "A new support ticket has been created by {$memberName}. Ticket #{$ticket->ticket_number}: {$request->subject}",
+                    [
+                        'ticket_id' => $ticket->id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'ticket_subject' => $ticket->subject,
+                        'member_name' => $memberName,
+                        'priority' => $priority,
+                        'category' => $request->category,
+                        'timestamp' => now()->toIso8601String()
+                    ]
+                );
+            } catch (\Exception $notifError) {
+                \Illuminate\Support\Facades\Log::error('Failed to send admin notification for new ticket', [
+                    'ticket_id' => $ticket->id,
+                    'error' => $notifError->getMessage()
+                ]);
+            }
+
             return response()->json([
                 'message' => 'Support ticket created successfully',
                 'ticket' => $ticket->load(['messages'])
@@ -520,18 +544,18 @@ class SupportTicketController extends Controller
             if ($user->role === 'Admin' || $user->role === 'FrontDesk') {
                 $pwdMember = PWDMember::find($ticket->pwd_member_id);
                 if ($pwdMember) {
-                    Notification::create([
-                        'user_id' => $pwdMember->userID,
-                        'type' => 'support_ticket_reply',
-                        'title' => 'New Reply to Your Support Ticket',
-                        'message' => 'An admin has replied to your support ticket: "' . $ticket->subject . '"',
-                        'data' => [
+                    \App\Services\NotificationService::create(
+                        $pwdMember->userID,
+                        'support_ticket_reply',
+                        'New Reply to Your Support Ticket',
+                        'An admin has replied to your support ticket: "' . $ticket->subject . '"',
+                        [
                             'ticket_id' => $ticket->id,
                             'ticket_number' => $ticket->ticket_number,
                             'ticket_subject' => $ticket->subject,
                             'admin_name' => $user->username ?? 'Admin'
                         ]
-                    ]);
+                    );
                 }
             }
 

@@ -59,27 +59,51 @@ class DocumentManagementController extends Controller
 
     public function getPublicDocuments()
     {
-        // Public endpoint for application form - returns only active documents within date range
-        $documents = Cache::remember('documents.public', now()->addMinutes(10), function () {
-            return RequiredDocument::active()
-                ->where(function($query) {
-                    $query->whereNull('effective_date')
-                          ->orWhere('effective_date', '<=', now());
-                })
-                ->where(function($query) {
-                    $query->whereNull('expiry_date')
-                          ->orWhere('expiry_date', '>=', now());
-                })
-                ->orderBy('created_at', 'desc')
-                ->get()
-                ->unique('name') // Remove duplicates based on document name
-                ->values(); // Re-index array
-        });
+        try {
+            // Public endpoint for application form - returns only active documents within date range
+            $documents = Cache::remember('documents.public', now()->addMinutes(10), function () {
+                try {
+                    return RequiredDocument::active()
+                        ->where(function($query) {
+                            $query->whereNull('effective_date')
+                                  ->orWhere('effective_date', '<=', now());
+                        })
+                        ->where(function($query) {
+                            $query->whereNull('expiry_date')
+                                  ->orWhere('expiry_date', '>=', now());
+                        })
+                        ->orderBy('created_at', 'desc')
+                        ->get()
+                        ->unique('name') // Remove duplicates based on document name
+                        ->values(); // Re-index array
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error fetching public documents', [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    return collect([]); // Return empty collection on error
+                }
+            });
 
-        return response()->json([
-            'success' => true,
-            'documents' => $documents
-        ]);
+            return response()->json([
+                'success' => true,
+                'documents' => $documents
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('getPublicDocuments error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            // Return empty documents array instead of 500 error
+            return response()->json([
+                'success' => true,
+                'documents' => [],
+                'message' => 'No documents found',
+                'warning' => 'Database query failed. Please check backend logs.'
+            ], 200);
+        }
     }
 
     public function store(Request $request)
@@ -358,6 +382,37 @@ class DocumentManagementController extends Controller
             Cache::forget("documents.member.{$memberId}");
             Cache::forget('documents.pending_reviews');
 
+            // Notify admins about new document upload
+            try {
+                $member = \App\Models\PWDMember::where('userID', $memberId)->first();
+                if ($member) {
+                    $memberFirstName = $member->firstName ?? '';
+                    $memberLastName = $member->lastName ?? '';
+                    $memberPwdId = $member->pwd_id ?? 'N/A';
+                    $memberName = trim($memberFirstName . ' ' . $memberLastName);
+                    \App\Services\NotificationService::notifyAdmins(
+                        'document_upload',
+                        'New Document Uploaded',
+                        "A new document '{$requiredDocument->name}' has been uploaded by {$memberName} (PWD ID: {$memberPwdId}). Status: Pending Review",
+                        [
+                            'document_id' => $memberDocument->id,
+                            'required_document_id' => $requiredDocument->id,
+                            'document_name' => $requiredDocument->name,
+                            'member_id' => $memberId,
+                            'member_name' => $memberName,
+                            'pwd_id' => $memberPwdId,
+                            'status' => 'pending',
+                            'uploaded_at' => now()->toIso8601String()
+                        ]
+                    );
+                }
+            } catch (\Exception $notifError) {
+                \Illuminate\Support\Facades\Log::error('Failed to send admin notification for document upload', [
+                    'document_id' => $memberDocument->id ?? null,
+                    'error' => $notifError->getMessage()
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Document uploaded successfully',
@@ -577,6 +632,8 @@ class DocumentManagementController extends Controller
         }
 
         $memberDocument = MemberDocument::findOrFail($id);
+        $requiredDocument = $memberDocument->requiredDocument;
+        $member = $memberDocument->member;
         
         $memberDocument->update([
             'status' => $request->status,
@@ -588,6 +645,50 @@ class DocumentManagementController extends Controller
         // Clear caches
         Cache::forget("documents.member.{$memberDocument->member_id}");
         Cache::forget('documents.pending_reviews');
+
+        // Notify other admins about document review completion
+        try {
+            if ($member && $requiredDocument) {
+                $memberFirstName = $member->firstName ?? '';
+                $memberLastName = $member->lastName ?? '';
+                $memberPwdId = $member->pwd_id ?? 'N/A';
+                $memberName = trim($memberFirstName . ' ' . $memberLastName);
+                $reviewerName = $request->user()->username ?? 'Admin';
+                
+                // Only notify other admins (not the one who reviewed)
+                $adminIds = \App\Models\User::whereIn('role', ['Admin', 'SuperAdmin'])
+                    ->where('userID', '!=', $request->user()->userID)
+                    ->pluck('userID')
+                    ->toArray();
+                
+                if (!empty($adminIds)) {
+                    \App\Services\NotificationService::createMultiple(
+                        $adminIds,
+                        'document_review',
+                        'Document Review Completed',
+                        "Document '{$requiredDocument->name}' for {$memberName} (PWD ID: {$memberPwdId}) has been {$request->status} by {$reviewerName}.",
+                        [
+                            'document_id' => $memberDocument->id,
+                            'required_document_id' => $requiredDocument->id,
+                            'document_name' => $requiredDocument->name,
+                            'member_id' => $member->userID,
+                            'member_name' => $memberName,
+                            'pwd_id' => $memberPwdId,
+                            'status' => $request->status,
+                            'reviewed_by' => $request->user()->userID,
+                            'reviewer_name' => $reviewerName,
+                            'notes' => $request->notes,
+                            'timestamp' => now()->toIso8601String()
+                        ]
+                    );
+                }
+            }
+        } catch (\Exception $notifError) {
+            \Illuminate\Support\Facades\Log::error('Failed to send admin notification for document review', [
+                'document_id' => $id,
+                'error' => $notifError->getMessage()
+            ]);
+        }
 
         return response()->json([
             'success' => true,

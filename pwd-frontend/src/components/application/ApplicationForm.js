@@ -1,5 +1,5 @@
 // src/components/application/ApplicationForm.js
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -144,6 +144,11 @@ function ApplicationForm() {
   const [duplicateErrors, setDuplicateErrors] = useState({});
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [datePickerField, setDatePickerField] = useState(null);
+  const [datePickerValue, setDatePickerValue] = useState('');
+  const disabilityDateInputRef = useRef(null);
+  const dateOfBirthInputRef = useRef(null);
   
   // Success modal
   const { modalOpen, modalConfig, showModal, hideModal } = useModal();
@@ -209,17 +214,133 @@ function ApplicationForm() {
     }
   });
 
-  // Format date as DD/MM/YYYY for disability onset
-  const formatDateDDMMYYYY = (dateString) => {
-    if (!dateString) return null;
+  // Format date as MM/DD/YYYY for display
+  const formatDateMMDDYYYY = (dateString) => {
+    if (!dateString) return '';
+    // If already in mm/dd/yyyy format, return as is
+    if (typeof dateString === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
+      return dateString;
+    }
+    // If it's an ISO date string (YYYY-MM-DD), convert to MM/DD/YYYY
+    if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      const [year, month, day] = dateString.split('-');
+      return `${month}/${day}/${year}`;
+    }
+    // Try parsing as Date object
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return null;
+    if (isNaN(date.getTime())) return '';
     
-    const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     const year = date.getFullYear();
     
-    return `${day}/${month}/${year}`;
+    return `${month}/${day}/${year}`;
+  };
+
+  // Parse MM/DD/YYYY to ISO format (YYYY-MM-DD)
+  const parseDateMMDDYYYY = (dateString) => {
+    if (!dateString) return '';
+    // Remove any non-digit characters except slashes
+    const cleaned = dateString.replace(/[^\d/]/g, '');
+    
+    // Check if it matches mm/dd/yyyy format
+    const mmddyyyyMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mmddyyyyMatch) {
+      const [, month, day, year] = mmddyyyyMatch;
+      const monthNum = parseInt(month, 10);
+      const dayNum = parseInt(day, 10);
+      const yearNum = parseInt(year, 10);
+      
+      // Validate month and day
+      if (monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+        // Return ISO format for storage
+        return `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+      }
+    }
+    
+    // If already in ISO format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString;
+    }
+    
+    return '';
+  };
+
+  // Format date input as user types (mm/dd/yyyy)
+  const handleDateInputChange = (field, value) => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    let formatted = '';
+    if (digits.length > 0) {
+      // Add first two digits (month)
+      formatted = digits.substring(0, 2);
+      if (digits.length > 2) {
+        // Add slash and next two digits (day)
+        formatted += '/' + digits.substring(2, 4);
+        if (digits.length > 4) {
+          // Add slash and remaining digits (year, max 4)
+          formatted += '/' + digits.substring(4, 8);
+        }
+      }
+    }
+    
+    // Update the display value (store formatted mm/dd/yyyy)
+    setFormData(prev => ({ ...prev, [field]: formatted }));
+    
+    // Clear existing error for this field
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    
+    // Real-time validation (validate using formatted string, function will parse it)
+    if (formatted && formatted.length >= 10) {
+      if (field === 'dateOfBirth') {
+        const dateError = validateDateOfBirth(formatted);
+        if (dateError) {
+          setErrors(prev => ({ ...prev, [field]: dateError }));
+        }
+      } else if (field === 'disabilityDate') {
+        const disabilityDateError = validateDisabilityDate(formatted);
+        if (disabilityDateError) {
+          setErrors(prev => ({ ...prev, [field]: disabilityDateError }));
+        }
+      }
+    }
+  };
+
+  // Handle calendar icon click - open native date picker
+  const handleCalendarClick = (field) => {
+    if (field === 'disabilityDate') {
+      // Trigger native date picker for disability date
+      if (disabilityDateInputRef.current) {
+        disabilityDateInputRef.current.showPicker();
+      }
+    } else if (field === 'dateOfBirth') {
+      // Trigger native date picker for date of birth
+      if (dateOfBirthInputRef.current) {
+        dateOfBirthInputRef.current.showPicker();
+      }
+    }
+  };
+
+  // Handle date selection from picker
+  const handleDatePickerChange = (isoDate) => {
+    if (isoDate) {
+      // Convert ISO date to mm/dd/yyyy format
+      const formattedDate = formatDateMMDDYYYY(isoDate);
+      handleDateInputChange(datePickerField, formattedDate);
+    }
+    setDatePickerOpen(false);
+    setDatePickerField(null);
+    setDatePickerValue('');
+  };
+
+  // Handle date picker close
+  const handleDatePickerClose = () => {
+    setDatePickerOpen(false);
+    setDatePickerField(null);
+    setDatePickerValue('');
   };
 
 
@@ -313,13 +434,13 @@ function ApplicationForm() {
           lastName: parsedData.lastName ?? '',
           middleName: parsedData.middleName ?? '',
           suffix: parsedData.suffix ?? '',
-          dateOfBirth: parsedData.dateOfBirth ?? '',
+          dateOfBirth: parsedData.dateOfBirth ? formatDateMMDDYYYY(parsedData.dateOfBirth) : '',
           gender: parsedData.gender ?? '',
           civilStatus: parsedData.civilStatus ?? '',
           nationality: parsedData.nationality ?? '',
           disabilityType: parsedData.disabilityType ?? '',
           disabilityCause: parsedData.disabilityCause ?? '',
-          disabilityDate: parsedData.disabilityDate ?? '',
+          disabilityDate: parsedData.disabilityDate ? formatDateMMDDYYYY(parsedData.disabilityDate) : '',
           address: parsedData.address ?? '',
           barangay: parsedData.barangay ?? '',
           city: parsedData.city ?? 'Cabuyao',
@@ -378,21 +499,7 @@ function ApplicationForm() {
       setDuplicateErrors(prev => ({ ...prev, [field]: '' }));
     }
     
-    // Real-time validation for date of birth
-    if (field === 'dateOfBirth' && value) {
-      const dateError = validateDateOfBirth(value);
-      if (dateError) {
-        setErrors(prev => ({ ...prev, [field]: dateError }));
-      }
-    }
-    
-    // Real-time validation for disability date
-    if (field === 'disabilityDate' && value) {
-      const disabilityDateError = validateDisabilityDate(value);
-      if (disabilityDateError) {
-        setErrors(prev => ({ ...prev, [field]: disabilityDateError }));
-      }
-    }
+    // Note: Date validation is handled in handleDateInputChange for date fields
     
     // Check for duplicates on key fields
     if (['email', 'phoneNumber'].includes(field) && value) {
@@ -616,8 +723,14 @@ function ApplicationForm() {
   // Calculate age from date of birth
   const calculateAge = (dateOfBirth) => {
     if (!dateOfBirth) return null;
+    // Convert mm/dd/yyyy to ISO format if needed
+    const isoDate = parseDateMMDDYYYY(dateOfBirth);
+    if (!isoDate) return null;
+    
     const today = new Date();
-    const birthDate = new Date(dateOfBirth);
+    const birthDate = new Date(isoDate);
+    if (isNaN(birthDate.getTime())) return null;
+    
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
@@ -636,9 +749,20 @@ function ApplicationForm() {
   const validateDateOfBirth = (dateOfBirth) => {
     if (!dateOfBirth) return 'Date of Birth is required';
     
+    // Convert mm/dd/yyyy to ISO format if needed
+    const isoDate = parseDateMMDDYYYY(dateOfBirth);
+    if (!isoDate) {
+      return 'Please enter a valid date in mm/dd/yyyy format';
+    }
+    
     const today = new Date();
-    const birthDate = new Date(dateOfBirth);
+    const birthDate = new Date(isoDate);
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    
+    // Check if date is valid
+    if (isNaN(birthDate.getTime())) {
+      return 'Please enter a valid date in mm/dd/yyyy format';
+    }
     
     // Check if date is in the future
     if (birthDate > today) {
@@ -651,7 +775,7 @@ function ApplicationForm() {
     }
     
     // Check if person is too old (more than 120 years)
-    const age = calculateAge(dateOfBirth);
+    const age = calculateAge(isoDate);
     if (age > 120) {
       return 'Please enter a valid date of birth (maximum age is 120 years)';
     }
@@ -663,9 +787,20 @@ function ApplicationForm() {
   const validateDisabilityDate = (disabilityDate) => {
     if (!disabilityDate) return null; // Optional field
     
+    // Convert mm/dd/yyyy to ISO format if needed
+    const isoDate = parseDateMMDDYYYY(disabilityDate);
+    if (!isoDate) {
+      return 'Please enter a valid date in mm/dd/yyyy format';
+    }
+    
     const today = new Date();
-    const disabilityOnsetDate = new Date(disabilityDate);
+    const disabilityOnsetDate = new Date(isoDate);
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    
+    // Check if date is valid
+    if (isNaN(disabilityOnsetDate.getTime())) {
+      return 'Please enter a valid date in mm/dd/yyyy format';
+    }
     
     // Check if date is in the future
     if (disabilityOnsetDate > today) {
@@ -713,7 +848,7 @@ function ApplicationForm() {
         if (!formData.emergencyPhone) currentErrors.emergencyPhone = 'Guardian Phone Number is required';
         if (!formData.emergencyRelationship) currentErrors.emergencyRelationship = 'Relationship to Guardian is required';
          
-         // Validate date of birth with comprehensive checks
+         // Validate date of birth with comprehensive checks (handles mm/dd/yyyy format)
          const dateOfBirthError = validateDateOfBirth(formData.dateOfBirth);
          if (dateOfBirthError) currentErrors.dateOfBirth = dateOfBirthError;
          
@@ -727,7 +862,7 @@ function ApplicationForm() {
       case 2: // Disability Details
         if (!formData.disabilityType) currentErrors.disabilityType = 'Type of Disability is required';
         
-        // Validate disability date if provided
+        // Validate disability date if provided (handles mm/dd/yyyy format)
         if (formData.disabilityDate) {
           const disabilityDateError = validateDisabilityDate(formData.disabilityDate);
           if (disabilityDateError) currentErrors.disabilityDate = disabilityDateError;
@@ -816,15 +951,15 @@ function ApplicationForm() {
         lastName: formData.lastName,
         middleName: formData.middleName,
         suffix: formData.suffix,
-        // Send both keys to satisfy different backend validators
-        birthDate: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString().slice(0,10) : '',
-        dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString().slice(0,10) : '',
+        // Convert mm/dd/yyyy to ISO format (YYYY-MM-DD) for backend
+        birthDate: formData.dateOfBirth ? parseDateMMDDYYYY(formData.dateOfBirth) : '',
+        dateOfBirth: formData.dateOfBirth ? parseDateMMDDYYYY(formData.dateOfBirth) : '',
         gender: formData.gender,
         civilStatus: formData.civilStatus,
         nationality: formData.nationality,
         disabilityType: formData.disabilityType,
         disabilityCause: formData.disabilityCause,
-        disabilityDate: formData.disabilityDate,
+        disabilityDate: formData.disabilityDate ? parseDateMMDDYYYY(formData.disabilityDate) : '',
         address: formData.address,
         barangay: formData.barangay,
         city: formData.city,
@@ -1254,22 +1389,65 @@ function ApplicationForm() {
                  />
                </Grid>
                <Grid item xs={12} sm={6}>
+                  <Box sx={{ position: 'relative' }}>
+                    {/* Hidden native date input */}
+                    <input
+                      type="date"
+                      ref={dateOfBirthInputRef}
+                      style={{
+                        position: 'absolute',
+                        opacity: 0,
+                        pointerEvents: 'none',
+                        width: 0,
+                        height: 0
+                      }}
+                      value={formData.dateOfBirth ? parseDateMMDDYYYY(formData.dateOfBirth) : ''}
+                      onChange={(e) => {
+                        const isoDate = e.target.value;
+                        if (isoDate) {
+                          const formattedDate = formatDateMMDDYYYY(isoDate);
+                          handleDateInputChange('dateOfBirth', formattedDate);
+                        } else {
+                          handleDateInputChange('dateOfBirth', '');
+                        }
+                      }}
+                      max={new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                      min={new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0]}
+                    />
                  <TextField
                    fullWidth
-                   type="date"
+                      type="text"
                    label="Date of Birth"
                    value={formData.dateOfBirth ?? ''}
-                   onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                      onChange={(e) => handleDateInputChange('dateOfBirth', e.target.value)}
                    InputLabelProps={{ shrink: true }}
                    error={!!errors.dateOfBirth}
-                   helperText={errors.dateOfBirth || "Must be at least 1 year old (cannot be today or future dates)"}
+                      helperText={errors.dateOfBirth || "Format: mm/dd/yyyy - Must be at least 1 year old (cannot be today or future dates)"}
+                      placeholder="mm/dd/yyyy"
                    required
-                   inputProps={{
-                     max: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Exactly 1 year ago
-                     min: new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0] // First day 120 years ago
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={() => handleCalendarClick('dateOfBirth')}
+                              edge="end"
+                              sx={{ 
+                                color: '#666',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                                  color: '#0b87ac'
+                                }
+                              }}
+                              aria-label="Open date picker"
+                            >
+                              <CalendarIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        )
                    }}
                    sx={getTextFieldStyles(!!errors.dateOfBirth)}
                  />
+                  </Box>
                </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth required error={!!errors.gender}>
@@ -1717,20 +1895,63 @@ function ApplicationForm() {
                  />
                </Grid>
                <Grid item xs={12} sm={6}>
+                  <Box sx={{ position: 'relative' }}>
+                    {/* Hidden native date input */}
+                    <input
+                      type="date"
+                      ref={disabilityDateInputRef}
+                      style={{
+                        position: 'absolute',
+                        opacity: 0,
+                        pointerEvents: 'none',
+                        width: 0,
+                        height: 0
+                      }}
+                      value={formData.disabilityDate ? parseDateMMDDYYYY(formData.disabilityDate) : ''}
+                      onChange={(e) => {
+                        const isoDate = e.target.value;
+                        if (isoDate) {
+                          const formattedDate = formatDateMMDDYYYY(isoDate);
+                          handleDateInputChange('disabilityDate', formattedDate);
+                        } else {
+                          handleDateInputChange('disabilityDate', '');
+                        }
+                      }}
+                      max={new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                    />
                  <TextField
                    fullWidth
-                   type="date"
+                      type="text"
                    label="Date of Disability Onset"
                    value={formData.disabilityDate ?? ''}
-                   onChange={(e) => handleInputChange('disabilityDate', e.target.value)}
+                      onChange={(e) => handleDateInputChange('disabilityDate', e.target.value)}
                    InputLabelProps={{ shrink: true }}
                    error={!!errors.disabilityDate}
-                   helperText={errors.disabilityDate || "Date must be at least 1 week ago (no maximum limit)"}
-                   inputProps={{
-                     max: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 1 week ago
+                      helperText={errors.disabilityDate || "Format: mm/dd/yyyy - Date must be at least 1 week ago (no maximum limit)"}
+                      placeholder="mm/dd/yyyy"
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={() => handleCalendarClick('disabilityDate')}
+                              edge="end"
+                              sx={{ 
+                                color: '#666',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                                  color: '#0b87ac'
+                                }
+                              }}
+                              aria-label="Open date picker"
+                            >
+                              <CalendarIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        )
                    }}
                    sx={getTextFieldStyles(!!errors.disabilityDate)}
                  />
+                  </Box>
                </Grid>
             </Grid>
           </Box>
@@ -2421,6 +2642,127 @@ function ApplicationForm() {
         checkboxChecked={modalConfig.checkboxChecked}
         onCheckboxChange={modalConfig.onCheckboxChange}
       />
+
+      {/* Date Picker Dialog */}
+      <Dialog
+        open={datePickerOpen}
+        onClose={handleDatePickerClose}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            bgcolor: '#FFFFFF'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#0b87ac', 
+          color: '#FFFFFF', 
+          textAlign: 'center',
+          py: 1.5,
+          position: 'relative'
+        }}>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+            {datePickerField === 'dateOfBirth' ? 'Select Date of Birth' : 'Select Date of Disability Onset'}
+          </Typography>
+          <IconButton
+            onClick={handleDatePickerClose}
+            sx={{
+              position: 'absolute',
+              right: 16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#FFFFFF'
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
+            <TextField
+              fullWidth
+              type="date"
+              label={datePickerField === 'dateOfBirth' ? 'Date of Birth' : 'Date of Disability Onset'}
+              value={datePickerValue}
+              onChange={(e) => setDatePickerValue(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              inputProps={{
+                max: datePickerField === 'dateOfBirth' 
+                  ? new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                  : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                min: datePickerField === 'dateOfBirth'
+                  ? new Date(new Date().getFullYear() - 120, 0, 1).toISOString().split('T')[0]
+                  : undefined
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  fontSize: '1.1rem'
+                }
+              }}
+            />
+            <Typography variant="body2" sx={{ color: '#666', textAlign: 'center' }}>
+              {datePickerField === 'dateOfBirth' 
+                ? 'Select a date at least 1 year ago'
+                : 'Select a date at least 1 week ago'}
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ 
+          bgcolor: '#f8f9fa', 
+          px: 3, 
+          py: 2,
+          justifyContent: 'space-between'
+        }}>
+          <Button
+            onClick={handleDatePickerClose}
+            variant="outlined"
+            sx={{
+              color: '#0b87ac',
+              borderColor: '#0b87ac',
+              borderRadius: 2,
+              px: 3,
+              py: 1,
+              fontWeight: 500,
+              textTransform: 'none',
+              '&:hover': {
+                borderColor: '#0a6b8a',
+                backgroundColor: 'rgba(11, 135, 172, 0.1)',
+              },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => handleDatePickerChange(datePickerValue)}
+            variant="contained"
+            disabled={!datePickerValue}
+            sx={{
+              backgroundColor: '#C41E3A',
+              color: 'white',
+              py: 1,
+              px: 3,
+              borderRadius: 2,
+              fontWeight: 600,
+              textTransform: 'none',
+              boxShadow: '0 4px 12px rgba(196, 30, 58, 0.3)',
+              '&:hover': {
+                backgroundColor: '#2C3E50',
+                boxShadow: '0 6px 16px rgba(44, 62, 80, 0.4)',
+              },
+              '&:disabled': {
+                backgroundColor: '#95a5a6',
+                color: 'white'
+              }
+            }}
+          >
+            Select Date
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

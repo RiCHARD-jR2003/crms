@@ -6,6 +6,7 @@
 import { useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { prefetchResource, preloadResource, dnsPrefetch, preconnect, prerenderPage } from '../../utils/lazyLoading';
+import { API_CONFIG } from '../../config/production';
 
 const ResourcePrefetcher = () => {
   const location = useLocation();
@@ -13,8 +14,10 @@ const ResourcePrefetcher = () => {
 
   // Preconnect to important origins
   useEffect(() => {
-    // Preconnect to API endpoints
-    preconnect(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api`);
+    // Preconnect to API endpoints (using tunnel)
+    const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com/api';
+    const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com';
+    preconnect(apiBaseUrl);
     
     // DNS prefetch for external CDNs
     dnsPrefetch('https://fonts.googleapis.com');
@@ -22,7 +25,7 @@ const ResourcePrefetcher = () => {
     dnsPrefetch('https://maps.googleapis.com');
     
     // Preconnect with credentials for authenticated requests
-    preconnect(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}`, {
+    preconnect(storageBaseUrl, {
       crossorigin: 'include'
     });
   }, []);

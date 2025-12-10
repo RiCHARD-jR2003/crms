@@ -21,8 +21,8 @@ class DocumentMigrationController extends Controller
         try {
             Log::info('Document migration started', ['user' => $request->user()]);
             
-            // Check if user is admin
-            if ($request->user()->role !== 'Admin') {
+            // Check if user is admin or superadmin
+            if (!in_array($request->user()->role, ['Admin', 'SuperAdmin'])) {
                 Log::warning('Unauthorized migration attempt', ['user_role' => $request->user()->role]);
                 return response()->json([
                     'success' => false,
@@ -166,8 +166,8 @@ class DocumentMigrationController extends Controller
     public function getMigrationStatus(Request $request)
     {
         try {
-            // Check if user is admin
-            if ($request->user()->role !== 'Admin') {
+            // Check if user is admin or superadmin
+            if (!in_array($request->user()->role, ['Admin', 'SuperAdmin'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized. Only admins can perform this action.'

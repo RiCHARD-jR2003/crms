@@ -46,7 +46,8 @@ class PWDMemberController extends Controller
                 } catch (\Exception $e) {
                     // If table doesn't exist or query fails, return empty collection
                     \Illuminate\Support\Facades\Log::warning('PWDMember query failed, returning empty collection', [
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
                     ]);
                     $members = collect([]);
                 }
@@ -106,7 +107,8 @@ class PWDMemberController extends Controller
                         $approvedApplications = $appsByPwdID->merge($appsByEmail);
                     } catch (\Exception $e) {
                         \Illuminate\Support\Facades\Log::warning('Failed to fetch approved applications', [
-                            'error' => $e->getMessage()
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString()
                         ]);
                     }
                 }
@@ -158,13 +160,19 @@ class PWDMemberController extends Controller
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('PWDMemberController::index error', [
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
+            
+            // Return empty result instead of 500 error to prevent frontend crashes
             return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-                'message' => 'Failed to fetch PWD members'
-            ], 500);
+                'success' => true,
+                'data' => [],
+                'count' => 0,
+                'message' => 'No PWD members found',
+                'warning' => 'Database query failed. Please check backend logs.'
+            ], 200);
         }
     }
 
@@ -231,6 +239,18 @@ class PWDMemberController extends Controller
     }
 
     /**
+     * Calculate business days between two dates (excluding weekends and holidays)
+     *
+     * @param \Carbon\Carbon $startDate
+     * @param \Carbon\Carbon $endDate
+     * @return int
+     */
+    private function calculateBusinessDays($startDate, $endDate)
+    {
+        return \App\Services\HolidayService::countBusinessDays($startDate, $endDate);
+    }
+
+    /**
      * Claim PWD card
      */
     public function claimCard(Request $request, $id)
@@ -258,9 +278,34 @@ class PWDMemberController extends Controller
                 ], 400);
             }
 
+            // Check if 14 business days have passed since approval
+            if ($member->approval_date) {
+                $approvalDate = \Carbon\Carbon::parse($member->approval_date);
+                $today = \Carbon\Carbon::today();
+                $businessDaysPassed = $this->calculateBusinessDays($approvalDate, $today);
+
+                if ($businessDaysPassed < 14) {
+                    $daysRemaining = 14 - $businessDaysPassed;
+                    return response()->json([
+                        'success' => false,
+                        'message' => "ID card is not yet ready for claiming. Please wait {$daysRemaining} more business day(s). The ID will be ready 14 business days after approval.",
+                        'business_days_passed' => $businessDaysPassed,
+                        'days_remaining' => $daysRemaining
+                    ], 400);
+                }
+            } else {
+                // If no approval_date is set, check if notification was sent (for backward compatibility)
+                if (!$member->id_ready_notification_sent_at) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'ID card is not yet ready for claiming. You will receive a notification when your ID is ready (14 business days after approval).'
+                    ], 400);
+                }
+            }
+
             // Set card as claimed
-            $issueDate = now();
-            $expirationDate = now()->addYears(3); // 3 years validity
+            $issueDate = now()->toDateString(); // Format as Y-m-d for date column
+            $expirationDate = now()->addYears(3)->toDateString(); // 3 years validity, format as Y-m-d
 
             $member->update([
                 'cardClaimed' => true,
@@ -270,18 +315,20 @@ class PWDMemberController extends Controller
 
             // Create notification for the member (wrap in try-catch to prevent failure)
             try {
-                \App\Models\Notification::create([
-                    'user_id' => $member->userID,
-                    'type' => 'card_claimed',
-                    'title' => 'PWD Card Claimed',
-                    'message' => 'Your PWD ID card has been successfully claimed. Card expires on ' . $expirationDate->format('F d, Y') . '.',
-                    'data' => [
+                // Format expiration date for display
+                $expirationDateFormatted = \Carbon\Carbon::parse($expirationDate)->format('F d, Y');
+                
+                \App\Services\NotificationService::create(
+                    $member->userID,
+                    'card_claimed',
+                    'PWD Card Claimed',
+                    'Your PWD ID card has been successfully claimed. Card expires on ' . $expirationDateFormatted . '.',
+                    [
                         'member_id' => $member->id,
-                        'card_issue_date' => $issueDate->toDateString(),
-                        'card_expiration_date' => $expirationDate->toDateString()
-                    ],
-                    'is_read' => false
-                ]);
+                        'card_issue_date' => $issueDate,
+                        'card_expiration_date' => $expirationDate
+                    ]
+                );
             } catch (\Exception $notificationError) {
                 // Log notification error but don't fail the card claim
                 \Illuminate\Support\Facades\Log::warning('Failed to create notification for card claim', [
@@ -296,6 +343,12 @@ class PWDMemberController extends Controller
                 'data' => $member->fresh()
             ]);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error claiming PWD card', [
+                'member_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to claim card',
@@ -334,17 +387,17 @@ class PWDMemberController extends Controller
             ]);
 
             // Create notification for the member
-            \App\Models\Notification::create([
-                'user_id' => $member->userID,
-                'type' => 'card_renewed',
-                'title' => 'PWD Card Renewed',
-                'message' => 'Your PWD ID card has been successfully renewed. New expiration date: ' . $newExpirationDate->format('F d, Y') . '.',
-                'data' => [
+            \App\Services\NotificationService::create(
+                $member->userID,
+                'card_renewed',
+                'PWD Card Renewed',
+                'Your PWD ID card has been successfully renewed. New expiration date: ' . $newExpirationDate->format('F d, Y') . '.',
+                [
                     'member_id' => $member->id,
                     'card_renewal_date' => now()->toDateString(),
                     'card_expiration_date' => $newExpirationDate->toDateString()
                 ]
-            ]);
+            );
 
             return response()->json([
                 'success' => true,

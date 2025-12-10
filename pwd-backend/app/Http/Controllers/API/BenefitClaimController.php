@@ -285,9 +285,11 @@ class BenefitClaimController extends Controller
                 $authorizationLetterPath = $file->storeAs('authorization_letters', $fileName, 'public');
             }
 
-            // Get active benefits - filter by member's barangay
+            // Get active benefits - filter by member's barangay and validate dates
             $memberBarangay = $member->barangay;
             $benefits = [];
+            $now = Carbon::now();
+            $dateErrors = [];
             
             if ($request->has('benefitID')) {
                 // Claim specific benefit - benefit table only has 'id' column, not 'benefitID'
@@ -308,18 +310,100 @@ class BenefitClaimController extends Controller
                     }
                     
                     if ($isEligible) {
+                        // Validate dates
+                        if ($benefit->distributionDate) {
+                            $distributionDate = Carbon::parse($benefit->distributionDate)->startOfDay();
+                            if ($now->lt($distributionDate)) {
+                                return response()->json([
+                                    'success' => false,
+                                    'error' => 'This benefit cannot be scanned because it has not been scheduled yet. Distribution date: ' . $distributionDate->format('M d, Y'),
+                                    'benefit_title' => $benefit->title ?? $benefit->type ?? 'Benefit',
+                                    'distribution_date' => $distributionDate->format('Y-m-d'),
+                                    'current_date' => $now->format('Y-m-d'),
+                                    'error_type' => 'not_scheduled'
+                                ], 400);
+                            }
+                        }
+                        
+                        if ($benefit->expiryDate) {
+                            $expiryDate = Carbon::parse($benefit->expiryDate)->endOfDay();
+                            if ($now->gt($expiryDate)) {
+                                return response()->json([
+                                    'success' => false,
+                                    'error' => 'This benefit cannot be scanned because it has expired. Expiry date: ' . $expiryDate->format('M d, Y'),
+                                    'benefit_title' => $benefit->title ?? $benefit->type ?? 'Benefit',
+                                    'expiry_date' => $expiryDate->format('Y-m-d'),
+                                    'current_date' => $now->format('Y-m-d'),
+                                    'error_type' => 'expired'
+                                ], 400);
+                            }
+                        }
+                        
                         $benefits[] = $benefit;
                     }
                 }
             } else {
                 // OPTIMIZED: Get all eligible active benefits in a single optimized query
-                $benefits = \App\Models\Benefit::selectEssential()
+                $allBenefits = \App\Models\Benefit::selectEssential()
                     ->active()
                     ->forBarangay($memberBarangay)
                     ->get();
+                
+                // Filter by date validation
+                foreach ($allBenefits as $benefit) {
+                    $isValid = true;
+                    $errorMessage = '';
+                    
+                    // Check distribution date
+                    if ($benefit->distributionDate) {
+                        $distributionDate = Carbon::parse($benefit->distributionDate)->startOfDay();
+                        if ($now->lt($distributionDate)) {
+                            $isValid = false;
+                            $errorMessage = 'This benefit cannot be scanned because it has not been scheduled yet. Distribution date: ' . $distributionDate->format('M d, Y');
+                            $dateErrors[] = [
+                                'benefit_id' => $benefit->id,
+                                'benefit_title' => $benefit->title ?? $benefit->type ?? 'Benefit',
+                                'error' => $errorMessage,
+                                'error_type' => 'not_scheduled',
+                                'distribution_date' => $distributionDate->format('Y-m-d')
+                            ];
+                        }
+                    }
+                    
+                    // Check expiry date
+                    if ($isValid && $benefit->expiryDate) {
+                        $expiryDate = Carbon::parse($benefit->expiryDate)->endOfDay();
+                        if ($now->gt($expiryDate)) {
+                            $isValid = false;
+                            $errorMessage = 'This benefit cannot be scanned because it has expired. Expiry date: ' . $expiryDate->format('M d, Y');
+                            $dateErrors[] = [
+                                'benefit_id' => $benefit->id,
+                                'benefit_title' => $benefit->title ?? $benefit->type ?? 'Benefit',
+                                'error' => $errorMessage,
+                                'error_type' => 'expired',
+                                'expiry_date' => $expiryDate->format('Y-m-d')
+                            ];
+                        }
+                    }
+                    
+                    if ($isValid) {
+                        $benefits[] = $benefit;
+                    }
+                }
             }
 
             if (empty($benefits)) {
+                // If we have date errors, return them
+                if (!empty($dateErrors)) {
+                    $errorMessages = collect($dateErrors)->pluck('error')->unique()->implode(' ');
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'No benefits available for claiming. ' . $errorMessages,
+                        'date_errors' => $dateErrors,
+                        'error_type' => 'date_validation_failed'
+                    ], 400);
+                }
+                
                 return response()->json([
                     'success' => false,
                     'error' => 'No active benefits found to claim'

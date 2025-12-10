@@ -33,7 +33,12 @@ import {
   Home as HomeIcon,
   Cake as CakeIcon,
   Accessibility as AccessibilityIcon,
-  Security as SecurityIcon
+  Security as SecurityIcon,
+  Refresh as RefreshIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon,
+  CancelOutlined as CancelOutlinedIcon,
+  Upload as UploadIcon
 } from '@mui/icons-material';
 import PWDMemberSidebar from '../shared/PWDMemberSidebar';
 import AccessibilitySettings from '../shared/AccessibilitySettings';
@@ -43,6 +48,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/TranslationContext';
 import { useScreenReader } from '../../hooks/useScreenReader';
 import QRCodeService from '../../services/qrCodeService';
+import toastService from '../../services/toastService';
 
 function PWDProfile() {
   const { currentUser } = useAuth();
@@ -62,6 +68,14 @@ function PWDProfile() {
   const [passwordErrorMessage, setPasswordErrorMessage] = useState('');
   const [qrCodeDataURL, setQrCodeDataURL] = useState('');
   const [idPictureUrl, setIdPictureUrl] = useState(null);
+  
+  // Renewal states
+  const [renewalStatus, setRenewalStatus] = useState(null);
+  const [cardInfo, setCardInfo] = useState(null);
+  const [renewalDialogOpen, setRenewalDialogOpen] = useState(false);
+  const [renewalSubmitting, setRenewalSubmitting] = useState(false);
+  const [oldCardImage, setOldCardImage] = useState(null);
+  const [medicalCertificate, setMedicalCertificate] = useState(null);
   
   // Form states
   const [formData, setFormData] = useState({
@@ -88,6 +102,7 @@ function PWDProfile() {
     fetchProfile();
     refreshUserData(); // Refresh user data to get latest idPictures
     fetchIdPictureFromDocuments(); // Fetch ID picture from member documents
+    fetchRenewalStatus(); // Fetch renewal status and card expiration info
   }, [announcePageChange, t]);
 
   // Generate QR code when profile loads
@@ -424,6 +439,141 @@ function PWDProfile() {
       age--;
     }
     return age;
+  };
+
+  // Fetch renewal status and card expiration info
+  const fetchRenewalStatus = async () => {
+    try {
+      const response = await api.get('/id-renewals/my-status');
+      if (response?.success) {
+        setRenewalStatus(response.renewal);
+        setCardInfo(response.card_info);
+      } else {
+        // If response doesn't have success field, try to use the data directly
+        if (response?.renewal !== undefined || response?.card_info !== undefined) {
+          setRenewalStatus(response.renewal || null);
+          setCardInfo(response.card_info || null);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching renewal status:', error);
+      console.error('Error details:', {
+        status: error.status,
+        message: error.message,
+        data: error.data
+      });
+      
+      // Try to get card info from profile data as fallback
+      if (profile && currentUser?.pwd_member) {
+        const pwdMember = currentUser.pwd_member;
+        if (pwdMember.cardClaimed) {
+          // Set card info from profile data if API fails
+          const fallbackCardInfo = {
+            card_claimed: true,
+            card_issue_date: pwdMember.cardIssueDate || null,
+            card_expiration_date: pwdMember.cardExpirationDate || null,
+            days_until_expiration: pwdMember.cardExpirationDate 
+              ? Math.ceil((new Date(pwdMember.cardExpirationDate) - new Date()) / (1000 * 60 * 60 * 24))
+              : null,
+            is_expiring_soon: pwdMember.cardExpirationDate 
+              ? Math.ceil((new Date(pwdMember.cardExpirationDate) - new Date()) / (1000 * 60 * 60 * 24)) <= 30
+              : false
+          };
+          setCardInfo(fallbackCardInfo);
+          
+          // Don't set to null if we have fallback data
+          return;
+        }
+      }
+      
+      // Only set to null if it's a 404 (not found) or 401 (unauthorized)
+      // For other errors (500, network, etc.), we'll try fallback above first
+      if (error.status === 404 || error.status === 401) {
+        setCardInfo(null);
+        setRenewalStatus(null);
+      }
+    }
+  };
+
+  // Handle renewal file uploads
+  const handleOldCardImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toastService.error('File size must be less than 5MB');
+        return;
+      }
+      setOldCardImage(file);
+    }
+  };
+
+  const handleMedicalCertificateChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toastService.error('File size must be less than 5MB');
+        return;
+      }
+      setMedicalCertificate(file);
+    }
+  };
+
+  // Submit renewal request
+  const handleSubmitRenewal = async () => {
+    if (!oldCardImage || !medicalCertificate) {
+      toastService.error('Please upload both old card image and medical certificate');
+      return;
+    }
+
+    try {
+      setRenewalSubmitting(true);
+      const formData = new FormData();
+      formData.append('old_card_image', oldCardImage);
+      formData.append('medical_certificate', medicalCertificate);
+
+      const response = await api.post('/id-renewals/submit', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response?.success) {
+        toastService.success('Renewal request submitted successfully! Please wait for admin review.');
+        setRenewalDialogOpen(false);
+        setOldCardImage(null);
+        setMedicalCertificate(null);
+        await fetchRenewalStatus(); // Refresh renewal status
+      } else {
+        throw new Error(response?.message || 'Failed to submit renewal request');
+      }
+    } catch (error) {
+      console.error('Error submitting renewal:', error);
+      toastService.error(error.response?.data?.message || error.message || 'Failed to submit renewal request');
+    } finally {
+      setRenewalSubmitting(false);
+    }
+  };
+
+  // Calculate days remaining
+  const getDaysRemaining = () => {
+    if (!cardInfo?.card_expiration_date) return null;
+    const expiration = new Date(cardInfo.card_expiration_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    expiration.setHours(0, 0, 0, 0);
+    const diffTime = expiration - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Get expiration status color
+  const getExpirationStatusColor = () => {
+    const daysRemaining = getDaysRemaining();
+    if (daysRemaining === null) return '#7F8C8D';
+    if (daysRemaining < 0) return '#E74C3C'; // Expired
+    if (daysRemaining <= 7) return '#E74C3C'; // Urgent
+    if (daysRemaining <= 30) return '#F39C12'; // Warning
+    return '#27AE60'; // OK
   };
 
   if (loading) {
@@ -1196,6 +1346,134 @@ label={t('profile.birthDate')}
                 </Card>
           </Grid>
 
+          {/* ID Renewal Section */}
+          {cardInfo?.card_claimed && (
+            <Grid item xs={12}>
+              <Card sx={{ 
+                borderRadius: 2, 
+                boxShadow: 3, 
+                overflow: 'hidden',
+                border: `2px solid ${getExpirationStatusColor()}`
+              }}>
+                <Box sx={{ 
+                  background: `linear-gradient(135deg, ${getExpirationStatusColor()} 0%, ${getExpirationStatusColor()}dd 100%)`,
+                  p: 3,
+                  color: 'white'
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', color: 'white' }}>
+                        PWD ID Card Renewal
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'white', fontWeight: 500 }}>
+                        {cardInfo?.card_expiration_date 
+                          ? `Expires: ${formatDate(cardInfo.card_expiration_date)}`
+                          : 'Expiration date not set'}
+                      </Typography>
+                    </Box>
+                    {getDaysRemaining() !== null && (
+                      <Box sx={{ textAlign: 'right' }}>
+                        <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'white', mb: 0.5 }}>
+                          {getDaysRemaining() < 0 ? 'Expired' : `${getDaysRemaining()} Days`}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'white' }}>
+                          {getDaysRemaining() < 0 ? 'Card has expired' : 'Remaining'}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+                
+                <CardContent sx={{ p: 3, bgcolor: '#FFFFFF' }}>
+                  {/* Renewal Status */}
+                  {renewalStatus && (
+                    <Alert 
+                      severity={renewalStatus.status === 'approved' ? 'success' : renewalStatus.status === 'rejected' ? 'error' : 'info'}
+                      sx={{ mb: 2 }}
+                      icon={renewalStatus.status === 'approved' ? <CheckCircleIcon /> : renewalStatus.status === 'rejected' ? <CancelOutlinedIcon /> : <RefreshIcon />}
+                    >
+                      <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                        Renewal Status: {renewalStatus.status === 'pending' ? 'Pending Review' : renewalStatus.status === 'approved' ? 'Approved' : 'Rejected'}
+                      </Typography>
+                      {renewalStatus.submitted_at && (
+                        <Typography variant="body2">
+                          Submitted: {formatDate(renewalStatus.submitted_at)}
+                        </Typography>
+                      )}
+                      {renewalStatus.reviewed_at && (
+                        <Typography variant="body2">
+                          Reviewed: {formatDate(renewalStatus.reviewed_at)}
+                        </Typography>
+                      )}
+                      {renewalStatus.notes && (
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                          Notes: {renewalStatus.notes}
+                        </Typography>
+                      )}
+                    </Alert>
+                  )}
+
+                  {/* Card Info */}
+                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                        Card Issue Date
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2C3E50' }}>
+                        {cardInfo?.card_issue_date ? formatDate(cardInfo.card_issue_date) : 'N/A'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: '#2C3E50', fontWeight: 500 }}>
+                        Card Expiration Date
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 'bold', color: getExpirationStatusColor() }}>
+                        {cardInfo?.card_expiration_date ? formatDate(cardInfo.card_expiration_date) : 'N/A'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  {/* Submit Renewal Button */}
+                  {(!renewalStatus || renewalStatus.status === 'rejected') && (
+                    <Button
+                      variant="contained"
+                      startIcon={<UploadIcon />}
+                      onClick={() => setRenewalDialogOpen(true)}
+                      disabled={getDaysRemaining() !== null && getDaysRemaining() > 90}
+                      sx={{
+                        bgcolor: getExpirationStatusColor(),
+                        color: '#FFFFFF',
+                        width: '100%',
+                        py: 1.5,
+                        fontSize: '1rem',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        '&:hover': { 
+                          bgcolor: getExpirationStatusColor(),
+                          opacity: 0.9
+                        },
+                        '&:disabled': {
+                          bgcolor: '#BDC3C7',
+                          color: '#FFFFFF'
+                        }
+                      }}
+                    >
+                      {getDaysRemaining() !== null && getDaysRemaining() > 90 
+                        ? 'Renewal available 90 days before expiration'
+                        : 'Submit Renewal Request'}
+                    </Button>
+                  )}
+
+                  {renewalStatus?.status === 'pending' && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      Your renewal request is pending review. You will be notified once it's processed.
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
           {/* Account Information */}
           <Grid item xs={12} md={6}>
             <Card sx={{ 
@@ -1605,6 +1883,164 @@ label={t('profile.birthDate')}
               }}
             >
               Try Again
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Renewal Request Dialog */}
+        <Dialog 
+          open={renewalDialogOpen} 
+          onClose={() => {
+            setRenewalDialogOpen(false);
+            setOldCardImage(null);
+            setMedicalCertificate(null);
+          }} 
+          maxWidth="md" 
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            bgcolor: '#3498DB', 
+            color: '#FFFFFF',
+            fontWeight: 'bold',
+            fontSize: '1.3rem',
+            py: 2.5
+          }}>
+            Submit ID Renewal Request
+          </DialogTitle>
+          <DialogContent sx={{ p: 3 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2" sx={{ fontWeight: 500, mb: 1 }}>
+                Required Documents:
+              </Typography>
+              <Typography variant="body2" component="div">
+                • Old/Current PWD ID Card Image (JPEG, JPG, PNG, or PDF - Max 5MB)
+                <br />
+                • Recent Medical Certificate (JPEG, JPG, PNG, or PDF - Max 5MB)
+              </Typography>
+            </Alert>
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="body1" sx={{ fontWeight: 600, mb: 1.5, color: '#2C3E50' }}>
+                1. Upload Old/Current PWD ID Card Image
+              </Typography>
+              <input
+                accept="image/*,.pdf"
+                style={{ display: 'none' }}
+                id="old-card-image-upload"
+                type="file"
+                onChange={handleOldCardImageChange}
+              />
+              <label htmlFor="old-card-image-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<UploadIcon />}
+                  fullWidth
+                  sx={{
+                    borderColor: '#3498DB',
+                    color: '#3498DB',
+                    py: 1.5,
+                    '&:hover': {
+                      borderColor: '#2980B9',
+                      bgcolor: '#EBF5FB'
+                    }
+                  }}
+                >
+                  {oldCardImage ? oldCardImage.name : 'Choose Old Card Image'}
+                </Button>
+              </label>
+              {oldCardImage && (
+                <Typography variant="caption" sx={{ color: '#27AE60', mt: 0.5, display: 'block' }}>
+                  ✓ File selected: {oldCardImage.name} ({(oldCardImage.size / 1024 / 1024).toFixed(2)} MB)
+                </Typography>
+              )}
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body1" sx={{ fontWeight: 600, mb: 1.5, color: '#2C3E50' }}>
+                2. Upload Medical Certificate
+              </Typography>
+              <input
+                accept="image/*,.pdf"
+                style={{ display: 'none' }}
+                id="medical-certificate-upload"
+                type="file"
+                onChange={handleMedicalCertificateChange}
+              />
+              <label htmlFor="medical-certificate-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<UploadIcon />}
+                  fullWidth
+                  sx={{
+                    borderColor: '#3498DB',
+                    color: '#3498DB',
+                    py: 1.5,
+                    '&:hover': {
+                      borderColor: '#2980B9',
+                      bgcolor: '#EBF5FB'
+                    }
+                  }}
+                >
+                  {medicalCertificate ? medicalCertificate.name : 'Choose Medical Certificate'}
+                </Button>
+              </label>
+              {medicalCertificate && (
+                <Typography variant="caption" sx={{ color: '#27AE60', mt: 0.5, display: 'block' }}>
+                  ✓ File selected: {medicalCertificate.name} ({(medicalCertificate.size / 1024 / 1024).toFixed(2)} MB)
+                </Typography>
+              )}
+            </Box>
+
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                <strong>Note:</strong> Your renewal request will be reviewed by an administrator. 
+                You will receive a notification once your request is processed.
+              </Typography>
+            </Alert>
+          </DialogContent>
+          <DialogActions sx={{ p: 2.5, bgcolor: '#F8F9FA' }}>
+            <Button 
+              onClick={() => {
+                setRenewalDialogOpen(false);
+                setOldCardImage(null);
+                setMedicalCertificate(null);
+              }}
+              sx={{ 
+                color: '#7F8C8D',
+                textTransform: 'none',
+                fontWeight: 600
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSubmitRenewal}
+              variant="contained"
+              disabled={!oldCardImage || !medicalCertificate || renewalSubmitting}
+              sx={{ 
+                bgcolor: '#3498DB',
+                color: '#FFFFFF',
+                px: 3,
+                py: 1,
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { 
+                  bgcolor: '#2980B9'
+                },
+                '&:disabled': {
+                  bgcolor: '#BDC3C7'
+                }
+              }}
+            >
+              {renewalSubmitting ? 'Submitting...' : 'Submit Renewal Request'}
             </Button>
           </DialogActions>
         </Dialog>

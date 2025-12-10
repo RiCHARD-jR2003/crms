@@ -79,12 +79,28 @@
             <p><strong>Important:</strong> You will be required to change this password on your first login for security purposes.</p>
         </div>
         
+        <div style="background-color:#d1ecf1;padding:20px;border-left:4px solid #0c5460;margin:20px 0;border-radius:4px;">
+            <h3 style="color:#0c5460;margin-top:0;">📅 ID Card Claiming Information</h3>
+            <p style="margin-bottom:10px;"><strong>Your PWD ID card is currently being processed.</strong></p>
+            <p style="margin-bottom:10px;">After <strong>14 business days</strong> from your approval date, your ID card will be ready for claiming.</p>
+            <p style="margin-bottom:0;font-size:16px;"><strong style="color:#0c5460;">📌 Your ID card will be ready for claiming on: <span style="font-size:18px;color:#0c5460;">{{ $claimDate }}</span></strong></p>
+            <p style="margin-top:10px;margin-bottom:0;font-size:14px;color:#666;">
+                <strong>Claiming Location:</strong> PDAO Office, Cabuyao City Hall<br>
+                <strong>Office Hours:</strong> Monday to Friday, 8:00 AM - 5:00 PM<br>
+                <strong>Required:</strong> Please bring a valid government-issued ID when claiming your PWD ID card.
+            </p>
+            <p style="margin-top:15px;margin-bottom:0;font-size:13px;color:#666;font-style:italic;">
+                You will receive another email notification when your card is ready for claiming.
+            </p>
+        </div>
+        
         <h3>🚀 What's Next?</h3>
         <ul>
             <li>Access your PWD member dashboard</li>
             <li>View important announcements</li>
             <li>Access support services</li>
             <li>Track your benefits and services</li>
+            <li>Wait for your ID card to be ready for claiming (14 business days)</li>
         </ul>
         
         <div style="text-align: center;">

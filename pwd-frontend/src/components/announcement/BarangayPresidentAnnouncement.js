@@ -131,8 +131,15 @@ function BarangayPresidentAnnouncement() {
       setError(null);
       
       // Fetch announcements filtered by the barangay president's barangay
-      const data = await announcementService.getByAudience(barangay);
-      console.log(`Fetched announcements for ${barangay}:`, data);
+      const response = await announcementService.getByAudience(barangay);
+      console.log(`Fetched announcements for ${barangay}:`, response);
+      
+      // Handle response format - ensure we get an array
+      const data = Array.isArray(response) 
+        ? response 
+        : (response?.data || []);
+      
+      console.log(`Processed announcements array (${data.length} items):`, data);
       
       // Process the announcements to include author information
       const filteredAnnouncements = data.map(announcement => ({

@@ -101,24 +101,61 @@ export const announcementService = {
         return [];
       }
       
+      console.log('AnnouncementService - Fetching announcements for barangay:', userBarangay);
+      
       // Use the same getByAudience endpoint to get barangay-specific announcements
       const response = await api.get(`/announcements/audience/${encodeURIComponent(userBarangay)}`);
       
+      console.log('AnnouncementService - Raw API response:', response);
+      console.log('AnnouncementService - Response type:', typeof response);
+      console.log('AnnouncementService - Is array?', Array.isArray(response));
+      
       // Handle different response structures
+      let announcements = [];
       if (Array.isArray(response)) {
-        return response;
+        announcements = response;
+        console.log('AnnouncementService - Response is array, length:', announcements.length);
       } else if (response && response.data) {
         if (Array.isArray(response.data)) {
-          return response.data;
+          announcements = response.data;
+          console.log('AnnouncementService - Response.data is array, length:', announcements.length);
+        } else if (Array.isArray(response.data.data)) {
+          announcements = response.data.data;
+          console.log('AnnouncementService - Response.data.data is array, length:', announcements.length);
+        } else {
+          console.log('AnnouncementService - Response.data structure:', Object.keys(response.data || {}));
         }
-        if (Array.isArray(response.data.data)) {
-          return response.data.data;
-        }
+      } else {
+        console.log('AnnouncementService - Unexpected response structure:', response);
       }
       
-      return [];
+      console.log('AnnouncementService - Final announcements array:', announcements.map(a => ({
+        id: a.id || a.announcementID,
+        title: a.title,
+        status: a.status,
+        targetAudience: a.targetAudience,
+        publishDate: a.publishDate,
+        created_at: a.created_at
+      })));
+      
+      // Sort announcements by publishDate (newest first), then created_at as fallback
+      const sortedAnnouncements = [...announcements].sort((a, b) => {
+        const dateA = a.publishDate ? new Date(a.publishDate).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0);
+        const dateB = b.publishDate ? new Date(b.publishDate).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0);
+        return dateB - dateA; // Descending order (newest first)
+      });
+      
+      console.log('AnnouncementService - Sorted announcements (newest first):', sortedAnnouncements.map(a => ({
+        id: a.id || a.announcementID,
+        title: a.title,
+        publishDate: a.publishDate,
+        created_at: a.created_at
+      })));
+      
+      return sortedAnnouncements;
     } catch (error) {
       console.error('Error fetching filtered announcements for PWD member:', error);
+      console.error('Error details:', error.response?.data || error.message);
       // Don't show error toast for empty announcements - it's normal
       return [];
     }

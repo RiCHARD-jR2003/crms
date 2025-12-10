@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import toastService from '../../services/toastService';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -67,9 +68,16 @@ function Login() {
     setServerError('');
 
     try {
+      // Show loading toast
+      toastService.process.signingIn();
+      
       console.log('Login form submitted with:', formData);
       const user = await login(formData);
       console.log('Login successful, navigating to dashboard');
+      
+      // Dismiss loading toast and show success
+      toastService.dismiss();
+      toastService.process.signedIn();
       
       // Reset security states on successful login
       setRequiresCaptcha(false);
@@ -80,6 +88,9 @@ function Login() {
       navigate('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
+      
+      // Dismiss loading toast
+      toastService.dismiss();
       
       // Handle different types of errors - check both error.response.data and error.data
       const errorData = error.response?.data || error.data;

@@ -148,59 +148,10 @@ class RouteServiceProvider extends ServiceProvider
             });
             
             
-            // Add application approval routes
-            Route::middleware('auth:sanctum')->post('/api/applications/{id}/approve-barangay', function (Request $request, $id) {
-                try {
-                    $application = \App\Models\Application::findOrFail($id);
-                    
-                    $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
-                        'remarks' => 'nullable|string|max:500',
-                    ]);
-
-                    if ($validator->fails()) {
-                        return response()->json([
-                            'error' => 'Validation failed',
-                            'messages' => $validator->errors()
-                        ], 422);
-                    }
-
-                    $oldStatus = $application->status;
-                    $application->update([
-                        'status' => 'Pending Admin Approval',
-                        'remarks' => $request->remarks || 'Approved by Barangay President'
-                    ]);
-
-                    // Send notification to applicant if user account exists
-                    try {
-                        $user = \App\Models\User::where('email', $application->email)->first();
-                        if ($user) {
-                            $applicantName = trim(($application->firstName ?? '') . ' ' . ($application->lastName ?? ''));
-                            \App\Services\NotificationService::notifyApplicationStatusChange(
-                                $user->userID,
-                                'Pending Admin Approval',
-                                $applicantName,
-                                $application->remarks ?? 'Approved by Barangay President'
-                            );
-                        }
-                    } catch (\Exception $notifError) {
-                        \Illuminate\Support\Facades\Log::error('Failed to send barangay approval notification', [
-                            'application_id' => $application->applicationID,
-                            'error' => $notifError->getMessage()
-                        ]);
-                    }
-
-                    return response()->json([
-                        'message' => 'Application approved successfully',
-                        'application' => $application
-                    ]);
-
-                } catch (\Exception $e) {
-                    return response()->json([
-                        'error' => 'Failed to approve application',
-                        'message' => $e->getMessage()
-                    ], 500);
-                }
-            });
+            // NOTE: Barangay approval route is handled in routes/api.php
+            // Route: /applications/{applicationId}/barangay-approve
+            // This route correctly sets status to "For Assessment" and creates disability assessment
+            // Removed duplicate route that incorrectly set status to "Pending Admin Approval"
             
             Route::middleware('auth:sanctum')->post('/api/applications/{id}/reject', function (Request $request, $id) {
                 try {

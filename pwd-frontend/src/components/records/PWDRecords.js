@@ -55,6 +55,7 @@ import { api } from '../../services/api';
 import { filePreviewService } from '../../services/filePreviewService';
 import toastService from '../../services/toastService';
 import { documentService } from '../../services/documentService';
+import { formatDate as formatDateMMDDYYYY } from '../../utils/dateTimeFormatter';
   import { 
     mainContainerStyles, 
     contentAreaStyles, 
@@ -117,18 +118,7 @@ function PWDRecords() {
     
   // Toast notifications will be used instead of modals
 
-    // Format date as MM/DD/YYYY
-    const formatDateMMDDYYYY = (dateString) => {
-      if (!dateString) return null;
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return null;
-      
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const year = date.getFullYear();
-      
-      return `${month}/${day}/${year}`;
-    };
+    // Use centralized date formatting utility (MM/DD/YYYY format)
 
     // Sample data for dropdowns
     const barangays = [
@@ -174,6 +164,42 @@ function PWDRecords() {
       }
     };
 
+    // Listen for assessment status updates and refresh data
+    useEffect(() => {
+      const handleAssessmentStatusUpdate = () => {
+        // Refresh applications when assessment status is updated
+        const fetchData = async () => {
+          if (!currentUser) return;
+          
+          try {
+            const adminPendingData = await applicationService.getByStatus('Pending Admin Approval').catch(() => []);
+            const barangayPendingData = await applicationService.getByStatus('Pending Barangay Approval').catch(() => []);
+            const forAssessmentData = await applicationService.getByStatus('For Assessment').catch(() => []);
+            
+            const adminPending = Array.isArray(adminPendingData) ? adminPendingData : [];
+            const barangayPending = Array.isArray(barangayPendingData) ? barangayPendingData : [];
+            const forAssessment = Array.isArray(forAssessmentData) ? forAssessmentData : [];
+            
+            const allPendingApplications = [...adminPending, ...barangayPending, ...forAssessment];
+            const sorted = [...allPendingApplications].sort((a, b) => {
+              const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
+              const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
+              return bTime - aTime;
+            });
+            setApplications(sorted);
+          } catch (error) {
+            console.error('Error refreshing applications:', error);
+          }
+        };
+        fetchData();
+      };
+      
+      window.addEventListener('assessmentStatusUpdated', handleAssessmentStatusUpdate);
+      return () => {
+        window.removeEventListener('assessmentStatusUpdated', handleAssessmentStatusUpdate);
+      };
+    }, [currentUser]);
+
     // Fetch applications and PWD members from database
     useEffect(() => {
       const fetchData = async () => {
@@ -187,12 +213,17 @@ function PWDRecords() {
         setError(null);
         try {
           // Fetch applications pending admin approval, barangay approval, and for assessment
-          const adminPendingData = await applicationService.getByStatus('Pending Admin Approval');
-          const barangayPendingData = await applicationService.getByStatus('Pending Barangay Approval');
-          const forAssessmentData = await applicationService.getByStatus('For Assessment');
+          const adminPendingData = await applicationService.getByStatus('Pending Admin Approval').catch(() => []);
+          const barangayPendingData = await applicationService.getByStatus('Pending Barangay Approval').catch(() => []);
+          const forAssessmentData = await applicationService.getByStatus('For Assessment').catch(() => []);
+          
+          // Ensure all responses are arrays
+          const adminPending = Array.isArray(adminPendingData) ? adminPendingData : [];
+          const barangayPending = Array.isArray(barangayPendingData) ? barangayPendingData : [];
+          const forAssessment = Array.isArray(forAssessmentData) ? forAssessmentData : [];
           
           // Combine all types of pending applications (including For Assessment)
-          const allPendingApplications = [...adminPendingData, ...barangayPendingData, ...forAssessmentData];
+          const allPendingApplications = [...adminPending, ...barangayPending, ...forAssessment];
         // Sort most recent submissions first
         const sorted = [...allPendingApplications].sort((a, b) => {
           const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
@@ -327,8 +358,9 @@ function PWDRecords() {
         });
 
         // Refresh both applications and PWD members lists
-        const applicationsData = await applicationService.getByStatus('Pending Admin Approval');
-        const sortedApps = [...applicationsData].sort((a, b) => {
+        const applicationsData = await applicationService.getByStatus('Pending Admin Approval').catch(() => []);
+        const appsArray = Array.isArray(applicationsData) ? applicationsData : [];
+        const sortedApps = [...appsArray].sort((a, b) => {
           const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
           const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
           return bTime - aTime;
@@ -444,14 +476,18 @@ function PWDRecords() {
       if (!remarks) return;
 
       try {
+        // Show loading feedback
+        toastService.info('Rejecting application, please wait...', 3000);
+        
         await applicationService.updateStatus(applicationId, {
           status: 'Rejected',
           remarks: remarks
         });
 
         // Refresh the applications list
-        const data = await applicationService.getByStatus('Pending Admin Approval');
-        const sortedData = [...data].sort((a, b) => {
+        const data = await applicationService.getByStatus('Pending Admin Approval').catch(() => []);
+        const dataArray = Array.isArray(data) ? data : [];
+        const sortedData = [...dataArray].sort((a, b) => {
           const aTime = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
           const bTime = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
           return bTime - aTime;
@@ -739,15 +775,9 @@ function PWDRecords() {
       // Get formatted date for print
       const printDate = formatDateMMDDYYYY(new Date().toISOString());
 
-      // Format date for display
+      // Format date for display - use MM/DD/YYYY format
       const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
-        });
+        return formatDateMMDDYYYY(dateString) || 'N/A';
       };
 
       // Calculate age from birth date
@@ -2198,13 +2228,22 @@ function PWDRecords() {
                                 </TableCell>
                               <TableCell sx={{ borderBottom: '1px solid #E0E0E0', py: 2, px: 2, width: '150px', minWidth: '150px', whiteSpace: 'nowrap' }}>
                                 {(() => {
-                                  const isBarangayApproved = (row.status || '').toString().toLowerCase() === 'pending admin approval';
+                                  const statusLower = (row.status || '').toString().toLowerCase();
+                                  const isBarangayApproved = statusLower === 'pending admin approval';
+                                  // Also allow approval if status is "For Assessment" but assessment PDF exists
+                                  const isForAssessment = statusLower === 'for assessment';
+                                  const hasAssessmentPDF = row.assessment_pdf_path || row.assessment_status === 'finalized' || row.assessment_status === 'uploaded';
+                                  const canApprove = isBarangayApproved || (isForAssessment && hasAssessmentPDF);
                                   const hasPendingCorrection = row.has_pending_correction === true;
-                                  const isApproveDisabled = !isBarangayApproved || hasPendingCorrection;
+                                  const isApproveDisabled = !canApprove || hasPendingCorrection;
                                   
                                   let disabledReason = '';
-                                  if (!isBarangayApproved) {
-                                    disabledReason = 'Disabled until Barangay approves the application';
+                                  if (!canApprove) {
+                                    if (isForAssessment && !hasAssessmentPDF) {
+                                      disabledReason = 'Assessment PDF must be finalized or uploaded before approval';
+                                    } else {
+                                      disabledReason = 'Application must be approved by Barangay and assessment must be completed';
+                                    }
                                   } else if (hasPendingCorrection) {
                                     disabledReason = 'Disabled: Document correction request is pending. Please wait for the applicant to submit corrected documents.';
                                   }
@@ -2239,13 +2278,13 @@ function PWDRecords() {
                                           </Button>
                                         </span>
                                       </Tooltip>
-                                      <Tooltip title={disabledReason} disableHoverListener={isBarangayApproved && !hasPendingCorrection}>
+                                      <Tooltip title={disabledReason} disableHoverListener={canApprove && !hasPendingCorrection}>
                                         <span>
                                           <Button
                                             size="small"
                                             variant="outlined"
                                             color="error"
-                                            disabled={!isBarangayApproved || hasPendingCorrection}
+                                            disabled={!canApprove || hasPendingCorrection}
                                             onClick={() => handleRejectApplication(row.applicationID)}
                                             sx={{ textTransform: 'none' }}
                                           >

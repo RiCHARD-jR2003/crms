@@ -12,6 +12,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/api';
 import toastService from '../../services/toastService';
+import NotificationBell from './NotificationBell';
 
 function BarangayPresidentSidebar() {
   const navigate = useNavigate();
@@ -35,13 +36,9 @@ function BarangayPresidentSidebar() {
   useEffect(() => {
     const fetchPendingApplicationsCount = async () => {
       try {
-        console.log('Fetching pending applications count...');
-        console.log('Current user:', currentUser);
-        console.log('User role:', currentUser?.role);
-        console.log('User username:', currentUser?.username);
+        // Removed debug console.log statements to reduce console clutter
         
         const response = await api.get('/applications/dashboard/stats');
-        console.log('Dashboard stats response:', response);
         
         // Handle different response structures
         let pendingCount = 0;
@@ -53,9 +50,7 @@ function BarangayPresidentSidebar() {
           pendingCount = response.pendingApplications;
         }
         
-        console.log('Setting pending applications count to:', pendingCount);
         setPendingApplicationsCount(pendingCount);
-        console.log('Current pendingApplicationsCount state:', pendingApplicationsCount);
       } catch (error) {
         console.error('Error fetching pending applications count:', error);
         console.error('Error details:', error.message, error.status);
@@ -74,7 +69,7 @@ function BarangayPresidentSidebar() {
   };
 
   const SidebarItem = ({ icon, label, path, active = false, badgeCount = 0 }) => {
-    console.log(`SidebarItem ${label}: badgeCount = ${badgeCount}, active = ${active}`);
+    // Removed debug console.log to reduce console clutter
     return (
       <Box 
         onClick={() => navigate(path)}
@@ -152,12 +147,13 @@ function BarangayPresidentSidebar() {
         <Avatar sx={{ width: 40, height: 40, bgcolor: '#E8F0FE', color: '#1976D2' }}>
           <PersonIcon />
         </Avatar>
-        <Box>
+        <Box sx={{ flex: 1 }}>
           <Typography sx={{ fontWeight: 600, color: '#333' }}>Hello Barangay President</Typography>
           <Typography sx={{ fontSize: '0.8rem', color: '#7F8C8D' }}>
             {currentUser?.barangay || 'Barangay Poblacion'}
           </Typography>
         </Box>
+        <NotificationBell />
       </Box>
 
       {/* Navigation Menu */}

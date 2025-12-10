@@ -38,7 +38,9 @@ class NoDuplicateApplication implements Rule
         }
 
         // Check for duplicate applications using the correct DB column
-        $query = Application::where($dbField, $value);
+        // Exclude rejected applications - they can be resubmitted via re-upload endpoint
+        $query = Application::where($dbField, $value)
+            ->where('status', '!=', 'Rejected'); // Allow new applications if previous one was rejected
         
         // Exclude current application if updating
         if ($this->excludeApplicationId) {

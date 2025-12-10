@@ -17,6 +17,8 @@ class PWDMember extends Model
         'userID',
         'pwd_id',
         'pwd_id_generated_at',
+        'approval_date',
+        'id_ready_notification_sent_at',
         'firstName',
         'lastName',
         'middleName',
@@ -73,12 +75,14 @@ class PWDMember extends Model
 
     protected $casts = [
         'birthDate' => 'date',
+        'approval_date' => 'date',
         'cardIssueDate' => 'date',
         'cardExpirationDate' => 'date',
         'cardClaimed' => 'boolean',
         'renewal_flag' => 'boolean',
         'flagged_at' => 'datetime',
-        'renewal_reminder_sent_at' => 'datetime'
+        'renewal_reminder_sent_at' => 'datetime',
+        'id_ready_notification_sent_at' => 'datetime'
     ];
 
     /**

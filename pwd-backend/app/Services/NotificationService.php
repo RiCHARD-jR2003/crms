@@ -16,9 +16,10 @@ class NotificationService
      * @param string $title
      * @param string $message
      * @param array|null $data
+     * @param bool $notifySuperAdmin Whether to also notify SuperAdmin (default: true)
      * @return Notification|null
      */
-    public static function create($userId, $type, $title, $message, $data = null)
+    public static function create($userId, $type, $title, $message, $data = null, $notifySuperAdmin = true)
     {
         try {
             $notification = Notification::create([
@@ -38,6 +39,14 @@ class NotificationService
                 'type' => $type,
                 'title' => $title
             ]);
+
+            // Notify SuperAdmin about all activities (except SuperAdmin's own notifications)
+            if ($notifySuperAdmin) {
+                $user = User::find($userId);
+                if ($user && $user->role !== 'SuperAdmin') {
+                    self::notifySuperAdmin($type, $title, $message, $data, $userId);
+                }
+            }
 
             return $notification;
         } catch (\Exception $e) {
@@ -73,7 +82,7 @@ class NotificationService
                 break;
             case 'Approved':
                 $title = 'Application Approved - Welcome to PWD Portal!';
-                $message = "Congratulations! Your PWD application has been approved. Your account has been created and you can now log in to access your PWD member portal. Your PWD ID card is being processed and will be ready for claiming in 5-7 business days. You will receive another notification when your card is ready for pickup at the PDAO office.";
+                $message = "Congratulations! Your PWD application has been approved. Your account has been created and you can now log in to access your PWD member portal. Your PWD ID card is being processed and will be ready for claiming after 14 business days. You will receive an email and notification when your card is ready for pickup at the PDAO office.";
                 break;
             case 'For Claiming':
                 $title = 'PWD ID Ready for Claiming';
@@ -115,11 +124,12 @@ class NotificationService
         $instructions = 'Please bring a valid government-issued ID when claiming your PWD ID card at the PDAO office.';
         $officeAddress = 'PDAO Office, Cabuyao City Hall';
 
-        $title = 'PWD ID Ready for Claiming';
-        $message = "Dear {$applicantName}, your PWD ID card (ID: {$pwdId}) is ready for claiming. ";
+        $title = '📧 Email Sent - PWD ID Ready for Claiming';
+        $message = "Dear {$applicantName}, an email has been sent to your registered email address with instructions for claiming your PWD ID card (ID: {$pwdId}). ";
+        $message .= "Please check your email for detailed claiming instructions. ";
         $message .= "Claiming Schedule: {$claimingSchedule}. ";
-        $message .= "Instructions: {$instructions} ";
-        $message .= "Office Address: {$officeAddress}.";
+        $message .= "Office Address: {$officeAddress}. ";
+        $message .= "Required: {$instructions}";
 
         return self::create($userId, 'id_claiming', $title, $message, [
             'applicant_name' => $applicantName,
@@ -128,6 +138,7 @@ class NotificationService
             'claiming_schedule' => $claimingSchedule,
             'instructions' => $instructions,
             'office_address' => $officeAddress,
+            'email_sent' => true,
             'timestamp' => now()->toIso8601String()
         ]);
     }
@@ -140,16 +151,38 @@ class NotificationService
      * @param string $title
      * @param string $message
      * @param array|null $data
+     * @param bool $notifySuperAdmin Whether to also notify SuperAdmin (default: true)
      * @return int Number of notifications created
      */
-    public static function createMultiple($userIds, $type, $title, $message, $data = null)
+    public static function createMultiple($userIds, $type, $title, $message, $data = null, $notifySuperAdmin = true)
     {
         $count = 0;
+        $hasSuperAdmin = false;
+        
+        // Check if any of the target users is SuperAdmin
         foreach ($userIds as $userId) {
-            if (self::create($userId, $type, $title, $message, $data)) {
+            $user = User::find($userId);
+            if ($user && $user->role === 'SuperAdmin') {
+                $hasSuperAdmin = true;
+                break;
+            }
+        }
+        
+        foreach ($userIds as $userId) {
+            // Don't notify SuperAdmin again if they're already in the list
+            $shouldNotifySuperAdmin = $notifySuperAdmin && !$hasSuperAdmin;
+            
+            if (self::create($userId, $type, $title, $message, $data, $shouldNotifySuperAdmin)) {
                 $count++;
             }
         }
+        
+        // If SuperAdmin is not in the list, notify them separately
+        if ($notifySuperAdmin && !$hasSuperAdmin && !empty($userIds)) {
+            // Use the first user ID as the original user for context
+            self::notifySuperAdmin($type, $title, $message, $data, $userIds[0]);
+        }
+        
         return $count;
     }
 
@@ -164,11 +197,102 @@ class NotificationService
      */
     public static function notifyAdmins($type, $title, $message, $data = null)
     {
-        $adminIds = User::whereIn('role', ['Admin', 'SuperAdmin'])
-            ->pluck('userID')
-            ->toArray();
+        try {
+            $adminIds = User::whereIn('role', ['Admin', 'SuperAdmin'])
+                ->pluck('userID')
+                ->toArray();
 
-        return self::createMultiple($adminIds, $type, $title, $message, $data);
+            Log::info('Notifying admins', [
+                'type' => $type,
+                'title' => $title,
+                'admin_count' => count($adminIds),
+                'admin_ids' => $adminIds,
+                'admin_details' => User::whereIn('role', ['Admin', 'SuperAdmin'])
+                    ->get(['userID', 'username', 'email', 'role'])
+                    ->toArray()
+            ]);
+
+            // Create notifications for admins (don't notify SuperAdmin again to avoid duplicates)
+            $result = self::createMultiple($adminIds, $type, $title, $message, $data, false);
+
+            Log::info('Admin notifications created', [
+                'type' => $type,
+                'notifications_created' => $result,
+                'expected_count' => count($adminIds)
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('Error in notifyAdmins', [
+                'type' => $type,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return 0;
+        }
+    }
+
+    /**
+     * Send notification to SuperAdmin about all activities
+     *
+     * @param string $type
+     * @param string $title
+     * @param string $message
+     * @param array|null $data
+     * @param int|null $originalUserId The user ID who originally received this notification
+     * @return int Number of notifications created
+     */
+    public static function notifySuperAdmin($type, $title, $message, $data = null, $originalUserId = null)
+    {
+        try {
+            $superAdminIds = User::where('role', 'SuperAdmin')
+                ->pluck('userID')
+                ->toArray();
+
+            if (empty($superAdminIds)) {
+                return 0;
+            }
+
+            // Enhance message to include user context if available
+            $enhancedMessage = $message;
+            if ($originalUserId) {
+                $originalUser = User::find($originalUserId);
+                if ($originalUser) {
+                    $userRole = $originalUser->role;
+                    $userName = trim(($originalUser->firstName ?? '') . ' ' . ($originalUser->lastName ?? '')) ?: $originalUser->username;
+                    $enhancedMessage = "[{$userRole}: {$userName}] " . $message;
+                }
+            }
+
+            // Enhance data with original user info
+            $enhancedData = $data ?? [];
+            if ($originalUserId) {
+                $enhancedData['original_user_id'] = $originalUserId;
+                $originalUser = User::find($originalUserId);
+                if ($originalUser) {
+                    $enhancedData['original_user_role'] = $originalUser->role;
+                    $enhancedData['original_user_name'] = trim(($originalUser->firstName ?? '') . ' ' . ($originalUser->lastName ?? '')) ?: $originalUser->username;
+                }
+            }
+
+            $result = self::createMultiple($superAdminIds, $type, $title, $enhancedMessage, $enhancedData, false);
+
+            Log::info('SuperAdmin notifications created', [
+                'type' => $type,
+                'title' => $title,
+                'notifications_created' => $result,
+                'original_user_id' => $originalUserId
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('Error in notifySuperAdmin', [
+                'type' => $type,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return 0;
+        }
     }
 
     /**
@@ -188,22 +312,22 @@ class NotificationService
         $message .= "Welcome to the PWD Cabuyao community! Your registration has been successfully processed.\n\n";
         $message .= "📋 YOUR PWD ID: {$pwdId}\n\n";
         $message .= "📅 CARD PROCESSING:\n";
-        $message .= "Your PWD ID card is now being prepared and will be ready for claiming in 5-7 business days.\n\n";
+        $message .= "Your PWD ID card is now being prepared and will be ready for claiming after 14 business days from approval.\n\n";
         $message .= "📍 CLAIMING INSTRUCTIONS:\n";
         $message .= "• Location: PDAO Office, Cabuyao City Hall\n";
         $message .= "• Office Hours: Monday to Friday, 8:00 AM - 5:00 PM\n";
         $message .= "• Required: Bring a valid government-issued ID\n\n";
-        $message .= "You will receive another notification when your card is ready for pickup.\n\n";
+        $message .= "You will receive an email and notification when your card is ready for pickup (14 business days after approval).\n\n";
         $message .= "Thank you for registering with us!";
 
-        // Calculate estimated ready date (5-7 business days)
-        $estimatedReadyDate = self::calculateBusinessDays(7);
+        // Calculate estimated ready date (14 business days)
+        $estimatedReadyDate = self::calculateBusinessDays(14);
 
         return self::create($userId, 'member_welcome', $title, $message, [
             'member_name' => $memberName,
             'pwd_id' => $pwdId,
             'barangay' => $barangay,
-            'processing_days' => '5-7 business days',
+            'processing_days' => '14 business days',
             'estimated_ready_date' => $estimatedReadyDate->format('Y-m-d'),
             'claiming_location' => 'PDAO Office, Cabuyao City Hall',
             'office_hours' => 'Monday to Friday, 8:00 AM - 5:00 PM',
@@ -245,25 +369,14 @@ class NotificationService
     }
 
     /**
-     * Calculate a date that is X business days from now
+     * Calculate a date that is X business days from now (excluding weekends and holidays)
      *
      * @param int $businessDays
      * @return \Carbon\Carbon
      */
     private static function calculateBusinessDays($businessDays)
     {
-        $date = now();
-        $addedDays = 0;
-
-        while ($addedDays < $businessDays) {
-            $date->addDay();
-            // Skip weekends (Saturday = 6, Sunday = 0)
-            if ($date->dayOfWeek !== 0 && $date->dayOfWeek !== 6) {
-                $addedDays++;
-            }
-        }
-
-        return $date;
+        return \App\Services\HolidayService::addBusinessDays(\Carbon\Carbon::today(), $businessDays);
     }
 }
 

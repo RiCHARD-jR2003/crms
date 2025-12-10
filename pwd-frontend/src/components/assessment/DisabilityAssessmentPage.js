@@ -277,17 +277,59 @@ function DisabilityAssessmentPage() {
 
   const handleFinalize = async (assessment) => {
     try {
+      setError('');
+      
+      // First, ensure the form is saved if it's open
+      if (formDialogOpen && selectedAssessment && selectedAssessment.id === assessment.id) {
+        // The form will handle saving before finalization
+        // For now, just proceed with finalization
+      }
+      
       const response = await api.post(`/disability-assessments/${assessment.id}/finalize`);
       
-      // Trigger PDF download
-      if (response.pdf_url) {
-        window.open(response.pdf_url, '_blank');
+      // Check if response indicates success
+      if (response.success === false) {
+        const errorMessage = response.message || response.error || 'Failed to finalize assessment';
+        setError(errorMessage);
+        return;
+      }
+      
+      // Handle PDF URL from response
+      const pdfUrl = response.data?.pdf_url || response.pdf_url;
+      if (pdfUrl) {
+        // Trigger PDF download
+        window.open(pdfUrl, '_blank');
+      } else {
+        // Fallback: use download endpoint
+        const downloadUrl = `${api.getBaseUrl()}/disability-assessments/${assessment.id}/download-pdf`;
+        window.open(downloadUrl, '_blank');
       }
       
       fetchAssessments();
+      setFormDialogOpen(false);
+      
+      // Trigger a custom event to notify other pages to refresh
+      window.dispatchEvent(new CustomEvent('assessmentStatusUpdated', { 
+        detail: { 
+          applicationId: assessment.application_id,
+          newStatus: 'Pending Admin Approval'
+        } 
+      }));
+      
+      // Show success notification
+      setTimeout(() => {
+        alert('Assessment finalized successfully! Application status has been updated to "Pending Admin Approval". Please refresh the PWD Records page to see the updated status.');
+      }, 100);
     } catch (err) {
       console.error('Error finalizing assessment:', err);
-      setError(err.message || 'Failed to finalize assessment');
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to finalize assessment';
+      setError(errorMessage);
+      
+      // Log detailed error for debugging
+      if (err.response) {
+        console.error('Response status:', err.response.status);
+        console.error('Response data:', err.response.data);
+      }
     }
   };
 
@@ -398,14 +440,32 @@ function DisabilityAssessmentPage() {
     }
 
     setUploading(true);
+    setError('');
     try {
       const formData = new FormData();
       formData.append('pdf', uploadFile);
       
-      await api.post(`/disability-assessments/${selectedAssessment.id}/upload-pdf`, formData);
+      const response = await api.post(`/disability-assessments/${selectedAssessment.id}/upload-pdf`, formData);
       
       setUploadDialogOpen(false);
       fetchAssessments();
+      
+      // Show success message
+      if (response.success !== false) {
+        setError(''); // Clear any errors
+        // Trigger a custom event to notify other pages to refresh
+        window.dispatchEvent(new CustomEvent('assessmentStatusUpdated', { 
+          detail: { 
+            applicationId: selectedAssessment.application_id,
+            newStatus: 'Pending Admin Approval'
+          } 
+        }));
+        
+        // Show success notification
+        setTimeout(() => {
+          alert('PDF uploaded successfully! Application status has been updated to "Pending Admin Approval". Please refresh the PWD Records page to see the updated status.');
+        }, 100);
+      }
     } catch (err) {
       console.error('Error uploading PDF:', err);
       setError(err.message || 'Failed to upload PDF');

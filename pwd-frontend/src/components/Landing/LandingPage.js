@@ -92,6 +92,13 @@ function ReuploadDocumentsSection({ referenceNumber, onUploadSuccess }) {
   };
 
   const handleReupload = async () => {
+    // Check if at least one document is uploaded
+    const hasAnyDocument = Object.values(documents).some(file => file !== null);
+    if (!hasAnyDocument) {
+      setUploadError('Please upload at least one document before submitting.');
+      return;
+    }
+
     // Validate all files before upload
     const fileSizeErrors = {};
     Object.keys(documents).forEach(key => {
@@ -128,6 +135,7 @@ function ReuploadDocumentsSection({ referenceNumber, onUploadSuccess }) {
       });
 
       // Don't set Content-Type manually - browser will set it with boundary automatically
+      // This endpoint does NOT require OTP verification - it uses reference number only
       const response = await api.post(`/application-status/${referenceNumber}/reupload-documents`, formData);
 
       if (response.success || response.data?.success) {
@@ -177,12 +185,15 @@ function ReuploadDocumentsSection({ referenceNumber, onUploadSuccess }) {
       <Typography variant="body2" sx={{ mb: 3, color: '#7F8C8D' }}>
         Your application was rejected. You can re-upload the documents that need correction. After uploading, your application will be resubmitted for review.
       </Typography>
+      <Typography variant="caption" sx={{ mb: 2, color: '#E74C3C', display: 'block', fontStyle: 'italic' }}>
+        * Required fields - Please upload all required documents before submitting.
+      </Typography>
       
       <Grid container spacing={2}>
         {documentFields.map(({ key, label }) => (
           <Grid item xs={12} sm={6} key={key}>
             <Typography variant="caption" sx={{ fontWeight: 600, color: '#2C3E50', display: 'block', mb: 1 }}>
-              {label}
+              {label} <span style={{ color: '#E74C3C' }}>*</span>
             </Typography>
             <input
               type="file"

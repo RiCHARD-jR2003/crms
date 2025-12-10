@@ -27,6 +27,11 @@ class Kernel extends ConsoleKernel
         // Auto-deactivate expired benefits (check every hour)
         $schedule->command('benefits:auto-deactivate')
             ->hourly(); // Run every hour to check for expired benefits
+
+        // Check for IDs ready for claiming (14 business days after approval)
+        $schedule->command('pwd:notify-id-ready')
+            ->daily()
+            ->at('10:00'); // Run at 10:00 AM daily
     }
 
     /**
