@@ -71,8 +71,8 @@ import { formatDate as formatDateMMDDYYYY } from '../../utils/dateTimeFormatter'
     tableStyles
   } from '../../utils/themeStyles';
 
-// Use localhost-bound storage URL to avoid network interface issues
-const STORAGE_BASE_URL = 'http://192.168.18.25:8000/storage';
+// Use localhost storage URL
+const STORAGE_BASE_URL = 'https://farming-artists-representing-houston.trycloudflare.com/storage';
 
 function PWDRecords() {
   const { currentUser } = useAuth();

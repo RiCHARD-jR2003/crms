@@ -33,7 +33,9 @@ return [
         'https://prozac-invitations-lucy-visits.trycloudflare.com',
         'https://remind-ignored-putting-laid.trycloudflare.com',
         'https://deemed-treatment-founder-retention.trycloudflare.com',
-        'https://otherwise-editor-judy-panel.trycloudflare.com', // New frontend tunnel
+        'https://otherwise-editor-judy-panel.trycloudflare.com',
+        'https://avoid-fallen-nevertheless-issn.trycloudflare.com', // Previous frontend tunnel
+        'https://speakers-calendar-avi-assumes.trycloudflare.com', // Current frontend tunnel
     ],
 
     'allowed_origins_patterns' => [
