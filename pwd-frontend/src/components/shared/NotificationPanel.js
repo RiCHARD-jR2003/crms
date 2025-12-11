@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import notificationService from '../../services/notificationService';
+import announcementService from '../../services/announcementService';
 import { useAuth } from '../../contexts/AuthContext';
 
 function NotificationPanel({ open, onClose }) {
@@ -174,6 +175,43 @@ function NotificationPanel({ open, onClose }) {
     // Mark as read first
     if (!notification.is_read) {
       await handleMarkAsRead(notification.id);
+    }
+    
+    // For PWD members, open announcements in modal instead of navigating
+    if (currentUser?.role === 'PWDMember' && 
+        (notification.type === 'announcement' || notification.type === 'benefit_announcement')) {
+      // Get announcement ID from notification data
+      const announcementId = notification.data?.announcement_id || notification.data?.announcementID;
+      
+      if (announcementId) {
+        // Fetch announcement and open in modal
+        try {
+          const announcement = await announcementService.getById(announcementId);
+          
+          // Ensure we have the announcement data
+          if (announcement) {
+            // Normalize announcement ID field
+            const normalizedAnnouncement = {
+              ...announcement,
+              id: announcement.id || announcement.announcementID || announcementId,
+              announcementID: announcement.announcementID || announcement.id || announcementId
+            };
+            
+            // Trigger custom event to open announcement modal
+            const event = new CustomEvent('openAnnouncementModal', { 
+              detail: { announcement: normalizedAnnouncement } 
+            });
+            window.dispatchEvent(event);
+            
+            // Close notification panel
+            onClose();
+            return;
+          }
+        } catch (error) {
+          console.error('Error fetching announcement:', error);
+          // Fall back to navigation if fetch fails
+        }
+      }
     }
     
     // Get the navigation path

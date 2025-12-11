@@ -1235,7 +1235,7 @@ function PWDCard() {
 
   const handleViewRenewalFile = async (renewalId, type) => {
     try {
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://may-acceptable-fitting-exit.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://farming-artists-representing-houston.trycloudflare.com/api';
       let token = null;
       
       try {

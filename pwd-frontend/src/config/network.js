@@ -1,8 +1,8 @@
 // Cloudflare Tunnel Configuration
 const CLOUDFLARE_TUNNEL_CONFIG = {
   // Backend API through Cloudflare tunnel
-  API_BASE_URL: 'https://may-acceptable-fitting-exit.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://may-acceptable-fitting-exit.trycloudflare.com',
+  API_BASE_URL: 'https://farming-artists-representing-houston.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://farming-artists-representing-houston.trycloudflare.com',
 };
 
 // Network Development Configuration (using tunnel)
@@ -26,8 +26,10 @@ const isNetworkMode = process.env.REACT_APP_NETWORK_MODE === 'true' ||
 // Export the appropriate configuration - always use tunnel
 export const API_CONFIG = CLOUDFLARE_TUNNEL_CONFIG;
 
-// Instructions for network access:
-// 1. Make sure the backend is running on 192.168.0.126:8000
-// 2. Start the frontend with network mode enabled
-// 3. Access from other PCs using: http://192.168.0.126:3000
-// 4. Update the IP address in this file if your network IP changes
+// Instructions for Cloudflare tunnel access:
+// 1. Make sure the backend is running on localhost:8000
+// 2. Start Cloudflare tunnel for backend: cloudflared tunnel --url http://localhost:8000
+// 3. Start the frontend with: npm start
+// 4. Start Cloudflare tunnel for frontend: cloudflared tunnel --url http://localhost:3000
+// 5. Access frontend at: https://speakers-calendar-avi-assumes.trycloudflare.com
+// 6. Backend API will be at: https://farming-artists-representing-houston.trycloudflare.com/api

@@ -467,7 +467,9 @@ class BenefitController extends Controller
             // Update announcement to Active status and set targetAudience
             $announcement->status = 'Active';
             $announcement->targetAudience = implode(', ', array_unique($targetAudienceArray));
-            $announcement->publishDate = $announcement->publishDate ?: now()->toDateString();
+            // Set publishDate to current datetime to ensure it appears at the top of the list
+            // Use toDateTimeString() to include time component for proper sorting
+            $announcement->publishDate = now()->toDateTimeString();
             $announcement->save();
             
             Log::info('Updated announcement when benefit announced', [
@@ -993,7 +995,8 @@ class BenefitController extends Controller
             if ($needsUpdate || $announcement->status !== 'Active') {
                 $announcement->targetAudience = implode(', ', array_unique($targetAudienceArray));
                 $announcement->status = 'Active';
-                $announcement->publishDate = $announcement->publishDate ?: now()->toDateString();
+                // Set publishDate to current datetime to ensure it appears at the top of the list
+                $announcement->publishDate = now()->toDateTimeString();
                 $announcement->save();
                 
                 Log::info('Updated announcement when announcing to members', [
