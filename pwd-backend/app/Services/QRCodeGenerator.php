@@ -4,15 +4,17 @@ namespace App\Services;
 
 use App\Models\PWDMember;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Crypt;
 
 class QRCodeGenerator
 {
     /**
-     * Generate QR code data for a PWD member
+     * Generate encrypted QR code data for a PWD member
+     * The QR code will be encrypted so only the system can decrypt it
      *
      * @param PWDMember $pwdMember
      * @param bool $forceRegenerate Force regeneration even if QR code exists
-     * @return string JSON encoded QR code data
+     * @return string Encrypted QR code data (base64 encoded)
      */
     public static function generateQRData(PWDMember $pwdMember, bool $forceRegenerate = false): string
     {
@@ -20,15 +22,25 @@ class QRCodeGenerator
             // If QR code already exists and we're not forcing regeneration, check if it needs updating
             if (!$forceRegenerate && !empty($pwdMember->qr_code_data)) {
                 try {
-                    // Check if the stored QR code has validUntil field (old format) - if so, regenerate it
-                    $existingData = json_decode($pwdMember->qr_code_data, true);
-                    if ($existingData && isset($existingData['validUntil'])) {
-                        // Old format with expiration - regenerate without it
-                        Log::info("Regenerating QR code for member {$pwdMember->pwd_id} to remove expiration");
-                        // Continue to regenerate below
-                    } else {
-                        // QR code is in new format without expiration - return as is
-                        return $pwdMember->qr_code_data;
+                    // Try to decrypt existing QR code to check if it's encrypted
+                    try {
+                        $decrypted = Crypt::decryptString($pwdMember->qr_code_data);
+                        $existingData = json_decode($decrypted, true);
+                        
+                        // Successfully decrypted - it's encrypted format
+                        // Check if the stored QR code has validUntil field (old format) - if so, regenerate it
+                        if ($existingData && isset($existingData['validUntil'])) {
+                            // Old format with expiration - regenerate without it
+                            Log::info("Regenerating QR code for member {$pwdMember->pwd_id} to remove expiration");
+                            // Continue to regenerate below
+                        } else {
+                            // QR code is in new encrypted format without expiration - return as is
+                            return $pwdMember->qr_code_data;
+                        }
+                    } catch (\Exception $decryptError) {
+                        // If decryption fails, it's unencrypted JSON - MUST regenerate with encryption
+                        Log::info("QR code for member {$pwdMember->pwd_id} is unencrypted, regenerating with encryption");
+                        // Continue to regenerate below - this is important for security
                     }
                 } catch (\Exception $e) {
                     // If parsing fails, regenerate the QR code
@@ -52,7 +64,7 @@ class QRCodeGenerator
             
             $qrData = [
                 'type' => 'PWD_BENEFIT_CLAIM',
-                'version' => '1.0',
+                'version' => '2.0', // Version 2.0 = encrypted format
                 'pwdId' => $pwdMember->id,
                 'memberId' => $pwdMember->userID,
                 'userID' => $pwdMember->userID,
@@ -68,14 +80,86 @@ class QRCodeGenerator
                 'emergencyContact' => $emergencyContact,
                 'issuedDate' => $issuedDate,
                 'generatedAt' => $issuedDate, // For backward compatibility
-                'qrVersion' => '1.0' // For future compatibility
+                'qrVersion' => '2.0' // For future compatibility
             ];
             
-            return json_encode($qrData, JSON_UNESCAPED_UNICODE);
+            // Encrypt the QR code data
+            $jsonData = json_encode($qrData, JSON_UNESCAPED_UNICODE);
+            $encryptedData = Crypt::encryptString($jsonData);
+            
+            return $encryptedData;
             
         } catch (\Exception $e) {
             Log::error('QR Code generation failed: ' . $e->getMessage());
             throw new \Exception('Failed to generate QR code data');
+        }
+    }
+    
+    /**
+     * Decrypt QR code data
+     *
+     * @param string $encryptedData Encrypted QR code data
+     * @return string Decrypted JSON string
+     */
+    public static function decryptQRData(string $encryptedData): string
+    {
+        try {
+            // Try to decrypt the data
+            $decrypted = Crypt::decryptString($encryptedData);
+            return $decrypted;
+        } catch (\Exception $e) {
+            // If decryption fails, might be old unencrypted format
+            // Try to parse as JSON directly
+            try {
+                $data = json_decode($encryptedData, true);
+                if ($data && is_array($data)) {
+                    // It's unencrypted JSON, return as is
+                    return $encryptedData;
+                }
+            } catch (\Exception $parseError) {
+                // Not JSON either
+            }
+            
+            Log::error('QR Code decryption failed: ' . $e->getMessage());
+            throw new \Exception('Failed to decrypt QR code data');
+        }
+    }
+    
+    /**
+     * Validate and decrypt QR code data
+     *
+     * @param string $qrData Encrypted or unencrypted QR code data
+     * @return array Decrypted and validated QR code data
+     */
+    public static function validateAndDecryptQRData(string $qrData): array
+    {
+        try {
+            // Try to decrypt first (new encrypted format)
+            try {
+                $decrypted = self::decryptQRData($qrData);
+                $data = json_decode($decrypted, true);
+            } catch (\Exception $e) {
+                // If decryption fails, try parsing as unencrypted JSON (backward compatibility)
+                $data = json_decode($qrData, true);
+            }
+            
+            if (!$data || !is_array($data)) {
+                throw new \Exception('Invalid QR code format');
+            }
+            
+            // Check required fields
+            $requiredFields = ['pwdId', 'userID', 'pwd_id', 'firstName', 'lastName'];
+            foreach ($requiredFields as $field) {
+                if (!isset($data[$field]) || empty($data[$field])) {
+                    throw new \Exception("Missing required field: {$field}");
+                }
+            }
+            
+            return $data;
+            
+        } catch (\Exception $e) {
+            Log::error('QR Code validation/decryption failed: ' . $e->getMessage());
+            throw $e;
         }
     }
     
@@ -92,21 +176,25 @@ class QRCodeGenerator
         try {
             // If QR code already exists and we're not forcing regeneration, check if it needs updating
             if (!$forceRegenerate && self::hasQRCode($pwdMember)) {
-                // Check if the stored QR code has validUntil field (old format) - if so, regenerate it
+                // Try to decrypt existing QR code to check if it's encrypted
                 try {
-                    $existingData = json_decode($pwdMember->qr_code_data, true);
+                    $decrypted = Crypt::decryptString($pwdMember->qr_code_data);
+                    $existingData = json_decode($decrypted, true);
+                    
+                    // Successfully decrypted - it's encrypted format
+                    // Check if the stored QR code has validUntil field (old format) - if so, regenerate it
                     if ($existingData && isset($existingData['validUntil'])) {
                         // Old format with expiration - regenerate without it
                         Log::info("Regenerating QR code for member {$pwdMember->pwd_id} to remove expiration during store");
                         // Continue to regenerate below
                     } else {
-                        // QR code is in new format without expiration - return as is
+                        // QR code is in new encrypted format without expiration - return as is
                         return $pwdMember->qr_code_data;
                     }
                 } catch (\Exception $e) {
-                    // If parsing fails, regenerate the QR code
-                    Log::warning("Failed to parse QR code data for member {$pwdMember->pwd_id} during store, regenerating: " . $e->getMessage());
-                    // Continue to regenerate below
+                    // If decryption fails, it's unencrypted JSON - MUST regenerate with encryption
+                    Log::info("QR code for member {$pwdMember->pwd_id} is unencrypted, regenerating with encryption during store");
+                    // Continue to regenerate below - this is important for security
                 }
             }
             
@@ -133,7 +221,7 @@ class QRCodeGenerator
     }
     
     /**
-     * Validate QR code data
+     * Validate QR code data (supports both encrypted and unencrypted for backward compatibility)
      *
      * @param string $qrData
      * @return bool
@@ -141,25 +229,8 @@ class QRCodeGenerator
     public static function validateQRData(string $qrData): bool
     {
         try {
-            $data = json_decode($qrData, true);
-            
-            if (!$data || !is_array($data)) {
-                return false;
-            }
-            
-            // Check required fields
-            $requiredFields = ['pwdId', 'userID', 'pwd_id', 'firstName', 'lastName'];
-            foreach ($requiredFields as $field) {
-                if (!isset($data[$field]) || empty($data[$field])) {
-                    return false;
-                }
-            }
-            
-            // QR codes for benefit claims do not expire - they are permanent and unique per member
-            // No expiration check needed
-            
-            return true;
-            
+            $data = self::validateAndDecryptQRData($qrData);
+            return !empty($data);
         } catch (\Exception $e) {
             Log::error('QR Code validation failed: ' . $e->getMessage());
             return false;

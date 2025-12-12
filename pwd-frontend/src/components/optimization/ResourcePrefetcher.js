@@ -15,8 +15,8 @@ const ResourcePrefetcher = () => {
   // Preconnect to important origins
   useEffect(() => {
     // Preconnect to API endpoints
-    const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://farming-artists-representing-houston.trycloudflare.com/api';
-    const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://farming-artists-representing-houston.trycloudflare.com';
+    const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://main-named-robot-suspected.trycloudflare.com/api';
+    const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://main-named-robot-suspected.trycloudflare.com';
     preconnect(apiBaseUrl);
     
     // DNS prefetch for external CDNs

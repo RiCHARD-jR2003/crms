@@ -1247,6 +1247,41 @@ Route::get('/benefit-claims/{id}/signed-letter', [BenefitClaimController::class,
 // QR scan claim benefits route
 Route::post('/qr-scan/claim-benefits', [BenefitClaimController::class, 'claimBenefits']);
 
+// QR code decryption endpoint (for scanning encrypted QR codes)
+Route::post('/qr-code/decrypt', function (Request $request) {
+    try {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'encryptedData' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid request',
+                'errors' => $validator->errors()
+            ], 400);
+        }
+
+        $encryptedData = $request->encryptedData;
+        
+        // Decrypt and validate the QR code
+        $decryptedData = \App\Services\QRCodeGenerator::validateAndDecryptQRData($encryptedData);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $decryptedData
+        ]);
+        
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('QR code decryption failed: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'error' => 'Failed to decrypt QR code',
+            'message' => $e->getMessage()
+        ], 400);
+    }
+});
+
 // PWD Member profile routes
 Route::get('/pwd-member/profile', function (Request $request) {
     try {

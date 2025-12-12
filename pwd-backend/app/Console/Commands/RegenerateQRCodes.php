@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\PWDMember;
 use App\Services\QRCodeGenerator;
+use Illuminate\Support\Facades\Crypt;
 
 class RegenerateQRCodes extends Command
 {
@@ -20,7 +21,7 @@ class RegenerateQRCodes extends Command
      *
      * @var string
      */
-    protected $description = 'Regenerate QR codes for PWD members (removes expiration)';
+    protected $description = 'Regenerate QR codes for PWD members (encrypts unencrypted QR codes and removes expiration)';
 
     /**
      * Execute the console command.
@@ -56,9 +57,24 @@ class RegenerateQRCodes extends Command
                     $regenerated++;
                     $this->line("✓ Regenerated QR code for: {$member->pwd_id}");
                 } else {
-                    // Check if QR code has validUntil field
-                    $data = json_decode($member->qr_code_data, true);
-                    if ($data && isset($data['validUntil'])) {
+                    // Check if QR code is encrypted or has validUntil field (old format)
+                    $needsRegeneration = false;
+                    
+                    // Try to decrypt - if it fails, it's unencrypted and needs regeneration
+                    try {
+                        $decrypted = Crypt::decryptString($member->qr_code_data);
+                        $data = json_decode($decrypted, true);
+                        
+                        // If it has validUntil field, it's old format
+                        if ($data && isset($data['validUntil'])) {
+                            $needsRegeneration = true;
+                        }
+                    } catch (\Exception $e) {
+                        // Decryption failed - it's unencrypted JSON, needs regeneration
+                        $needsRegeneration = true;
+                    }
+                    
+                    if ($needsRegeneration) {
                         QRCodeGenerator::generateAndStore($member, true);
                         $regenerated++;
                         $this->line("✓ Regenerated QR code for: {$member->pwd_id}");

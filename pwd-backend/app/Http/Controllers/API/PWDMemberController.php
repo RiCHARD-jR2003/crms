@@ -40,6 +40,8 @@ class PWDMemberController extends Controller
                         'cardClaimed',
                         'cardIssueDate',
                         'cardExpirationDate',
+                        'qr_code_data',
+                        'qr_code_generated_at',
                         'created_at',
                         'updated_at'
                     ])->get();
@@ -146,6 +148,19 @@ class PWDMemberController extends Controller
                         }
                     }
                     
+                    // Ensure QR code is generated if it doesn't exist
+                    if (empty($member->qr_code_data)) {
+                        try {
+                            \App\Services\QRCodeGenerator::generateAndStore($member);
+                            $member->refresh(); // Refresh to get the newly generated QR code data
+                        } catch (\Exception $qrError) {
+                            \Illuminate\Support\Facades\Log::warning('QR code generation failed in member list', [
+                                'error' => $qrError->getMessage(),
+                                'pwd_member_id' => $member->userID ?? $member->id
+                            ]);
+                        }
+                    }
+                    
                     return $member;
                 });
                 
@@ -184,10 +199,29 @@ class PWDMemberController extends Controller
 
     public function show($id)
     {
+        // Try to find by database ID first
         $member = PWDMember::with('user')->find($id);
+        
+        // If not found, try by userID
+        if (!$member) {
+            $member = PWDMember::with('user')->where('userID', $id)->first();
+        }
         
         if (!$member) {
             return response()->json(['message' => 'PWD Member not found'], 404);
+        }
+        
+        // Ensure QR code is generated if it doesn't exist
+        if (empty($member->qr_code_data)) {
+            try {
+                \App\Services\QRCodeGenerator::generateAndStore($member);
+                $member->refresh(); // Refresh to get the newly generated QR code data
+            } catch (\Exception $qrError) {
+                \Illuminate\Support\Facades\Log::warning('QR code generation failed in show endpoint', [
+                    'error' => $qrError->getMessage(),
+                    'pwd_member_id' => $member->userID ?? $member->id
+                ]);
+            }
         }
         
         return response()->json($member);

@@ -359,7 +359,36 @@ function PWDCard() {
       }
       
       const response = await pwdMemberService.getAll(params);
-      const members = response.data || response.members || [];
+      // Handle different response structures
+      let members = [];
+      if (Array.isArray(response.data)) {
+        members = response.data;
+      } else if (Array.isArray(response.members)) {
+        members = response.members;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        members = response.data.data;
+      } else if (response.data && Array.isArray(response.data.members)) {
+        members = response.data.members;
+      } else if (Array.isArray(response)) {
+        members = response;
+      }
+      
+      // Debug: Log the raw response to see structure
+      if (members.length > 0) {
+        console.log('API Response structure:', {
+          hasData: !!response.data,
+          hasMembers: !!response.members,
+          membersCount: members.length,
+          firstMemberKeys: Object.keys(members[0]),
+          firstMemberHasQrCode: !!members[0].qr_code_data,
+          firstMemberSample: {
+            id: members[0].id,
+            userID: members[0].userID,
+            pwd_id: members[0].pwd_id,
+            qr_code_data: members[0].qr_code_data ? 'present' : 'missing'
+          }
+        });
+      }
       
       // Update pagination metadata
       if (response.pagination) {
@@ -384,6 +413,15 @@ function PWDCard() {
           (cardIssueDate ? new Date(new Date(cardIssueDate).setFullYear(new Date(cardIssueDate).getFullYear() + 3)) : null);
         
         const cardStatus = calculateCardStatus(cardClaimed, cardExpirationDate);
+        
+        // Debug: Log first member to check QR code data
+        if (index === 0) {
+          console.log('First member from API:', {
+            hasQrCodeData: !!member.qr_code_data,
+            qrCodeDataLength: member.qr_code_data ? member.qr_code_data.length : 0,
+            allKeys: Object.keys(member).filter(k => k.includes('qr') || k.includes('QR'))
+          });
+        }
         
         return {
           id: member.pwd_id || `PWD-2025-${String(index + 1).padStart(6, '0')}`,
@@ -415,7 +453,10 @@ function PWDCard() {
           cardClaimed: cardClaimed,
           cardIssueDate: cardIssueDate,
           cardExpirationDate: cardExpirationDate,
-          cardStatus: cardStatus
+          cardStatus: cardStatus,
+          // IMPORTANT: Preserve QR code data from API response
+          qr_code_data: member.qr_code_data || member.qrCodeData || null,
+          qr_code_generated_at: member.qr_code_generated_at || member.qrCodeGeneratedAt || null
         };
       });
       
@@ -628,6 +669,17 @@ function PWDCard() {
       try {
         const member = pwdMembers.find(m => m.id === selectedMember);
         if (!member) return;
+        
+        // Debug: Log member data to see what we have
+        console.log('Generating QR code for member:', {
+          id: member.id,
+          memberId: member.memberId,
+          userID: member.userID,
+          name: member.name,
+          hasQrCodeData: !!member.qr_code_data,
+          qrCodeData: member.qr_code_data ? 'present' : 'missing',
+          allKeys: Object.keys(member)
+        });
         
         const qrDataURL = await QRCodeService.generateMemberQRCode(member);
         setQrCodeDataURL(qrDataURL);
@@ -1235,7 +1287,7 @@ function PWDCard() {
 
   const handleViewRenewalFile = async (renewalId, type) => {
     try {
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://farming-artists-representing-houston.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://main-named-robot-suspected.trycloudflare.com/api';
       let token = null;
       
       try {

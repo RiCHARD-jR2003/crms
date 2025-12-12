@@ -35,7 +35,11 @@ return [
         'https://deemed-treatment-founder-retention.trycloudflare.com',
         'https://otherwise-editor-judy-panel.trycloudflare.com',
         'https://avoid-fallen-nevertheless-issn.trycloudflare.com', // Previous frontend tunnel
-        'https://speakers-calendar-avi-assumes.trycloudflare.com', // Current frontend tunnel
+        'https://speakers-calendar-avi-assumes.trycloudflare.com', // Previous frontend tunnel
+        'https://hose-cherry-rapid-complement.trycloudflare.com', // Previous backend tunnel
+        'https://attempts-substance-sustained-suspension.trycloudflare.com', // Previous frontend tunnel
+        'https://main-named-robot-suspected.trycloudflare.com', // Current backend tunnel
+        'https://marathon-cleanup-states-merchant.trycloudflare.com', // Current frontend tunnel
     ],
 
     'allowed_origins_patterns' => [

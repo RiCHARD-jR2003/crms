@@ -72,7 +72,7 @@ import { formatDate as formatDateMMDDYYYY } from '../../utils/dateTimeFormatter'
   } from '../../utils/themeStyles';
 
 // Use localhost storage URL
-const STORAGE_BASE_URL = 'https://farming-artists-representing-houston.trycloudflare.com/storage';
+const STORAGE_BASE_URL = 'https://main-named-robot-suspected.trycloudflare.com/storage';
 
 function PWDRecords() {
   const { currentUser } = useAuth();

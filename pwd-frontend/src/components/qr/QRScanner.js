@@ -596,8 +596,8 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
       setError(null); // Clear any previous errors
       setLoading(true);
       
-      // Parse and validate QR code
-      const validation = QRCodeService.parseQRCode(qrText);
+      // Parse and validate QR code (handles encrypted QR codes)
+      const validation = await QRCodeService.parseQRCode(qrText);
       console.log('QR code validation result:', validation);
       
       if (validation.valid) {

@@ -1,8 +1,8 @@
 // Cloudflare Tunnel Configuration
 const CLOUDFLARE_TUNNEL_CONFIG = {
   // Backend API through Cloudflare tunnel
-  API_BASE_URL: 'https://farming-artists-representing-houston.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://farming-artists-representing-houston.trycloudflare.com',
+  API_BASE_URL: 'https://main-named-robot-suspected.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://main-named-robot-suspected.trycloudflare.com',
 };
 
 // Network Development Configuration (using tunnel)
@@ -31,5 +31,5 @@ export const API_CONFIG = CLOUDFLARE_TUNNEL_CONFIG;
 // 2. Start Cloudflare tunnel for backend: cloudflared tunnel --url http://localhost:8000
 // 3. Start the frontend with: npm start
 // 4. Start Cloudflare tunnel for frontend: cloudflared tunnel --url http://localhost:3000
-// 5. Access frontend at: https://speakers-calendar-avi-assumes.trycloudflare.com
-// 6. Backend API will be at: https://farming-artists-representing-houston.trycloudflare.com/api
+// 5. Access frontend at: https://marathon-cleanup-states-merchant.trycloudflare.com
+// 6. Backend API will be at: https://main-named-robot-suspected.trycloudflare.com/api

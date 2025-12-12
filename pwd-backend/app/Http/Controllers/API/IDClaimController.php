@@ -154,7 +154,7 @@ class IDClaimController extends Controller
                 \App\Services\NotificationService::notifyAdmins(
                     'id_claiming',
                     'New ID Claim Initiated',
-                    "A new ID " . ($request->claim_type === 'new' ? 'claim' : 'renewal') . " has been initiated for {$memberName} (PWD ID: {$member->pwd_id ?? 'N/A'}). Claim ID: {$claim->id}",
+                    "A new ID " . ($request->claim_type === 'new' ? 'claim' : 'renewal') . " has been initiated for {$memberName} (PWD ID: " . ($member->pwd_id ?? 'N/A') . "). Claim ID: {$claim->id}",
                     [
                         'claim_id' => $claim->id,
                         'claim_type' => $request->claim_type,
@@ -427,7 +427,7 @@ class IDClaimController extends Controller
                 \App\Services\NotificationService::notifyAdmins(
                     'id_claimed',
                     'ID Claim Completed',
-                    "ID claim has been completed for {$memberName} (PWD ID: {$member->pwd_id ?? 'N/A'}). Receipt #: {$updateData['receipt_number']}. Claim ID: {$claim->id}",
+                    "ID claim has been completed for {$memberName} (PWD ID: " . ($member->pwd_id ?? 'N/A') . "). Receipt #: {$updateData['receipt_number']}. Claim ID: {$claim->id}",
                     [
                         'claim_id' => $claim->id,
                         'member_id' => $member->userID,

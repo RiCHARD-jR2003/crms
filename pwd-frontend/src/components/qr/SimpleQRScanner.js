@@ -27,6 +27,7 @@ import QrScanner from 'qr-scanner';
 import pwdMemberService from '../../services/pwdMemberService';
 import benefitService from '../../services/benefitService';
 import api from '../../services/api';
+import QRCodeService from '../../services/qrCodeService';
 
 const SimpleQRScanner = ({ open, onClose, onScan }) => {
   const [loading, setLoading] = useState(false);
@@ -372,16 +373,22 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
       console.log('📏 QR Code length:', result.data.length);
       console.log('🔍 QR Code first 100 chars:', result.data.substring(0, 100));
       
-      // Try to parse QR code data
+      // Try to parse QR code data (handles both encrypted and unencrypted)
       let qrData;
       try {
-        qrData = JSON.parse(result.data);
-        console.log('✅ Successfully parsed QR data as JSON:', qrData);
+        // Use QRCodeService to parse (handles encryption)
+        const validation = await QRCodeService.parseQRCode(result.data);
+        if (validation.valid) {
+          qrData = validation.data;
+          console.log('✅ Successfully parsed/decrypted QR data:', qrData);
+        } else {
+          throw new Error(validation.error || 'Invalid QR code format');
+        }
       } catch (parseError) {
-        console.error('❌ Failed to parse QR code as JSON:', parseError);
+        console.error('❌ Failed to parse/decrypt QR code:', parseError);
         console.log('📄 Raw QR data:', result.data);
         
-        // Try to handle non-JSON QR codes (like URLs or plain text)
+        // Try to handle non-JSON QR codes (like URLs or plain text) - fallback
         if (result.data.includes('pwd') || result.data.includes('PWD')) {
           // Try to extract PWD ID from text
           const pwdIdMatch = result.data.match(/PWD-?\d+/i);

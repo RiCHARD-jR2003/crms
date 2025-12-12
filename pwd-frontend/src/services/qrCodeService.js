@@ -1,10 +1,12 @@
 import QRCode from 'qrcode';
 import toastService from './toastService';
+import { API_CONFIG } from '../config/production';
+import { api } from './api';
 
 class QRCodeService {
   /**
    * Generate QR code for PWD member benefit claims
-   * Uses stored qr_code_data from backend if available, otherwise generates new one
+   * Uses stored encrypted qr_code_data from backend
    * @param {Object} member - PWD member data (should include qr_code_data if available)
    * @returns {Promise<string>} - Data URL of generated QR code
    */
@@ -16,47 +18,82 @@ class QRCodeService {
       }
 
       // Use stored QR code data from backend if available
-      let qrData;
+      // Note: Backend now stores encrypted QR code data, so we use it directly
+      let qrDataString;
+      
+      // Check multiple possible property names for QR code data
       if (member.qr_code_data) {
+        qrDataString = member.qr_code_data;
+      } else if (member.qrCodeData) {
+        qrDataString = member.qrCodeData;
+      } else if (member.qr_code_data_string) {
+        qrDataString = member.qr_code_data_string;
+      } else {
+        // If no stored QR code data, try to fetch it from the API
+        console.warn('No QR code data in member object, attempting to fetch from API...', {
+          memberId: member.memberId || member.userID || member.id,
+          hasQrCodeData: !!member.qr_code_data,
+          memberKeys: Object.keys(member)
+        });
+        
+        // Try to fetch member data with QR code from API using the proper api service
         try {
-          // Parse stored QR code data from backend
-          qrData = typeof member.qr_code_data === 'string' 
-            ? JSON.parse(member.qr_code_data) 
-            : member.qr_code_data;
-        } catch (parseError) {
-          console.warn('Failed to parse stored QR code data, generating new one:', parseError);
-          qrData = null;
+          const memberId = member.memberId || member.userID || member.id;
+          console.log('Attempting to fetch QR code for member:', memberId);
+          
+          if (memberId) {
+            const memberData = await api.get(`/pwd-members/${memberId}`);
+            console.log('API response for member:', {
+              hasData: !!memberData,
+              hasQrCode: !!memberData?.qr_code_data,
+              keys: memberData ? Object.keys(memberData) : [],
+              nestedData: memberData?.data ? Object.keys(memberData.data) : []
+            });
+            
+            // Try different response structures
+            if (memberData && memberData.qr_code_data) {
+              qrDataString = memberData.qr_code_data;
+              console.log('Successfully fetched QR code data from API (direct)');
+            } else if (memberData && memberData.data && memberData.data.qr_code_data) {
+              qrDataString = memberData.data.qr_code_data;
+              console.log('Successfully fetched QR code data from API (nested in data)');
+            } else if (memberData && typeof memberData === 'object') {
+              // Try to find qr_code_data anywhere in the response
+              const findQrCode = (obj) => {
+                if (obj && typeof obj === 'object') {
+                  if (obj.qr_code_data) return obj.qr_code_data;
+                  for (const key in obj) {
+                    const result = findQrCode(obj[key]);
+                    if (result) return result;
+                  }
+                }
+                return null;
+              };
+              const found = findQrCode(memberData);
+              if (found) {
+                qrDataString = found;
+                console.log('Successfully found QR code data in nested response');
+              }
+            }
+          }
+        } catch (fetchError) {
+          console.error('Failed to fetch QR code data from API:', fetchError);
         }
       }
-
-      // If no stored QR code data, generate new one with stable values
-      if (!qrData) {
-        // Use a stable timestamp - use qr_code_generated_at if available, otherwise use created_at, otherwise use a fixed date
-        const stableDate = member.qr_code_generated_at 
-          ? new Date(member.qr_code_generated_at).toISOString()
-          : (member.created_at ? new Date(member.created_at).toISOString() : new Date('2024-01-01').toISOString());
-        
-        qrData = {
-          type: 'PWD_BENEFIT_CLAIM',
-          version: '1.0',
-          memberId: member.userID || member.id,
-          pwdId: member.pwd_id || `PWD-${member.userID?.toString().padStart(6, '0')}`,
-          firstName: member.firstName,
-          lastName: member.lastName,
-          disabilityType: member.disabilityType,
-          barangay: member.barangay,
-          generatedAt: stableDate,
-          issuedDate: stableDate,
-          // Security features - checksum is based on stable member data, so it will be consistent
-          checksum: this.generateChecksum(member),
-          // Alternative formats for better scanner compatibility
-          simpleId: `PWD-${member.userID}`,
-          fullId: member.pwd_id
-        };
+      
+      if (!qrDataString) {
+        // If still no QR code data, we can't generate a proper encrypted one from frontend
+        console.error('No QR code data available for member:', {
+          memberId: member.memberId || member.userID || member.id,
+          memberName: member.name || `${member.firstName} ${member.lastName}`,
+          availableKeys: Object.keys(member)
+        });
+        throw new Error('QR code data not available. Please regenerate QR code from backend.');
       }
 
-      // Generate QR code with optimal settings for mobile scanning
-      const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
+      // Generate QR code with encrypted data directly
+      // The encrypted string from backend is what gets encoded in the QR code
+      const qrCodeDataURL = await QRCode.toDataURL(qrDataString, {
         width: 200,
         margin: 2,
         color: {
@@ -135,16 +172,48 @@ class QRCodeService {
   }
 
   /**
-   * Parse QR code text data
-   * @param {string} qrText - Raw QR code text
-   * @returns {Object} - Parsed and validated data
+   * Parse QR code text data (handles both encrypted and unencrypted)
+   * @param {string} qrText - Raw QR code text (may be encrypted)
+   * @returns {Promise<Object>} - Parsed and validated data
    */
-  static parseQRCode(qrText) {
+  static async parseQRCode(qrText) {
     try {
-      const qrData = JSON.parse(qrText);
-      return this.validateQRCode(qrData);
+      // First, try to parse as JSON (unencrypted format - backward compatibility)
+      try {
+        const qrData = JSON.parse(qrText);
+        const validation = this.validateQRCode(qrData);
+        if (validation.valid) {
+          return validation;
+        }
+      } catch (parseError) {
+        // Not unencrypted JSON, might be encrypted
+      }
+
+      // If parsing as JSON fails, try to decrypt via API (encrypted format)
+      // Note: This endpoint is public (no auth required) since QR codes can be scanned by anyone
+      try {
+        const response = await fetch(`${API_CONFIG?.API_BASE_URL || ''}/qr-code/decrypt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ encryptedData: qrText })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            return this.validateQRCode(result.data);
+          }
+        }
+      } catch (decryptError) {
+        console.warn('Failed to decrypt QR code via API:', decryptError);
+      }
+
+      // If both fail, return error
+      return { valid: false, error: 'Failed to parse or decrypt QR code' };
     } catch (error) {
-      return { valid: false, error: 'Failed to parse QR code' };
+      return { valid: false, error: 'Failed to process QR code: ' + error.message };
     }
   }
 }
