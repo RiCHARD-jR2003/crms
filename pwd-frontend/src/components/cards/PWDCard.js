@@ -52,7 +52,8 @@ import {
   Cancel as CancelIcon,
   Visibility as VisibilityIcon,
   Close as CloseIcon,
-  Notifications as NotificationsIcon
+  Notifications as NotificationsIcon,
+  Autorenew as AutorenewIcon
 } from '@mui/icons-material';
 import { Pagination } from '@mui/material';
 import AdminSidebar from '../shared/AdminSidebar';
@@ -266,12 +267,23 @@ function PWDCard() {
 
   // Renewals state
   const [renewals, setRenewals] = useState([]);
+  const [membersNeedingRenewal, setMembersNeedingRenewal] = useState([]);
   const [loadingRenewals, setLoadingRenewals] = useState(false);
   const [renewalStatusFilter, setRenewalStatusFilter] = useState('all');
   const [selectedRenewal, setSelectedRenewal] = useState(null);
   const [viewRenewalDialogOpen, setViewRenewalDialogOpen] = useState(false);
-  const [viewingRenewalFile, setViewingRenewalFile] = useState(null);
+  const [viewingRenewal, setViewingRenewal] = useState(null); // Track which renewal is being viewed
+  const [oldCardFile, setOldCardFile] = useState(null); // Old card file URL and data
+  const [medicalCertFile, setMedicalCertFile] = useState(null); // Medical cert file URL and data
+  const [loadingOldCard, setLoadingOldCard] = useState(false);
+  const [loadingMedicalCert, setLoadingMedicalCert] = useState(false);
+  const [activeDocumentTab, setActiveDocumentTab] = useState(0); // 0 = old card, 1 = medical cert
+  const [renewalRemarks, setRenewalRemarks] = useState(''); // Remarks for the renewal document
+  const [remarksFileType, setRemarksFileType] = useState(null); // Which file the remarks are for
+  const [sendingRemarks, setSendingRemarks] = useState(false);
   const [processingRenewal, setProcessingRenewal] = useState(null);
+  const [notifyingMember, setNotifyingMember] = useState(null);
+  const [notifiedMembers, setNotifiedMembers] = useState(new Set()); // Track notified members
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [renewalNotes, setRenewalNotes] = useState('');
@@ -299,8 +311,8 @@ function PWDCard() {
     expirationDate.setHours(0, 0, 0, 0);
     oneMonthFromNow.setHours(0, 0, 0, 0);
     
-    // If card is expiring within 1 month (from today to 1 month from now)
-    if (expirationDate >= today && expirationDate <= oneMonthFromNow) {
+    // If card is already expired (past expiration date) OR expiring within 1 month
+    if (expirationDate < today || (expirationDate >= today && expirationDate <= oneMonthFromNow)) {
       return 'for renewal';
     }
     
@@ -1333,12 +1345,18 @@ function PWDCard() {
       cacheService.invalidate('/pwd-members');
       // Also invalidate any cached member data
       cacheService.invalidate(new RegExp('^/pwd-members'));
+      cacheService.invalidate('/id-renewals');
     } catch (e) {
       console.warn('Could not invalidate cache:', e);
     }
     
     // Refresh the members list to update card status - force refresh without cache
     await fetchPwdMembers(currentPage, false);
+    
+    // If we're on the Renewals tab, refresh the renewals list to update "Members Needing Renewal"
+    if (activeTab === 1) {
+      await loadRenewals();
+    }
     
     showModal({
       type: 'success',
@@ -1364,6 +1382,10 @@ function PWDCard() {
       if (response?.success) {
         setRenewals(response.renewals || []);
       }
+      
+      // Also load members who need renewal (expired or expiring cards)
+      // Pass renewals to filter out members who already have pending requests
+      await loadMembersNeedingRenewal(response?.renewals || []);
     } catch (err) {
       console.error('Error loading renewals:', err);
     } finally {
@@ -1371,9 +1393,135 @@ function PWDCard() {
     }
   };
 
-  const handleViewRenewalFile = async (renewalId, type) => {
+  const loadMembersNeedingRenewal = async (existingRenewals = []) => {
     try {
+      // Get all members and filter those with "for renewal" status
+      const response = await pwdMemberService.getAll({ _refresh: Date.now() });
+      let members = [];
+      if (Array.isArray(response.data)) {
+        members = response.data;
+      } else if (Array.isArray(response.members)) {
+        members = response.members;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        members = response.data.data;
+      } else if (response.data && Array.isArray(response.data.members)) {
+        members = response.data.members;
+      } else if (Array.isArray(response)) {
+        members = response;
+      }
+      
+      // Get member IDs who already have pending renewal requests
+      const membersWithPendingRenewals = new Set(
+        existingRenewals
+          .filter(renewal => renewal.status === 'pending' && renewal.member_id)
+          .map(renewal => renewal.member_id)
+      );
+      
+      // Transform and filter members with "for renewal" status
+      const membersForRenewal = members
+        .map((member) => {
+          const cardClaimed = member.cardClaimed || member.card_claimed || false;
+          const cardIssueDate = member.cardIssueDate || member.card_issue_date || null;
+          const cardExpirationDate = member.cardExpirationDate || member.card_expiration_date || null;
+          const cardStatus = calculateCardStatus(cardClaimed, cardExpirationDate);
+          
+          return {
+            id: member.pwd_id || `PWD-${member.userID || member.id}`,
+            memberId: member.userID || member.id,
+            userID: member.userID || member.id,
+            name: (() => {
+              const parts = [];
+              if (member.firstName) parts.push(member.firstName);
+              if (member.middleName && member.middleName.trim().toUpperCase() !== 'N/A') parts.push(member.middleName);
+              if (member.lastName) parts.push(member.lastName);
+              if (member.suffix) parts.push(member.suffix);
+              return parts.join(' ').trim() || 'Unknown Member';
+            })(),
+            pwd_id: member.pwd_id,
+            barangay: member.barangay || 'N/A',
+            cardStatus: cardStatus,
+            cardExpirationDate: cardExpirationDate,
+            email: member.email,
+            firstName: member.firstName,
+            lastName: member.lastName
+          };
+        })
+        .filter(member => {
+          // Only include members with "for renewal" status
+          if (member.cardStatus !== 'for renewal') return false;
+          
+          // Exclude members who already have pending renewal requests
+          if (membersWithPendingRenewals.has(member.memberId) || 
+              membersWithPendingRenewals.has(member.userID)) {
+            return false;
+          }
+          
+          return true;
+        });
+      
+      setMembersNeedingRenewal(membersForRenewal);
+    } catch (err) {
+      console.error('Error loading members needing renewal:', err);
+    }
+  };
+
+  // Handle notify member about renewal
+  const handleNotifyRenewal = async (member) => {
+    if (!member.memberId) {
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: 'Member ID not found. Cannot send notification.',
+        buttonText: 'OK'
+      });
+      return;
+    }
+
+    try {
+      setNotifyingMember(member.memberId);
+      const response = await pwdMemberService.notifyRenewalRequired(member.memberId);
+      
+      if (response?.success) {
+        // Mark member as notified
+        setNotifiedMembers(prev => new Set([...prev, member.memberId]));
+        
+        // Invalidate notification cache to ensure member sees the new notification
+        try {
+          const { cacheService } = await import('../../services/cacheService');
+          cacheService.invalidate('/notifications');
+          cacheService.invalidate(new RegExp('^/notifications'));
+          console.log('Notification cache invalidated');
+        } catch (e) {
+          console.warn('Could not invalidate notification cache:', e);
+        }
+        
+        showModal({
+          type: 'success',
+          title: 'Notification Sent',
+          message: `Notification has been sent to ${member.name} that their PWD ID card needs to be renewed. The member should see it in their notification panel.`,
+          buttonText: 'OK'
+        });
+      } else {
+        throw new Error(response?.message || 'Failed to send notification');
+      }
+    } catch (error) {
+      console.error('Error sending renewal notification:', error);
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.message || error.message || 'Failed to send notification. Please try again.',
+        buttonText: 'OK'
+      });
+    } finally {
+      setNotifyingMember(null);
+    }
+  };
+
+  const loadRenewalFile = async (renewalId, type, setFileState, setLoadingState) => {
+    try {
+      setLoadingState(true);
       const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com/api';
+      const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com';
       let token = null;
       
       try {
@@ -1383,6 +1531,37 @@ function PWDCard() {
         console.warn('Error parsing auth token:', e);
       }
 
+      // Try using storage URL first (more reliable)
+      const renewal = renewals.find(r => r.id === renewalId);
+      if (renewal) {
+        const filePath = type === 'old_card' ? renewal.old_card_image_path : renewal.medical_certificate_path;
+        if (filePath) {
+          // Extract the path after 'id-renewals/' for the storage route
+          const pathMatch = filePath.match(/id-renewals\/(.+)/);
+          if (pathMatch) {
+            const relativePath = pathMatch[1];
+            const storageUrl = `${apiBaseUrl}/storage/id-renewals/${relativePath}`;
+            try {
+              const testResponse = await fetch(storageUrl, {
+                method: 'HEAD',
+                headers: {
+                  'Authorization': token ? `Bearer ${token}` : '',
+                },
+              });
+              if (testResponse.ok) {
+                const contentType = testResponse.headers.get('content-type') || 'image/jpeg';
+                setFileState({ url: storageUrl, contentType, type: 'url' });
+                setLoadingState(false);
+                return;
+              }
+            } catch (e) {
+              console.warn('Storage URL approach failed, trying API endpoint:', e);
+            }
+          }
+        }
+      }
+
+      // Fallback to API endpoint
       const response = await fetch(`${apiBaseUrl}/id-renewals/${renewalId}/file/${type}`, {
         method: 'GET',
         headers: {
@@ -1392,24 +1571,92 @@ function PWDCard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load file');
+        let errorMessage = 'Failed to load file';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const blob = await response.blob();
+      const contentType = response.headers.get('content-type') || blob.type;
+      
+      if (blob.size === 0) {
+        throw new Error('File is empty or could not be loaded');
+      }
+      
       const url = window.URL.createObjectURL(blob);
-      setViewingRenewalFile(url);
-      setViewRenewalDialogOpen(true);
+      setFileState({ url, contentType, type: 'blob' });
     } catch (err) {
-      console.error('Error viewing file:', err);
-      toastService.error('Failed to load file');
+      console.error(`Error loading ${type}:`, err);
+      setFileState(null);
+      toastService.error(`Failed to load ${type === 'old_card' ? 'old card' : 'medical certificate'}: ${err.message}`);
+    } finally {
+      setLoadingState(false);
     }
+  };
+
+  const handleViewRenewalDocuments = async (renewal) => {
+    setViewingRenewal(renewal);
+    setActiveDocumentTab(0);
+    setRenewalRemarks('');
+    setRemarksFileType('old_card'); // Set initial file type
+    setOldCardFile(null);
+    setMedicalCertFile(null);
+    setViewRenewalDialogOpen(true);
+    
+    // Load both files
+    await Promise.all([
+      loadRenewalFile(renewal.id, 'old_card', setOldCardFile, setLoadingOldCard),
+      loadRenewalFile(renewal.id, 'medical_certificate', setMedicalCertFile, setLoadingMedicalCert)
+    ]);
   };
 
   const handleCloseViewRenewalDialog = () => {
     setViewRenewalDialogOpen(false);
-    if (viewingRenewalFile) {
-      window.URL.revokeObjectURL(viewingRenewalFile);
-      setViewingRenewalFile(null);
+    // Clean up blob URLs
+    if (oldCardFile && oldCardFile.type === 'blob') {
+      window.URL.revokeObjectURL(oldCardFile.url);
+    }
+    if (medicalCertFile && medicalCertFile.type === 'blob') {
+      window.URL.revokeObjectURL(medicalCertFile.url);
+    }
+    setViewingRenewal(null);
+    setOldCardFile(null);
+    setMedicalCertFile(null);
+    setActiveDocumentTab(0);
+    setRenewalRemarks('');
+    setRemarksFileType(null);
+  };
+
+  const handleSendRemarks = async () => {
+    if (!viewingRenewal || !renewalRemarks.trim() || !remarksFileType) {
+      toastService.error('Please enter remarks and select which document it applies to');
+      return;
+    }
+
+    try {
+      setSendingRemarks(true);
+      const response = await api.post(`/id-renewals/${viewingRenewal.id}/send-remarks`, {
+        remarks: renewalRemarks.trim(),
+        file_type: remarksFileType
+      });
+
+      if (response?.success) {
+        toastService.success('Remarks sent to member successfully');
+        setRenewalRemarks('');
+        setRemarksFileType(null);
+      } else {
+        throw new Error(response?.message || 'Failed to send remarks');
+      }
+    } catch (error) {
+      console.error('Error sending remarks:', error);
+      toastService.error(error.response?.data?.message || error.message || 'Failed to send remarks');
+    } finally {
+      setSendingRemarks(false);
     }
   };
 
@@ -3543,6 +3790,163 @@ function PWDCard() {
 
           {/* Renewals Tab */}
           {activeTab === 1 && (
+            <>
+            {/* Members Needing Renewal Section */}
+            <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 2, mb: 3 }}>
+              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50' }}>
+                  Members Needing Renewal ({membersNeedingRenewal.length})
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={loadMembersNeedingRenewal}
+                  disabled={loadingRenewals}
+                >
+                  Refresh
+                </Button>
+              </Box>
+
+              {loadingRenewals ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress size={40} />
+                </Box>
+              ) : membersNeedingRenewal.length === 0 ? (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  No members need renewal at this time.
+                </Alert>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#E74C3C' }}>
+                        <TableCell sx={{ color: 'white', fontWeight: 700 }}>PWD ID</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 700 }}>Member Name</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 700 }}>Barangay</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 700 }}>Expiration Date</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 700 }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {membersNeedingRenewal.map((member) => (
+                        <TableRow key={member.id} hover>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {member.pwd_id || member.id}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {member.name}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {member.barangay}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: '#E74C3C', fontWeight: 600 }}>
+                              {member.cardExpirationDate 
+                                ? new Date(member.cardExpirationDate).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'short', 
+                                    day: 'numeric' 
+                                  })
+                                : 'N/A'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              {notifiedMembers.has(member.memberId) ? (
+                                <Button
+                                  variant="contained"
+                                  size="small"
+                                  startIcon={<CheckCircleIcon />}
+                                  disabled
+                                  sx={{
+                                    bgcolor: '#27AE60',
+                                    color: 'white',
+                                    fontSize: '0.7rem',
+                                    py: 0.5,
+                                    px: 1.5,
+                                    textTransform: 'none',
+                                    fontWeight: 'bold',
+                                    cursor: 'default',
+                                    '&:disabled': {
+                                      bgcolor: '#27AE60',
+                                      color: 'white',
+                                      opacity: 0.9
+                                    }
+                                  }}
+                                >
+                                  Notified
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  startIcon={<NotificationsIcon />}
+                                  onClick={() => handleNotifyRenewal(member)}
+                                  disabled={notifyingMember === member.memberId || loadingRenewals}
+                                  sx={{
+                                    borderColor: '#3498DB',
+                                    color: '#3498DB',
+                                    fontSize: '0.7rem',
+                                    py: 0.5,
+                                    px: 1.5,
+                                    textTransform: 'none',
+                                    fontWeight: 'bold',
+                                    '&:hover': {
+                                      borderColor: '#2980B9',
+                                      bgcolor: '#EBF5FB',
+                                      color: '#2980B9'
+                                    },
+                                    '&:disabled': {
+                                      borderColor: '#BDC3C7',
+                                      color: '#BDC3C7'
+                                    }
+                                  }}
+                                >
+                                  {notifyingMember === member.memberId ? 'Sending...' : 'Notify'}
+                                </Button>
+                              )}
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<AutorenewIcon />}
+                                onClick={(e) => handleRenewCard(e, member)}
+                                disabled={loadingRenewals || !member.memberId}
+                                sx={{
+                                  bgcolor: '#E74C3C',
+                                  color: 'white',
+                                  fontSize: '0.7rem',
+                                  py: 0.5,
+                                  px: 1.5,
+                                  textTransform: 'none',
+                                  fontWeight: 'bold',
+                                  '&:hover': {
+                                    bgcolor: '#C0392B'
+                                  },
+                                  '&:disabled': {
+                                    bgcolor: '#BDC3C7'
+                                  }
+                                }}
+                              >
+                                Renew
+                              </Button>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Paper>
+
+            {/* Renewal Requests Section */}
             <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 2 }}>
               <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, color: '#2C3E50' }}>
@@ -3608,24 +4012,23 @@ function PWDCard() {
                             />
                           </TableCell>
                           <TableCell>
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<VisibilityIcon />}
-                                onClick={() => handleViewRenewalFile(renewal.id, 'old_card')}
-                              >
-                                Old Card
-                              </Button>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<VisibilityIcon />}
-                                onClick={() => handleViewRenewalFile(renewal.id, 'medical_certificate')}
-                              >
-                                Medical Cert
-                              </Button>
-                            </Box>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<VisibilityIcon />}
+                              onClick={() => handleViewRenewalDocuments(renewal)}
+                              sx={{
+                                borderColor: '#3498DB',
+                                color: '#3498DB',
+                                '&:hover': {
+                                  borderColor: '#2980B9',
+                                  bgcolor: '#EBF5FB',
+                                  color: '#2980B9'
+                                }
+                              }}
+                            >
+                              Documents
+                            </Button>
                           </TableCell>
                           <TableCell>
                             {renewal.status === 'pending' && (
@@ -3666,40 +4069,221 @@ function PWDCard() {
                 </TableContainer>
               )}
             </Paper>
+            </>
           )}
         </Container>
       </Box>
 
-      {/* View Renewal File Dialog */}
+      {/* View Renewal Documents Dialog */}
       <Dialog
         open={viewRenewalDialogOpen}
         onClose={handleCloseViewRenewalDialog}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
+        PaperProps={{
+          sx: { minHeight: '70vh' }
+        }}
       >
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">View Document</Typography>
+          <Box>
+            <Typography variant="h6">
+              View Documents
+            </Typography>
+            {viewingRenewal?.member && (
+              <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                {viewingRenewal.member.firstName} {viewingRenewal.member.lastName}
+              </Typography>
+            )}
+          </Box>
           <IconButton onClick={handleCloseViewRenewalDialog}>
             <CloseIcon />
           </IconButton>
         </DialogTitle>
         <DialogContent>
-          {viewingRenewalFile && (
-            <Box sx={{ textAlign: 'center' }}>
-              <img
-                src={viewingRenewalFile}
-                alt="Document"
-                style={{
-                  maxWidth: '100%',
-                  height: 'auto',
-                  borderRadius: 4
-                }}
-              />
+          <Tabs 
+            value={activeDocumentTab} 
+            onChange={(e, newValue) => {
+              setActiveDocumentTab(newValue);
+              setRemarksFileType(newValue === 0 ? 'old_card' : 'medical_certificate');
+            }}
+            sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+          >
+            <Tab label="Old Card" />
+            <Tab label="Medical Certificate" />
+          </Tabs>
+
+          {/* Old Card Tab Content */}
+          {activeDocumentTab === 0 && (
+            <Box>
+              {loadingOldCard ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                  <CircularProgress size={50} />
+                </Box>
+              ) : oldCardFile ? (
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    bgcolor: '#f5f5f5', 
+                    p: 2, 
+                    borderRadius: 2,
+                    maxHeight: '50vh',
+                    overflow: 'auto',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    minHeight: '300px'
+                  }}>
+                    {(() => {
+                      const fileUrl = oldCardFile.url;
+                      const contentType = oldCardFile.contentType;
+                      const isPdf = contentType?.includes('pdf') || fileUrl.includes('.pdf');
+                      
+                      if (isPdf) {
+                        return (
+                          <iframe
+                            src={fileUrl}
+                            title="Old Card"
+                            style={{
+                              width: '100%',
+                              height: '500px',
+                              border: 'none',
+                              borderRadius: 4
+                            }}
+                          />
+                        );
+                      } else {
+                        return (
+                          <img
+                            src={fileUrl}
+                            alt="Old Card"
+                            style={{
+                              maxWidth: '100%',
+                              height: 'auto',
+                              borderRadius: 4,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                            }}
+                            onError={(e) => {
+                              console.error('Error loading old card image:', e);
+                              toastService.error('Failed to display old card image');
+                            }}
+                          />
+                        );
+                      }
+                    })()}
+                  </Box>
+                </Box>
+              ) : (
+                <Alert severity="warning">
+                  Old card document not available or could not be loaded.
+                </Alert>
+              )}
             </Box>
           )}
+
+          {/* Medical Certificate Tab Content */}
+          {activeDocumentTab === 1 && (
+            <Box>
+              {loadingMedicalCert ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                  <CircularProgress size={50} />
+                </Box>
+              ) : medicalCertFile ? (
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    bgcolor: '#f5f5f5', 
+                    p: 2, 
+                    borderRadius: 2,
+                    maxHeight: '50vh',
+                    overflow: 'auto',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    minHeight: '300px'
+                  }}>
+                    {(() => {
+                      const fileUrl = medicalCertFile.url;
+                      const contentType = medicalCertFile.contentType;
+                      const isPdf = contentType?.includes('pdf') || fileUrl.includes('.pdf');
+                      
+                      if (isPdf) {
+                        return (
+                          <iframe
+                            src={fileUrl}
+                            title="Medical Certificate"
+                            style={{
+                              width: '100%',
+                              height: '500px',
+                              border: 'none',
+                              borderRadius: 4
+                            }}
+                          />
+                        );
+                      } else {
+                        return (
+                          <img
+                            src={fileUrl}
+                            alt="Medical Certificate"
+                            style={{
+                              maxWidth: '100%',
+                              height: 'auto',
+                              borderRadius: 4,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                            }}
+                            onError={(e) => {
+                              console.error('Error loading medical certificate image:', e);
+                              toastService.error('Failed to display medical certificate image');
+                            }}
+                          />
+                        );
+                      }
+                    })()}
+                  </Box>
+                </Box>
+              ) : (
+                <Alert severity="warning">
+                  Medical certificate document not available or could not be loaded.
+                </Alert>
+              )}
+            </Box>
+          )}
+          
+          {/* Remarks Section */}
+          <Box sx={{ mt: 3, pt: 3, borderTop: 1, borderColor: 'divider' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              Add Remarks (Optional)
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block' }}>
+              If the {activeDocumentTab === 0 ? 'old card' : 'medical certificate'} has issues (e.g., blurred image), add remarks and notify the member to resubmit.
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              placeholder={`Example: The ${activeDocumentTab === 0 ? 'old card' : 'medical certificate'} image is blurred. Please resubmit a clearer photo.`}
+              value={renewalRemarks}
+              onChange={(e) => setRenewalRemarks(e.target.value)}
+              variant="outlined"
+              sx={{ mb: 2 }}
+            />
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseViewRenewalDialog}>Close</Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleCloseViewRenewalDialog} disabled={sendingRemarks}>
+            Close
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<NotificationsIcon />}
+            onClick={handleSendRemarks}
+            disabled={sendingRemarks || !renewalRemarks.trim() || !remarksFileType}
+            sx={{
+              bgcolor: '#3498DB',
+              '&:hover': { bgcolor: '#2980B9' }
+            }}
+          >
+            {sendingRemarks ? 'Sending...' : 'Send Remarks to Member'}
+          </Button>
         </DialogActions>
       </Dialog>
 

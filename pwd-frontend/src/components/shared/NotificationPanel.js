@@ -67,6 +67,7 @@ function NotificationPanel({ open, onClose }) {
         document_upload: '/documents',
         document_review: '/documents',
         renewal_reminder: '/profile',
+        renewal_required: '/profile',
         id_renewal: '/profile',
         assessment_finalized: '/profile',
         default: '/dashboard'
@@ -244,12 +245,18 @@ function NotificationPanel({ open, onClose }) {
       const data = await notificationService.getNotifications();
       console.log('Received notifications:', data.length, 'items');
       // Ensure notifications are sorted by created_at descending (latest first)
+      // Also sort by id descending as tiebreaker for notifications created at the same time
       const sorted = data.sort((a, b) => {
         const dateA = new Date(a.created_at || a.timestamp || 0);
         const dateB = new Date(b.created_at || b.timestamp || 0);
-        return dateB - dateA;
+        if (dateB.getTime() !== dateA.getTime()) {
+          return dateB - dateA; // Sort by date descending (newest first)
+        }
+        // If dates are equal, sort by ID descending (newer ID first)
+        return (b.id || 0) - (a.id || 0);
       });
       console.log('Sorted notifications:', sorted.length);
+      // Ensure the array is in the correct order (newest first)
       setNotifications(sorted);
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -323,6 +330,7 @@ function NotificationPanel({ open, onClose }) {
       case 'document_review':
         return <DescriptionIcon color="secondary" />;
       case 'renewal_reminder':
+      case 'renewal_required':
       case 'id_renewal':
       case 'renewal_submitted':
       case 'renewal_approved':

@@ -173,6 +173,18 @@ const pwdMemberService = {
       toastService.error('Failed to send notification: ' + (error.message || 'Unknown error'));
       throw error;
     }
+  },
+
+  // Notify member that their ID card needs renewal
+  async notifyRenewalRequired(id) {
+    try {
+      const response = await api.post(`/pwd-members/${id}/notify-renewal-required`);
+      return response;
+    } catch (error) {
+      console.error('Error notifying member about renewal:', error);
+      toastService.error('Failed to send notification: ' + (error.message || 'Unknown error'));
+      throw error;
+    }
   }
 };
 

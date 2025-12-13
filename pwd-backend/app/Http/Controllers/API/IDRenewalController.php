@@ -63,6 +63,27 @@ class IDRenewalController extends Controller
             ], 400);
         }
 
+        // Check if there's an approved renewal that hasn't been claimed yet
+        // If card is still expired after approval, allow new renewal submission
+        $approvedRenewal = IDRenewal::where('member_id', $memberId)
+            ->where('status', 'approved')
+            ->latest('reviewed_at')
+            ->first();
+
+        if ($approvedRenewal && $member->cardExpirationDate) {
+            $expirationDate = \Carbon\Carbon::parse($member->cardExpirationDate);
+            // If card is still expired or expiring soon, allow new renewal
+            if ($expirationDate->isPast() || $expirationDate->isBefore(\Carbon\Carbon::now()->addMonth())) {
+                // Card is still expired/expiring, allow new renewal submission
+            } else {
+                // Card is valid, don't allow renewal
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your ID card is still valid. You can only renew when your card is expired or expiring soon.'
+                ], 400);
+            }
+        }
+
         DB::beginTransaction();
         try {
             // Store old card image
@@ -325,15 +346,42 @@ class IDRenewalController extends Controller
                 'cardIssueDate' => now() // Update issue date to renewal date
             ]);
 
-            // Notify the member
+            // Calculate when the ID will be ready (2 weeks from now)
+            $readyDate = now()->addWeeks(2);
+            $memberName = trim(($member->firstName ?? '') . ' ' . ($member->lastName ?? ''));
+            $pwdId = $member->pwd_id ?? 'PWD-' . str_pad($member->userID, 6, '0', STR_PAD_LEFT);
+
+            // Notify the member that their ID is ready for claiming after 2 weeks
+            $notificationTitle = '✅ ID Renewal Approved - Ready for Pickup';
+            $notificationMessage = "Dear {$memberName},\n\n";
+            $notificationMessage .= "Great news! Your ID renewal request (PWD ID: {$pwdId}) has been approved.\n\n";
+            $notificationMessage .= "📅 YOUR NEW ID WILL BE READY FOR CLAIMING:\n";
+            $notificationMessage .= "Date: {$readyDate->format('F d, Y')} (2 weeks from today)\n";
+            $notificationMessage .= "Time: During office hours\n\n";
+            $notificationMessage .= "📍 WHERE TO CLAIM:\n";
+            $notificationMessage .= "PDAO Office, Cabuyao City Hall\n\n";
+            $notificationMessage .= "🕐 OFFICE HOURS:\n";
+            $notificationMessage .= "Monday to Friday, 8:00 AM - 5:00 PM\n\n";
+            $notificationMessage .= "📝 REQUIRED FOR CLAIMING:\n";
+            $notificationMessage .= "• Valid government-issued ID\n";
+            $notificationMessage .= "• Your old PWD ID card (to be surrendered)\n\n";
+            $notificationMessage .= "Your new card expiration date is {$newExpirationDate->format('F d, Y')}.\n\n";
+            $notificationMessage .= "Please visit the office on or after {$readyDate->format('F d, Y')} to claim your renewed ID. Thank you!";
+
             \App\Services\NotificationService::create(
                 $member->userID,
                 'renewal_approved',
-                'ID Renewal Approved',
-                'Your ID renewal request has been approved. Your new card expiration date is ' . $newExpirationDate->format('F d, Y') . '.',
+                $notificationTitle,
+                $notificationMessage,
                 [
                     'renewal_id' => $renewal->id,
-                    'new_expiration_date' => $newExpirationDate->toDateString()
+                    'new_expiration_date' => $newExpirationDate->toDateString(),
+                    'ready_date' => $readyDate->toDateString(),
+                    'ready_date_formatted' => $readyDate->format('F d, Y'),
+                    'member_name' => $memberName,
+                    'pwd_id' => $pwdId,
+                    'office_hours' => 'Monday to Friday, 8:00 AM - 5:00 PM',
+                    'claim_location' => 'PDAO Office, Cabuyao City Hall'
                 ]
             );
 
@@ -387,9 +435,10 @@ class IDRenewalController extends Controller
                         'email' => $memberEmail,
                         'firstName' => $member->firstName,
                         'lastName' => $member->lastName,
-                        'pwdId' => $member->pwd_id ?? 'N/A',
+                        'pwdId' => $pwdId,
                         'newExpirationDate' => $newExpirationDate->format('F d, Y'),
                         'renewalDate' => now()->format('F d, Y'),
+                        'readyDate' => $readyDate->format('F d, Y'),
                         'notes' => $request->notes ?? ''
                     ]);
                 }
@@ -524,6 +573,100 @@ class IDRenewalController extends Controller
     }
 
     /**
+     * Send remarks to member about their renewal documents
+     * Admin can add remarks (e.g., "image is blurred") and notify the member
+     */
+    public function sendRemarks(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'remarks' => 'required|string|max:1000',
+            'file_type' => 'nullable|in:old_card,medical_certificate'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $renewal = IDRenewal::with('member')->findOrFail($id);
+            $member = $renewal->member;
+
+            if (!$member) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member not found for this renewal request'
+                ], 404);
+            }
+
+            $fileTypeName = $request->file_type === 'old_card' ? 'Old Card' : 
+                          ($request->file_type === 'medical_certificate' ? 'Medical Certificate' : 'Document');
+            $memberName = trim(($member->firstName ?? '') . ' ' . ($member->lastName ?? ''));
+            $pwdId = $member->pwd_id ?? 'PWD-' . str_pad($member->userID, 6, '0', STR_PAD_LEFT);
+
+            // Create notification message
+            $title = '⚠️ Action Required: Renewal Document Issue';
+            $message = "Dear {$memberName},\n\n";
+            $message .= "We have reviewed your ID renewal request (PWD ID: {$pwdId}) and found an issue with your {$fileTypeName}.\n\n";
+            $message .= "📝 REMARKS:\n";
+            $message .= $request->remarks . "\n\n";
+            $message .= "Please resubmit the {$fileTypeName} with the necessary corrections.\n\n";
+            $message .= "You can submit a new renewal request through your account. Thank you for your cooperation.";
+
+            // Send notification to member
+            \App\Services\NotificationService::create(
+                $member->userID,
+                'renewal_document_remarks',
+                $title,
+                $message,
+                [
+                    'renewal_id' => $renewal->id,
+                    'file_type' => $request->file_type,
+                    'remarks' => $request->remarks,
+                    'pwd_id' => $pwdId,
+                    'member_name' => $memberName,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            );
+
+            // Optionally update renewal notes (append remarks)
+            if ($renewal->notes) {
+                $renewal->notes = $renewal->notes . "\n\n[Remarks sent on " . now()->format('Y-m-d H:i:s') . "]: " . $request->remarks;
+            } else {
+                $renewal->notes = "[Remarks sent on " . now()->format('Y-m-d H:i:s') . "]: " . $request->remarks;
+            }
+            $renewal->save();
+
+            \Illuminate\Support\Facades\Log::info('Renewal remarks sent to member', [
+                'renewal_id' => $renewal->id,
+                'member_id' => $member->userID,
+                'file_type' => $request->file_type,
+                'remarks' => $request->remarks
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Remarks sent to member successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error sending renewal remarks', [
+                'renewal_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send remarks',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get file for download (old card image or medical certificate)
      */
     public function getFile($id, $type)
@@ -560,15 +703,85 @@ class IDRenewalController extends Controller
 
             $filePath = $type === 'old_card' ? $renewal->old_card_image_path : $renewal->medical_certificate_path;
 
-            if (!$filePath || !Storage::disk('public')->exists($filePath)) {
+            if (!$filePath) {
+                \Illuminate\Support\Facades\Log::error('Renewal file path is empty', [
+                    'renewal_id' => $id,
+                    'file_type' => $type,
+                    'renewal_data' => [
+                        'old_card_image_path' => $renewal->old_card_image_path,
+                        'medical_certificate_path' => $renewal->medical_certificate_path
+                    ]
+                ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'File not found'
+                    'message' => 'File path not found in renewal record'
+                ], 404);
+            }
+
+            // Check if file exists
+            if (!Storage::disk('public')->exists($filePath)) {
+                \Illuminate\Support\Facades\Log::error('Renewal file does not exist', [
+                    'renewal_id' => $id,
+                    'file_type' => $type,
+                    'file_path' => $filePath,
+                    'storage_path' => Storage::disk('public')->path($filePath)
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File not found at path: ' . $filePath
                 ], 404);
             }
 
             // Get full path to file
             $fullPath = Storage::disk('public')->path($filePath);
+            
+            // Verify the file actually exists on the filesystem
+            if (!file_exists($fullPath)) {
+                \Illuminate\Support\Facades\Log::error('Renewal file does not exist on filesystem', [
+                    'renewal_id' => $id,
+                    'file_type' => $type,
+                    'file_path' => $filePath,
+                    'full_path' => $fullPath,
+                    'storage_root' => Storage::disk('public')->getDriver()->getAdapter()->getPathPrefix()
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File not found on filesystem'
+                ], 404);
+            }
+
+            // Get file info
+            $fileSize = filesize($fullPath);
+            
+            // Try multiple methods to get MIME type
+            $mimeType = 'application/octet-stream'; // Default fallback
+            if (function_exists('mime_content_type')) {
+                $mimeType = @mime_content_type($fullPath) ?: $mimeType;
+            }
+            if ($mimeType === 'application/octet-stream') {
+                $mimeType = Storage::disk('public')->mimeType($filePath) ?: $mimeType;
+            }
+            // Fallback based on file extension
+            if ($mimeType === 'application/octet-stream') {
+                $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+                $mimeTypes = [
+                    'jpg' => 'image/jpeg',
+                    'jpeg' => 'image/jpeg',
+                    'png' => 'image/png',
+                    'gif' => 'image/gif',
+                    'pdf' => 'application/pdf',
+                    'webp' => 'image/webp'
+                ];
+                $mimeType = $mimeTypes[$extension] ?? $mimeType;
+            }
+            
+            \Illuminate\Support\Facades\Log::info('Serving renewal file', [
+                'renewal_id' => $id,
+                'file_type' => $type,
+                'file_path' => $filePath,
+                'file_size' => $fileSize,
+                'mime_type' => $mimeType
+            ]);
             
             // Get the origin from the request to set proper CORS header
             $origin = request()->header('Origin');
@@ -583,31 +796,48 @@ class IDRenewalController extends Controller
                 $allowedOrigin = $origin;
             }
             
-            // Build response with file
-            $response = response()->file($fullPath, [
-                'Content-Disposition' => 'inline; filename="' . basename($filePath) . '"'
-            ]);
+            // Read file content
+            $fileContent = file_get_contents($fullPath);
+            if ($fileContent === false) {
+                throw new \Exception('Failed to read file content');
+            }
+
+            // Build response with file and proper headers
+            $headers = [
+                'Content-Type' => $mimeType,
+                'Content-Length' => $fileSize,
+                'Content-Disposition' => 'inline; filename="' . basename($filePath) . '"',
+                'Cache-Control' => 'private, max-age=3600',
+                'Pragma' => 'private'
+            ];
             
             // Add CORS headers if origin is allowed
             if ($allowedOrigin) {
-                $response->header('Access-Control-Allow-Origin', $allowedOrigin)
-                         ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-                         ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+                $headers['Access-Control-Allow-Origin'] = $allowedOrigin;
+                $headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
+                $headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
             }
             
-            return $response;
+            return response($fileContent, 200, $headers);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Renewal request not found'
+            ], 404);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Error retrieving renewal file', [
                 'renewal_id' => $id,
                 'file_type' => $type,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve file',
-                'error' => $e->getMessage()
+                'message' => 'Failed to retrieve file: ' . $e->getMessage()
             ], 500);
         }
     }

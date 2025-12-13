@@ -22,8 +22,27 @@ class NotificationService
     public static function create($userId, $type, $title, $message, $data = null, $notifySuperAdmin = true)
     {
         try {
+            // Verify user exists before creating notification
+            $user = User::where('userID', $userId)->first();
+            if (!$user) {
+                // Try finding by id as fallback
+                $user = User::find($userId);
+            }
+
+            if (!$user) {
+                Log::error('Cannot create notification: User not found', [
+                    'user_id' => $userId,
+                    'type' => $type,
+                    'title' => $title
+                ]);
+                throw new \Exception("User with ID {$userId} not found. Cannot create notification.");
+            }
+
+            // Use the actual userID from the user model
+            $actualUserId = $user->userID ?? $user->id;
+
             $notification = Notification::create([
-                'user_id' => $userId,
+                'user_id' => $actualUserId,
                 'type' => $type,
                 'title' => $title,
                 'message' => $message,
@@ -35,16 +54,17 @@ class NotificationService
 
             Log::info('Notification created', [
                 'notification_id' => $notification->id,
-                'user_id' => $userId,
+                'user_id' => $actualUserId,
+                'requested_user_id' => $userId,
                 'type' => $type,
-                'title' => $title
+                'title' => $title,
+                'user_found' => true
             ]);
 
             // Notify SuperAdmin about all activities (except SuperAdmin's own notifications)
             if ($notifySuperAdmin) {
-                $user = User::find($userId);
-                if ($user && $user->role !== 'SuperAdmin') {
-                    self::notifySuperAdmin($type, $title, $message, $data, $userId);
+                if ($user->role !== 'SuperAdmin') {
+                    self::notifySuperAdmin($type, $title, $message, $data, $actualUserId);
                 }
             }
 
@@ -367,6 +387,95 @@ class NotificationService
             'office_hours' => 'Monday to Friday, 8:00 AM - 5:00 PM',
             'timestamp' => now()->toIso8601String()
         ]);
+    }
+
+    /**
+     * Send notification to member that their ID card needs renewal
+     *
+     * @param int $userId
+     * @param string $memberName
+     * @param string $pwdId
+     * @param string|null $expirationDate
+     * @return Notification|null
+     */
+    public static function notifyRenewalRequired($userId, $memberName, $pwdId, $expirationDate = null)
+    {
+        // Validate userId
+        if (empty($userId)) {
+            Log::error('Cannot create renewal notification: userId is empty', [
+                'member_name' => $memberName,
+                'pwd_id' => $pwdId
+            ]);
+            throw new \Exception('User ID is required to send notification');
+        }
+
+        $title = '⚠️ Your PWD ID Card Needs Renewal';
+        
+        $message = "Dear {$memberName},\n\n";
+        $message .= "Your PWD ID card needs to be renewed.\n\n";
+        $message .= "📋 YOUR PWD ID: {$pwdId}\n\n";
+        
+        if ($expirationDate) {
+            try {
+                $expDate = \Carbon\Carbon::parse($expirationDate);
+                $today = \Carbon\Carbon::today();
+                
+                if ($expDate->isPast()) {
+                    $message .= "⚠️ Your ID card has EXPIRED on {$expDate->format('F d, Y')}.\n\n";
+                } else {
+                    $daysRemaining = $today->diffInDays($expDate);
+                    $message .= "⚠️ Your ID card will expire on {$expDate->format('F d, Y')} ({$daysRemaining} day(s) remaining).\n\n";
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error parsing expiration date for renewal notification', [
+                    'expiration_date' => $expirationDate,
+                    'error' => $e->getMessage()
+                ]);
+                $message .= "⚠️ Your ID card needs to be renewed.\n\n";
+            }
+        } else {
+            $message .= "⚠️ Your ID card needs to be renewed.\n\n";
+        }
+        
+        $message .= "📍 WHERE TO RENEW:\n";
+        $message .= "PDAO Office, Cabuyao City Hall\n\n";
+        $message .= "🕐 OFFICE HOURS:\n";
+        $message .= "Monday to Friday, 8:00 AM - 5:00 PM\n\n";
+        $message .= "📝 REQUIRED DOCUMENTS:\n";
+        $message .= "• Old PWD ID Card\n";
+        $message .= "• Medical Certificate\n";
+        $message .= "• Valid government-issued ID\n\n";
+        $message .= "Please visit the office at your earliest convenience to renew your PWD ID card.";
+
+        Log::info('Creating renewal required notification', [
+            'user_id' => $userId,
+            'member_name' => $memberName,
+            'pwd_id' => $pwdId,
+            'expiration_date' => $expirationDate
+        ]);
+
+        $notification = self::create($userId, 'renewal_required', $title, $message, [
+            'member_name' => $memberName,
+            'pwd_id' => $pwdId,
+            'expiration_date' => $expirationDate,
+            'renewal_location' => 'PDAO Office, Cabuyao City Hall',
+            'office_hours' => 'Monday to Friday, 8:00 AM - 5:00 PM',
+            'timestamp' => now()->toIso8601String()
+        ]);
+
+        if (!$notification) {
+            Log::error('Failed to create renewal notification', [
+                'user_id' => $userId,
+                'member_name' => $memberName
+            ]);
+        } else {
+            Log::info('Renewal notification created successfully', [
+                'notification_id' => $notification->id,
+                'user_id' => $userId
+            ]);
+        }
+
+        return $notification;
     }
 
     /**

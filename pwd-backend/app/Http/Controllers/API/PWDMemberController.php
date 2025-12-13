@@ -572,4 +572,129 @@ class PWDMemberController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Notify member that their ID card needs renewal
+     */
+    public function notifyRenewalRequired(Request $request, $id)
+    {
+        try {
+            // Try to find member by database id first
+            $member = PWDMember::find($id);
+            
+            // If not found, try by userID (memberId might be userID)
+            if (!$member) {
+                $member = PWDMember::where('userID', $id)->first();
+            }
+            
+            if (!$member) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'PWD Member not found'
+                ], 404);
+            }
+
+            // Send notification to member that their ID card needs renewal
+            try {
+                $memberName = trim(($member->firstName ?? '') . ' ' . ($member->lastName ?? ''));
+                $pwdId = $member->pwd_id ?? 'PWD-' . str_pad($member->userID, 6, '0', STR_PAD_LEFT);
+                $expirationDate = $member->cardExpirationDate ?? null;
+                
+                // Verify userID exists
+                if (empty($member->userID)) {
+                    \Illuminate\Support\Facades\Log::error('Cannot send notification: userID is empty', [
+                        'member_id' => $member->id,
+                        'member_data' => $member->toArray()
+                    ]);
+                    throw new \Exception('Member userID is missing. Cannot send notification.');
+                }
+                
+                // Verify the User exists and get the correct userID
+                $user = \App\Models\User::where('userID', $member->userID)->first();
+                if (!$user) {
+                    \Illuminate\Support\Facades\Log::error('User not found for member', [
+                        'member_id' => $member->id,
+                        'member_userID' => $member->userID
+                    ]);
+                    throw new \Exception('User not found for this member. Cannot send notification.');
+                }
+
+                \Illuminate\Support\Facades\Log::info('Preparing to send renewal notification', [
+                    'member_id' => $member->id,
+                    'member_userID' => $member->userID,
+                    'user_userID' => $user->userID,
+                    'user_id' => $user->id ?? 'N/A',
+                    'pwd_id' => $pwdId
+                ]);
+
+                // Send notification that card needs renewal - use the user's userID
+                $notification = \App\Services\NotificationService::notifyRenewalRequired(
+                    $user->userID, // Use the user's userID directly
+                    $memberName,
+                    $pwdId,
+                    $expirationDate
+                );
+                
+                // Verify notification was created
+                if (!$notification) {
+                    \Illuminate\Support\Facades\Log::error('Notification creation returned null', [
+                        'member_id' => $member->id,
+                        'user_id' => $user->userID
+                    ]);
+                    throw new \Exception('Failed to create notification');
+                }
+
+                // Double-check notification exists in database
+                $verifyNotification = \App\Models\Notification::where('id', $notification->id)
+                    ->where('user_id', $user->userID)
+                    ->first();
+
+                \Illuminate\Support\Facades\Log::info('Renewal required notification sent to member', [
+                    'member_id' => $member->id,
+                    'member_userID' => $member->userID,
+                    'user_userID' => $user->userID,
+                    'notification_id' => $notification->id,
+                    'notification_user_id' => $notification->user_id,
+                    'notification_verified' => $verifyNotification ? 'YES' : 'NO',
+                    'pwd_id' => $pwdId,
+                    'expiration_date' => $expirationDate,
+                    'action' => 'renewal_required_notification_sent'
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Notification sent successfully to member',
+                    'data' => [
+                        'member_id' => $member->id,
+                        'member_name' => $memberName,
+                        'pwd_id' => $pwdId,
+                        'expiration_date' => $expirationDate
+                    ]
+                ]);
+            } catch (\Exception $notificationError) {
+                \Illuminate\Support\Facades\Log::error('Failed to send renewal notification to member', [
+                    'member_id' => $member->id,
+                    'error' => $notificationError->getMessage(),
+                    'trace' => $notificationError->getTraceAsString()
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to send notification: ' . $notificationError->getMessage()
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error notifying member about renewal required', [
+                'member_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send notification',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

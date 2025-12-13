@@ -7,7 +7,8 @@ const notificationService = {
    */
   async getNotifications() {
     try {
-      const response = await api.get('/notifications');
+      // Force skip cache to get fresh notifications
+      const response = await api.get('/notifications', { skipCache: true });
       console.log('Notification API response:', response);
       
       // Handle different response structures
@@ -19,6 +20,10 @@ const notificationService = {
             console.log('Notifications fetched:', notifications.length, 'notifications');
             if (response.data.debug) {
               console.log('Debug info:', response.data.debug);
+            }
+            // Log notification types for debugging
+            if (notifications.length > 0) {
+              console.log('Notification types:', notifications.map(n => n.type));
             }
             return notifications;
           }
@@ -312,6 +317,7 @@ const notificationService = {
       'support_ticket_reply': 'support_agent',
       'document_upload': 'description',
       'renewal_reminder': 'refresh',
+      'renewal_required': 'refresh',
       'default': 'notifications'
     };
     return iconMap[type] || iconMap.default;

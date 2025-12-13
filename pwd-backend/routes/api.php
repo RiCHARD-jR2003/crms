@@ -2662,6 +2662,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('pwd-members/{id}/claim-card', [PWDMemberController::class, 'claimCard']);
     Route::post('pwd-members/{id}/renew-card', [PWDMemberController::class, 'renewCard']);
     Route::post('pwd-members/{id}/notify-card-ready', [PWDMemberController::class, 'notifyCardReady']);
+    Route::post('pwd-members/{id}/notify-renewal-required', [PWDMemberController::class, 'notifyRenewalRequired']);
     Route::post('pwd-members/{id}/regenerate-qr', function (Request $request, $id) {
         try {
             // Try to find by database ID first
@@ -2898,8 +2899,64 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [IDRenewalController::class, 'getRenewal']);
         Route::post('/{id}/approve', [IDRenewalController::class, 'approveRenewal']);
         Route::post('/{id}/reject', [IDRenewalController::class, 'rejectRenewal']);
+        Route::post('/{id}/send-remarks', [IDRenewalController::class, 'sendRemarks']);
         Route::get('/{id}/file/{type}', [IDRenewalController::class, 'getFile']);
     });
+
+    // Storage serving route for renewal files (with authentication)
+    Route::get('storage/id-renewals/{path}', function($path) {
+        try {
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+
+            // Only allow admins or members to access their own files
+            $isAdmin = in_array($user->role, ['Admin', 'SuperAdmin']);
+            
+            // Get the renewal by checking file path
+            $renewal = \App\Models\IDRenewal::where('old_card_image_path', 'id-renewals/' . $path)
+                ->orWhere('medical_certificate_path', 'id-renewals/' . $path)
+                ->first();
+
+            if ($renewal) {
+                $isOwner = $renewal->member_id == $user->userID;
+                if (!$isAdmin && !$isOwner) {
+                    return response()->json(['error' => 'Unauthorized'], 403);
+                }
+            } elseif (!$isAdmin) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            $filePath = 'id-renewals/' . $path;
+            
+            if (!Storage::disk('public')->exists($filePath)) {
+                return response()->json(['error' => 'File not found'], 404);
+            }
+
+            $fullPath = Storage::disk('public')->path($filePath);
+            
+            if (!file_exists($fullPath)) {
+                return response()->json(['error' => 'File not found on filesystem'], 404);
+            }
+
+            $fileSize = filesize($fullPath);
+            $mimeType = mime_content_type($fullPath) ?: 'application/octet-stream';
+            
+            return response()->file($fullPath, [
+                'Content-Type' => $mimeType,
+                'Content-Length' => $fileSize,
+                'Content-Disposition' => 'inline; filename="' . basename($filePath) . '"',
+                'Cache-Control' => 'private, max-age=3600'
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error serving renewal file from storage', [
+                'path' => $path,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json(['error' => 'Failed to serve file'], 500);
+        }
+    })->where('path', '.*');
 
     // Renewal Management routes (for flagged members)
     Route::prefix('renewals')->group(function () {
@@ -2990,14 +3047,23 @@ Route::middleware('auth:sanctum')->group(function () {
                 ]);
                 
                 // Ensure proper sorting: latest first (descending by created_at, then by id as tiebreaker)
+                // This ensures the newest notifications appear at the top
                 $notifications = \App\Models\Notification::forUser($user->userID)
                     ->orderBy('created_at', 'desc')
-                    ->orderBy('id', 'desc') // Secondary sort for consistent ordering
+                    ->orderBy('id', 'desc') // Secondary sort for consistent ordering when created_at is the same
                     ->get();
                 
                 \Illuminate\Support\Facades\Log::info('Notifications fetched', [
                     'user_id' => $user->userID,
-                    'count' => $notifications->count()
+                    'user_userID' => $user->userID,
+                    'count' => $notifications->count(),
+                    'notification_user_ids' => $notifications->pluck('user_id')->toArray(),
+                    'sample_notification' => $notifications->first() ? [
+                        'id' => $notifications->first()->id,
+                        'user_id' => $notifications->first()->user_id,
+                        'type' => $notifications->first()->type,
+                        'title' => $notifications->first()->title
+                    ] : null
                 ]);
                 
                 $formattedNotifications = $notifications->map(function ($notification) {
