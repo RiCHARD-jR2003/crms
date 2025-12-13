@@ -58,19 +58,29 @@ const idClaimService = {
 
   // Complete claim with claimant information (Final step)
   async completeClaim(claimId, claimData) {
+    // Clean up the data - remove null/undefined values and empty strings for optional fields
+    const cleanData = {};
+    Object.keys(claimData).forEach(key => {
+      const value = claimData[key];
+      // Keep the value if it's not null/undefined, or if it's a File
+      if (value !== null && value !== undefined && value !== '') {
+        cleanData[key] = value;
+      } else if (value instanceof File) {
+        cleanData[key] = value;
+      }
+    });
+
     // If there's an authorization letter file, use FormData
-    if (claimData.authorization_letter instanceof File) {
+    if (cleanData.authorization_letter instanceof File) {
       const formData = new FormData();
-      Object.keys(claimData).forEach(key => {
-        if (claimData[key] !== null && claimData[key] !== undefined) {
-          formData.append(key, claimData[key]);
-        }
+      Object.keys(cleanData).forEach(key => {
+        formData.append(key, cleanData[key]);
       });
       const response = await api.post(`/id-claims/${claimId}/complete`, formData);
       return response;
     }
     
-    const response = await api.post(`/id-claims/${claimId}/complete`, claimData);
+    const response = await api.post(`/id-claims/${claimId}/complete`, cleanData);
     return response;
   },
 

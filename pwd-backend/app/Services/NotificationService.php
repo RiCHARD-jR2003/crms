@@ -345,19 +345,20 @@ class NotificationService
      */
     public static function notifyCardReadyForPickup($userId, $memberName, $pwdId)
     {
-        $title = '✅ Your PWD ID Card is Ready!';
+        $title = '✅ Your PWD ID Card is Ready for Claiming!';
         
         $message = "Dear {$memberName},\n\n";
-        $message .= "Great news! Your PWD ID card is now ready for claiming.\n\n";
-        $message .= "📋 PWD ID: {$pwdId}\n\n";
+        $message .= "Great news! Your PWD ID card is now ready and available for claiming at the office.\n\n";
+        $message .= "📋 YOUR PWD ID: {$pwdId}\n\n";
         $message .= "📍 WHERE TO CLAIM:\n";
-        $message .= "PDAO Office, Cabuyao City Hall\n\n";
+        $message .= "PDAO Office, Cabuyao City Hall\n";
+        $message .= "Please visit the office to claim your physical ID card.\n\n";
         $message .= "🕐 OFFICE HOURS:\n";
         $message .= "Monday to Friday, 8:00 AM - 5:00 PM\n\n";
         $message .= "📝 WHAT TO BRING:\n";
         $message .= "• Valid government-issued ID\n";
         $message .= "• Authorization letter (if claiming through a representative)\n\n";
-        $message .= "Please claim your card at your earliest convenience.";
+        $message .= "Please come to the office at your earliest convenience to claim your PWD ID card.";
 
         return self::create($userId, 'card_ready_for_pickup', $title, $message, [
             'member_name' => $memberName,

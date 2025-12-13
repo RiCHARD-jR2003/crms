@@ -9,10 +9,16 @@ use Illuminate\Http\Request;
 
 class PWDMemberController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         try {
-            // Cache for 5 minutes (reduced from 10 to ensure fresh data)
+            // Get search parameter
+            $search = $request->input('search', '');
+            $barangay = $request->input('barangay', '');
+            $disabilityType = $request->input('disability_type', '');
+            $status = $request->input('status', '');
+            
+            // Cache the full list (without filters) for better performance
             $cacheKey = 'pwd_members.all';
             $enhancedMembers = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(5), function () {
                 try {
@@ -167,9 +173,63 @@ class PWDMemberController extends Controller
                 return $enhancedMembers; // Return from cache closure
             });
             
+            // Apply filters after retrieving from cache
+            // Apply search filter if provided
+            if (!empty($search)) {
+                $searchLower = strtolower($search);
+                $enhancedMembers = $enhancedMembers->filter(function ($member) use ($searchLower) {
+                    // Search in name
+                    $fullName = strtolower(trim(($member->firstName ?? '') . ' ' . ($member->lastName ?? '') . ' ' . ($member->middleName ?? '')));
+                    if (strpos($fullName, $searchLower) !== false) {
+                        return true;
+                    }
+                    
+                    // Search in PWD ID
+                    $pwdId = strtolower($member->pwd_id ?? '');
+                    if (strpos($pwdId, $searchLower) !== false) {
+                        return true;
+                    }
+                    
+                    // Search in barangay
+                    $memberBarangay = strtolower($member->barangay ?? '');
+                    if (strpos($memberBarangay, $searchLower) !== false) {
+                        return true;
+                    }
+                    
+                    // Search in email
+                    $memberEmail = strtolower($member->email ?? '');
+                    if (strpos($memberEmail, $searchLower) !== false) {
+                        return true;
+                    }
+                    
+                    return false;
+                });
+            }
+            
+            // Apply barangay filter
+            if (!empty($barangay)) {
+                $enhancedMembers = $enhancedMembers->filter(function ($member) use ($barangay) {
+                    return strtolower($member->barangay ?? '') === strtolower($barangay);
+                });
+            }
+            
+            // Apply disability type filter
+            if (!empty($disabilityType)) {
+                $enhancedMembers = $enhancedMembers->filter(function ($member) use ($disabilityType) {
+                    return strtolower($member->disabilityType ?? '') === strtolower($disabilityType);
+                });
+            }
+            
+            // Apply status filter
+            if (!empty($status)) {
+                $enhancedMembers = $enhancedMembers->filter(function ($member) use ($status) {
+                    return strtolower($member->status ?? '') === strtolower($status);
+                });
+            }
+            
             return response()->json([
                 'success' => true,
-                'data' => $enhancedMembers,
+                'data' => $enhancedMembers->values(), // Reset keys for JSON array
                 'count' => $enhancedMembers->count()
             ]);
         } catch (\Exception $e) {
@@ -214,12 +274,26 @@ class PWDMemberController extends Controller
         // Ensure QR code is generated if it doesn't exist
         if (empty($member->qr_code_data)) {
             try {
-                \App\Services\QRCodeGenerator::generateAndStore($member);
+                \App\Services\QRCodeGenerator::generateAndStore($member, true); // Force regenerate
                 $member->refresh(); // Refresh to get the newly generated QR code data
+                
+                // If still empty after generation, log error
+                if (empty($member->qr_code_data)) {
+                    \Illuminate\Support\Facades\Log::error('QR code generation returned empty in show endpoint', [
+                        'member_id' => $member->id,
+                        'userID' => $member->userID,
+                        'pwd_id' => $member->pwd_id,
+                        'has_firstName' => !empty($member->firstName),
+                        'has_lastName' => !empty($member->lastName)
+                    ]);
+                }
             } catch (\Exception $qrError) {
-                \Illuminate\Support\Facades\Log::warning('QR code generation failed in show endpoint', [
+                \Illuminate\Support\Facades\Log::error('QR code generation failed in show endpoint', [
                     'error' => $qrError->getMessage(),
-                    'pwd_member_id' => $member->userID ?? $member->id
+                    'trace' => $qrError->getTraceAsString(),
+                    'member_id' => $member->id,
+                    'userID' => $member->userID,
+                    'pwd_id' => $member->pwd_id
                 ]);
             }
         }
@@ -347,30 +421,6 @@ class PWDMemberController extends Controller
                 'cardExpirationDate' => $expirationDate
             ]);
 
-            // Create notification for the member (wrap in try-catch to prevent failure)
-            try {
-                // Format expiration date for display
-                $expirationDateFormatted = \Carbon\Carbon::parse($expirationDate)->format('F d, Y');
-                
-                \App\Services\NotificationService::create(
-                    $member->userID,
-                    'card_claimed',
-                    'PWD Card Claimed',
-                    'Your PWD ID card has been successfully claimed. Card expires on ' . $expirationDateFormatted . '.',
-                    [
-                        'member_id' => $member->id,
-                        'card_issue_date' => $issueDate,
-                        'card_expiration_date' => $expirationDate
-                    ]
-                );
-            } catch (\Exception $notificationError) {
-                // Log notification error but don't fail the card claim
-                \Illuminate\Support\Facades\Log::warning('Failed to create notification for card claim', [
-                    'member_id' => $member->id,
-                    'error' => $notificationError->getMessage()
-                ]);
-            }
-
             return response()->json([
                 'success' => true,
                 'message' => 'Card claimed successfully',
@@ -442,6 +492,82 @@ class PWDMemberController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to renew card',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Notify member that their ID card is ready for claiming
+     */
+    public function notifyCardReady(Request $request, $id)
+    {
+        try {
+            // Try to find member by database id first
+            $member = PWDMember::find($id);
+            
+            // If not found, try by userID (memberId might be userID)
+            if (!$member) {
+                $member = PWDMember::where('userID', $id)->first();
+            }
+            
+            if (!$member) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'PWD Member not found'
+                ], 404);
+            }
+
+            // Send notification to member that their ID card is ready for claiming
+            try {
+                $memberName = trim(($member->firstName ?? '') . ' ' . ($member->lastName ?? ''));
+                $pwdId = $member->pwd_id ?? 'PWD-' . str_pad($member->userID, 6, '0', STR_PAD_LEFT);
+                
+                // Send notification that card is ready for pickup/claiming
+                \App\Services\NotificationService::notifyCardReadyForPickup(
+                    $member->userID,
+                    $memberName,
+                    $pwdId
+                );
+                
+                \Illuminate\Support\Facades\Log::info('Card ready notification sent to member', [
+                    'member_id' => $member->id,
+                    'user_id' => $member->userID,
+                    'pwd_id' => $pwdId,
+                    'action' => 'card_ready_notification_sent'
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Notification sent successfully to member',
+                    'data' => [
+                        'member_id' => $member->id,
+                        'member_name' => $memberName,
+                        'pwd_id' => $pwdId
+                    ]
+                ]);
+            } catch (\Exception $notificationError) {
+                \Illuminate\Support\Facades\Log::error('Failed to send notification to member', [
+                    'member_id' => $member->id,
+                    'error' => $notificationError->getMessage(),
+                    'trace' => $notificationError->getTraceAsString()
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to send notification: ' . $notificationError->getMessage()
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error notifying member about card ready', [
+                'member_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send notification',
                 'error' => $e->getMessage()
             ], 500);
         }

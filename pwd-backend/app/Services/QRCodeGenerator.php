@@ -49,6 +49,25 @@ class QRCodeGenerator
                 }
             }
             
+            // Validate required fields before generating QR code
+            if (empty($pwdMember->firstName) || empty($pwdMember->lastName)) {
+                Log::error('Cannot generate QR code: Missing required fields', [
+                    'member_id' => $pwdMember->id,
+                    'userID' => $pwdMember->userID,
+                    'has_firstName' => !empty($pwdMember->firstName),
+                    'has_lastName' => !empty($pwdMember->lastName)
+                ]);
+                throw new \Exception('Cannot generate QR code: Member missing required fields (firstName or lastName)');
+            }
+            
+            if (empty($pwdMember->userID)) {
+                Log::error('Cannot generate QR code: Missing userID', [
+                    'member_id' => $pwdMember->id,
+                    'pwd_id' => $pwdMember->pwd_id
+                ]);
+                throw new \Exception('Cannot generate QR code: Member missing userID');
+            }
+            
             // Get barangay from application
             $application = $pwdMember->applications()->where('status', 'Approved')->first();
             $barangay = $application ? $application->barangay : ($pwdMember->barangay ?? 'Unknown');
@@ -68,16 +87,16 @@ class QRCodeGenerator
                 'pwdId' => $pwdMember->id,
                 'memberId' => $pwdMember->userID,
                 'userID' => $pwdMember->userID,
-                'pwd_id' => $pwdMember->pwd_id,
-                'name' => trim($pwdMember->firstName . ' ' . $pwdMember->lastName),
+                'pwd_id' => $pwdMember->pwd_id ?? "PWD-{$pwdMember->id}",
+                'name' => trim(($pwdMember->firstName ?? '') . ' ' . ($pwdMember->lastName ?? '')),
                 'firstName' => $pwdMember->firstName,
                 'middleName' => $pwdMember->middleName ?? '',
                 'lastName' => $pwdMember->lastName,
                 'birthDate' => $pwdMember->birthDate ? $pwdMember->birthDate->format('Y-m-d') : null,
                 'barangay' => $barangay,
-                'disabilityType' => $pwdMember->disabilityType,
-                'contactNumber' => $pwdMember->contactNumber,
-                'emergencyContact' => $emergencyContact,
+                'disabilityType' => $pwdMember->disabilityType ?? 'Not specified',
+                'contactNumber' => $pwdMember->contactNumber ?? '',
+                'emergencyContact' => $emergencyContact ?? '',
                 'issuedDate' => $issuedDate,
                 'generatedAt' => $issuedDate, // For backward compatibility
                 'qrVersion' => '2.0' // For future compatibility

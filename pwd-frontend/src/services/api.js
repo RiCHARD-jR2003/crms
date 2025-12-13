@@ -169,6 +169,10 @@ export const api = {
       cacheService.invalidate('/dashboard');
     } else if (path.includes('/support-tickets')) {
       cacheService.invalidate('/support-tickets');
+    } else if (path.includes('/benefits')) {
+      // Invalidate all benefits-related cache
+      cacheService.invalidate('/benefits');
+      cacheService.invalidate('/benefits-simple');
     }
     return request(path, { ...opts, method: 'POST', body });
   },

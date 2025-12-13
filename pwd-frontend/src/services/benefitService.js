@@ -5,7 +5,7 @@ import toastService from './toastService';
 
 const benefitService = {
   // Get all benefits (with optional barangay filter and status filter)
-  getAll: async (barangay = null, status = 'all') => {
+  getAll: async (barangay = null, status = 'all', skipCache = false) => {
     try {
       let url = '/benefits';
       const params = [];
@@ -21,7 +21,7 @@ const benefitService = {
       if (params.length > 0) {
         url += '?' + params.join('&');
       }
-      const response = await api.get(url);
+      const response = await api.get(url, { skipCache });
       // Sort by most recent first (created_at or distributionDate)
       const sorted = Array.isArray(response) ? response.sort((a, b) => {
         const dateA = new Date(a.created_at || a.distributionDate || 0);

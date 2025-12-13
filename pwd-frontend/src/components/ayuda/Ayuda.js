@@ -68,6 +68,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import pwdMemberService from '../../services/pwdMemberService';
 import benefitService from '../../services/benefitService';
 import announcementService from '../../services/announcementService';
+import { cacheService } from '../../services/cacheService';
 
 const Ayuda = () => {
   const { currentUser } = useAuth();
@@ -1188,27 +1189,160 @@ const Ayuda = () => {
           savedBenefit.status = 'Active';
         }
         
-        // Add to active benefits with the database ID
-        const approvedBenefit = {
-          ...approvedBenefitData,
-          id: savedBenefit.id || savedBenefit.benefitID || (benefits.length > 0 ? Math.max(...benefits.map(b => b.id), 0) + 1 : 1),
-          status: savedBenefit.status || 'Active'
+        // Normalize the benefit data to match expected structure
+        const normalizedBenefit = {
+          ...savedBenefit,
+          ...approvedBenefitData, // Merge approved data to ensure all fields are present
+          id: savedBenefit.id || savedBenefit.benefitID,
+          status: 'Active', // Force status to Active for approved benefits
+          // Ensure selectedBarangays is an array
+          selectedBarangays: Array.isArray(savedBenefit.selectedBarangays) 
+            ? savedBenefit.selectedBarangays 
+            : (Array.isArray(approvedBenefitData.selectedBarangays)
+                ? approvedBenefitData.selectedBarangays
+                : (savedBenefit.selectedBarangays ? JSON.parse(savedBenefit.selectedBarangays) : [])),
+          // Ensure dates are properly formatted
+          distributionDate: savedBenefit.distributionDate || approvedBenefitData.distributionDate,
+          expiryDate: savedBenefit.expiryDate || approvedBenefitData.expiryDate,
+          // Ensure amount is formatted
+          amount: savedBenefit.amount || approvedBenefitData.amount,
+          // Ensure distributed and pending are numbers
+          distributed: savedBenefit.distributed || 0,
+          pending: savedBenefit.pending || 0,
+          // Ensure title and type are present
+          title: savedBenefit.title || approvedBenefitData.title,
+          type: savedBenefit.type || approvedBenefitData.type
         };
         
-        // Refresh benefits list immediately to show the new benefit
-        try {
-          const refreshedBenefits = await benefitService.getAll(null, 'all');
-          const benefitsArray = Array.isArray(refreshedBenefits) ? refreshedBenefits : 
-                               (refreshedBenefits?.data || []);
-          applyBenefitsState(benefitsArray);
-          // Jump to Active tab so user sees it immediately
-          setActiveTab(0);
-        } catch (refreshError) {
-          console.error('Error refreshing benefits after creation:', refreshError);
-          // Fallback: add to local state if refresh fails, but still dedupe and sort
-          applyBenefitsState([...benefits, approvedBenefit]);
-          setActiveTab(0);
+        console.log('Normalized benefit for approval:', normalizedBenefit);
+        console.log('Normalized benefit status:', normalizedBenefit.status);
+        
+        // Immediately add to local state so it appears right away
+        console.log('Adding benefit to local state immediately');
+        setBenefits(prevBenefits => {
+          // Check if benefit already exists to avoid duplicates
+          const exists = prevBenefits.some(b => 
+            (b.id === normalizedBenefit.id || b.id === normalizedBenefit.benefitID) ||
+            (b.title === normalizedBenefit.title && b.type === normalizedBenefit.type)
+          );
+          if (exists) {
+            console.log('Benefit already exists in state, updating instead');
+            return prevBenefits.map(b => 
+              (b.id === normalizedBenefit.id || b.id === normalizedBenefit.benefitID) ||
+              (b.title === normalizedBenefit.title && b.type === normalizedBenefit.type)
+                ? normalizedBenefit
+                : b
+            );
+          }
+          const updated = [...prevBenefits, normalizedBenefit];
+          const deduped = dedupeBenefits(updated);
+          const sorted = sortBenefits(deduped);
+          console.log('Added benefit to state, total count:', sorted.length);
+          console.log('Active benefits count:', sorted.filter(b => b.status === 'Active').length);
+          return sorted;
+        });
+        
+        // Invalidate cache immediately before refreshing
+        cacheService.invalidate('/benefits');
+        cacheService.invalidate('/benefits-simple');
+        
+        // Add a small delay to ensure database transaction is committed
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Refresh benefits list to show the new benefit
+        // Retry logic to handle potential timing issues
+        let refreshAttempts = 0;
+        const maxRefreshAttempts = 5;
+        let refreshSuccess = false;
+        
+        while (refreshAttempts < maxRefreshAttempts && !refreshSuccess) {
+          try {
+            console.log(`Refreshing benefits (attempt ${refreshAttempts + 1}/${maxRefreshAttempts})...`);
+            // Skip cache to ensure we get fresh data from the server
+            const refreshedBenefits = await benefitService.getAll(null, 'all', true);
+            const benefitsArray = Array.isArray(refreshedBenefits) ? refreshedBenefits : 
+                                 (refreshedBenefits?.data || []);
+            
+            console.log('Refreshed benefits count:', benefitsArray.length);
+            console.log('Looking for benefit with ID:', savedBenefit.id || savedBenefit.benefitID);
+            console.log('Looking for benefit with title:', savedBenefit.title);
+            console.log('Normalized benefit status:', normalizedBenefit.status);
+            
+            // Normalize all benefits to ensure status is correct
+            const normalizedBenefitsArray = benefitsArray.map(b => {
+              // Parse selectedBarangays if it's a JSON string
+              if (b.selectedBarangays && typeof b.selectedBarangays === 'string') {
+                try {
+                  b.selectedBarangays = JSON.parse(b.selectedBarangays);
+                } catch (e) {
+                  b.selectedBarangays = [];
+                }
+              }
+              if (!Array.isArray(b.selectedBarangays)) {
+                b.selectedBarangays = [];
+              }
+              // Ensure status is set
+              if (!b.status) {
+                b.status = 'Active';
+              }
+              // Ensure distributed and pending are numbers
+              b.distributed = b.distributed || 0;
+              b.pending = b.pending || 0;
+              return b;
+            });
+            
+            // Check if the new benefit is in the refreshed list
+            const newBenefitFound = normalizedBenefitsArray.some(b => {
+              const idMatch = (b.id === savedBenefit.id || b.id === savedBenefit.benefitID);
+              const titleMatch = (b.title === savedBenefit.title && b.type === savedBenefit.type);
+              if (idMatch || titleMatch) {
+                console.log('Found matching benefit:', b);
+                console.log('Found benefit status:', b.status);
+              }
+              return idMatch || titleMatch;
+            });
+            
+            // Count Active benefits
+            const activeCount = normalizedBenefitsArray.filter(b => b.status === 'Active').length;
+            console.log('Active benefits count:', activeCount);
+            
+            if (newBenefitFound || refreshAttempts === maxRefreshAttempts - 1) {
+              applyBenefitsState(normalizedBenefitsArray);
+              refreshSuccess = true;
+              console.log('Benefits refreshed successfully, new benefit found:', newBenefitFound);
+              console.log('Total benefits after refresh:', normalizedBenefitsArray.length);
+              console.log('Active benefits after refresh:', normalizedBenefitsArray.filter(b => b.status === 'Active').length);
+              if (!newBenefitFound) {
+                console.warn('New benefit not found in refreshed list, but applying state anyway');
+                // Add the normalized benefit to the array if not found
+                const finalArray = [...normalizedBenefitsArray, normalizedBenefit];
+                applyBenefitsState(finalArray);
+              }
+            } else {
+              refreshAttempts++;
+              // Wait a bit longer before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          } catch (refreshError) {
+            console.error(`Error refreshing benefits (attempt ${refreshAttempts + 1}):`, refreshError);
+            refreshAttempts++;
+            if (refreshAttempts < maxRefreshAttempts) {
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+              // Final fallback: add to local state if all refresh attempts fail
+              console.warn('All refresh attempts failed, adding benefit to local state');
+              setBenefits(prevBenefits => {
+                const updated = [...prevBenefits, normalizedBenefit];
+                applyBenefitsState(updated, false); // Don't persist in this fallback
+                return updated;
+              });
+            }
+          }
         }
+        
+        // Jump to Active tab so user sees it immediately
+        setActiveTab(0);
 
         // Remove from pending schedules
         const updatedPendingSchedules = pendingSchedules.filter(p => p.id !== selectedPendingSchedule.id);
@@ -1797,7 +1931,7 @@ const Ayuda = () => {
               }}
             >
               <Tab 
-                label={`Active Benefits (${benefits.length})`} 
+                label={`Active Benefits (${benefits.filter(b => b.status === 'Active').length})`} 
                 icon={<VolunteerActivism />}
                 iconPosition="start"
               />
@@ -1941,7 +2075,7 @@ const Ayuda = () => {
               Add Benefit
             </Button>
           </Box>
-          {benefits.length === 0 ? (
+          {benefits.filter(benefit => benefit.status === 'Active').length === 0 ? (
             <Box sx={{ 
               textAlign: 'center', 
               py: 6, 
@@ -1990,7 +2124,9 @@ const Ayuda = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {benefits.map((benefit) => (
+                  {benefits
+                    .filter(benefit => benefit.status === 'Active') // Only show Active benefits in Available Benefits Programs
+                    .map((benefit) => (
                     <TableRow 
                       key={benefit.id}
                       sx={{ 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -54,6 +54,7 @@ const IDClaimModal = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null);
+  const [checkingExisting, setCheckingExisting] = useState(false);
   
   // Claimant info state
   const [claimantType, setClaimantType] = useState('');
@@ -74,6 +75,7 @@ const IDClaimModal = ({
     setLoading(false);
     setError(null);
     setClaim(null);
+    setCheckingExisting(false);
     setClaimantType('');
     setClaimantName('');
     setClaimantRelationship('');
@@ -86,8 +88,92 @@ const IDClaimModal = ({
     onClose();
   };
 
+  // Check for existing claim when modal opens
+  useEffect(() => {
+    if (open && member) {
+      checkExistingClaim();
+    }
+  }, [open, member]);
+
+  const checkExistingClaim = async () => {
+    if (!member) return;
+    
+    try {
+      setCheckingExisting(true);
+      setError(null);
+      
+      const memberId = member.userID || 
+                      member.userId ||
+                      member.memberId || 
+                      member.id ||
+                      member.member_id;
+      
+      if (!memberId) return;
+      
+      // Get existing claims for this member
+      const response = await idClaimService.getMemberClaims(memberId);
+      
+      if (response?.success && response?.claims) {
+        // Find active claim (pending, processing, ready_for_pickup, scheduled)
+        const activeClaim = response.claims.find(c => 
+          ['pending', 'processing', 'ready_for_pickup', 'scheduled'].includes(c.status)
+        );
+        
+        if (activeClaim) {
+          // Load existing claim
+          setClaim(activeClaim);
+          
+          // If claim is already completed, show error
+          if (activeClaim.status === 'claimed') {
+            setError('This member already has a completed claim. Cannot create a new one.');
+            return;
+          }
+          
+          // If claim exists but not completed, continue from claimant info step
+          setActiveStep(1);
+          
+          // Pre-fill claimant info if available
+          if (activeClaim.claimant_name) {
+            setClaimantName(activeClaim.claimant_name);
+          }
+          if (activeClaim.claimant_relationship) {
+            setClaimantRelationship(activeClaim.claimant_relationship);
+          }
+          if (activeClaim.claimant_contact) {
+            setClaimantContact(activeClaim.claimant_contact);
+          }
+          if (activeClaim.claimant_id_type) {
+            setClaimantIdType(activeClaim.claimant_id_type);
+          }
+          if (activeClaim.claimant_id_number) {
+            setClaimantIdNumber(activeClaim.claimant_id_number);
+          }
+          if (activeClaim.notes) {
+            setNotes(activeClaim.notes);
+          }
+          if (activeClaim.claimant_type) {
+            setClaimantType(activeClaim.claimant_type);
+          }
+          
+          toastService.info('Found existing claim in progress. Continuing from where you left off.');
+        }
+      }
+    } catch (err) {
+      console.error('Error checking existing claim:', err);
+      // Don't show error, just proceed with new claim
+    } finally {
+      setCheckingExisting(false);
+    }
+  };
+
   // Step 1: Initiate claim
   const handleInitiateClaim = async () => {
+    // If claim already exists, skip to next step
+    if (claim) {
+      setActiveStep(1);
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
@@ -132,11 +218,20 @@ const IDClaimModal = ({
         toastService.success('Claim initiated successfully');
         setActiveStep(1); // Go directly to Claimant Info (skip Schedule Pickup)
       } else {
-        // Extract error message from response
+        // Check if error is about existing claim
         const errorMessage = response?.message || 
                             response?.error || 
                             (response?.errors ? Object.values(response.errors).flat().join(', ') : null) ||
                             'Failed to initiate claim';
+        
+        // If there's an existing claim, try to load it
+        if (errorMessage.includes('already has an active claim') && response?.existing_claim) {
+          setClaim(response.existing_claim);
+          setActiveStep(1);
+          toastService.info('Found existing claim. Continuing from where you left off.');
+          return;
+        }
+        
         console.error('Claim initiation failed:', {
           response: response,
           errorMessage: errorMessage
@@ -203,16 +298,45 @@ const IDClaimModal = ({
       setLoading(true);
       setError(null);
 
+      // Build claim data - only include required fields based on claimant type
       const claimData = {
-        claimant_type: claimantType,
-        claimant_name: claimantType === 'Member' ? `${member.firstName} ${member.lastName}` : claimantName,
-        claimant_relationship: claimantRelationship,
-        claimant_contact: claimantContact,
-        claimant_id_type: claimantIdType,
-        claimant_id_number: claimantIdNumber,
-        authorization_letter: authorizationLetter,
-        notes: notes
+        claimant_type: claimantType
       };
+
+      if (claimantType === 'Member') {
+        // For Member, backend will use member's name automatically
+        // But we still send it to satisfy validation (even though it's not required)
+        claimData.claimant_name = `${member.firstName} ${member.lastName}`;
+        // claimant_relationship is not required for Member, so we don't send it
+      } else {
+        // For Guardian or Representative, these are required
+        claimData.claimant_name = claimantName;
+        claimData.claimant_relationship = claimantRelationship;
+        
+        // Authorization letter is required for Representative
+        if (claimantType === 'Representative') {
+          if (!authorizationLetter) {
+            setError('Authorization letter is required for representatives');
+            setLoading(false);
+            return;
+          }
+          claimData.authorization_letter = authorizationLetter;
+        }
+      }
+
+      // Optional fields - only include if they have values
+      if (claimantContact && claimantContact.trim()) {
+        claimData.claimant_contact = claimantContact;
+      }
+      if (claimantIdType && claimantIdType.trim()) {
+        claimData.claimant_id_type = claimantIdType;
+      }
+      if (claimantIdNumber && claimantIdNumber.trim()) {
+        claimData.claimant_id_number = claimantIdNumber;
+      }
+      if (notes && notes.trim()) {
+        claimData.notes = notes;
+      }
 
       const response = await idClaimService.completeClaim(claim.id, claimData);
       
@@ -491,7 +615,7 @@ const IDClaimModal = ({
 
   const getStepButtonText = () => {
     switch (activeStep) {
-      case 0: return 'Start Claim Process';
+      case 0: return claim ? 'Continue Claim' : 'Start Claim Process';
       case 1: return 'Complete Claim';
       case 2: return 'Close';
       default: return 'Next';
@@ -518,9 +642,7 @@ const IDClaimModal = ({
       }}
     >
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6">
-          {claimType === 'new' ? 'New ID Card Claim' : 'ID Card Renewal'}
-        </Typography>
+        {claimType === 'new' ? 'New ID Card Claim' : 'ID Card Renewal'}
         <IconButton onClick={handleClose} disabled={loading}>
           <CloseIcon />
         </IconButton>
@@ -535,6 +657,12 @@ const IDClaimModal = ({
           ))}
         </Stepper>
 
+        {checkingExisting && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Checking for existing claims...
+          </Alert>
+        )}
+        
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}

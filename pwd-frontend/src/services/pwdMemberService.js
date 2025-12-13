@@ -26,7 +26,9 @@ const pwdMemberService = {
       const queryString = query.toString();
       const url = queryString ? `/pwd-members?${queryString}` : '/pwd-members';
 
-      const response = await api.get(url);
+      // Skip cache if _refresh parameter is present
+      const skipCache = params._refresh !== undefined;
+      const response = await api.get(url, { skipCache });
       return response;
     } catch (error) {
       console.error('Error fetching PWD members:', error);
@@ -157,6 +159,18 @@ const pwdMemberService = {
     } catch (error) {
       console.error('Error renewing card:', error);
       toastService.error('Failed to renew PWD card: ' + (error.message || 'Unknown error'));
+      throw error;
+    }
+  },
+
+  // Notify member that their ID card is ready for claiming
+  async notifyCardReady(id) {
+    try {
+      const response = await api.post(`/pwd-members/${id}/notify-card-ready`);
+      return response;
+    } catch (error) {
+      console.error('Error notifying member:', error);
+      toastService.error('Failed to send notification: ' + (error.message || 'Unknown error'));
       throw error;
     }
   }

@@ -506,28 +506,52 @@ function BarangayPresidentAyuda() {
                           </TableCell>
                           <TableCell>
                             {benefit.status === 'Active' && (
-                              <Button
-                                variant="contained"
-                                startIcon={<CampaignIcon />}
-                                onClick={() => handleAnnounceBenefit(benefit.id)}
-                                disabled={announcingBenefit === benefit.id}
-                                size="small"
-                                sx={{
-                                  bgcolor: '#3498DB',
-                                  '&:hover': { bgcolor: '#2980B9' },
-                                  textTransform: 'none',
-                                  fontWeight: 600,
-                                  px: 2,
-                                  py: 0.5
-                                }}
-                              >
-                                {announcingBenefit === benefit.id ? 'Announcing...' : 'Announce'}
-                              </Button>
-                            )}
-                            {benefit.announced_at && (
-                              <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 0.5 }}>
-                                {formatDateTime(benefit.announced_at)}
-                              </Typography>
+                              <>
+                                {benefit.announced_at ? (
+                                  // Show "Published" button if already announced
+                                  <Button
+                                    variant="contained"
+                                    startIcon={<CheckCircle />}
+                                    disabled
+                                    size="small"
+                                    sx={{
+                                      bgcolor: '#27AE60',
+                                      '&:hover': { bgcolor: '#229954' },
+                                      textTransform: 'none',
+                                      fontWeight: 600,
+                                      px: 2,
+                                      py: 0.5,
+                                      cursor: 'default'
+                                    }}
+                                  >
+                                    Published
+                                  </Button>
+                                ) : (
+                                  // Show "Announce" button if not yet announced
+                                  <Button
+                                    variant="contained"
+                                    startIcon={<CampaignIcon />}
+                                    onClick={() => handleAnnounceBenefit(benefit.id)}
+                                    disabled={announcingBenefit === benefit.id}
+                                    size="small"
+                                    sx={{
+                                      bgcolor: '#3498DB',
+                                      '&:hover': { bgcolor: '#2980B9' },
+                                      textTransform: 'none',
+                                      fontWeight: 600,
+                                      px: 2,
+                                      py: 0.5
+                                    }}
+                                  >
+                                    {announcingBenefit === benefit.id ? 'Announcing...' : 'Announce'}
+                                  </Button>
+                                )}
+                                {benefit.announced_at && (
+                                  <Typography variant="caption" sx={{ color: '#7F8C8D', display: 'block', mt: 0.5 }}>
+                                    Published: {formatDateTime(benefit.announced_at)}
+                                  </Typography>
+                                )}
+                              </>
                             )}
                           </TableCell>
                         </TableRow>

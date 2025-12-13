@@ -38,8 +38,10 @@ return [
         'https://speakers-calendar-avi-assumes.trycloudflare.com', // Previous frontend tunnel
         'https://hose-cherry-rapid-complement.trycloudflare.com', // Previous backend tunnel
         'https://attempts-substance-sustained-suspension.trycloudflare.com', // Previous frontend tunnel
-        'https://main-named-robot-suspected.trycloudflare.com', // Current backend tunnel
-        'https://marathon-cleanup-states-merchant.trycloudflare.com', // Current frontend tunnel
+        'https://trustees-fibre-revolutionary-lists.trycloudflare.com', // Previous backend tunnel
+        'https://zum-quality-alcohol-regulations.trycloudflare.com', // Previous frontend tunnel
+        'https://labs-usual-pro-providing.trycloudflare.com', // Current backend tunnel
+        'https://respiratory-nam-quantitative-minister.trycloudflare.com', // Current frontend tunnel
     ],
 
     'allowed_origins_patterns' => [

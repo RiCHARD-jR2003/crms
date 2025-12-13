@@ -51,7 +51,8 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Visibility as VisibilityIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Notifications as NotificationsIcon
 } from '@mui/icons-material';
 import { Pagination } from '@mui/material';
 import AdminSidebar from '../shared/AdminSidebar';
@@ -358,7 +359,8 @@ function PWDCard() {
         params.status = filters.status;
       }
       
-      const response = await pwdMemberService.getAll(params);
+      // Force refresh by bypassing cache when not showing loading (i.e., after updates)
+      const response = await pwdMemberService.getAll({ ...params, _refresh: !showLoading ? Date.now() : undefined });
       // Handle different response structures
       let members = [];
       if (Array.isArray(response.data)) {
@@ -668,7 +670,10 @@ function PWDCard() {
     const generateQRCode = async () => {
       try {
         const member = pwdMembers.find(m => m.id === selectedMember);
-        if (!member) return;
+        if (!member) {
+          console.error('Member not found for selectedMember:', selectedMember);
+          return;
+        }
         
         // Debug: Log member data to see what we have
         console.log('Generating QR code for member:', {
@@ -678,13 +683,43 @@ function PWDCard() {
           name: member.name,
           hasQrCodeData: !!member.qr_code_data,
           qrCodeData: member.qr_code_data ? 'present' : 'missing',
-          allKeys: Object.keys(member)
+          qrCodeDataLength: member.qr_code_data ? member.qr_code_data.length : 0,
+          allKeys: Object.keys(member),
+          qrKeys: Object.keys(member).filter(k => k.toLowerCase().includes('qr'))
         });
         
-        const qrDataURL = await QRCodeService.generateMemberQRCode(member);
+        // Ensure we have the correct member object with all necessary fields
+        // The member.id is pwd_id, but we need userID or memberId for API calls
+        const memberForQR = {
+          ...member,
+          // Ensure we have the database ID for API calls
+          id: member.memberId || member.userID || member.id, // Use database ID, not pwd_id
+          memberId: member.memberId || member.userID,
+          userID: member.userID || member.memberId
+        };
+        
+        const qrDataURL = await QRCodeService.generateMemberQRCode(memberForQR);
+        console.log('QR code generated, setting state:', {
+          hasDataURL: !!qrDataURL,
+          dataURLLength: qrDataURL ? qrDataURL.length : 0,
+          preview: qrDataURL ? qrDataURL.substring(0, 50) + '...' : 'null'
+        });
         setQrCodeDataURL(qrDataURL);
+        console.log('QR code state updated');
       } catch (error) {
         console.error('Error generating QR code:', error);
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+          member: {
+            id: memberForQR.id,
+            memberId: memberForQR.memberId,
+            userID: memberForQR.userID
+          }
+        });
+        toastService.error('Failed to generate QR code: ' + (error.message || 'Unknown error'));
+        // Set empty string to show placeholder
+        setQrCodeDataURL('');
       }
     };
     
@@ -1113,6 +1148,47 @@ function PWDCard() {
     }
   };
 
+  // Handle notify member that card is ready
+  const handleNotifyCardReady = async (event, member) => {
+    event.stopPropagation(); // Prevent row selection
+    
+    if (!member.memberId) {
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: 'Member ID not found. Cannot send notification.',
+        buttonText: 'OK'
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await pwdMemberService.notifyCardReady(member.memberId);
+      
+      if (response?.success) {
+        showModal({
+          type: 'success',
+          title: 'Notification Sent',
+          message: `Notification has been sent to ${member.name} that their PWD ID card is ready for claiming at the office.`,
+          buttonText: 'OK'
+        });
+      } else {
+        throw new Error(response?.message || 'Failed to send notification');
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      showModal({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.message || error.message || 'Failed to send notification. Please try again.',
+        buttonText: 'OK'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle card claim - open enhanced claim modal
   const handleClaimCard = (event, member) => {
     event.stopPropagation(); // Prevent row selection
@@ -1251,7 +1327,17 @@ function PWDCard() {
     setIdClaimModalOpen(false);
     setSelectedMemberForClaim(null);
     
-    // Refresh the members list to update card status
+    // Invalidate cache to ensure fresh data
+    try {
+      const { cacheService } = await import('../../services/cacheService');
+      cacheService.invalidate('/pwd-members');
+      // Also invalidate any cached member data
+      cacheService.invalidate(new RegExp('^/pwd-members'));
+    } catch (e) {
+      console.warn('Could not invalidate cache:', e);
+    }
+    
+    // Refresh the members list to update card status - force refresh without cache
     await fetchPwdMembers(currentPage, false);
     
     showModal({
@@ -1287,7 +1373,7 @@ function PWDCard() {
 
   const handleViewRenewalFile = async (renewalId, type) => {
     try {
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://main-named-robot-suspected.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com/api';
       let token = null;
       
       try {
@@ -2719,29 +2805,58 @@ function PWDCard() {
                             }}>
                               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                                 {member.cardStatus === 'to claim' && (
-                                  <Button
-                                    variant="contained"
-                                    size="small"
-                                    onClick={(e) => handleClaimCard(e, member)}
-                                    disabled={loading || !member.memberId}
-                                    sx={{
-                                      bgcolor: '#F39C12',
-                                      color: 'white',
-                                      fontSize: '0.7rem',
-                                      py: 0.5,
-                                      px: 1.5,
-                                      textTransform: 'none',
-                                      fontWeight: 'bold',
-                                      '&:hover': {
-                                        bgcolor: '#E67E22'
-                                      },
-                                      '&:disabled': {
-                                        bgcolor: '#BDC3C7'
-                                      }
-                                    }}
-                                  >
-                                    Claim
-                                  </Button>
+                                  <>
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      startIcon={<NotificationsIcon />}
+                                      onClick={(e) => handleNotifyCardReady(e, member)}
+                                      disabled={loading || !member.memberId}
+                                      sx={{
+                                        borderColor: '#3498DB',
+                                        color: '#3498DB',
+                                        fontSize: '0.7rem',
+                                        py: 0.5,
+                                        px: 1.5,
+                                        textTransform: 'none',
+                                        fontWeight: 'bold',
+                                        '&:hover': {
+                                          borderColor: '#2980B9',
+                                          bgcolor: '#EBF5FB',
+                                          color: '#2980B9'
+                                        },
+                                        '&:disabled': {
+                                          borderColor: '#BDC3C7',
+                                          color: '#BDC3C7'
+                                        }
+                                      }}
+                                    >
+                                      Notify
+                                    </Button>
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      onClick={(e) => handleClaimCard(e, member)}
+                                      disabled={loading || !member.memberId}
+                                      sx={{
+                                        bgcolor: '#F39C12',
+                                        color: 'white',
+                                        fontSize: '0.7rem',
+                                        py: 0.5,
+                                        px: 1.5,
+                                        textTransform: 'none',
+                                        fontWeight: 'bold',
+                                        '&:hover': {
+                                          bgcolor: '#E67E22'
+                                        },
+                                        '&:disabled': {
+                                          bgcolor: '#BDC3C7'
+                                        }
+                                      }}
+                                    >
+                                      Claim
+                                    </Button>
+                                  </>
                                 )}
                                 {member.cardStatus === 'for renewal' && (
                                   <Button
@@ -2769,16 +2884,29 @@ function PWDCard() {
                                   </Button>
                                 )}
                                 {member.cardStatus === 'claimed' && (
-                                  <Typography 
-                                    variant="body2" 
-                                    sx={{ 
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    startIcon={<CheckCircleIcon />}
+                                    disabled
+                                    sx={{
+                                      bgcolor: '#27AE60',
+                                      color: 'white',
                                       fontSize: '0.7rem',
-                                      color: '#7F8C8D',
-                                      fontStyle: 'italic'
+                                      py: 0.5,
+                                      px: 1.5,
+                                      textTransform: 'none',
+                                      fontWeight: 'bold',
+                                      cursor: 'default',
+                                      '&:disabled': {
+                                        bgcolor: '#27AE60',
+                                        color: 'white',
+                                        opacity: 1
+                                      }
                                     }}
                                   >
-                                    -
-                                  </Typography>
+                                    Claimed
+                                  </Button>
                                 )}
                               </Box>
                             </TableCell>

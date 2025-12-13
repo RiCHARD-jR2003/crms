@@ -1172,10 +1172,16 @@ Route::post('/benefits-simple', function (Request $request) {
         \Illuminate\Support\Facades\Log::info('Benefit created via simple route', [
             'benefit_id' => $benefit->id,
             'title' => $benefit->title,
-            'status' => $benefit->status
+            'status' => $benefit->status,
+            'draft_announcement_created' => $draftAnnouncementCreated
         ]);
         
-        return response()->json($benefit, 201);
+        // Return consistent response structure matching BenefitController::store
+        return response()->json([
+            'success' => true,
+            'data' => $benefit,
+            'draft_announcement_created' => $draftAnnouncementCreated
+        ], 201);
     } catch (\Exception $e) {
         \Illuminate\Support\Facades\Log::error('Error creating benefit via simple route', [
             'error' => $e->getMessage(),
@@ -2655,6 +2661,68 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pwd-members/{id}/benefit-claims', [PWDMemberController::class, 'getBenefitClaims']);
     Route::post('pwd-members/{id}/claim-card', [PWDMemberController::class, 'claimCard']);
     Route::post('pwd-members/{id}/renew-card', [PWDMemberController::class, 'renewCard']);
+    Route::post('pwd-members/{id}/notify-card-ready', [PWDMemberController::class, 'notifyCardReady']);
+    Route::post('pwd-members/{id}/regenerate-qr', function (Request $request, $id) {
+        try {
+            // Try to find by database ID first
+            $member = \App\Models\PWDMember::find($id);
+            
+            // If not found, try by userID
+            if (!$member) {
+                $member = \App\Models\PWDMember::where('userID', $id)->first();
+            }
+            
+            if (!$member) {
+                return response()->json(['success' => false, 'message' => 'PWD Member not found'], 404);
+            }
+            
+            // Force regenerate QR code
+            try {
+                $qrData = \App\Services\QRCodeGenerator::generateAndStore($member, true);
+                $member->refresh(); // Refresh to get the newly generated QR code data
+                
+                \Illuminate\Support\Facades\Log::info('QR code regenerated successfully', [
+                    'member_id' => $member->id,
+                    'userID' => $member->userID,
+                    'pwd_id' => $member->pwd_id
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'QR code regenerated successfully',
+                    'data' => [
+                        'id' => $member->id,
+                        'userID' => $member->userID,
+                        'qr_code_data' => $member->qr_code_data,
+                        'qr_code_generated_at' => $member->qr_code_generated_at
+                    ]
+                ]);
+            } catch (\Exception $qrError) {
+                \Illuminate\Support\Facades\Log::error('QR code regeneration failed', [
+                    'error' => $qrError->getMessage(),
+                    'trace' => $qrError->getTraceAsString(),
+                    'member_id' => $member->id,
+                    'userID' => $member->userID
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to regenerate QR code: ' . $qrError->getMessage(),
+                    'error' => $qrError->getMessage()
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error in regenerate QR endpoint', [
+                'error' => $e->getMessage(),
+                'member_id' => $id
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ], 500);
+        }
+    });
     
     // PWD Member change password route
     Route::put('/pwd-member/change-password', function (Request $request) {

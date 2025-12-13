@@ -109,11 +109,34 @@ const ClaimHistory = () => {
               }
             }
 
+            // Prioritize claimDate (which has the actual claim time) over created_at/updated_at
+            // claimDate is a DATETIME field that stores when the benefit was actually claimed
+            // If claimDate exists but has time 00:00:00, use created_at instead (which has the actual time)
+            let claimDateTime = claim.claimDate || claim.claimed_at || claim.created_at || claim.updated_at;
+            
+            // Check if claimDate exists but has time as 00:00:00 (midnight)
+            if (claim.claimDate) {
+              const claimDateObj = new Date(claim.claimDate);
+              const hours = claimDateObj.getHours();
+              const minutes = claimDateObj.getMinutes();
+              const seconds = claimDateObj.getSeconds();
+              
+              // If time is exactly 00:00:00, use created_at instead (which has the actual claim time)
+              if (hours === 0 && minutes === 0 && seconds === 0 && claim.created_at) {
+                claimDateTime = claim.created_at;
+                console.log('Using created_at for claim time (claimDate was midnight):', {
+                  claimId: claim.id,
+                  claimDate: claim.claimDate,
+                  created_at: claim.created_at
+                });
+              }
+            }
+            
             return {
               ...claim,
               member,
               benefit,
-              claimDate: claim.claimDate || claim.created_at || claim.updated_at
+              claimDate: claimDateTime
             };
           } catch (err) {
             console.warn('Error processing claim:', err);
@@ -387,7 +410,7 @@ const ClaimHistory = () => {
     
     // Build the API URL for the authorization letter
     try {
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://main-named-robot-suspected.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com/api';
       let url = `${apiBaseUrl}/authorization-letter/${claimId}`;
       
       // Add authentication token if available
@@ -487,7 +510,7 @@ const ClaimHistory = () => {
                   {recentClaims.map((claim, index) => (
                     <TableRow key={claim.id || index} hover>
                       <TableCell>
-                        {formatDateTime(claim.claimDate || claim.created_at || claim.updated_at)}
+                        {formatDateTime(claim.claimDate || claim.claimed_at || claim.created_at || claim.updated_at)}
                       </TableCell>
                       <TableCell>
                         {claim.member ? (
