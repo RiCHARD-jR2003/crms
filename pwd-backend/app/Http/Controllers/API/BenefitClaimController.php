@@ -564,8 +564,9 @@ class BenefitClaimController extends Controller
                 }
             }
             
-            // Clear cache for this user's claims
+            // Clear cache for this user's claims and all claims
             Cache::forget("benefit_claims:user:{$member->userID}");
+            Cache::forget("benefit_claims:all");
             
             // If there were duplicate errors, include them in response
             if (!empty($duplicateErrors)) {

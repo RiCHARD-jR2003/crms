@@ -146,9 +146,18 @@ const ClaimHistory = () => {
       );
 
       // Sort by date (most recent first) and limit to 50
+      // Filter out claims without valid dates, but include all claims that have any date field
       const sortedClaims = claimsWithDetails
-        .filter(claim => claim.claimDate)
-        .sort((a, b) => new Date(b.claimDate) - new Date(a.claimDate))
+        .filter(claim => {
+          // Include claim if it has claimDate, created_at, or updated_at
+          return claim.claimDate || claim.created_at || claim.updated_at;
+        })
+        .sort((a, b) => {
+          // Use claimDate first, then created_at, then updated_at as fallback
+          const dateA = new Date(a.claimDate || a.created_at || a.updated_at || 0);
+          const dateB = new Date(b.claimDate || b.created_at || b.updated_at || 0);
+          return dateB - dateA;
+        })
         .slice(0, 50);
 
       setRecentClaims(sortedClaims);
@@ -410,7 +419,7 @@ const ClaimHistory = () => {
     
     // Build the API URL for the authorization letter
     try {
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://attachments-sand-gave-shame.trycloudflare.com/api';
       let url = `${apiBaseUrl}/authorization-letter/${claimId}`;
       
       // Add authentication token if available

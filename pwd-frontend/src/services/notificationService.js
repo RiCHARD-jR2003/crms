@@ -229,19 +229,27 @@ const notificationService = {
   /**
    * Format notification timestamp for display in Philippine Time
    * @param {string} timestamp - ISO 8601 timestamp
+   * @param {Date} currentTime - Optional current time for reactive updates (defaults to new Date())
    * @returns {string}
    */
-  formatTimestamp(timestamp) {
+  formatTimestamp(timestamp, currentTime = null) {
     if (!timestamp) return 'Just now';
     
     try {
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return 'Just now';
       
-      const now = new Date();
+      // Use provided currentTime or default to new Date() for reactive updates
+      const now = currentTime || new Date();
       
       // Calculate difference in milliseconds
       const diffMs = now.getTime() - date.getTime();
+      
+      // Handle negative differences (future dates) - shouldn't happen but handle gracefully
+      if (diffMs < 0) {
+        return 'Just now';
+      }
+      
       const diffMins = Math.floor(diffMs / 60000);
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);

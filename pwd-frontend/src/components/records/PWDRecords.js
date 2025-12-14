@@ -72,7 +72,7 @@ import { formatDate as formatDateMMDDYYYY } from '../../utils/dateTimeFormatter'
   } from '../../utils/themeStyles';
 
 // Use localhost storage URL
-const STORAGE_BASE_URL = 'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com/storage';
+const STORAGE_BASE_URL = 'https://attachments-sand-gave-shame.trycloudflare.com/storage';
 
 function PWDRecords() {
   const { currentUser } = useAuth();

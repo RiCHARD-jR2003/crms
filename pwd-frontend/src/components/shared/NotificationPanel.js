@@ -42,6 +42,7 @@ function NotificationPanel({ open, onClose }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date()); // Track current time for reactive timestamps
 
   // Get navigation path based on notification type and user role
   const getNotificationPath = (notification) => {
@@ -238,24 +239,59 @@ function NotificationPanel({ open, onClose }) {
     }
   }, [open, currentUser]);
 
+  // Update current time every 30 seconds to make timestamps reactive
+  // This ensures "Just now" changes to "X minutes ago" in a timely manner
+  useEffect(() => {
+    if (open) {
+      // Update immediately
+      setCurrentTime(new Date());
+      
+      // Then update every 30 seconds to refresh "Just now", "X minutes ago", etc.
+      const timeInterval = setInterval(() => {
+        setCurrentTime(new Date());
+      }, 30000); // Update every 30 seconds for better accuracy
+
+      return () => clearInterval(timeInterval);
+    }
+  }, [open]);
+
   const fetchNotifications = async () => {
     setLoading(true);
     try {
       console.log('Fetching notifications for user:', currentUser?.username, 'Role:', currentUser?.role, 'UserID:', currentUser?.userID);
       const data = await notificationService.getNotifications();
       console.log('Received notifications:', data.length, 'items');
+      
       // Ensure notifications are sorted by created_at descending (latest first)
-      // Also sort by id descending as tiebreaker for notifications created at the same time
-      const sorted = data.sort((a, b) => {
-        const dateA = new Date(a.created_at || a.timestamp || 0);
-        const dateB = new Date(b.created_at || b.timestamp || 0);
-        if (dateB.getTime() !== dateA.getTime()) {
-          return dateB - dateA; // Sort by date descending (newest first)
+      // Create a new array to avoid mutating the original
+      // Sort by created_at first, then by id as tiebreaker
+      const sorted = [...data].sort((a, b) => {
+        // Get dates - try multiple possible fields
+        const dateA = new Date(a.created_at || a.timestamp || a.updated_at || 0);
+        const dateB = new Date(b.created_at || b.timestamp || b.updated_at || 0);
+        
+        const timeA = dateA.getTime();
+        const timeB = dateB.getTime();
+        
+        // If dates are different, sort by date descending (newest first)
+        if (timeB !== timeA) {
+          return timeB - timeA;
         }
+        
         // If dates are equal, sort by ID descending (newer ID first)
-        return (b.id || 0) - (a.id || 0);
+        const idA = a.id || a.notificationID || 0;
+        const idB = b.id || b.notificationID || 0;
+        return idB - idA;
       });
-      console.log('Sorted notifications:', sorted.length);
+      
+      console.log('Sorted notifications (newest first):', sorted.length);
+      console.log('First notification:', sorted[0] ? {
+        id: sorted[0].id,
+        title: sorted[0].title,
+        created_at: sorted[0].created_at,
+        timestamp: sorted[0].timestamp
+      } : 'none');
+      
       // Ensure the array is in the correct order (newest first)
       setNotifications(sorted);
     } catch (error) {
@@ -491,7 +527,8 @@ function NotificationPanel({ open, onClose }) {
                             sx={{ color: '#9E9E9E', fontSize: '0.75rem', display: 'block' }}
                           >
                             {notificationService.formatTimestamp(
-                              notification.created_at || notification.timestamp
+                              notification.created_at || notification.timestamp,
+                              currentTime // Pass currentTime for reactive updates
                             )}
                           </Typography>
                         </Box>

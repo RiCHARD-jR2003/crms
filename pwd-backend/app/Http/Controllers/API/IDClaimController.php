@@ -415,6 +415,11 @@ class IDClaimController extends Controller
 
             $member->update($memberUpdate);
 
+            // Clear cache to ensure fresh data is returned
+            \Illuminate\Support\Facades\Cache::forget('pwd_members.all');
+            \Illuminate\Support\Facades\Cache::forget("pwd_member:{$member->userID}");
+            \Illuminate\Support\Facades\Cache::forget("pwd_member:pwd_id:{$member->pwd_id}");
+
             // Create completion notification
             $this->notifyMember($claim, 'id_claimed',
                 'PWD ID Card Claimed Successfully',

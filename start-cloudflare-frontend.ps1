@@ -14,9 +14,9 @@ Start-Sleep -Seconds 5
 
 # Start Cloudflare Tunnel for Frontend
 Write-Host "Starting Cloudflare Tunnel for Frontend..." -ForegroundColor Yellow
-Write-Host "Frontend URL: https://casey-impossible-odds-alexander.trycloudflare.com" -ForegroundColor Green
+Write-Host "Frontend URL: https://uniprotkb-designated-cases-walked.trycloudflare.com" -ForegroundColor Green
 Write-Host ""
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Cloudflare Tunnel - Frontend' -ForegroundColor Green; Write-Host 'Tunneling: http://localhost:3000 -> https://casey-impossible-odds-alexander.trycloudflare.com' -ForegroundColor Cyan; .\cloudflared.exe tunnel --url http://localhost:3000"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Cloudflare Tunnel - Frontend' -ForegroundColor Green; Write-Host 'Tunneling: http://localhost:3000 -> https://uniprotkb-designated-cases-walked.trycloudflare.com' -ForegroundColor Cyan; .\cloudflared.exe tunnel --url http://localhost:3000"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
@@ -24,7 +24,7 @@ Write-Host "Frontend Server and Cloudflare Tunnel Started!" -ForegroundColor Gre
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Local Frontend: http://localhost:3000" -ForegroundColor White
-Write-Host "Cloudflare Frontend: https://casey-impossible-odds-alexander.trycloudflare.com" -ForegroundColor White
+Write-Host "Cloudflare Frontend: https://uniprotkb-designated-cases-walked.trycloudflare.com" -ForegroundColor White
 Write-Host ""
 Write-Host "Press any key to exit (servers will continue running)..." -ForegroundColor Yellow
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

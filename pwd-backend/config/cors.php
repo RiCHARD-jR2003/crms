@@ -40,8 +40,8 @@ return [
         'https://attempts-substance-sustained-suspension.trycloudflare.com', // Previous frontend tunnel
         'https://trustees-fibre-revolutionary-lists.trycloudflare.com', // Previous backend tunnel
         'https://zum-quality-alcohol-regulations.trycloudflare.com', // Previous frontend tunnel
-        'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com', // Current backend tunnel
-        'https://casey-impossible-odds-alexander.trycloudflare.com', // Current frontend tunnel
+        'https://attachments-sand-gave-shame.trycloudflare.com', // Current backend tunnel
+        'https://uniprotkb-designated-cases-walked.trycloudflare.com', // Current frontend tunnel
     ],
 
     'allowed_origins_patterns' => [
