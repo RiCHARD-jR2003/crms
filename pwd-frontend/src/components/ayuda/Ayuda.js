@@ -488,25 +488,81 @@ const Ayuda = () => {
 
   // Helper: ensure unique benefits using a stable composite key (prefer ids)
   const dedupeBenefits = useCallback((list) => {
-    const seen = new Set();
+    const seenById = new Map(); // Map to store benefits by ID
+    const seenByComposite = new Map(); // Map to store benefits by composite key (for items without ID)
     const unique = [];
+    
     for (const item of list || []) {
-      const rawDate = item.distributionDate || item.created_at || item.updated_at;
-      const normalizedDate = rawDate ? new Date(rawDate).getTime() : 0;
-      const normalizedTitle = (item.title || item.benefitType || '').trim().toLowerCase();
-      const normalizedBarangay = (item.barangay || 'all').trim().toLowerCase();
-      const normalizedAmount = (() => {
-        const amt = typeof item.amount === 'string' ? item.amount.replace(/[₱,]/g, '') : item.amount;
-        return Number(amt) || 0;
-      })();
-      const key =
-        item.id ??
-        item.benefitID ??
-        item.reference ??
-        `${normalizedTitle}|${normalizedBarangay}|${normalizedAmount}|${normalizedDate}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      unique.push(item);
+      // Prioritize ID-based deduplication
+      const itemId = item.id || item.benefitID;
+      
+      if (itemId) {
+        // If we've seen this ID before, keep the one with the most recent updated_at
+        if (seenById.has(itemId)) {
+          const existing = seenById.get(itemId);
+          const existingDate = new Date(existing.updated_at || existing.created_at || 0).getTime();
+          const currentDate = new Date(item.updated_at || item.created_at || 0).getTime();
+          
+          // Keep the more recent one
+          if (currentDate > existingDate) {
+            // Replace the existing one
+            const index = unique.findIndex(b => (b.id || b.benefitID) === itemId);
+            if (index !== -1) {
+              unique[index] = item;
+              seenById.set(itemId, item);
+            }
+          }
+          // Otherwise, skip this duplicate
+          continue;
+        }
+        
+        // First time seeing this ID
+        seenById.set(itemId, item);
+        unique.push(item);
+      } else {
+        // No ID, use composite key
+        const rawDate = item.distributionDate || item.created_at || item.updated_at;
+        const normalizedDate = rawDate ? new Date(rawDate).getTime() : 0;
+        const normalizedTitle = (item.title || item.benefitType || '').trim().toLowerCase();
+        const normalizedBarangay = (item.barangay || 'all').trim().toLowerCase();
+        const normalizedAmount = (() => {
+          const amt = typeof item.amount === 'string' ? item.amount.replace(/[₱,]/g, '') : item.amount;
+          return Number(amt) || 0;
+        })();
+        const compositeKey = `${normalizedTitle}|${normalizedBarangay}|${normalizedAmount}|${normalizedDate}`;
+        
+        if (seenByComposite.has(compositeKey)) {
+          // Check if this is more recent
+          const existing = seenByComposite.get(compositeKey);
+          const existingDate = new Date(existing.updated_at || existing.created_at || 0).getTime();
+          const currentDate = new Date(item.updated_at || item.created_at || 0).getTime();
+          
+          if (currentDate > existingDate) {
+            // Replace the existing one
+            const index = unique.findIndex(b => {
+              const bId = b.id || b.benefitID;
+              if (bId) return false; // Skip items with IDs
+              const bDate = b.distributionDate || b.created_at || b.updated_at;
+              const bNormalizedDate = bDate ? new Date(bDate).getTime() : 0;
+              const bTitle = (b.title || b.benefitType || '').trim().toLowerCase();
+              const bBarangay = (b.barangay || 'all').trim().toLowerCase();
+              const bAmount = (() => {
+                const amt = typeof b.amount === 'string' ? b.amount.replace(/[₱,]/g, '') : b.amount;
+                return Number(amt) || 0;
+              })();
+              return `${bTitle}|${bBarangay}|${bAmount}|${bNormalizedDate}` === compositeKey;
+            });
+            if (index !== -1) {
+              unique[index] = item;
+              seenByComposite.set(compositeKey, item);
+            }
+          }
+          continue;
+        }
+        
+        seenByComposite.set(compositeKey, item);
+        unique.push(item);
+      }
     }
     return unique;
   }, []);
@@ -612,56 +668,87 @@ const Ayuda = () => {
         });
         
         // Sort by most recent first (created_at or distributionDate)
-        const sortedBenefits = applyBenefitsState(benefitsWithAutoDeactivation);
+        // Use applyBenefitsState which includes deduplication
+        const sortedBenefits = applyBenefitsState(benefitsWithAutoDeactivation, true);
         
         console.log('Processed and sorted benefits:', sortedBenefits);
+        console.log('Total benefits after deduplication:', sortedBenefits.length);
 
-        // Load pending schedules from localStorage (for now)
+        // Load pending schedules from database (benefits with 'Pending Approval' status)
+        const pendingApprovalBenefits = benefitsWithAutoDeactivation.filter(b => b.status === 'Pending Approval');
+        console.log('Loading pending approval benefits from database:', pendingApprovalBenefits.length);
+        
+        // Also load from localStorage for backward compatibility (merge with database data)
         const savedPendingSchedules = localStorage.getItem('pendingSchedules');
-        console.log('Loading pending schedules from localStorage:', savedPendingSchedules);
+        let localStorageSchedules = [];
         if (savedPendingSchedules && savedPendingSchedules !== 'null' && savedPendingSchedules !== 'undefined') {
           try {
             const parsedPendingSchedules = JSON.parse(savedPendingSchedules);
-            console.log('Parsed pending schedules:', parsedPendingSchedules);
             if (Array.isArray(parsedPendingSchedules)) {
-              // Normalize pending schedules data
-              const normalizedSchedules = parsedPendingSchedules.map(schedule => {
-                // Ensure selectedBarangays is an array
-                if (schedule.selectedBarangays && typeof schedule.selectedBarangays === 'string') {
-                  try {
-                    schedule.selectedBarangays = JSON.parse(schedule.selectedBarangays);
-                  } catch (e) {
-                    schedule.selectedBarangays = [];
-                  }
-                }
-                if (!Array.isArray(schedule.selectedBarangays)) {
-                  schedule.selectedBarangays = [];
-                }
-                
-                // Ensure amount is formatted correctly
-                if (schedule.amount && typeof schedule.amount === 'number') {
-                  schedule.amount = `₱${schedule.amount.toLocaleString('en-US')}`;
-                }
-                
-                return schedule;
-              });
-              
-              // Sort by most recent first
-              const sortedSchedules = normalizedSchedules.sort((a, b) => {
-                const dateA = new Date(a.submittedDate || a.created_at || 0);
-                const dateB = new Date(b.submittedDate || b.created_at || 0);
-                return dateB - dateA; // Most recent first
-              });
-              
-              setPendingSchedules(sortedSchedules);
+              localStorageSchedules = parsedPendingSchedules;
             }
           } catch (parseError) {
             console.error('Error parsing pending schedules from localStorage:', parseError);
-            setPendingSchedules([]);
           }
-        } else {
-          setPendingSchedules([]);
         }
+        
+        // Merge database and localStorage schedules, prioritizing database data
+        const allPendingSchedules = [...pendingApprovalBenefits];
+        const dbIds = new Set(pendingApprovalBenefits.map(b => b.id || b.benefitID));
+        
+        // Add localStorage schedules that aren't already in database
+        localStorageSchedules.forEach(schedule => {
+          const scheduleId = schedule.id || schedule.benefitID;
+          if (!dbIds.has(scheduleId) && schedule.status === 'Pending Approval') {
+            allPendingSchedules.push(schedule);
+          }
+        });
+        
+        // Normalize all pending schedules
+        const normalizedSchedules = allPendingSchedules.map(schedule => {
+          // Ensure selectedBarangays is an array
+          if (schedule.selectedBarangays && typeof schedule.selectedBarangays === 'string') {
+            try {
+              schedule.selectedBarangays = JSON.parse(schedule.selectedBarangays);
+            } catch (e) {
+              schedule.selectedBarangays = [];
+            }
+          }
+          if (!Array.isArray(schedule.selectedBarangays)) {
+            schedule.selectedBarangays = [];
+          }
+          
+          // Ensure amount is formatted correctly
+          if (schedule.amount && typeof schedule.amount === 'number') {
+            schedule.amount = `₱${schedule.amount.toLocaleString('en-US')}`;
+          } else if (schedule.amount && !schedule.amount.includes('₱')) {
+            // If it's a string without currency symbol, add it
+            const numAmount = schedule.amount.replace(/[₱,]/g, '');
+            if (!isNaN(numAmount)) {
+              schedule.amount = `₱${parseInt(numAmount).toLocaleString('en-US')}`;
+            }
+          }
+          
+          // Ensure status is set
+          if (!schedule.status) {
+            schedule.status = 'Pending Approval';
+          }
+          
+          return schedule;
+        });
+        
+        // Sort by most recent first
+        const sortedSchedules = normalizedSchedules.sort((a, b) => {
+          const dateA = new Date(a.submittedDate || a.created_at || 0);
+          const dateB = new Date(b.submittedDate || b.created_at || 0);
+          return dateB - dateA; // Most recent first
+        });
+        
+        console.log('Total pending schedules loaded:', sortedSchedules.length);
+        setPendingSchedules(sortedSchedules);
+        
+        // Update localStorage with merged data (for backward compatibility)
+        localStorage.setItem('pendingSchedules', JSON.stringify(sortedSchedules));
       } catch (error) {
         console.error('Error loading data:', error);
         toastService.error('Failed to load benefits data. Please refresh the page.');
@@ -1005,31 +1092,65 @@ const Ayuda = () => {
             return benefit;
           });
           
-          // Sort by most recent first
-          const sortedBenefits = parsedBenefits.sort((a, b) => {
-            const dateA = new Date(a.created_at || a.distributionDate || a.updated_at || 0);
-            const dateB = new Date(b.created_at || b.distributionDate || b.updated_at || 0);
-            return dateB - dateA;
-          });
+          // Use applyBenefitsState to ensure deduplication and proper sorting
+          // This will update the benefits list, but 'Pending Approval' benefits won't show in Available Benefits Programs
+          const sortedBenefits = applyBenefitsState(parsedBenefits, true);
           
-          setBenefits(sortedBenefits);
-          localStorage.setItem('benefits', JSON.stringify(sortedBenefits));
+          console.log('Refreshed benefits after creation:', sortedBenefits.length, 'benefits');
+          
+          // Update pending schedules to include the new 'Pending Approval' benefit
+          const pendingApprovalBenefits = parsedBenefits.filter(b => b.status === 'Pending Approval');
+          if (pendingApprovalBenefits.length > 0) {
+            const normalizedPending = pendingApprovalBenefits.map(b => {
+              if (b.selectedBarangays && typeof b.selectedBarangays === 'string') {
+                try {
+                  b.selectedBarangays = JSON.parse(b.selectedBarangays);
+                } catch (e) {
+                  b.selectedBarangays = [];
+                }
+              }
+              if (!Array.isArray(b.selectedBarangays)) {
+                b.selectedBarangays = [];
+              }
+              if (b.amount && typeof b.amount === 'number') {
+                b.amount = `₱${b.amount.toLocaleString('en-US')}`;
+              }
+              return b;
+            });
+            
+            // Merge with existing pending schedules
+            setPendingSchedules(prev => {
+              const existingIds = new Set(prev.map(p => p.id || p.benefitID));
+              const newPending = normalizedPending.filter(b => !existingIds.has(b.id || b.benefitID));
+              const merged = [...prev, ...newPending];
+              const sorted = merged.sort((a, b) => {
+                const dateA = new Date(a.submittedDate || a.created_at || 0);
+                const dateB = new Date(b.submittedDate || b.created_at || 0);
+                return dateB - dateA;
+              });
+              localStorage.setItem('pendingSchedules', JSON.stringify(sorted));
+              return sorted;
+            });
+          }
+          
+          // Switch to Pending Schedules tab to show the new benefit
+          setActiveTab(1);
         } catch (refreshError) {
           console.error('Error refreshing benefits after creation:', refreshError);
-          // Fallback: add to local state if refresh fails
+          // Fallback: add to local state if refresh fails, but use deduplication
           const newBenefit = {
             ...benefitData,
-            id: savedBenefit.id || (benefits.length > 0 ? Math.max(...benefits.map(b => b.id), 0) + 1 : 1)
+            id: savedBenefit.id || (benefits.length > 0 ? Math.max(...benefits.map(b => b.id || b.benefitID || 0), 0) + 1 : 1)
           };
           const updatedBenefits = [...benefits, newBenefit];
-          setBenefits(updatedBenefits);
-          localStorage.setItem('benefits', JSON.stringify(updatedBenefits));
+          // Use applyBenefitsState to ensure no duplicates
+          const dedupedBenefits = applyBenefitsState(updatedBenefits, true);
         }
         
         if (eligibleMembers.length > 0) {
           toastService.success('Benefit program created successfully! Please print the generated PDF and get the required signatures before the program can be approved.');
         } else {
-          toastService.success('Benefit program created successfully! It is now pending approval.');
+          toastService.success('Benefit program created successfully! It is now pending approval and will appear in the Pending Schedules tab.');
         }
       } catch (error) {
         console.error('Error creating benefit:', error);
@@ -2075,7 +2196,7 @@ const Ayuda = () => {
               Add Benefit
             </Button>
           </Box>
-          {benefits.filter(benefit => benefit.status === 'Active').length === 0 ? (
+          {benefits.filter(benefit => benefit.status === 'Active' || benefit.status === 'Pending Approval').length === 0 ? (
             <Box sx={{ 
               textAlign: 'center', 
               py: 6, 

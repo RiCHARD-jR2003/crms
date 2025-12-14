@@ -1410,10 +1410,14 @@ function PWDCard() {
         members = response;
       }
       
-      // Get member IDs who already have pending renewal requests
-      const membersWithPendingRenewals = new Set(
+      // Get member IDs who already have pending or approved renewal requests
+      // Exclude them from "Members Needing Renewal" since they already have a renewal in progress
+      const membersWithActiveRenewals = new Set(
         existingRenewals
-          .filter(renewal => renewal.status === 'pending' && renewal.member_id)
+          .filter(renewal => 
+            (renewal.status === 'pending' || renewal.status === 'approved') && 
+            renewal.member_id
+          )
           .map(renewal => renewal.member_id)
       );
       
@@ -1450,9 +1454,9 @@ function PWDCard() {
           // Only include members with "for renewal" status
           if (member.cardStatus !== 'for renewal') return false;
           
-          // Exclude members who already have pending renewal requests
-          if (membersWithPendingRenewals.has(member.memberId) || 
-              membersWithPendingRenewals.has(member.userID)) {
+          // Exclude members who already have pending or approved renewal requests
+          if (membersWithActiveRenewals.has(member.memberId) || 
+              membersWithActiveRenewals.has(member.userID)) {
             return false;
           }
           
@@ -1520,8 +1524,8 @@ function PWDCard() {
   const loadRenewalFile = async (renewalId, type, setFileState, setLoadingState) => {
     try {
       setLoadingState(true);
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com/api';
-      const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://spyware-justice-knock-nutrition.trycloudflare.com/api';
+      const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://spyware-justice-knock-nutrition.trycloudflare.com';
       let token = null;
       
       try {

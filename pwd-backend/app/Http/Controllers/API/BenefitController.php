@@ -993,11 +993,16 @@ class BenefitController extends Controller
             
             // Update announcement if needed
             if ($needsUpdate || $announcement->status !== 'Active') {
-                $announcement->targetAudience = implode(', ', array_unique($targetAudienceArray));
+                // Ensure targetAudience includes both barangay and "Members" for PWD member visibility
+                $finalTargetAudience = array_unique($targetAudienceArray);
+                $announcement->targetAudience = implode(', ', $finalTargetAudience);
                 $announcement->status = 'Active';
                 // Set publishDate to current datetime to ensure it appears at the top of the list
                 $announcement->publishDate = now()->toDateTimeString();
                 $announcement->save();
+                
+                // Refresh the announcement to ensure changes are persisted
+                $announcement->refresh();
                 
                 Log::info('Updated announcement when announcing to members', [
                     'announcement_id' => $announcement->announcementID,

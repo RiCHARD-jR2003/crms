@@ -428,7 +428,9 @@ class AnnouncementController extends Controller
             // For Barangay Presidents, show Draft announcements for their barangay so they can review and post
             if ($isBarangayPresidentQuery && $announcement->status === 'Draft') {
                 // Check if this draft announcement is for their barangay
-                $barangays = array_map('trim', explode(',', $targetAudience));
+                // Handle both comma and comma-space separators
+                $barangays = preg_split('/\s*,\s*/', $targetAudience, -1, PREG_SPLIT_NO_EMPTY);
+                $barangays = array_map('trim', $barangays);
                 if (in_array($audienceTrimmed, $barangays)) {
                     \Log::debug('Draft announcement matched for BP', ['announcement_id' => $announcement->announcementID]);
                     return true;
@@ -462,7 +464,9 @@ class AnnouncementController extends Controller
             }
             
             // Check if audience is in comma-separated list (for multiple barangays)
-            $barangays = array_map('trim', explode(',', $targetAudience));
+            // Handle both comma and comma-space separators
+            $barangays = preg_split('/\s*,\s*/', $targetAudience, -1, PREG_SPLIT_NO_EMPTY);
+            $barangays = array_map('trim', $barangays);
             
             // Check for this specific barangay (case-insensitive), or "Members", "All", or "Barangay President"
             foreach ($barangays as $barangay) {

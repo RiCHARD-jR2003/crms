@@ -1,7 +1,7 @@
 // Cloudflare Tunnel Configuration
 const CLOUDFLARE_TUNNEL_CONFIG = {
-  API_BASE_URL: 'https://labs-usual-pro-providing.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://labs-usual-pro-providing.trycloudflare.com',
+  API_BASE_URL: 'https://spyware-justice-knock-nutrition.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://spyware-justice-knock-nutrition.trycloudflare.com',
 };
 
 // Production API Configuration (using tunnel)
@@ -21,5 +21,5 @@ export const API_CONFIG = CLOUDFLARE_TUNNEL_CONFIG;
 // 2. Start Cloudflare tunnel for backend: cloudflared tunnel --url http://localhost:8000
 // 3. Start the frontend with: npm start
 // 4. Start Cloudflare tunnel for frontend: cloudflared tunnel --url http://localhost:3000
-// 5. Access frontend at: https://respiratory-nam-quantitative-minister.trycloudflare.com
-// 6. Backend API will be at: https://labs-usual-pro-providing.trycloudflare.com/api
+// 5. Access frontend at: https://triangle-sending-principal-roland.trycloudflare.com
+// 6. Backend API will be at: https://spyware-justice-knock-nutrition.trycloudflare.com/api

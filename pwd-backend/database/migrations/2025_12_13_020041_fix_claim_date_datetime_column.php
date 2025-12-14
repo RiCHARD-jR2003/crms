@@ -45,9 +45,16 @@ return new class extends Migration
         }
 
         // Change claimDate from date to datetime to store time information
-        Schema::table('benefit_claim', function (Blueprint $table) {
-            $table->datetime('claimDate')->nullable()->change();
-        });
+        // Using raw SQL to avoid DBAL requirement
+        try {
+            DB::statement("ALTER TABLE benefit_claim MODIFY COLUMN claimDate DATETIME NULL");
+        } catch (\Exception $e) {
+            // Column might already be DATETIME, ignore error
+            if (strpos($e->getMessage(), 'Duplicate column') === false && 
+                strpos($e->getMessage(), 'already exists') === false) {
+                throw $e;
+            }
+        }
     }
 
     /**
@@ -58,8 +65,15 @@ return new class extends Migration
     public function down()
     {
         // Revert claimDate back to date type
-        Schema::table('benefit_claim', function (Blueprint $table) {
-            $table->date('claimDate')->nullable()->change();
-        });
+        // Using raw SQL to avoid DBAL requirement
+        try {
+            DB::statement("ALTER TABLE benefit_claim MODIFY COLUMN claimDate DATE NULL");
+        } catch (\Exception $e) {
+            // Ignore if column doesn't exist or already is DATE
+            if (strpos($e->getMessage(), 'Duplicate column') === false && 
+                strpos($e->getMessage(), 'already exists') === false) {
+                throw $e;
+            }
+        }
     }
 };
