@@ -1524,8 +1524,8 @@ function PWDCard() {
   const loadRenewalFile = async (renewalId, type, setFileState, setLoadingState) => {
     try {
       setLoadingState(true);
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://spyware-justice-knock-nutrition.trycloudflare.com/api';
-      const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://spyware-justice-knock-nutrition.trycloudflare.com';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com/api';
+      const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com';
       let token = null;
       
       try {

@@ -410,7 +410,7 @@ const ClaimHistory = () => {
     
     // Build the API URL for the authorization letter
     try {
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com/api';
       let url = `${apiBaseUrl}/authorization-letter/${claimId}`;
       
       // Add authentication token if available

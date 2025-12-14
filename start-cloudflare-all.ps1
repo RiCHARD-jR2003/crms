@@ -21,12 +21,12 @@ Start-Sleep -Seconds 5
 
 # Start Cloudflare Tunnel for Backend
 Write-Host "Starting Cloudflare Tunnel for Backend..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Cloudflare Tunnel - Backend' -ForegroundColor Green; Write-Host 'Tunneling: http://localhost:8000 -> https://spyware-justice-knock-nutrition.trycloudflare.com' -ForegroundColor Cyan; .\cloudflared.exe tunnel --url http://localhost:8000"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Cloudflare Tunnel - Backend' -ForegroundColor Green; Write-Host 'Tunneling: http://localhost:8000 -> https://refurbished-consultancy-alcohol-navigator.trycloudflare.com' -ForegroundColor Cyan; .\cloudflared.exe tunnel --url http://localhost:8000"
 Start-Sleep -Seconds 2
 
 # Start Cloudflare Tunnel for Frontend
 Write-Host "Starting Cloudflare Tunnel for Frontend..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Cloudflare Tunnel - Frontend' -ForegroundColor Green; Write-Host 'Tunneling: http://localhost:3000 -> https://triangle-sending-principal-roland.trycloudflare.com' -ForegroundColor Cyan; .\cloudflared.exe tunnel --url http://localhost:3000"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host 'Cloudflare Tunnel - Frontend' -ForegroundColor Green; Write-Host 'Tunneling: http://localhost:3000 -> https://casey-impossible-odds-alexander.trycloudflare.com' -ForegroundColor Cyan; .\cloudflared.exe tunnel --url http://localhost:3000"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
@@ -38,8 +38,8 @@ Write-Host "  Backend:  http://localhost:8000" -ForegroundColor Cyan
 Write-Host "  Frontend: http://localhost:3000" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Cloudflare Tunnel URLs:" -ForegroundColor White
-Write-Host "  Backend:  https://spyware-justice-knock-nutrition.trycloudflare.com" -ForegroundColor Green
-Write-Host "  Frontend: https://triangle-sending-principal-roland.trycloudflare.com" -ForegroundColor Green
+Write-Host "  Backend:  https://refurbished-consultancy-alcohol-navigator.trycloudflare.com" -ForegroundColor Green
+Write-Host "  Frontend: https://casey-impossible-odds-alexander.trycloudflare.com" -ForegroundColor Green
 Write-Host ""
 Write-Host "Press any key to exit (servers will continue running)..." -ForegroundColor Yellow
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

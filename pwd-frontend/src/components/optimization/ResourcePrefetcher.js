@@ -15,8 +15,8 @@ const ResourcePrefetcher = () => {
   // Preconnect to important origins
   useEffect(() => {
     // Preconnect to API endpoints
-    const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com/api';
-    const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com';
+    const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com/api';
+    const storageBaseUrl = API_CONFIG?.STORAGE_BASE_URL || 'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com';
     preconnect(apiBaseUrl);
     
     // DNS prefetch for external CDNs

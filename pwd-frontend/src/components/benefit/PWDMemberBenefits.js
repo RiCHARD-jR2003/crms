@@ -196,7 +196,7 @@ const PWDMemberBenefits = () => {
       }
 
       // Get the API base URL
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://labs-usual-pro-providing.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://refurbished-consultancy-alcohol-navigator.trycloudflare.com/api';
       const token = localStorage.getItem('auth.token');
       let tokenValue = '';
       
