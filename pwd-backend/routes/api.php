@@ -3706,6 +3706,31 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
             ], 404);
         }
 
+        // Check if application is already approved
+        if ($application->status === 'Approved') {
+            // Check if user and PWD member already exist
+            $existingUser = \App\Models\User::where('email', $application->email)->first();
+            if ($existingUser) {
+                $existingMember = \App\Models\PWDMember::where('userID', $existingUser->userID)->first();
+                if ($existingMember) {
+                    return response()->json([
+                        'message' => 'Application is already approved',
+                        'application' => [
+                            'id' => $application->applicationID,
+                            'name' => $application->firstName . ' ' . $application->lastName,
+                            'email' => $application->email,
+                            'status' => $application->status,
+                            'pwdId' => $existingMember->pwd_id
+                        ],
+                        'user_account' => [
+                            'email' => $existingUser->email,
+                            'userID' => $existingUser->userID
+                        ]
+                    ], 200);
+                }
+            }
+        }
+
         // Check if application is in valid status for admin approval
         $validStatuses = ['Pending Admin Approval', 'For Assessment'];
         if (!in_array($application->status, $validStatuses)) {
@@ -3780,56 +3805,125 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
         // Generate secure random password
         $randomPassword = \Illuminate\Support\Str::random(12);
         
+        // Check if user already exists
+        $existingUser = \App\Models\User::where('email', $application->email)->first();
+        $isNewUser = !$existingUser;
+        
+        if ($existingUser) {
+            // User already exists, use existing user
+            $newUser = $existingUser;
+            // Update user if needed
+            if ($newUser->role !== 'PWDMember') {
+                $newUser->role = 'PWDMember';
+                $newUser->status = 'Active';
+                $newUser->save();
+            }
+        } else {
+            // Get the next available user ID first
+            $nextUserId = \App\Models\User::max('userID') + 1;
+            
+            // Create User account
+            $newUser = new \App\Models\User();
+            $newUser->userID = $nextUserId;
+            $newUser->username = $application->email; // Use email as username
+            $newUser->email = $application->email;
+            $newUser->password = \Illuminate\Support\Facades\Hash::make($randomPassword);
+            $newUser->role = 'PWDMember';
+            $newUser->status = 'Active';
+            $newUser->password_change_required = true; // Require password change on first login
+            $newUser->save();
+        }
+
         // Generate PWD ID
         $pwdId = 'PWD-' . strtoupper(substr($application->firstName, 0, 2)) . 
                 strtoupper(substr($application->lastName, 0, 2)) . 
                 str_pad($application->applicationID, 4, '0', STR_PAD_LEFT);
 
-        // Update application status (don't set pwdID as it's a foreign key to users.userID)
-        $application->status = 'Approved';
-        $application->save();
-
-        // Get the next available user ID first
-        $nextUserId = \App\Models\User::max('userID') + 1;
-        
-        // Create PWD Member record
-        $pwdMember = new \App\Models\PWDMember();
-        $pwdMember->userID = $nextUserId;
-        $pwdMember->firstName = $application->firstName;
-        $pwdMember->lastName = $application->lastName;
-        $pwdMember->middleName = $application->middleName;
-        $pwdMember->birthDate = $application->birthDate;
-        $pwdMember->disabilityType = $application->disabilityType;
-        $pwdMember->address = $application->address;
-        $pwdMember->barangay = $application->barangay;
-        $pwdMember->emergencyContact = $application->emergencyContact;
-        $pwdMember->emergencyPhone = $application->emergencyPhone;
-        $pwdMember->emergencyRelationship = $application->emergencyRelationship;
-        $pwdMember->pwd_id = $pwdId;
-        $pwdMember->status = 'Active';
-        $pwdMember->approval_date = now()->toDateString(); // Set approval date
-        $pwdMember->save();
-        
-        // Generate and store QR code for the new PWD member
-        try {
-            \App\Services\QRCodeGenerator::generateAndStore($pwdMember);
-        } catch (\Exception $qrError) {
-            \Illuminate\Support\Facades\Log::error('QR code generation failed during approval', [
-                'error' => $qrError->getMessage(),
-                'pwd_member_id' => $pwdMember->userID
+        // Check if PWD ID already exists
+        $existingPwdMember = \App\Models\PWDMember::where('pwd_id', $pwdId)->first();
+        if ($existingPwdMember && $existingPwdMember->userID !== $newUser->userID) {
+            // PWD ID exists for a different user, generate a unique one
+            $counter = 1;
+            $basePwdId = $pwdId;
+            do {
+                $pwdId = $basePwdId . '-' . str_pad($counter, 2, '0', STR_PAD_LEFT);
+                $existingPwdMember = \App\Models\PWDMember::where('pwd_id', $pwdId)->first();
+                $counter++;
+            } while ($existingPwdMember && $counter < 100); // Safety limit
+            
+            \Illuminate\Support\Facades\Log::warning('PWD ID collision detected, using alternative ID', [
+                'original_pwd_id' => $basePwdId,
+                'new_pwd_id' => $pwdId,
+                'application_id' => $application->applicationID
             ]);
         }
 
-        // Create User account
-        $newUser = new \App\Models\User();
-        $newUser->userID = $nextUserId; // Use next available ID instead of application ID
-        $newUser->username = $application->email; // Use email as username
-        $newUser->email = $application->email;
-        $newUser->password = \Illuminate\Support\Facades\Hash::make($randomPassword);
-        $newUser->role = 'PWDMember';
-        $newUser->status = 'Active';
-        $newUser->password_change_required = true; // Require password change on first login
-        $newUser->save();
+        // Check if PWD member already exists for this user
+        $pwdMember = \App\Models\PWDMember::where('userID', $newUser->userID)->first();
+        $isNewMember = !$pwdMember;
+        
+        if ($pwdMember) {
+            // PWD member already exists, update it
+            $pwdMember->firstName = $application->firstName;
+            $pwdMember->lastName = $application->lastName;
+            $pwdMember->middleName = $application->middleName;
+            $pwdMember->birthDate = $application->birthDate;
+            $pwdMember->disabilityType = $application->disabilityType;
+            $pwdMember->address = $application->address;
+            $pwdMember->barangay = $application->barangay;
+            $pwdMember->emergencyContact = $application->emergencyContact;
+            $pwdMember->emergencyPhone = $application->emergencyPhone;
+            $pwdMember->emergencyRelationship = $application->emergencyRelationship;
+            // Only update pwd_id if it's different and doesn't exist for another user
+            if ($pwdMember->pwd_id !== $pwdId) {
+                $checkExisting = \App\Models\PWDMember::where('pwd_id', $pwdId)
+                    ->where('userID', '!=', $newUser->userID)
+                    ->first();
+                if (!$checkExisting) {
+                    $pwdMember->pwd_id = $pwdId;
+                }
+            }
+            $pwdMember->status = 'Active';
+            if (!$pwdMember->approval_date) {
+                $pwdMember->approval_date = now()->toDateString();
+            }
+            $pwdMember->save();
+        } else {
+            // Create new PWD Member record
+            $pwdMember = new \App\Models\PWDMember();
+            $pwdMember->userID = $newUser->userID;
+            $pwdMember->firstName = $application->firstName;
+            $pwdMember->lastName = $application->lastName;
+            $pwdMember->middleName = $application->middleName;
+            $pwdMember->birthDate = $application->birthDate;
+            $pwdMember->disabilityType = $application->disabilityType;
+            $pwdMember->address = $application->address;
+            $pwdMember->barangay = $application->barangay;
+            $pwdMember->emergencyContact = $application->emergencyContact;
+            $pwdMember->emergencyPhone = $application->emergencyPhone;
+            $pwdMember->emergencyRelationship = $application->emergencyRelationship;
+            $pwdMember->pwd_id = $pwdId;
+            $pwdMember->status = 'Active';
+            $pwdMember->approval_date = now()->toDateString(); // Set approval date
+            $pwdMember->save();
+        }
+        
+        // Generate and store QR code for the PWD member (only if new member or QR code doesn't exist)
+        if ($isNewMember || empty($pwdMember->qr_code_data)) {
+            try {
+                \App\Services\QRCodeGenerator::generateAndStore($pwdMember);
+            } catch (\Exception $qrError) {
+                \Illuminate\Support\Facades\Log::error('QR code generation failed during approval', [
+                    'error' => $qrError->getMessage(),
+                    'pwd_member_id' => $pwdMember->userID
+                ]);
+            }
+        }
+
+        // Update application status and link to user
+        $application->status = 'Approved';
+        $application->pwdID = $newUser->userID; // Link application to the user
+        $application->save();
 
         // Migrate documents from application to member_documents table
         // CRITICAL: This must succeed - documents are required for member accounts
@@ -3866,26 +3960,34 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
         $claimDateFormatted = $claimDate->format('F d, Y'); // e.g., "January 15, 2025"
         $claimDateShort = $claimDate->format('M d, Y'); // e.g., "Jan 15, 2025"
 
-        // Send approval email
+        // Send approval email (only if new user)
         $emailSent = false;
-        try {
-            \Illuminate\Support\Facades\Mail::send('emails.application-approved', [
-                'firstName' => $application->firstName,
-                'lastName' => $application->lastName,
+        if ($isNewUser) {
+            try {
+                \Illuminate\Support\Facades\Mail::send('emails.application-approved', [
+                    'firstName' => $application->firstName,
+                    'lastName' => $application->lastName,
+                    'email' => $application->email,
+                    'username' => $application->email,
+                    'password' => $randomPassword,
+                    'pwdId' => $pwdId,
+                    'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login'),
+                    'claimDate' => $claimDateFormatted,
+                    'claimDateShort' => $claimDateShort
+                ], function ($message) use ($application) {
+                    $message->to($application->email)
+                            ->subject('PWD Application Approved - Your Account Details');
+                });
+                $emailSent = true;
+            } catch (\Exception $mailError) {
+                \Illuminate\Support\Facades\Log::error('Email sending failed', ['error' => $mailError->getMessage()]);
+            }
+        } else {
+            // User already exists - log that email was skipped
+            \Illuminate\Support\Facades\Log::info('Skipping approval email for existing user', [
                 'email' => $application->email,
-                'username' => $application->email,
-                'password' => $randomPassword,
-                'pwdId' => $pwdId,
-                'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login'),
-                'claimDate' => $claimDateFormatted,
-                'claimDateShort' => $claimDateShort
-            ], function ($message) use ($application) {
-                $message->to($application->email)
-                        ->subject('PWD Application Approved - Your Account Details');
-            });
-            $emailSent = true;
-        } catch (\Exception $mailError) {
-            \Illuminate\Support\Facades\Log::error('Email sending failed', ['error' => $mailError->getMessage()]);
+                'user_id' => $newUser->userID
+            ]);
         }
 
         // Send in-app notification to the new user
@@ -3921,7 +4023,7 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
         }
 
         return response()->json([
-            'message' => 'Application approved successfully',
+            'message' => $isNewUser ? 'Application approved successfully' : 'Application approved and existing account updated',
             'application' => [
                 'id' => $application->applicationID,
                 'name' => $application->firstName . ' ' . $application->lastName,
@@ -3931,7 +4033,13 @@ Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-a
             ],
             'user_account' => [
                 'email' => $application->email,
-                'password' => $randomPassword
+                'userID' => $newUser->userID,
+                'password' => $isNewUser ? $randomPassword : 'Password unchanged (existing account)',
+                'is_new' => $isNewUser
+            ],
+            'pwd_member' => [
+                'pwd_id' => $pwdId,
+                'is_new' => $isNewMember
             ],
             'email_sent' => $emailSent
         ]);
