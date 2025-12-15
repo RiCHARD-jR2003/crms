@@ -106,6 +106,7 @@ function DisabilityAssessmentPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [downloadingPDF, setDownloadingPDF] = useState(null); // Track which assessment is being downloaded
   
   // Confirmation dialog state
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -334,23 +335,210 @@ function DisabilityAssessmentPage() {
   };
 
   const handleDownloadPDF = async (assessment) => {
+    // Check if user is logged in
+    if (!currentUser) {
+      alert('Please login to download PDFs.');
+      window.location.href = '/login';
+      return;
+    }
+    
+    // Set loading state for this specific assessment
+    setDownloadingPDF(assessment.id);
+    setError(''); // Clear any previous errors
+    
     try {
-      const response = await api.get(`/disability-assessments/${assessment.id}/download-pdf`, {
-        responseType: 'blob'
+      // Get auth token for the request - use exact same logic as api service
+      async function getStoredToken() {
+        try {
+          const raw = localStorage.getItem('auth.token');
+          if (!raw) return null;
+          
+          // Try to parse as JSON first
+          try {
+            const parsed = JSON.parse(raw);
+            // If it's already a string, return it directly
+            // If it's an object with a token property, extract it
+            if (typeof parsed === 'string') {
+              return parsed;
+            } else if (parsed && parsed.token) {
+              return parsed.token;
+            } else if (parsed && typeof parsed === 'object') {
+              return parsed;
+            }
+            return parsed;
+          } catch (e) {
+            // If parsing fails, treat it as a plain string token
+            return raw;
+          }
+        } catch (_) {
+          localStorage.removeItem('auth.token');
+          return null;
+        }
+      }
+      
+      const token = await getStoredToken();
+      
+      // Ensure token is a string for Authorization header (same as api service)
+      let tokenString = null;
+      if (token) {
+        if (typeof token === 'string') {
+          tokenString = token;
+        } else if (token && token.token) {
+          tokenString = token.token;
+        } else if (token && typeof token === 'object') {
+          // Try to stringify if it's an object
+          tokenString = JSON.stringify(token);
+        }
+      }
+      
+      const headers = {
+        'Accept': 'application/pdf',
+      };
+      
+      if (tokenString) {
+        headers['Authorization'] = `Bearer ${tokenString}`;
+      }
+      
+      // Use fetch directly for blob response
+      const downloadUrl = `${api.getBaseUrl()}/disability-assessments/${assessment.id}/download-pdf`;
+      
+      console.log('Downloading PDF:', {
+        url: downloadUrl,
+        hasToken: !!tokenString,
+        assessmentId: assessment.id,
+        referenceNumber: assessment.reference_number
       });
       
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: headers,
+        redirect: 'manual' // Don't automatically follow redirects
+      });
+      
+      // Check if response is a redirect
+      if (response.type === 'opaqueredirect' || response.status === 0) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      // Check if response is ok
+      if (!response.ok) {
+        // Check if response is redirecting to login (401 or 403)
+        if (response.status === 401) {
+          // Try to get error message from response
+          let errorMessage = 'Authentication required. Please login again.';
+          try {
+            const errorText = await response.clone().text();
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.message || errorMessage;
+          } catch (e) {
+            // If not JSON, use default message
+          }
+          
+          // Redirect to login if token is missing or invalid
+          alert('Your session has expired. Please login again.');
+          window.location.href = '/login';
+          return;
+        } else if (response.status === 403) {
+          throw new Error('You do not have permission to download this PDF.');
+        } else if (response.status === 404) {
+          throw new Error('PDF not found. The assessment PDF may not have been generated yet.');
+        } else if (response.status === 500) {
+          // Server error - try to get error message from JSON response
+          try {
+            const errorText = await response.clone().text();
+            const errorData = JSON.parse(errorText);
+            throw new Error(errorData.message || errorData.error || 'Server error occurred while generating PDF. Please try again.');
+          } catch (parseErr) {
+            throw new Error('Server error (500). The PDF may not be available or there was an error generating it. Please try again later.');
+          }
+        } else {
+          const errorText = await response.text();
+          throw new Error(`Failed to download PDF: ${response.statusText}`);
+        }
+      }
+      
+      // Get the blob from response
+      const blob = await response.blob();
+      
+      // Check if response is HTML (likely a login page redirect)
+      if (blob.type.includes('text/html')) {
+        const text = await blob.text();
+        if (text.includes('login') || text.includes('Please login')) {
+          alert('Your session has expired. Please login again.');
+          window.location.href = '/login';
+          return;
+        }
+      }
+      
+      // Verify it's a PDF
+      if (!blob.type.includes('pdf') && blob.size > 0) {
+        // Check if it's actually an error JSON response
+        const text = await blob.text();
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.message || 'Failed to download PDF');
+        } catch (parseErr) {
+          // Not JSON, might be HTML error page
+          if (text.includes('login') || text.includes('Please login')) {
+            alert('Your session has expired. Please login again.');
+            window.location.href = '/login';
+            return;
+          }
+          throw new Error('Received invalid response. Please try again.');
+        }
+      }
+      
       // Create download link
-      const url = window.URL.createObjectURL(new Blob([response]));
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `assessment_${assessment.reference_number}.pdf`);
+      
+      // Create filename with applicant name and reference number
+      const applicantName = assessment.applicant_name || 
+                           assessment.application?.firstName || 
+                           assessment.application?.lastName || 
+                           'Assessment';
+      const sanitizedName = applicantName.replace(/[^a-z0-9\s]/gi, '_').replace(/\s+/g, '_').toLowerCase();
+      const filename = `disability_assessment_${sanitizedName}_${assessment.reference_number}.pdf`;
+      
+      link.setAttribute('download', filename);
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      link.remove();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      // Show success message
+      setTimeout(() => {
+        alert(`PDF downloaded successfully!\n\nFile: ${filename}\nApplicant: ${applicantName}\nReference: ${assessment.reference_number}`);
+      }, 200);
+      
     } catch (err) {
       console.error('Error downloading PDF:', err);
-      // Try opening in new tab as fallback
-      window.open(`${api.getBaseUrl()}/disability-assessments/${assessment.id}/download-pdf`, '_blank');
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to download PDF. Please try again.';
+      
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+        errorMessage = 'Network error or server error (500). The PDF may not be available or there was a server error. Please try again later.';
+      }
+      
+      setError(errorMessage);
+      
+      // Show detailed error alert
+      alert(`Failed to download PDF.\n\nError: ${errorMessage}\n\nAssessment Reference: ${assessment.reference_number}\n\nPossible causes:\n1. PDF file is missing or corrupted\n2. Server error occurred\n3. Network connection issue\n4. Authentication expired\n\nPlease try again or contact support if the problem persists.`);
+      
+      // Don't open backend URL directly as it will redirect to login
+      // Instead, just show the error and let user try again
+    } finally {
+      // Clear loading state
+      setDownloadingPDF(null);
     }
   };
 
@@ -900,8 +1088,13 @@ function DisabilityAssessmentPage() {
                                 size="small"
                                 color="secondary"
                                 onClick={() => handleDownloadPDF(assessment)}
+                                disabled={downloadingPDF === assessment.id}
                               >
-                                <DownloadIcon />
+                                {downloadingPDF === assessment.id ? (
+                                  <CircularProgress size={20} />
+                                ) : (
+                                  <DownloadIcon />
+                                )}
                               </IconButton>
                             </Tooltip>
                           )}

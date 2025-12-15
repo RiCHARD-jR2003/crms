@@ -997,7 +997,11 @@ const QRScanner = ({ open, onClose, onScanSuccess, onScanError }) => {
                         </Typography>
                         {benefit.amount && (
                           <Typography variant="caption" sx={{ color: '#7F8C8D' }}>
-                            Amount: ₱{benefit.amount.toLocaleString()}
+                            {(() => {
+                              const cleanAmount = String(benefit.amount).replace(/[₱,]/g, '');
+                              const numAmount = parseFloat(cleanAmount);
+                              return isNaN(numAmount) ? 'Amount: N/A' : `Amount: ₱${numAmount.toLocaleString('en-US')}`;
+                            })()}
                           </Typography>
                         )}
                       </Box>

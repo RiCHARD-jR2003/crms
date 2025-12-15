@@ -471,7 +471,11 @@ function BarangayPresidentAyuda() {
                             {benefit.title || benefit.benefitType || benefit.type}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700, color: '#2C3E50' }}>
-                            {benefit.amount || 'N/A'}
+                            {benefit.amount ? (() => {
+                              const cleanAmount = String(benefit.amount).replace(/[₱,]/g, '');
+                              const numAmount = parseFloat(cleanAmount);
+                              return isNaN(numAmount) ? 'N/A' : `₱${numAmount.toLocaleString('en-US')}`;
+                            })() : 'N/A'}
                           </TableCell>
                           <TableCell>
                             {benefit.type === 'Financial Assistance' 

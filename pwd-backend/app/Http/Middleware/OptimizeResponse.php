@@ -24,7 +24,7 @@ class OptimizeResponse
             $this->optimizeJsonResponse($response, $request);
         }
 
-        // Add performance headers
+        // Add performance headers (only if response supports header() and is not a streamed/binary file response)
         $this->addPerformanceHeaders($response);
 
         return $response;
@@ -55,6 +55,16 @@ class OptimizeResponse
      */
     protected function addPerformanceHeaders($response)
     {
+        // Skip if the response cannot accept header() (e.g., BinaryFileResponse, StreamedResponse)
+        if (!method_exists($response, 'header')) {
+            return $response;
+        }
+        // Also skip streamed/binary responses explicitly
+        if ($response instanceof \Symfony\Component\HttpFoundation\BinaryFileResponse
+            || $response instanceof \Symfony\Component\HttpFoundation\StreamedResponse) {
+            return $response;
+        }
+
         // Cache control for GET requests
         if (request()->isMethod('GET')) {
             // Allow browser caching for static-ish endpoints

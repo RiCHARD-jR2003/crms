@@ -419,7 +419,7 @@ const ClaimHistory = () => {
     
     // Build the API URL for the authorization letter
     try {
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://attachments-sand-gave-shame.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://fundamentals-window-groove-experiences.trycloudflare.com/api';
       let url = `${apiBaseUrl}/authorization-letter/${claimId}`;
       
       // Add authentication token if available
@@ -594,7 +594,11 @@ const ClaimHistory = () => {
                         </Typography>
                         {benefit.amount && (
                           <Typography variant="body2" sx={{ color: '#7F8C8D', mb: 1 }}>
-                            Amount: ₱{benefit.amount.toLocaleString()}
+                            {(() => {
+                              const cleanAmount = String(benefit.amount).replace(/[₱,]/g, '');
+                              const numAmount = parseFloat(cleanAmount);
+                              return isNaN(numAmount) ? 'Amount: N/A' : `Amount: ₱${numAmount.toLocaleString('en-US')}`;
+                            })()}
                           </Typography>
                         )}
                         <Typography variant="body2" sx={{ color: '#7F8C8D', mb: 2 }}>

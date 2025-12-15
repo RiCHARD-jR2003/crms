@@ -492,41 +492,48 @@ class DisabilityAssessmentController extends Controller
             
             // Allow finalization regardless of date (removed date restriction for PDF generation)
             
-            // Generate PDF with error handling
+            // Generate and save PDF using the same approach as ayuda/treasury letter
             try {
-                $pdf = $this->generateAssessmentPDF($assessment);
+                // Prepare data for PDF generation
+                $data = [
+                    'assessment' => $assessment,
+                    'application' => $assessment->application,
+                    'timeSlots' => DisabilityAssessment::getTimeSlots(),
+                    'generatedAt' => now()->format('F d, Y h:i A')
+                ];
+                
+                // Generate PDF using the same method as treasury letter (ayuda)
+                if (class_exists('\Barryvdh\DomPDF\Facade\Pdf')) {
+                    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.disability-assessment', $data);
+                    $pdf->setPaper('letter', 'portrait');
+                    
+                    // Save PDF to storage (same process as before)
+                    $filename = "assessment_{$assessment->reference_number}.pdf";
+                    $path = "assessments/pdfs/{$filename}";
+                    
+                    // Ensure directory exists
+                    $directory = dirname(storage_path('app/public/' . $path));
+                    if (!is_dir($directory)) {
+                        mkdir($directory, 0755, true);
+                    }
+                    
+                    // Save PDF to storage
+                    Storage::disk('public')->put($path, $pdf->output());
+                } else {
+                    // Fallback if PDF library is not available
+                    throw new \Exception('PDF generation library not available');
+                }
             } catch (\Exception $e) {
                 Log::error('Failed to generate assessment PDF', [
                     'assessment_id' => $id,
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
+                    'trace' => $e->getTraceAsString(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
                 ]);
                 return response()->json([
+                    'success' => false,
                     'message' => 'Failed to generate PDF. Please check the assessment data and try again.',
-                    'error' => $e->getMessage()
-                ], 500);
-            }
-            
-            // Save PDF with error handling
-            try {
-                $filename = "assessment_{$assessment->reference_number}.pdf";
-                $path = "assessments/pdfs/{$filename}";
-                
-                // Ensure directory exists
-                $directory = dirname(storage_path('app/public/' . $path));
-                if (!is_dir($directory)) {
-                    mkdir($directory, 0755, true);
-                }
-                
-                Storage::disk('public')->put($path, $pdf->output());
-            } catch (\Exception $e) {
-                Log::error('Failed to save assessment PDF', [
-                    'assessment_id' => $id,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                return response()->json([
-                    'message' => 'Failed to save PDF. Please try again.',
                     'error' => $e->getMessage()
                 ], 500);
             }
@@ -550,6 +557,7 @@ class DisabilityAssessmentController extends Controller
                     'trace' => $e->getTraceAsString()
                 ]);
                 return response()->json([
+                    'success' => false,
                     'message' => 'Failed to update assessment status. PDF was generated but status update failed.',
                     'error' => $e->getMessage()
                 ], 500);
@@ -590,13 +598,20 @@ class DisabilityAssessmentController extends Controller
                 // Don't fail the request if notifications fail
             }
             
-            // Get the PDF URL
+            // Get the PDF URL - ensure it uses the current APP_URL
+            $baseUrl = config('app.url', 'http://localhost:8000');
             $pdfUrl = Storage::disk('public')->url($path);
             
-            // If URL doesn't start with http, make it absolute
+            // If URL doesn't start with http, make it absolute using current APP_URL
             if (!str_starts_with($pdfUrl, 'http')) {
-                $baseUrl = config('app.url', 'http://localhost:8000');
                 $pdfUrl = rtrim($baseUrl, '/') . '/' . ltrim($pdfUrl, '/');
+            } else {
+                // Replace any old URLs with current APP_URL to ensure correct tunnel
+                $pdfUrl = str_replace(
+                    ['http://localhost:8000', 'https://berlin-bookstore-nationally-henry.trycloudflare.com', 'https://heart-subscribers-rolling-kingston.trycloudflare.com', 'https://until-briefing-inputs-rangers.trycloudflare.com', 'https://louis-shares-referenced-genome.trycloudflare.com', 'https://interim-automatic-proudly-hon.trycloudflare.com', 'https://corporate-view-ears-rolling.trycloudflare.com'],
+                    $baseUrl,
+                    $pdfUrl
+                );
             }
             
             return response()->json([
@@ -627,22 +642,123 @@ class DisabilityAssessmentController extends Controller
      */
     public function downloadPDF($id)
     {
-        $assessment = DisabilityAssessment::find($id);
-        
-        if (!$assessment) {
-            return response()->json(['message' => 'Assessment not found'], 404);
+        try {
+            // Load assessment with application relationship
+            $assessment = DisabilityAssessment::with('application')->find($id);
+            
+            if (!$assessment) {
+                return response()->json(['message' => 'Assessment not found'], 404);
+            }
+            
+            // Ensure application is loaded
+            if (!$assessment->application) {
+                Log::error('Assessment missing application relationship', [
+                    'assessment_id' => $id,
+                    'application_id' => $assessment->application_id
+                ]);
+                
+                return response()->json([
+                    'message' => 'Application data not found for this assessment. Cannot generate PDF.',
+                    'error' => 'Missing application relationship'
+                ], 500);
+            }
+            
+            // Normalize PDF path
+            $pdfPath = $assessment->pdf_path;
+            if ($pdfPath) {
+                $pdfPath = ltrim($pdfPath, '/');
+                // Strip leading "storage/" if present (we store under storage/app/public)
+                $pdfPath = preg_replace('#^storage/#', '', $pdfPath);
+            }
+
+            // Helper to generate, persist, and respond with fresh PDF
+            $generateAndRespond = function () use ($assessment) {
+                $pdf = $this->generateAssessmentPDF($assessment);
+                $pdfContent = $pdf->output();
+
+                // Persist the generated PDF so subsequent requests use the saved file
+                $filename = "assessment_{$assessment->reference_number}.pdf";
+                $path = "assessments/pdfs/{$filename}";
+                Storage::disk('public')->put($path, $pdfContent);
+                $assessment->update(['pdf_path' => $path]);
+
+                return response($pdfContent, 200)
+                    ->header('Content-Type', 'application/pdf')
+                    ->header('Content-Disposition', 'attachment; filename="assessment_' . $assessment->reference_number . '.pdf"')
+                    ->header('Content-Length', strlen($pdfContent));
+            };
+
+            // If no path or file missing, regenerate
+            if (!$pdfPath || !Storage::disk('public')->exists($pdfPath)) {
+                try {
+                    return $generateAndRespond();
+                } catch (\Exception $e) {
+                    Log::error('Failed to generate PDF for download', [
+                        'assessment_id' => $id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine()
+                    ]);
+
+                    return response()->json([
+                        'message' => 'Failed to generate PDF. Please check the assessment data and try again.',
+                        'error' => $e->getMessage()
+                    ], 500);
+                }
+            }
+
+            // Serve existing file, fallback to regenerate on failure
+            try {
+                $fullPath = Storage::disk('public')->path($pdfPath);
+
+                if (!file_exists($fullPath)) {
+                    return $generateAndRespond();
+                }
+
+                return response()->file($fullPath, [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => 'attachment; filename="assessment_' . $assessment->reference_number . '.pdf"'
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to download PDF file', [
+                    'assessment_id' => $id,
+                    'pdf_path' => $pdfPath,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]);
+
+                try {
+                    return $generateAndRespond();
+                } catch (\Exception $fallbackError) {
+                    Log::error('Fallback PDF generation also failed', [
+                        'assessment_id' => $id,
+                        'error' => $fallbackError->getMessage(),
+                        'trace' => $fallbackError->getTraceAsString()
+                    ]);
+
+                    return response()->json([
+                        'message' => 'Failed to download PDF. The file may be corrupted or missing. Please contact support.',
+                        'error' => $fallbackError->getMessage()
+                    ], 500);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Unexpected error in downloadPDF', [
+                'assessment_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            
+            return response()->json([
+                'message' => 'An unexpected error occurred while downloading the PDF.',
+                'error' => $e->getMessage()
+            ], 500);
         }
-        
-        if (!$assessment->pdf_path || !Storage::disk('public')->exists($assessment->pdf_path)) {
-            // Generate PDF on the fly if not exists
-            $pdf = $this->generateAssessmentPDF($assessment);
-            return $pdf->download("assessment_{$assessment->reference_number}.pdf");
-        }
-        
-        return Storage::disk('public')->download(
-            $assessment->pdf_path,
-            "assessment_{$assessment->reference_number}.pdf"
-        );
     }
 
     /**
@@ -672,7 +788,7 @@ class DisabilityAssessmentController extends Controller
     }
 
     /**
-     * Generate assessment PDF
+     * Generate assessment PDF (using same approach as ayuda/treasury letter)
      */
     private function generateAssessmentPDF($assessment)
     {
@@ -693,11 +809,15 @@ class DisabilityAssessmentController extends Controller
                 'generatedAt' => now()->format('F d, Y h:i A')
             ];
             
-            // Use PDF generator - use app() helper to resolve the facade
-            $pdf = app('dompdf.wrapper')->loadView('pdfs.disability-assessment', $data);
-            $pdf->setPaper('letter', 'portrait');
-            
-            return $pdf;
+            // Use the same PDF generation method as treasury letter (ayuda)
+            if (class_exists('\Barryvdh\DomPDF\Facade\Pdf')) {
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.disability-assessment', $data);
+                $pdf->setPaper('letter', 'portrait');
+                
+                return $pdf;
+            } else {
+                throw new \Exception('PDF generation library not available');
+            }
         } catch (\Exception $e) {
             Log::error('Error in generateAssessmentPDF', [
                 'assessment_id' => $assessment->id,
@@ -1215,7 +1335,23 @@ class DisabilityAssessmentController extends Controller
             'success' => true,
             'message' => 'PDF uploaded successfully. Application is now ready for approval.',
             'assessment' => $assessment->load('application'),
-            'pdf_url' => Storage::disk('public')->url($path)
+            'pdf_url' => (function() use ($path) {
+                $baseUrl = config('app.url', 'http://localhost:8000');
+                $pdfUrl = Storage::disk('public')->url($path);
+                
+                // If URL doesn't start with http, make it absolute using current APP_URL
+                if (!str_starts_with($pdfUrl, 'http')) {
+                    $pdfUrl = rtrim($baseUrl, '/') . '/' . ltrim($pdfUrl, '/');
+                } else {
+                    // Replace any old URLs with current APP_URL to ensure correct tunnel
+                    $pdfUrl = str_replace(
+                        ['http://localhost:8000', 'https://berlin-bookstore-nationally-henry.trycloudflare.com', 'https://heart-subscribers-rolling-kingston.trycloudflare.com', 'https://until-briefing-inputs-rangers.trycloudflare.com', 'https://louis-shares-referenced-genome.trycloudflare.com', 'https://interim-automatic-proudly-hon.trycloudflare.com', 'https://corporate-view-ears-rolling.trycloudflare.com'],
+                        $baseUrl,
+                        $pdfUrl
+                    );
+                }
+                return $pdfUrl;
+            })()
         ]);
     }
 

@@ -40,8 +40,20 @@ return [
         'https://attempts-substance-sustained-suspension.trycloudflare.com', // Previous frontend tunnel
         'https://trustees-fibre-revolutionary-lists.trycloudflare.com', // Previous backend tunnel
         'https://zum-quality-alcohol-regulations.trycloudflare.com', // Previous frontend tunnel
-        'https://attachments-sand-gave-shame.trycloudflare.com', // Current backend tunnel
-        'https://uniprotkb-designated-cases-walked.trycloudflare.com', // Current frontend tunnel
+        'https://nose-irrigation-economics-longitude.trycloudflare.com', // Previous backend tunnel
+        'https://multimedia-motherboard-europe-lonely.trycloudflare.com', // Previous frontend tunnel
+        'https://proc-dragon-advantages-layout.trycloudflare.com', // Previous frontend tunnel
+        'https://monroe-cartoon-zus-produce.trycloudflare.com', // Previous backend tunnel
+        'https://des-related-lil-donate.trycloudflare.com', // Previous frontend tunnel
+        'https://comment-entrepreneurs-minutes-symphony.trycloudflare.com', // Previous backend tunnel
+        'https://louis-shares-referenced-genome.trycloudflare.com', // Previous frontend tunnel
+        'https://heart-subscribers-rolling-kingston.trycloudflare.com', // Previous backend tunnel
+        'https://until-briefing-inputs-rangers.trycloudflare.com', // Previous frontend tunnel
+        'https://berlin-bookstore-nationally-henry.trycloudflare.com', // Previous backend tunnel
+        'https://interim-automatic-proudly-hon.trycloudflare.com', // Previous frontend tunnel
+        'https://corporate-view-ears-rolling.trycloudflare.com', // Previous backend tunnel
+        'https://quote-licensing-kurt-desktops.trycloudflare.com', // Current frontend tunnel
+        'https://fundamentals-window-groove-experiences.trycloudflare.com', // Current backend tunnel
     ],
 
     'allowed_origins_patterns' => [

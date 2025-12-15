@@ -1339,7 +1339,7 @@ const Reports = () => {
       
       // Fetch city statistics from API
       try {
-        const cityStatsResponse = await fetch('https://attachments-sand-gave-shame.trycloudflare.com/api/city-stats');
+        const cityStatsResponse = await fetch('https://fundamentals-window-groove-experiences.trycloudflare.com/api/city-stats');
         if (cityStatsResponse.ok) {
           const cityStatsData = await cityStatsResponse.json();
           setCityStats(cityStatsData);

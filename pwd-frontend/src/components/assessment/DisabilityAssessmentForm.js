@@ -140,6 +140,148 @@ function DisabilityAssessmentForm({ assessment, onSave, onClose }) {
     return null;
   };
 
+  // Authenticated PDF download function
+  const handleDownloadPDF = async () => {
+    if (!assessment?.id) {
+      alert('Assessment ID not found. Cannot download PDF.');
+      return;
+    }
+
+    try {
+      // Get auth token for the request
+      async function getStoredToken() {
+        try {
+          const raw = localStorage.getItem('auth.token');
+          if (!raw) return null;
+          
+          try {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed === 'string') {
+              return parsed;
+            } else if (parsed && parsed.token) {
+              return parsed.token;
+            } else if (parsed && typeof parsed === 'object') {
+              return parsed;
+            }
+            return parsed;
+          } catch (e) {
+            return raw;
+          }
+        } catch (_) {
+          localStorage.removeItem('auth.token');
+          return null;
+        }
+      }
+      
+      const token = await getStoredToken();
+      
+      // Ensure token is a string for Authorization header
+      let tokenString = null;
+      if (token) {
+        if (typeof token === 'string') {
+          tokenString = token;
+        } else if (token && token.token) {
+          tokenString = token.token;
+        } else if (token && typeof token === 'object') {
+          tokenString = JSON.stringify(token);
+        }
+      }
+      
+      const headers = {
+        'Accept': 'application/pdf',
+      };
+      
+      if (tokenString) {
+        headers['Authorization'] = `Bearer ${tokenString}`;
+      }
+      
+      // Use fetch directly for blob response
+      const downloadUrl = `${api.getBaseUrl()}/disability-assessments/${assessment.id}/download-pdf`;
+      
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: headers,
+        redirect: 'manual'
+      });
+      
+      // Check if response is ok
+      if (!response.ok) {
+        if (response.status === 401) {
+          alert('Your session has expired. Please login again.');
+          window.location.href = '/login';
+          return;
+        } else if (response.status === 404) {
+          throw new Error('PDF not found. The assessment PDF may not have been generated yet.');
+        } else if (response.status === 500) {
+          try {
+            const errorText = await response.clone().text();
+            const errorData = JSON.parse(errorText);
+            throw new Error(errorData.message || errorData.error || 'Server error occurred while generating PDF.');
+          } catch (parseErr) {
+            throw new Error('Server error (500). The PDF may not be available. Please try again later.');
+          }
+        } else {
+          throw new Error(`Failed to download PDF: ${response.statusText}`);
+        }
+      }
+      
+      // Get the blob from response
+      const blob = await response.blob();
+      
+      // Check if response is HTML (likely a login page redirect)
+      if (blob.type.includes('text/html')) {
+        const text = await blob.text();
+        if (text.includes('login') || text.includes('Please login')) {
+          alert('Your session has expired. Please login again.');
+          window.location.href = '/login';
+          return;
+        }
+      }
+      
+      // Verify it's a PDF
+      if (!blob.type.includes('pdf') && blob.size > 0) {
+        const text = await blob.text();
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.message || 'Failed to download PDF');
+        } catch (parseErr) {
+          if (text.includes('login') || text.includes('Please login')) {
+            alert('Your session has expired. Please login again.');
+            window.location.href = '/login';
+            return;
+          }
+          throw new Error('Received invalid response. Please try again.');
+        }
+      }
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const applicantName = assessment.applicant_name || 
+                           assessment.application?.firstName || 
+                           'Assessment';
+      const sanitizedName = applicantName.replace(/[^a-z0-9\s]/gi, '_').replace(/\s+/g, '_').toLowerCase();
+      const filename = `disability_assessment_${sanitizedName}_${assessment.reference_number}.pdf`;
+      
+      link.setAttribute('download', filename);
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+    } catch (err) {
+      console.error('Error downloading PDF:', err);
+      alert(`Failed to download PDF.\n\nError: ${err.message || 'Unknown error'}\n\nPlease try again or contact support if the problem persists.`);
+    }
+  };
+
   // Get initial form data from localStorage or defaults
   const getInitialFormData = () => {
     const defaultFormData = {
@@ -415,12 +557,27 @@ function DisabilityAssessmentForm({ assessment, onSave, onClose }) {
       // Auto-download PDF - handle both response.data and direct response
       const pdfUrl = response.data?.pdf_url || response.pdf_url;
       if (pdfUrl) {
-        // Open PDF in new tab for download
-        window.open(pdfUrl, '_blank');
+        // If pdfUrl is a full URL, try to download it with authentication
+        if (pdfUrl.startsWith('http')) {
+          // Use authenticated download function
+          setTimeout(() => {
+            handleDownloadPDF();
+          }, 500);
+        } else {
+          // If it's a relative URL, construct full URL
+          const fullUrl = pdfUrl.startsWith('/') 
+            ? `${api.getBaseUrl().replace('/api', '')}${pdfUrl}`
+            : `${api.getBaseUrl().replace('/api', '')}/${pdfUrl}`;
+          // Use authenticated download function
+          setTimeout(() => {
+            handleDownloadPDF();
+          }, 500);
+        }
       } else {
-        // Fallback: trigger download endpoint
-        const downloadUrl = `${api.getBaseUrl()}/disability-assessments/${assessment.id}/download-pdf`;
-        window.open(downloadUrl, '_blank');
+        // Fallback: use authenticated download function
+        setTimeout(() => {
+          handleDownloadPDF();
+        }, 500);
       }
 
       // Refresh the page after a short delay
@@ -922,9 +1079,7 @@ function DisabilityAssessmentForm({ assessment, onSave, onClose }) {
             variant="contained"
             color="secondary"
             startIcon={<DownloadIcon />}
-            onClick={() => {
-              window.open(`${api.getBaseUrl()}/disability-assessments/${assessment.id}/download-pdf`, '_blank');
-            }}
+            onClick={handleDownloadPDF}
           >
             Download PDF
           </Button>

@@ -307,6 +307,42 @@ export const formatNumber = memoize((num) => {
 });
 
 /**
+ * Format currency amount with peso sign and thousand separators
+ * @param {string|number} amount - The amount to format
+ * @returns {string} Formatted amount with peso sign (e.g., "₱1,500.00")
+ */
+export const formatCurrency = memoize((amount) => {
+  if (!amount && amount !== 0) return '₱0.00';
+  
+  // Remove peso sign and commas if already present
+  const cleanAmount = String(amount).replace(/[₱,]/g, '');
+  const numAmount = parseFloat(cleanAmount);
+  
+  if (isNaN(numAmount)) return '₱0.00';
+  
+  // Format with thousand separators and 2 decimal places
+  return `₱${numAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+});
+
+/**
+ * Format currency amount with peso sign and thousand separators (no decimals)
+ * @param {string|number} amount - The amount to format
+ * @returns {string} Formatted amount with peso sign (e.g., "₱1,500")
+ */
+export const formatCurrencyNoDecimals = memoize((amount) => {
+  if (!amount && amount !== 0) return '₱0';
+  
+  // Remove peso sign and commas if already present
+  const cleanAmount = String(amount).replace(/[₱,]/g, '');
+  const numAmount = parseFloat(cleanAmount);
+  
+  if (isNaN(numAmount)) return '₱0';
+  
+  // Format with thousand separators, no decimals
+  return `₱${numAmount.toLocaleString('en-US')}`;
+});
+
+/**
  * Format date efficiently - Always returns MM/DD/YYYY format
  */
 export const formatDate = memoize((dateString, format = 'short') => {

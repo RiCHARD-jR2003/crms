@@ -1,8 +1,8 @@
 // Cloudflare Tunnel Configuration
 const CLOUDFLARE_TUNNEL_CONFIG = {
   // Backend API through Cloudflare tunnel
-  API_BASE_URL: 'https://attachments-sand-gave-shame.trycloudflare.com/api',
-  STORAGE_BASE_URL: 'https://attachments-sand-gave-shame.trycloudflare.com',
+  API_BASE_URL: 'https://fundamentals-window-groove-experiences.trycloudflare.com/api',
+  STORAGE_BASE_URL: 'https://fundamentals-window-groove-experiences.trycloudflare.com',
 };
 
 // Network Development Configuration (using tunnel)
@@ -31,5 +31,5 @@ export const API_CONFIG = CLOUDFLARE_TUNNEL_CONFIG;
 // 2. Start Cloudflare tunnel for backend: cloudflared tunnel --url http://localhost:8000
 // 3. Start the frontend with: npm start
 // 4. Start Cloudflare tunnel for frontend: cloudflared tunnel --url http://localhost:3000
-// 5. Access frontend at: https://uniprotkb-designated-cases-walked.trycloudflare.com
-// 6. Backend API will be at: https://attachments-sand-gave-shame.trycloudflare.com/api
+// 5. Access frontend at: https://quote-licensing-kurt-desktops.trycloudflare.com
+// 6. Backend API will be at: https://fundamentals-window-groove-experiences.trycloudflare.com/api

@@ -796,7 +796,11 @@ const SimpleQRScanner = ({ open, onClose, onScan }) => {
                                   {benefit.description}
                                 </Typography>
                                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#E67E22', mt: 1 }}>
-                                  {benefit.amount}
+                                  {benefit.amount ? (() => {
+                                    const cleanAmount = String(benefit.amount).replace(/[₱,]/g, '');
+                                    const numAmount = parseFloat(cleanAmount);
+                                    return isNaN(numAmount) ? 'N/A' : `₱${numAmount.toLocaleString('en-US')}`;
+                                  })() : 'N/A'}
                                 </Typography>
                               </Box>
                               <Button

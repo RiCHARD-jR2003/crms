@@ -1335,7 +1335,7 @@ const AdminSupportDesk = () => {
                                   border: '1px solid #E0E0E0'
                                 }}>
                                   <img
-                                    src={`${API_CONFIG?.API_BASE_URL || 'https://attachments-sand-gave-shame.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`}
+                                    src={`${API_CONFIG?.API_BASE_URL || 'https://fundamentals-window-groove-experiences.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`}
                                     alt={message.attachment_name}
                                     style={{
                                       maxWidth: '250px',
@@ -1348,7 +1348,7 @@ const AdminSupportDesk = () => {
                                     }}
                                     onClick={() => handlePreviewFile(message)}
                                     onError={(e) => {
-                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://attachments-sand-gave-shame.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
+                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://fundamentals-window-groove-experiences.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
                                       console.error('Image failed to load:', imageUrl);
                                       console.error('Message data:', message);
                                       console.error('Image element:', e.target);
@@ -1356,11 +1356,11 @@ const AdminSupportDesk = () => {
                                       e.target.style.display = 'none';
                                     }}
                                     onLoad={() => {
-                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://attachments-sand-gave-shame.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
+                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://fundamentals-window-groove-experiences.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
                                       console.log('Image loaded successfully:', imageUrl);
                                     }}
                                     onLoadStart={() => {
-                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://attachments-sand-gave-shame.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
+                                      const imageUrl = `${API_CONFIG?.API_BASE_URL || 'https://fundamentals-window-groove-experiences.trycloudflare.com/api'}/support-tickets/messages/${message.id}/image`;
                                       console.log('Image loading started:', imageUrl);
                                     }}
                                   />

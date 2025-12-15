@@ -196,7 +196,7 @@ const PWDMemberBenefits = () => {
       }
 
       // Get the API base URL
-      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://attachments-sand-gave-shame.trycloudflare.com/api';
+      const apiBaseUrl = API_CONFIG?.API_BASE_URL || 'https://fundamentals-window-groove-experiences.trycloudflare.com/api';
       const token = localStorage.getItem('auth.token');
       let tokenValue = '';
       
@@ -487,7 +487,11 @@ const PWDMemberBenefits = () => {
                                   Benefit Amount
                                 </Typography>
                                 <Typography variant="h5" sx={{ color: '#27AE60', fontWeight: 700 }}>
-                                  ₱{parseFloat(benefit.amount).toLocaleString()}
+                                  {(() => {
+                                    const cleanAmount = String(benefit.amount).replace(/[₱,]/g, '');
+                                    const numAmount = parseFloat(cleanAmount);
+                                    return isNaN(numAmount) ? '₱0' : `₱${numAmount.toLocaleString('en-US')}`;
+                                  })()}
                                 </Typography>
                               </Box>
                             </Box>
@@ -612,7 +616,11 @@ const PWDMemberBenefits = () => {
                                   Amount Received
                                 </Typography>
                                 <Typography variant="h5" sx={{ color: '#27AE60', fontWeight: 700 }}>
-                                  ₱{parseFloat(item.amount).toLocaleString()}
+                                  {(() => {
+                                    const cleanAmount = String(item.amount).replace(/[₱,]/g, '');
+                                    const numAmount = parseFloat(cleanAmount);
+                                    return isNaN(numAmount) ? '₱0' : `₱${numAmount.toLocaleString('en-US')}`;
+                                  })()}
                                 </Typography>
                               </Box>
                             </Box>
@@ -754,7 +762,11 @@ const PWDMemberBenefits = () => {
                                         Benefit Amount
                                       </Typography>
                                       <Typography variant="h6" sx={{ color: '#E74C3C', fontWeight: 700 }}>
-                                        ₱{parseFloat(item.amount || 0).toLocaleString()}
+                                        {(() => {
+                                          const cleanAmount = String(item.amount || 0).replace(/[₱,]/g, '');
+                                          const numAmount = parseFloat(cleanAmount);
+                                          return isNaN(numAmount) ? '₱0' : `₱${numAmount.toLocaleString('en-US')}`;
+                                        })()}
                                       </Typography>
                                     </Box>
                                   </Grid>
@@ -839,7 +851,11 @@ const PWDMemberBenefits = () => {
                   <strong>Benefit:</strong> {selectedLateClaim.benefit.title || selectedLateClaim.benefit.type}
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 3 }}>
-                  <strong>Amount:</strong> ₱{parseFloat(selectedLateClaim.benefit.amount || 0).toLocaleString()}
+                  <strong>Amount:</strong> {(() => {
+                    const cleanAmount = String(selectedLateClaim.benefit.amount || 0).replace(/[₱,]/g, '');
+                    const numAmount = parseFloat(cleanAmount);
+                    return isNaN(numAmount) ? '₱0' : `₱${numAmount.toLocaleString('en-US')}`;
+                  })()}
                 </Typography>
                 
                 <Box sx={{ mb: 2 }}>
