@@ -131,3 +131,4 @@ class CreateSanitoMendozaAccountSeeder extends Seeder
 }
 
 
+

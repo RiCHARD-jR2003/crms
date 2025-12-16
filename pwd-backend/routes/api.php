@@ -460,503 +460,6 @@ Route::get('/applications', function () {
     }
 });
 
-// PWD Members fallback route (when pwd_member table doesn't exist)
-Route::get('/pwd-members-fallback', function () {
-    try {
-        // Get approved applications as PWD members
-        $approvedApplications = \App\Models\Application::where('status', 'Approved')->get();
-        
-        $members = $approvedApplications->map(function ($app) {
-            return [
-                'id' => $app->applicationID,
-                'userID' => $app->applicationID,
-                'firstName' => $app->firstName,
-                'lastName' => $app->lastName,
-                'middleName' => $app->middleName,
-                'suffix' => $app->suffix,
-                'birthDate' => $app->birthDate,
-                'gender' => $app->gender,
-                'disabilityType' => $app->disabilityType,
-                'address' => $app->address,
-                'contactNumber' => $app->contactNumber,
-                'email' => $app->email,
-                'barangay' => $app->barangay,
-                'emergencyContact' => $app->emergencyContact,
-                'emergencyPhone' => $app->emergencyPhone,
-                'emergencyRelationship' => $app->emergencyRelationship,
-                'status' => 'Active',
-                'created_at' => $app->created_at,
-                'updated_at' => $app->updated_at
-            ];
-        });
-        
-        return response()->json([
-            'success' => true,
-            'members' => $members,
-            'count' => $members->count(),
-            'source' => 'approved_applications'
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to fetch PWD members',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
-
-
-// Database and email test route
-Route::get('/test-database-email', function () {
-    try {
-        // Test database connection
-        $dbTest = 'Database: ';
-        try {
-            $appCount = \App\Models\Application::count();
-            $dbTest .= "SUCCESS - Applications count: {$appCount}";
-        } catch (\Exception $e) {
-            $dbTest .= "ERROR - " . $e->getMessage();
-        }
-
-        // Test email service
-        $emailTest = 'Email: ';
-        try {
-            $emailService = new \App\Services\EmailService();
-            $gmailService = $emailService->getGmailService();
-            $emailTest .= "Gmail API configured: " . ($gmailService->isConfigured() ? 'YES' : 'NO');
-        } catch (\Exception $e) {
-            $emailTest .= "ERROR - " . $e->getMessage();
-        }
-
-        return response()->json([
-            'message' => 'Database and Email Test',
-            'database_test' => $dbTest,
-            'email_test' => $emailTest,
-            'env_check' => [
-                'db_connection' => config('database.default'),
-                'db_host' => config('database.connections.mysql.host'),
-                'db_database' => config('database.connections.mysql.database'),
-                'mail_mailer' => config('mail.default'),
-                'mail_host' => config('mail.mailers.smtp.host'),
-                'mail_username' => config('mail.mailers.smtp.username'),
-                'google_client_id' => !empty(config('services.google.client_id')) ? 'SET' : 'NOT SET',
-                'google_refresh_token' => !empty(config('services.google.refresh_token')) ? 'SET' : 'NOT SET'
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Test failed',
-            'message' => $e->getMessage()
-        ], 500);
-    }
-});
-
-// Test approval email for existing application
-Route::get('/test-approval-email/{applicationId}', function ($applicationId) {
-    try {
-        $application = \App\Models\Application::find($applicationId);
-        
-        if (!$application) {
-            return response()->json([
-                'error' => 'Application not found',
-                'application_id' => $applicationId
-            ], 404);
-        }
-
-        // Generate test credentials
-        $testPassword = 'testpass123';
-        $testPwdId = 'PWD-TEST-' . $applicationId;
-
-        // Send approval email using SMTP only
-        \Illuminate\Support\Facades\Mail::send('emails.application-approved', [
-            'firstName' => $application->firstName,
-            'lastName' => $application->lastName,
-            'email' => $application->email,
-            'username' => $application->email,
-            'password' => $testPassword,
-            'pwdId' => $testPwdId,
-            'loginUrl' => 'http://localhost:3000/login'
-        ], function ($message) use ($application) {
-            $message->to($application->email)
-                   ->subject('PWD Application Approved - Account Created')
-                   ->from('sarinonhoelivan29@gmail.com', 'Cabuyao PDAO RMS');
-        });
-
-        return response()->json([
-            'message' => 'Approval email sent successfully',
-            'application' => [
-                'id' => $application->applicationID,
-                'name' => $application->firstName . ' ' . $application->lastName,
-                'email' => $application->email
-            ],
-            'credentials' => [
-                'email' => $application->email,
-                'password' => $testPassword,
-                'pwdId' => $testPwdId
-            ],
-            'from' => 'sarinonhoelivan29@gmail.com'
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to send approval email',
-            'message' => $e->getMessage(),
-            'application_id' => $applicationId
-        ], 500);
-    }
-});
-
-// Test Gmail integration route (for testing purposes)
-Route::get('/test-gmail-integration', function () {
-    try {
-        $emailService = new \App\Services\EmailService();
-        $gmailService = $emailService->getGmailService();
-        
-        $status = [
-            'gmail_configured' => $gmailService->isConfigured(),
-            'client_id_set' => !empty(config('services.google.client_id')),
-            'client_secret_set' => !empty(config('services.google.client_secret')),
-            'refresh_token_set' => !empty(config('services.google.refresh_token')),
-            'redirect_uri' => config('services.google.redirect_uri'),
-            'frontend_url' => config('app.frontend_url', 'http://localhost:3000'),
-            'admin_email' => 'sarinonhoelivan29@gmail.com',
-            'mail_from_address' => config('mail.from.address'),
-            'mail_from_name' => config('mail.from.name')
-        ];
-        
-        return response()->json([
-            'message' => 'Gmail integration test for admin email',
-            'status' => $status,
-            'admin_email' => 'sarinonhoelivan29@gmail.com',
-            'instructions' => [
-                '1. Set up Google Cloud Console project',
-                '2. Enable Gmail API',
-                '3. Create OAuth 2.0 credentials',
-                '4. Add environment variables to .env',
-                '5. Complete OAuth flow via /api/gmail/auth-url',
-                '6. Test email sending via /api/gmail/test'
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Gmail integration test failed',
-            'message' => $e->getMessage(),
-            'admin_email' => 'sarinonhoelivan29@gmail.com'
-        ], 500);
-    }
-});
-
-// Test sending approval email to applicant
-Route::get('/test-send-approval-email/{email}', function ($email) {
-    try {
-        $emailService = new \App\Services\EmailService();
-        
-        $testData = [
-            'firstName' => 'Test',
-            'lastName' => 'User',
-            'email' => $email, // This will be the recipient
-            'username' => $email,
-            'password' => 'testpass123',
-            'pwdId' => 'PWD-TEST-001',
-            'loginUrl' => 'http://localhost:3000/login'
-        ];
-        
-        $result = $emailService->sendApplicationApprovalEmail($testData);
-        
-        return response()->json([
-            'message' => 'Test approval email sent',
-            'success' => $result,
-            'recipient' => $email,
-            'from' => 'sarinonhoelivan29@gmail.com',
-            'test_data' => $testData
-        ]);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to send test approval email',
-            'message' => $e->getMessage(),
-            'recipient' => $email
-        ], 500);
-    }
-});
-
-// Test application submission (for debugging)
-Route::post('/test-application-submission', function (Request $request) {
-    try {
-        // Log the incoming request
-        \Illuminate\Support\Facades\Log::info('Test application submission', [
-            'request_data' => $request->all(),
-            'has_files' => $request->hasFile('medicalCertificate') || $request->hasFile('barangayCertificate')
-        ]);
-
-        // Use the validation service for comprehensive duplicate checking
-        $validationService = new \App\Services\ApplicationValidationService();
-        
-        // First, check for duplicates before validation
-        $duplicates = $validationService->checkForDuplicates($request->all());
-        if (!empty($duplicates)) {
-            \Illuminate\Support\Facades\Log::warning('Duplicate test application detected', [
-                'duplicates' => $duplicates,
-                'request_data' => $request->all()
-            ]);
-            
-            return response()->json([
-                'error' => 'Duplicate application detected',
-                'message' => 'An application with similar information already exists.',
-                'duplicates' => $duplicates,
-                'suggestions' => [
-                    'Check your existing application status',
-                    'Contact support if you believe this is an error',
-                    'Use a different email address if this is for a different person'
-                ]
-            ], 409); // 409 Conflict
-        }
-
-        // Get validation rules from service
-        $rules = $validationService->getValidationRules();
-        $messages = $validationService->getValidationMessages();
-        
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules, $messages);
-
-        if ($validator->fails()) {
-            \Illuminate\Support\Facades\Log::error('Validation failed', [
-                'errors' => $validator->errors()
-            ]);
-            return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
-            ], 422);
-        }
-
-        $data = $request->all();
-        $data['status'] = 'Pending Barangay Approval';
-        $data['submissionDate'] = now();
-
-        // Handle file uploads
-        $uploadPath = 'uploads/applications/' . date('Y/m/d');
-        \Illuminate\Support\Facades\Storage::makeDirectory($uploadPath);
-
-
-        if ($request->hasFile('medicalCertificate')) {
-            $medicalFile = $request->file('medicalCertificate');
-            $medicalName = 'medical_cert_' . time() . '.' . $medicalFile->getClientOriginalExtension();
-            $medicalPath = $medicalFile->storeAs($uploadPath, $medicalName, 'public');
-            $data['medicalCertificate'] = $medicalPath;
-        }
-
-
-        // Handle new document fields
-        if ($request->hasFile('clinicalAbstract')) {
-            $clinicalFile = $request->file('clinicalAbstract');
-            $clinicalName = 'clinical_abstract_' . time() . '.' . $clinicalFile->getClientOriginalExtension();
-            $clinicalPath = $clinicalFile->storeAs($uploadPath, $clinicalName, 'public');
-            $data['clinicalAbstract'] = $clinicalPath;
-        }
-
-        if ($request->hasFile('voterCertificate')) {
-            $voterFile = $request->file('voterCertificate');
-            $voterName = 'voter_certificate_' . time() . '.' . $voterFile->getClientOriginalExtension();
-            $voterPath = $voterFile->storeAs($uploadPath, $voterName, 'public');
-            $data['voterCertificate'] = $voterPath;
-        }
-
-        // Handle ID picture (single file, same as other documents)
-        if ($request->hasFile('idPictures') || $request->hasFile('idPicture_0')) {
-            $idPictureFile = $request->hasFile('idPictures') 
-                ? $request->file('idPictures') 
-                : $request->file('idPicture_0');
-            $idPictureName = 'id_picture_' . time() . '.' . $idPictureFile->getClientOriginalExtension();
-                $idPicturePath = $idPictureFile->storeAs($uploadPath, $idPictureName, 'public');
-            $data['idPictures'] = $idPicturePath;
-        }
-
-        if ($request->hasFile('birthCertificate')) {
-            $birthFile = $request->file('birthCertificate');
-            $birthName = 'birth_certificate_' . time() . '.' . $birthFile->getClientOriginalExtension();
-            $birthPath = $birthFile->storeAs($uploadPath, $birthName, 'public');
-            $data['birthCertificate'] = $birthPath;
-        }
-
-        if ($request->hasFile('wholeBodyPicture')) {
-            $wholeBodyFile = $request->file('wholeBodyPicture');
-            $wholeBodyName = 'whole_body_picture_' . time() . '.' . $wholeBodyFile->getClientOriginalExtension();
-            $wholeBodyPath = $wholeBodyFile->storeAs($uploadPath, $wholeBodyName, 'public');
-            $data['wholeBodyPicture'] = $wholeBodyPath;
-        }
-
-        if ($request->hasFile('affidavit')) {
-            $affidavitFile = $request->file('affidavit');
-            $affidavitName = 'affidavit_' . time() . '.' . $affidavitFile->getClientOriginalExtension();
-            $affidavitPath = $affidavitFile->storeAs($uploadPath, $affidavitName, 'public');
-            $data['affidavit'] = $affidavitPath;
-        }
-
-        if ($request->hasFile('barangayCertificate')) {
-            $barangayCertFile = $request->file('barangayCertificate');
-            $barangayCertName = 'barangay_certificate_' . time() . '.' . $barangayCertFile->getClientOriginalExtension();
-            $barangayCertPath = $barangayCertFile->storeAs($uploadPath, $barangayCertName, 'public');
-            $data['barangayCertificate'] = $barangayCertPath;
-        }
-
-        \Illuminate\Support\Facades\Log::info('Creating application with data', [
-            'data' => $data
-        ]);
-
-        $application = \App\Models\Application::create($data);
-
-        \Illuminate\Support\Facades\Log::info('Application created successfully', [
-            'application_id' => $application->applicationID,
-            'application' => $application->toArray()
-        ]);
-
-        return response()->json([
-            'message' => 'Test application submitted successfully',
-            'application' => $application,
-            'debug_info' => [
-                'data_sent' => $data,
-                'application_id' => $application->applicationID
-            ]
-        ], 201);
-
-    } catch (\Exception $e) {
-        \Illuminate\Support\Facades\Log::error('Test application submission failed', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        
-        return response()->json([
-            'error' => 'Failed to submit test application',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-});
-
-// Mobile connectivity test
-Route::get('/mobile-test', function () {
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Mobile connection successful',
-        'timestamp' => now()->toISOString(),
-        'server_info' => [
-            'ip' => request()->server('SERVER_ADDR'),
-            'port' => request()->server('SERVER_PORT'),
-            'host' => request()->getHost()
-        ]
-    ]);
-});
-
-// Test PWD members route
-Route::get('/test-pwd', function () {
-    try {
-        $members = \App\Models\PWDMember::all();
-        return response()->json(['count' => $members->count(), 'members' => $members]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-});
-
-// Simple PWD members route
-Route::get('/simple-pwd', function () {
-    try {
-        $members = DB::table('pwd_members')->get();
-        return response()->json(['count' => $members->count(), 'members' => $members]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-});
-
-// Debug PWD members and applications
-Route::get('/debug-pwd-applications', function () {
-    try {
-        $members = \App\Models\PWDMember::all();
-        $applications = \App\Models\Application::where('status', 'Approved')->get();
-        
-        $debug = [
-            'pwd_members' => $members->map(function($member) {
-                return [
-                    'id' => $member->id,
-                    'userID' => $member->userID,
-                    'name' => $member->firstName . ' ' . $member->lastName
-                ];
-            }),
-            'approved_applications' => $applications->map(function($app) {
-                return [
-                    'applicationID' => $app->applicationID,
-                    'pwdID' => $app->pwdID,
-                    'name' => $app->firstName . ' ' . $app->lastName,
-                    'barangay' => $app->barangay
-                ];
-            })
-        ];
-        
-        return response()->json($debug);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-});
-
-// PWD members route - Returns real database data with emergency contact
-Route::get('/mock-pwd', function () {
-    try {
-        $members = \App\Models\PWDMember::all();
-        
-        // Transform the data to match the expected format
-        $transformedMembers = $members->map(function ($member) {
-            // Get emergency contact and barangay from the approved application
-            // Match pwdID in applications to the PWD member's userID field
-            $approvedApplication = \App\Models\Application::where('pwdID', $member->userID)
-                ->where('status', 'Approved')
-                ->latest()
-                ->first();
-            
-            $emergencyContact = $approvedApplication ? $approvedApplication->emergencyContact : $member->emergencyContact;
-            $barangay = $approvedApplication ? $approvedApplication->barangay : $member->barangay;
-            $idPictures = $approvedApplication ? $approvedApplication->idPictures : null;
-            
-            // Get email from the User table
-            $user = \App\Models\User::where('userID', $member->userID)->first();
-            $email = $user ? $user->email : $member->email;
-            
-            // Generate PWD ID if not exists
-            $pwdId = $member->pwd_id ?: 'PWD-' . str_pad($member->userID, 6, '0', STR_PAD_LEFT);
-            
-            return [
-                'id' => $member->id,
-                'userID' => $member->userID,
-                'pwd_id' => $pwdId,
-                'firstName' => $member->firstName,
-                'lastName' => $member->lastName,
-                'middleName' => $member->middleName,
-                'suffix' => $member->suffix,
-                'birthDate' => $member->birthDate,
-                'gender' => $member->gender,
-                'disabilityType' => $member->disabilityType,
-                'address' => $member->address,
-                'contactNumber' => $member->contactNumber,
-                'emergencyContact' => $emergencyContact,
-                'barangay' => $barangay,
-                'idPictures' => $idPictures,
-                'email' => $email,
-                'qr_code_data' => $member->qr_code_data,
-                'qr_code_generated_at' => $member->qr_code_generated_at
-            ];
-        });
-        
-        return response()->json([
-            'count' => $members->count(),
-            'members' => $transformedMembers
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to fetch PWD members',
-            'message' => $e->getMessage(),
-            'count' => 0,
-            'members' => []
-        ], 500);
-    }
-});
-
 Route::apiResource('users', 'App\Http\Controllers\API\UserController');
 Route::apiResource('complaints', 'App\Http\Controllers\API\ComplaintController');
 Route::apiResource('reports', 'App\Http\Controllers\API\ReportController');
@@ -975,9 +478,225 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/benefits', [BenefitController::class, 'index']);
 Route::get('/benefits/{id}', [BenefitController::class, 'show']);
 
-// Test route for benefits
-Route::get('/test-benefits', function () {
-    return response()->json(['message' => 'Benefits route test']);
+// Simple benefits routes (used by frontend)
+Route::get('/benefits-simple', function () {
+    try {
+        $benefits = \App\Models\Benefit::all();
+        return response()->json($benefits);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+});
+
+Route::post('/benefits-simple', function (Request $request) {
+    try {
+        $benefitData = $request->all();
+        
+        // Set status to Active by default if not provided
+        if (!isset($benefitData['status'])) {
+            $benefitData['status'] = 'Active';
+        }
+        
+        // Set created_at and updated_at if not provided
+        if (!isset($benefitData['created_at'])) {
+            $benefitData['created_at'] = now();
+        }
+        if (!isset($benefitData['updated_at'])) {
+            $benefitData['updated_at'] = now();
+        }
+        
+        $benefit = \App\Models\Benefit::create($benefitData);
+        
+        // Always create draft announcement when benefit is created
+        $draftAnnouncementCreated = false;
+        try {
+            $existingAnnouncement = \App\Models\Announcement::where('benefitID', $benefit->id)->first();
+            if (!$existingAnnouncement) {
+                // Determine target audience based on selected barangays
+                $selectedBarangays = [];
+                $targetAudience = 'All Barangays';
+                if (isset($benefitData['selectedBarangays']) && is_array($benefitData['selectedBarangays']) && count($benefitData['selectedBarangays']) > 0) {
+                    $selectedBarangays = $benefitData['selectedBarangays'];
+                    $targetAudience = implode(', ', $selectedBarangays);
+                } elseif (isset($benefitData['barangay']) && $benefitData['barangay'] !== 'All' && $benefitData['barangay'] !== 'All Barangays') {
+                    $selectedBarangays = [$benefitData['barangay']];
+                    $targetAudience = $benefitData['barangay'];
+                }
+                
+                // Generate announcement title
+                $benefitType = $benefit->type ?? 'Financial Assistance';
+                $barangaysText = count($selectedBarangays) > 0 
+                    ? implode(', ', $selectedBarangays) 
+                    : 'All Barangays';
+                $title = "New {$benefitType} Available for {$barangaysText}";
+                
+                // Format dates
+                $distributionDate = isset($benefitData['distributionDate']) && $benefitData['distributionDate']
+                    ? \Carbon\Carbon::parse($benefitData['distributionDate'])
+                    : null;
+                $expiryDate = isset($benefitData['expiryDate']) && $benefitData['expiryDate']
+                    ? \Carbon\Carbon::parse($benefitData['expiryDate'])
+                    : null;
+                
+                // Create draft announcement
+                $announcement = \App\Models\Announcement::create([
+                    'authorID' => 1, // System/Admin
+                    'benefitID' => $benefit->id,
+                    'title' => $title,
+                    'content' => $benefit->description ?? 'A new benefit program is now available for claiming.',
+                    'type' => 'Event',
+                    'category' => 'Ayuda Program',
+                    'priority' => 'High',
+                    'targetAudience' => $targetAudience,
+                    'status' => 'Draft', // Created as Draft for barangay president to review and post
+                    'publishDate' => now()->toDateString(),
+                    'expiryDate' => $expiryDate ? $expiryDate->toDateString() : null,
+                    'views' => 0
+                ]);
+                
+                $draftAnnouncementCreated = true;
+                
+                \Illuminate\Support\Facades\Log::info('Draft announcement created for benefit (simple route)', [
+                    'benefit_id' => $benefit->id,
+                    'announcement_id' => $announcement->announcementID,
+                    'target_audience' => $announcement->targetAudience,
+                    'status' => $announcement->status
+                ]);
+                
+                // Clear announcement cache for the target audience to ensure it appears immediately
+                $announcementController = app(\App\Http\Controllers\API\AnnouncementController::class);
+                $reflection = new \ReflectionClass($announcementController);
+                $clearCacheMethod = $reflection->getMethod('clearAnnouncementCache');
+                $clearCacheMethod->setAccessible(true);
+                $clearCacheMethod->invoke($announcementController, $announcement->targetAudience);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to create draft announcement for benefit (simple route)', [
+                'benefit_id' => $benefit->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // Don't fail benefit creation if announcement creation fails
+        }
+        
+        // Notify Barangay Presidents for each barangay in selectedBarangays
+        try {
+            $barangaysToNotify = [];
+            
+            // Collect barangays from selectedBarangays
+            if (isset($benefitData['selectedBarangays']) && is_array($benefitData['selectedBarangays'])) {
+                $barangaysToNotify = array_merge($barangaysToNotify, $benefitData['selectedBarangays']);
+            }
+            
+            // Also include single barangay if set
+            if (isset($benefitData['barangay']) && $benefitData['barangay'] !== 'All' && $benefitData['barangay'] !== 'All Barangays') {
+                if (!in_array($benefitData['barangay'], $barangaysToNotify)) {
+                    $barangaysToNotify[] = $benefitData['barangay'];
+                }
+            }
+            
+            // Remove duplicates
+            $barangaysToNotify = array_unique($barangaysToNotify);
+            
+            // Notify each barangay president
+            $notificationService = app(\App\Services\NotificationService::class);
+            $notifiedPresidents = [];
+            
+            foreach ($barangaysToNotify as $barangay) {
+                $barangayPresidents = \App\Models\BarangayPresident::where('barangay', $barangay)
+                    ->pluck('userID')
+                    ->toArray();
+                
+                foreach ($barangayPresidents as $presidentUserId) {
+                    if (!in_array($presidentUserId, $notifiedPresidents)) {
+                        $distributionDate = isset($benefitData['distributionDate']) && $benefitData['distributionDate']
+                            ? \Carbon\Carbon::parse($benefitData['distributionDate'])->format('M d, Y')
+                            : 'To be announced';
+                        
+                        $notificationService::create(
+                            $presidentUserId,
+                            'benefit_created',
+                            'New Benefit Available for Your Barangay',
+                            "A new benefit '{$benefit->title}' ({$benefit->amount}) has been added for {$barangay}. Distribution Date: {$distributionDate}. Please review and announce this benefit to your barangay members.",
+                            [
+                                'benefit_id' => $benefit->id,
+                                'benefit_title' => $benefit->title,
+                                'benefit_type' => $benefit->type,
+                                'benefit_amount' => $benefit->amount,
+                                'barangay' => $barangay,
+                                'distribution_date' => $benefit->distributionDate,
+                                'expiry_date' => $benefit->expiryDate,
+                                'created_at' => $benefit->created_at->toDateTimeString(),
+                                'action_required' => 'announce'
+                            ],
+                            false // Don't notify SuperAdmin about this notification
+                        );
+                        
+                        $notifiedPresidents[] = $presidentUserId;
+                    }
+                }
+            }
+            
+            \Illuminate\Support\Facades\Log::info('Barangay Presidents notified about new benefit (simple route)', [
+                'benefit_id' => $benefit->id,
+                'barangays' => $barangaysToNotify,
+                'presidents_notified' => count($notifiedPresidents)
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to notify barangay presidents about new benefit (simple route)', [
+                'benefit_id' => $benefit->id,
+                'error' => $e->getMessage()
+            ]);
+            // Don't fail benefit creation if notification fails
+        }
+        
+        // Clear ALL benefit caches to ensure new benefit appears
+        $statuses = ['Active', 'Pending', 'Inactive', 'Draft', 'all'];
+        foreach ($statuses as $status) {
+            \Illuminate\Support\Facades\Cache::forget("benefits:index:{$status}:all");
+            if (isset($benefitData['barangay']) && $benefitData['barangay']) {
+                \Illuminate\Support\Facades\Cache::forget("benefits:index:{$status}:{$benefitData['barangay']}");
+            }
+            if (isset($benefitData['selectedBarangays']) && is_array($benefitData['selectedBarangays'])) {
+                foreach ($benefitData['selectedBarangays'] as $barangay) {
+                    \Illuminate\Support\Facades\Cache::forget("benefits:index:{$status}:{$barangay}");
+                }
+            }
+        }
+        
+        // Also clear the simple benefits route cache if it exists
+        \Illuminate\Support\Facades\Cache::forget('benefits-simple');
+        
+        \Illuminate\Support\Facades\Log::info('Benefit created via simple route', [
+            'benefit_id' => $benefit->id,
+            'title' => $benefit->title,
+            'status' => $benefit->status,
+            'draft_announcement_created' => $draftAnnouncementCreated
+        ]);
+        
+        // Return consistent response structure matching BenefitController::store
+        return response()->json([
+            'success' => true,
+            'data' => $benefit,
+            'draft_announcement_created' => $draftAnnouncementCreated
+        ], 201);
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Error creating benefit via simple route', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+});
+
+// Benefit claims routes
+Route::get('/benefit-claims/{benefitId}', function ($benefitId) {
+    try {
+        $claims = \App\Models\BenefitClaim::where('benefitID', $benefitId)->get();
+        return response()->json($claims);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
 });
 
 // Simple benefits routes
@@ -1532,14 +1251,6 @@ Route::post('/verify-code', function (Request $request) {
     }
 });
 
-// Test route to check applications
-Route::get('/test-applications', function () {
-    $applications = \App\Models\Application::select('applicationID', 'firstName', 'lastName', 'email')->get();
-    return response()->json([
-        'applications' => $applications,
-        'count' => $applications->count()
-    ]);
-});
 
 // Document correction request route
 Route::post('/applications/correction-request', function (Request $request) {
@@ -2294,120 +2005,6 @@ Route::post('/applications', function (Request $request) {
     }
 });
 
-// Test route for file preview (no auth required for testing)
-Route::get('test-file/{messageId}', function($messageId) {
-    try {
-        $message = App\Models\SupportTicketMessage::find($messageId);
-        if (!$message || !$message->hasAttachment()) {
-            return response()->json(['error' => 'No attachment found'], 404);
-        }
-        
-        $filePath = storage_path('app/public/' . $message->attachment_path);
-        if (!file_exists($filePath)) {
-            return response()->json(['error' => 'File not found: ' . $filePath], 404);
-        }
-        
-        $fileContent = file_get_contents($filePath);
-        $mimeType = $message->attachment_type ?: mime_content_type($filePath);
-        
-        return response($fileContent)
-            ->header('Content-Type', $mimeType)
-            ->header('Content-Disposition', 'inline; filename="' . $message->attachment_name . '"');
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-});
-
-// Test route for document file serving (no auth required for testing)
-Route::get('test-document-file/{id}', function($id) {
-    try {
-        $memberDocument = \App\Models\MemberDocument::find($id);
-        
-        if (!$memberDocument) {
-            return response()->json(['error' => 'Document not found'], 404);
-        }
-        
-        $filePath = storage_path('app/public/' . $memberDocument->file_path);
-        
-        if (!file_exists($filePath)) {
-            return response()->json([
-                'error' => 'File not found',
-                'file_path' => $filePath,
-                'member_document' => $memberDocument
-            ], 404);
-        }
-
-        // Get file info
-        $fileSize = filesize($filePath);
-        $mimeType = mime_content_type($filePath);
-        
-        // Set appropriate headers
-        $headers = [
-            'Content-Type' => $mimeType,
-            'Content-Length' => $fileSize,
-            'Content-Disposition' => 'inline; filename="' . $memberDocument->file_name . '"',
-            'Cache-Control' => 'private, max-age=3600',
-            'Pragma' => 'private'
-        ];
-
-        // Return file response with proper headers
-        return response()->file($filePath, $headers);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Error serving file: ' . $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-});
-
-// Test storage configuration
-Route::get('test-storage-config', function() {
-    try {
-        $storagePath = storage_path('app/public');
-        $publicPath = public_path('storage');
-        
-        $info = [
-            'storage_path' => $storagePath,
-            'public_path' => $publicPath,
-            'storage_exists' => is_dir($storagePath),
-            'public_storage_exists' => is_dir($publicPath),
-            'storage_link_exists' => is_link($publicPath),
-            'storage_writable' => is_writable($storagePath),
-            'public_writable' => is_writable($publicPath),
-        ];
-        
-        // List some files in storage
-        if (is_dir($storagePath)) {
-            $files = [];
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($storagePath, \RecursiveDirectoryIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::SELF_FIRST
-            );
-            
-            foreach ($iterator as $file) {
-                if ($file->isFile()) {
-                    $files[] = [
-                        'path' => str_replace($storagePath, '', $file->getPathname()),
-                        'size' => $file->getSize(),
-                        'modified' => date('Y-m-d H:i:s', $file->getMTime())
-                    ];
-                }
-                
-                if (count($files) >= 10) break; // Limit to 10 files
-            }
-            
-            $info['sample_files'] = $files;
-        }
-        
-        return response()->json($info);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Error checking storage: ' . $e->getMessage()
-        ], 500);
-    }
-});
 
 // Document file serving route (public access for viewing)
 Route::get('documents/file/{id}', [DocumentManagementController::class, 'getDocumentFile']);
@@ -3108,39 +2705,6 @@ Route::middleware('auth:sanctum')->group(function () {
             }
         });
         
-        // Test route to create a notification for SuperAdmin (for debugging)
-        Route::post('/test-superadmin', function (Request $request) {
-            try {
-                $user = $request->user();
-                if (!$user || $user->role !== 'SuperAdmin') {
-                    return response()->json([
-                        'success' => false,
-                        'error' => 'Only SuperAdmin can create test notifications'
-                    ], 403);
-                }
-                
-                // Create a test notification
-                $notification = \App\Services\NotificationService::create(
-                    $user->userID,
-                    'announcement',
-                    'Test Notification for SuperAdmin',
-                    'This is a test notification to verify SuperAdmin notification system is working.',
-                    ['test' => true, 'timestamp' => now()->toIso8601String()]
-                );
-                
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Test notification created',
-                    'notification' => $notification
-                ]);
-            } catch (\Exception $e) {
-                return response()->json([
-                    'success' => false,
-                    'error' => $e->getMessage()
-                ], 500);
-            }
-        })->middleware('auth:sanctum');
-
         Route::get('/unread', function (Request $request) {
             try {
                 $user = $request->user();
@@ -3211,50 +2775,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
-// Simple test route
-Route::get('/api/test-basic', function () {
-    return response()->json([
-        'message' => 'Server is working!',
-        'status' => 'OK',
-        'time' => now()
-    ]);
-});
-
-// Test email sending with updated credentials
-Route::get('/api/test-email/{email}', function ($email) {
-    try {
-        $emailService = new \App\Services\EmailService();
-        
-        // Use today's date as approval date to calculate claim date
-        $result = $emailService->sendApplicationApprovalEmail([
-            'firstName' => 'Test',
-            'lastName' => 'User',
-            'email' => $email,
-            'username' => $email,
-            'password' => 'test123',
-            'pwdId' => 'PWD-000001',
-            'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login'),
-            'approval_date' => now()->toDateString() // Include approval date for claim date calculation
-        ]);
-
-        return response()->json([
-            'message' => 'Email test completed',
-            'email' => $email,
-            'sent' => $result,
-            'from' => 'sarinonhoelivan29@gmail.com',
-            'approval_date' => now()->toDateString()
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Email test failed',
-            'message' => $e->getMessage(),
-            'email' => $email
-        ], 500);
-    }
-});
-
-Route::get('/api/test-admin-approve/{applicationId}', function ($applicationId) {
+// Admin approval route for applications (protected)
+Route::middleware('auth:sanctum')->post('/applications/{applicationId}/approve-admin', function (Request $request, $applicationId) {
     try {
         $application = \App\Models\Application::findOrFail($applicationId);
         
@@ -3358,317 +2880,6 @@ Route::get('/api/test-admin-approve/{applicationId}', function ($applicationId) 
                     'email_sent' => false,
                     'email_error' => $mailError->getMessage()
                 ],
-                'application' => $application,
-                'user_account' => $pwdUser,
-                'login_credentials' => [
-                    'email' => $application->email,
-                    'password' => $randomPassword
-                ]
-            ]);
-        }
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to approve application',
-            'message' => $e->getMessage()
-        ], 500);
-    }
-});
-
-// Test route to check Richard Carandang PWD-1
-Route::get('/api/test-richard-pwd1', function () {
-    try {
-        // Check if Richard Carandang exists in PWD members
-        $richard = \App\Models\PWDMember::where('firstName', 'Richard')
-            ->where('lastName', 'Carandang')
-            ->first();
-        
-        if ($richard) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Richard Carandang found',
-                'member' => [
-                    'id' => $richard->id,
-                    'userID' => $richard->userID,
-                    'pwd_id' => $richard->pwd_id,
-                    'firstName' => $richard->firstName,
-                    'lastName' => $richard->lastName,
-                    'birthDate' => $richard->birthDate,
-                    'disabilityType' => $richard->disabilityType,
-                    'barangay' => $richard->barangay
-                ]
-            ]);
-        } else {
-            // Check if he exists in applications
-            $application = \App\Models\Application::where('firstName', 'Richard')
-                ->where('lastName', 'Carandang')
-                ->first();
-                
-            if ($application) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Richard Carandang found in applications but not in PWD members',
-                    'application' => [
-                        'applicationID' => $application->applicationID,
-                        'firstName' => $application->firstName,
-                        'lastName' => $application->lastName,
-                        'status' => $application->status,
-                        'email' => $application->email
-                    ]
-                ]);
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Richard Carandang not found in database'
-                ]);
-            }
-        }
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Error checking Richard Carandang',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
-
-// Test route to update Mel Ivan Mananquil's card expiration date to 25 days from now
-Route::get('/api/test-update-mel-ivan-expiry', function () {
-    try {
-        // Find Mel Ivan Mananquil
-        $member = \App\Models\PWDMember::where(function($query) {
-            $query->where('firstName', 'LIKE', '%Mel%')
-                  ->where('lastName', 'LIKE', '%Mananquil%');
-        })->orWhere(function($query) {
-            $query->where('firstName', 'LIKE', '%Mel Ivan%')
-                  ->where('lastName', 'LIKE', '%Mananquil%');
-        })->first();
-        
-        if (!$member) {
-            // Try with different name variations
-            $member = \App\Models\PWDMember::where('firstName', 'Mel Ivan')
-                ->where('lastName', 'Mananquil')
-                ->first();
-        }
-        
-        if (!$member) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Mel Ivan Mananquil not found in PWD members'
-            ], 404);
-        }
-        
-        // Set expiration date to 25 days from now (within 30-day window for testing)
-        $newExpirationDate = now()->addDays(25);
-        
-        // Update the member
-        $member->update([
-            'cardExpirationDate' => $newExpirationDate,
-            'cardClaimed' => true, // Ensure card is claimed
-            'cardIssueDate' => $member->cardIssueDate ?? now()->subYears(3)->addDays(25) // Set issue date if not set
-        ]);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Mel Ivan Mananquil\'s card expiration date updated successfully',
-            'member' => [
-                'id' => $member->id,
-                'userID' => $member->userID,
-                'pwd_id' => $member->pwd_id,
-                'firstName' => $member->firstName,
-                'lastName' => $member->lastName,
-                'cardClaimed' => $member->cardClaimed,
-                'cardIssueDate' => $member->cardIssueDate,
-                'cardExpirationDate' => $member->cardExpirationDate,
-                'daysUntilExpiration' => now()->diffInDays($member->cardExpirationDate, false)
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Error updating Mel Ivan Mananquil\'s expiration date',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
-
-// Test route to send renewal approval email to Mel Ivan Mananquil
-Route::get('/api/test-send-mel-ivan-renewal-email', function () {
-    try {
-        // Find Mel Ivan Mananquil
-        $member = \App\Models\PWDMember::where(function($query) {
-            $query->where('firstName', 'LIKE', '%Mel%')
-                  ->where('lastName', 'LIKE', '%Mananquil%');
-        })->orWhere(function($query) {
-            $query->where('firstName', 'LIKE', '%Mel Ivan%')
-                  ->where('lastName', 'LIKE', '%Mananquil%');
-        })->with('user')->first();
-        
-        if (!$member) {
-            // Try with different name variations
-            $member = \App\Models\PWDMember::where('firstName', 'Mel Ivan')
-                ->where('lastName', 'Mananquil')
-                ->with('user')
-                ->first();
-        }
-        
-        if (!$member) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Mel Ivan Mananquil not found in PWD members'
-            ], 404);
-        }
-        
-        // Get member's email
-        $memberEmail = $member->email;
-        if (empty($memberEmail) && $member->user) {
-            $memberEmail = $member->user->email;
-        }
-        
-        if (empty($memberEmail)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No email address found for Mel Ivan Mananquil'
-            ], 400);
-        }
-        
-        // Get expiration date (use current if not set, or add 3 years)
-        $expirationDate = $member->cardExpirationDate 
-            ? \Carbon\Carbon::parse($member->cardExpirationDate)
-            : now()->addYears(3);
-        
-        // Send renewal approval email
-        $emailService = new \App\Services\EmailService();
-        $emailSent = $emailService->sendRenewalApprovalEmail([
-            'email' => $memberEmail,
-            'firstName' => $member->firstName,
-            'lastName' => $member->lastName,
-            'pwdId' => $member->pwd_id ?? 'N/A',
-            'newExpirationDate' => $expirationDate->format('F d, Y'),
-            'renewalDate' => now()->format('F d, Y'),
-            'notes' => 'This is a test email for renewal approval.'
-        ]);
-        
-        if ($emailSent) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Renewal approval email sent successfully to Mel Ivan Mananquil',
-                'details' => [
-                    'email' => $memberEmail,
-                    'name' => $member->firstName . ' ' . $member->lastName,
-                    'pwdId' => $member->pwd_id ?? 'N/A',
-                    'expirationDate' => $expirationDate->format('F d, Y')
-                ]
-            ]);
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to send renewal approval email. Check logs for details.',
-                'email' => $memberEmail
-            ], 500);
-        }
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Error sending renewal approval email',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
-
-Route::get('/api/test-approve-application/{applicationId}', function ($applicationId) {
-    try {
-        $application = \App\Models\Application::findOrFail($applicationId);
-        
-        // Generate secure random password
-        $randomPassword = \Illuminate\Support\Str::random(12);
-        
-        // Check if user already exists
-        $existingUser = \App\Models\User::where('email', $application->email)->first();
-        
-        if ($existingUser) {
-            // User already exists, update their role to PWDMember and password
-            $existingUser->update([
-                'role' => 'PWDMember',
-                'status' => 'active',
-                'password' => \Illuminate\Support\Facades\Hash::make($randomPassword)
-            ]);
-            $pwdUser = $existingUser;
-        } else {
-            // Create new PWD Member User Account
-            $pwdUser = \App\Models\User::create([
-                'username' => $application->email, // Use email as username
-                'email' => $application->email,
-                'password' => \Illuminate\Support\Facades\Hash::make($randomPassword),
-                'role' => 'PWDMember',
-                'status' => 'active'
-            ]);
-        }
-
-        // Generate unique PWD ID
-        $pwdId = 'PWD-' . str_pad($pwdUser->userID, 6, '0', STR_PAD_LEFT);
-
-        // Update application status
-        $application->update([
-            'status' => 'Approved',
-            'remarks' => 'Test approval - Account created',
-            'pwdID' => $pwdUser->userID
-        ]);
-
-        // Migrate documents from application to member_documents table
-        $documentMigrationService = new \App\Services\DocumentMigrationService();
-        $migrationResult = $documentMigrationService->migrateApplicationDocuments($application, $pwdUser);
-
-        // Send email notification
-        try {
-            $emailService = new \App\Services\EmailService();
-            $emailSent = $emailService->sendApplicationApprovalEmail([
-                'firstName' => $application->firstName,
-                'lastName' => $application->lastName,
-                'email' => $application->email,
-                'username' => $pwdUser->username,
-                'password' => $randomPassword,
-                'pwdId' => $pwdId,
-                'loginUrl' => config('app.frontend_url', 'http://localhost:3000/login')
-            ]);
-
-            // Send welcome notification with card processing info (5-7 business days)
-            $applicantName = trim($application->firstName . ' ' . $application->lastName);
-            \App\Services\NotificationService::notifyNewMemberWelcome(
-                $pwdUser->userID,
-                $applicantName,
-                $pwdId,
-                $application->barangay
-            );
-
-            return response()->json([
-                'message' => 'Application approved successfully! User account created and email sent.',
-                'application' => [
-                    'id' => $application->applicationID,
-                    'name' => $application->firstName . ' ' . $application->lastName,
-                    'email' => $application->email,
-                    'status' => $application->status
-                ],
-                'user_account' => [
-                    'userID' => $pwdUser->userID,
-                    'email' => $pwdUser->email,
-                    'role' => $pwdUser->role,
-                    'status' => $pwdUser->status,
-                    'pwdId' => $pwdId
-                ],
-                'login_credentials' => [
-                    'email' => $application->email,
-                    'password' => $randomPassword,
-                    'note' => 'Password is hashed in database for security'
-                ],
-                'email_sent' => $emailSent
-            ]);
-
-        } catch (\Exception $mailError) {
-            return response()->json([
-                'message' => 'Application approved and user account created, but email failed to send.',
-                'error' => $mailError->getMessage(),
                 'application' => $application,
                 'user_account' => $pwdUser,
                 'login_credentials' => [
